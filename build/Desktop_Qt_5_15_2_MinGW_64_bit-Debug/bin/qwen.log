@@ -1,0 +1,368 @@
+[2026-04-05 16:14:00.359] 🚀 Starting storyboard generation (streaming)
+[2026-04-05 16:14:00.360]   Text length: 2453
+[2026-04-05 16:14:00.361] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-05 16:14:00.361] 🔧 Model: qwen-plus
+[2026-04-05 16:14:00.361] 📏 Text Length: 2453 chars
+[2026-04-05 16:14:00.361] 📏 System Prompt Length: 16698 chars
+[2026-04-05 16:14:00.362] 📏 User Message Length: 2453 chars
+[2026-04-05 16:14:00.362] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-05 16:14:00.362] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-05 16:14:00.362] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-05 16:14:00.362] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-05 18:38:38.998] 🚀 Starting storyboard generation (streaming)
+[2026-04-05 18:38:38.998]   Text length: 2660
+[2026-04-05 18:38:39.000] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-05 18:38:39.000] 🔧 Model: qwen-plus
+[2026-04-05 18:38:39.000] 📏 Text Length: 2660 chars
+[2026-04-05 18:38:39.000] 📏 System Prompt Length: 16698 chars
+[2026-04-05 18:38:39.000] 📏 User Message Length: 7929 chars
+[2026-04-05 18:38:39.000] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-05 18:38:39.000] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-05 18:38:39.000] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-05 18:38:39.000] 章节 2：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 28,
+            "build": "偏瘦但筋骨隐现",
+            "clothing": [
+                "朱红色宽袖戏...
+[2026-04-05 21:05:22.228] 🚀 Starting storyboard generation (streaming)
+[2026-04-05 21:05:22.228]   Text length: 3013
+[2026-04-05 21:05:22.230] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-05 21:05:22.230] 🔧 Model: qwen-plus
+[2026-04-05 21:05:22.231] 📏 Text Length: 3013 chars
+[2026-04-05 21:05:22.231] 📏 System Prompt Length: 16698 chars
+[2026-04-05 21:05:22.231] 📏 User Message Length: 10205 chars
+[2026-04-05 21:05:22.231] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-05 21:05:22.231] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-05 21:05:22.232] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-05 21:05:22.232] 章节 3：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 28,
+            "build": "偏瘦但筋骨隐现",
+            "clothing": [
+                "朱红色宽袖戏...
+[2026-04-05 23:32:30.619] 🚀 Starting storyboard generation (streaming)
+[2026-04-05 23:32:30.620]   Text length: 3013
+[2026-04-05 23:32:30.621] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-05 23:32:30.622] 🔧 Model: qwen-plus
+[2026-04-05 23:32:30.622] 📏 Text Length: 3013 chars
+[2026-04-05 23:32:30.622] 📏 System Prompt Length: 16698 chars
+[2026-04-05 23:32:30.622] 📏 User Message Length: 14300 chars
+[2026-04-05 23:32:30.622] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-05 23:32:30.623] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-05 23:32:30.623] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-05 23:32:30.623] 章节 3：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 28,
+            "build": "偏瘦但筋骨隐现",
+            "clothing": [
+                "朱红色宽袖戏...
+[2026-04-06 08:52:44.709] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 08:52:44.710]   Text length: 2453
+[2026-04-06 08:52:44.711] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 08:52:44.711] 🔧 Model: qwen-plus
+[2026-04-06 08:52:44.711] 📏 Text Length: 2453 chars
+[2026-04-06 08:52:44.712] 📏 System Prompt Length: 16698 chars
+[2026-04-06 08:52:44.712] 📏 User Message Length: 2453 chars
+[2026-04-06 08:52:44.712] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 08:52:44.713] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 08:52:44.713] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 08:52:44.713] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-06 15:57:05.253] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 15:57:05.254]   Text length: 2453
+[2026-04-06 15:57:05.255] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 15:57:05.256] 🔧 Model: qwen-plus
+[2026-04-06 15:57:05.256] 📏 Text Length: 2453 chars
+[2026-04-06 15:57:05.256] 📏 System Prompt Length: 16698 chars
+[2026-04-06 15:57:05.256] 📏 User Message Length: 2453 chars
+[2026-04-06 15:57:05.256] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 15:57:05.257] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 15:57:05.257] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 15:57:05.257] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-06 16:41:03.921] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 16:41:03.921]   Text length: 2453
+[2026-04-06 16:41:03.924] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 16:41:03.924] 🔧 Model: qwen-plus
+[2026-04-06 16:41:03.925] 📏 Text Length: 2453 chars
+[2026-04-06 16:41:03.926] 📏 System Prompt Length: 16698 chars
+[2026-04-06 16:41:03.926] 📏 User Message Length: 2453 chars
+[2026-04-06 16:41:03.926] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 16:41:03.926] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 16:41:03.926] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 16:41:03.927] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-06 17:19:35.862] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 17:19:35.862]   Text length: 2453
+[2026-04-06 17:19:35.864] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 17:19:35.864] 🔧 Model: qwen-plus
+[2026-04-06 17:19:35.865] 📏 Text Length: 2453 chars
+[2026-04-06 17:19:35.865] 📏 System Prompt Length: 16698 chars
+[2026-04-06 17:19:35.865] 📏 User Message Length: 2453 chars
+[2026-04-06 17:19:35.865] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 17:19:35.865] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 17:19:35.865] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 17:19:35.865] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-06 17:30:05.299] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 17:30:05.299]   Text length: 2660
+[2026-04-06 17:30:05.300] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 17:30:05.301] 🔧 Model: qwen-plus
+[2026-04-06 17:30:05.301] 📏 Text Length: 2660 chars
+[2026-04-06 17:30:05.301] 📏 System Prompt Length: 16698 chars
+[2026-04-06 17:30:05.301] 📏 User Message Length: 8850 chars
+[2026-04-06 17:30:05.301] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 17:30:05.301] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 17:30:05.302] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 17:30:05.302] 章节 2：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 28,
+            "build": "偏瘦但筋骨隐现",
+            "clothing": [
+                "朱红色宽袖戏...
+[2026-04-06 20:26:20.621] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 20:26:20.622]   Text length: 2453
+[2026-04-06 20:26:20.623] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 20:26:20.623] 🔧 Model: qwen-plus
+[2026-04-06 20:26:20.623] 📏 Text Length: 2453 chars
+[2026-04-06 20:26:20.623] 📏 System Prompt Length: 16698 chars
+[2026-04-06 20:26:20.624] 📏 User Message Length: 2453 chars
+[2026-04-06 20:26:20.624] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 20:26:20.624] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 20:26:20.624] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 20:26:20.624] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-06 21:08:38.311] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 21:08:38.312]   Text length: 2660
+[2026-04-06 21:08:38.313] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 21:08:38.314] 🔧 Model: qwen-plus
+[2026-04-06 21:08:38.314] 📏 Text Length: 2660 chars
+[2026-04-06 21:08:38.314] 📏 System Prompt Length: 16698 chars
+[2026-04-06 21:08:38.314] 📏 User Message Length: 9124 chars
+[2026-04-06 21:08:38.314] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 21:08:38.314] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 21:08:38.315] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 21:08:38.315] 章节 2：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 0,
+            "build": "中年微驼",
+            "clothing": [
+                "洗旧蓝布衫",
+  ...
+[2026-04-06 21:21:50.207] 🚀 Starting storyboard generation (streaming)
+[2026-04-06 21:21:50.207]   Text length: 3013
+[2026-04-06 21:21:50.208] 
+📤 ===== QWEN API REQUEST =====
+[2026-04-06 21:21:50.208] 🔧 Model: qwen-plus
+[2026-04-06 21:21:50.209] 📏 Text Length: 3013 chars
+[2026-04-06 21:21:50.209] 📏 System Prompt Length: 16698 chars
+[2026-04-06 21:21:50.209] 📏 User Message Length: 11477 chars
+[2026-04-06 21:21:50.210] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-06 21:21:50.210] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+📖 **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-06 21:21:50.210] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-06 21:21:50.210] 章节 3：
+
+【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：
+[
+    {
+        "appearance": {
+            "age": 0,
+            "build": "中年微驼",
+            "clothing": [
+                "洗旧蓝布衫",
+  ...

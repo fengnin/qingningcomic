@@ -1,0 +1,12 @@
+../obj/tst_novel.o
+../obj/Novel.o
+../obj/Character.o
+../obj/Storyboard.o
+../obj/Panel.o
+../obj/Job.o
+../obj/JsonUtils.o
+../obj/Logger.o
+../obj/moc_Character.o
+../obj/moc_Storyboard.o
+../obj/moc_Panel.o
+../obj/moc_Job.o

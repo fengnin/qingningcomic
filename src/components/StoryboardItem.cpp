@@ -1,0 +1,407 @@
+#include "components/StoryboardItem.h"
+#include "components/EditorStyles.h"
+#include "utils/ShotTypeHelper.h"
+#include "Logger.h"
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QScrollArea>
+#include <QApplication>
+#include <QMap>
+
+namespace {
+    using EditorStyles::TRANSPARENT_BG;
+}
+
+StoryboardItem::StoryboardItem(int panelNumber, const QString &panelId,
+                               const QString &scene, 
+                               const QString &shotType, const QString &cameraAngle,
+                               const QString &characters, const QString &dialogue,
+                               const QString &visualPrompt, const QString &visualPromptEn, 
+                               QWidget *parent)
+    : EditorCardBase(parent)
+    , m_panelNumberLabel(nullptr)
+    , m_sceneLabel(nullptr)
+    , m_shotTypeLabel(nullptr)
+    , m_charactersLabel(nullptr)
+    , m_dialogueLabel(nullptr)
+    , m_editBtn(nullptr)
+    , m_panelId(panelId)
+    , m_panelNumber(panelNumber)
+    , m_scene(scene)
+    , m_shotType(shotType)
+    , m_cameraAngle(cameraAngle)
+    , m_characters(characters)
+    , m_dialogue(dialogue)
+    , m_visualPrompt(visualPrompt)
+    , m_visualPromptEn(visualPromptEn)
+    , m_sceneEdit(nullptr)
+    , m_shotTypeCombo(nullptr)
+    , m_cameraCombo(nullptr)
+    , m_charactersEdit(nullptr)
+    , m_dialogueEdit(nullptr)
+    , m_imagenPromptEdit(nullptr)
+    , m_saveBtn(nullptr)
+    , m_cancelBtn(nullptr)
+{
+    setupUI();
+}
+
+void StoryboardItem::setupUI()
+{
+    setObjectName("storyboardItem");
+    setStyleSheet(EditorStyles::storyboardItemStyle());
+    
+    setMinimumHeight(180);
+    setMinimumWidth(300);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    
+    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(12);
+    shadow->setColor(QColor(0, 0, 0, 20));
+    shadow->setOffset(0, 2);
+    setGraphicsEffect(shadow);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(20, 16, 20, 16);
+    mainLayout->setSpacing(12);
+    
+    QString sceneTitle = QString::fromUtf8("\u573a\u666f");
+    QString shotTypeTitle = QString::fromUtf8("\u955c\u5934/\u673a\u4f4d");
+    QString charactersTitle = QString::fromUtf8("\u89d2\u8272");
+    QString dialogueTitle = QString::fromUtf8("\u5bf9\u767d");
+    QString emptyDialogue = QString::fromUtf8("\u65e0");
+    
+    QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
+    QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
+    QString shotTypeInfo = shotTypeDisplay;
+    if (!cameraAngleDisplay.isEmpty()) {
+        shotTypeInfo = QString("%1 / %2").arg(shotTypeDisplay, cameraAngleDisplay);
+    }
+    
+    mainLayout->addWidget(createHeaderRow());
+    mainLayout->addWidget(createInfoRow(sceneTitle, m_sceneLabel, m_scene, true));
+    mainLayout->addWidget(createInfoRow(shotTypeTitle, m_shotTypeLabel, shotTypeInfo));
+    mainLayout->addWidget(createInfoRow(charactersTitle, m_charactersLabel, m_characters));
+    mainLayout->addWidget(createInfoRow(dialogueTitle, m_dialogueLabel, m_dialogue.isEmpty() ? emptyDialogue : m_dialogue, true));
+}
+
+QWidget* StoryboardItem::createHeaderRow()
+{
+    QWidget *row = new QWidget();
+    row->setStyleSheet(TRANSPARENT_BG);
+    row->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    row->setMinimumHeight(32);
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
+    
+    QString panelText = QString::fromUtf8("\u9762\u677f %1").arg(m_panelNumber);
+    m_panelNumberLabel = new QLabel(panelText);
+    m_panelNumberLabel->setStyleSheet(EditorStyles::panelNumberLabelStyle());
+    layout->addWidget(m_panelNumberLabel);
+    layout->addStretch();
+    
+    QString editText = QString::fromUtf8("\u7f16\u8f91\u5206\u955c");
+    m_editBtn = new QPushButton(editText);
+    m_editBtn->setFixedSize(90, 32);
+    m_editBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_editBtn->setStyleSheet(EditorStyles::editButtonStyle());
+    m_editBtn->setCursor(Qt::PointingHandCursor);
+    connect(m_editBtn, &QPushButton::clicked, this, &StoryboardItem::onEditBtnClicked);
+    layout->addWidget(m_editBtn);
+    
+    return row;
+}
+
+QWidget* StoryboardItem::createInfoRow(const QString &title, QLabel *&contentLabel, const QString &content, bool wordWrap)
+{
+    QWidget *row = new QWidget();
+    row->setStyleSheet(TRANSPARENT_BG);
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
+    
+    QLabel *titleLabel = new QLabel(title);
+    titleLabel->setStyleSheet(EditorStyles::storyboardInfoTitleStyle());
+    titleLabel->setFixedWidth(60);
+    layout->addWidget(titleLabel);
+    
+    contentLabel = new QLabel(content);
+    contentLabel->setStyleSheet(EditorStyles::storyboardInfoContentStyle());
+    contentLabel->setWordWrap(wordWrap);
+    layout->addWidget(contentLabel);
+    
+    return row;
+}
+
+void StoryboardItem::setScene(const QString &scene)
+{
+    m_scene = scene;
+    if (m_sceneLabel) m_sceneLabel->setText(scene);
+}
+
+void StoryboardItem::setShotType(const QString &shotType)
+{
+    m_shotType = shotType;
+    if (m_shotTypeLabel) m_shotTypeLabel->setText(shotType);
+}
+
+void StoryboardItem::setCameraAngle(const QString &cameraAngle)
+{
+    m_cameraAngle = cameraAngle;
+}
+
+void StoryboardItem::setCharacters(const QString &characters)
+{
+    m_characters = characters;
+    if (m_charactersLabel) m_charactersLabel->setText(characters);
+}
+
+void StoryboardItem::setDialogue(const QString &dialogue)
+{
+    m_dialogue = dialogue;
+    QString emptyText = QString::fromUtf8("\u65e0");
+    if (m_dialogueLabel) m_dialogueLabel->setText(dialogue.isEmpty() ? emptyText : dialogue);
+}
+
+void StoryboardItem::setVisualPrompt(const QString &prompt)
+{
+    m_visualPrompt = prompt;
+}
+
+void StoryboardItem::setVisualPromptEn(const QString &prompt)
+{
+    m_visualPromptEn = prompt;
+}
+
+void StoryboardItem::onEditBtnClicked()
+{
+    showEditorCard();
+}
+
+void StoryboardItem::setupEditorCard()
+{
+    m_overlayWidget = createOverlay();
+    m_editorCard = createCardBase(560, 620);
+    m_editorCard->setObjectName("storyboardEditorCard");
+    
+    QVBoxLayout *cardMainLayout = new QVBoxLayout(m_editorCard);
+    cardMainLayout->setContentsMargins(0, 0, 0, 0);
+    cardMainLayout->setSpacing(0);
+    
+    QString titleText = QString::fromUtf8("\u7f16\u8f91\u5206\u955c - \u9762\u677f %1").arg(m_panelNumber);
+    QWidget *titleRow = createTitleRow(titleText);
+    titleRow->setContentsMargins(24, 20, 24, 0);
+    cardMainLayout->addWidget(titleRow);
+    
+    QScrollArea *scrollArea = new QScrollArea();
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet(EditorStyles::scrollAreaStyle());
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    
+    QWidget *scrollContent = new QWidget();
+    scrollContent->setStyleSheet(TRANSPARENT_BG);
+    QVBoxLayout *cardLayout = new QVBoxLayout(scrollContent);
+    cardLayout->setContentsMargins(24, 12, 24, 12);
+    cardLayout->setSpacing(12);
+    
+    QString scenePlaceholder = QString::fromUtf8("\u8bf7\u8f93\u5165\u573a\u666f\u63cf\u8ff0...");
+    QString charactersHint = QString::fromUtf8("\u591a\u4e2a\u89d2\u8272\u7528 | \u5206\u9694");
+    QString dialogueHint = QString::fromUtf8("\u89d2\u8272\uff1a\u53f0\u8bcd\uff0c\u53ef\u591a\u884c\u8f93\u5165");
+    QString promptPlaceholder = QString::fromUtf8("\u8f93\u5165\u751f\u6210\u56fe\u7247\u7684 AI \u63d0\u793a\u8bcd...");
+    
+    QString wide = QString::fromUtf8("\u5e7f\u89d2");
+    QString medium = QString::fromUtf8("\u4e2d\u666f");
+    QString closeShot = QString::fromUtf8("\u8fd1\u666f");
+    QString closeup = QString::fromUtf8("\u7279\u5199");
+    QString longShot = QString::fromUtf8("\u8fdc\u666f");
+    QString panoramic = QString::fromUtf8("\u5168\u666f");
+    QString highAngle = QString::fromUtf8("\u4ef0\u62cd");
+    QString lowAngle = QString::fromUtf8("\u4fef\u62cd");
+    QString eyeLevel = QString::fromUtf8("\u5e73\u89c6");
+    QString dutchAngle = QString::fromUtf8("\u659c\u89d2");
+    QString birdEye = QString::fromUtf8("\u9e1f\u773c");
+    QString wormEye = QString::fromUtf8("\u866b\u89c6");
+    
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u573a\u666f\u63cf\u8ff0"), m_sceneEdit, m_scene, 70, scenePlaceholder));
+    cardLayout->addWidget(createComboBoxGroup(QString::fromUtf8("\u955c\u5934"), m_shotTypeCombo, 
+        {wide, medium, closeShot, closeup, longShot, panoramic},
+        QString::fromUtf8("\u673a\u4f4d"), m_cameraCombo,
+        {highAngle, lowAngle, eyeLevel, dutchAngle, birdEye, wormEye}));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u89d2\u8272"), m_charactersEdit, m_characters, 60, QString(), charactersHint));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u5bf9\u767d"), m_dialogueEdit, m_dialogue, 60, QString(), dialogueHint));
+    cardLayout->addWidget(createTextEditSection("Imagen Prompt", m_imagenPromptEdit, QString(), 60, promptPlaceholder));
+    cardLayout->addStretch();
+    
+    scrollArea->setWidget(scrollContent);
+    cardMainLayout->addWidget(scrollArea, 1);
+    
+    QString saveText = QString::fromUtf8("\u4fdd\u5b58\u4fee\u6539");
+    QString cancelText = QString::fromUtf8("\u53d6\u6d88");
+    QWidget *buttonRow = createButtonRow(m_saveBtn, saveText, m_cancelBtn, cancelText);
+    buttonRow->setContentsMargins(24, 0, 24, 20);
+    cardMainLayout->addWidget(buttonRow);
+    
+    connect(m_saveBtn, &QPushButton::clicked, this, &StoryboardItem::onSaveClicked);
+    connect(m_cancelBtn, &QPushButton::clicked, this, &StoryboardItem::onCancelClicked);
+}
+
+void StoryboardItem::syncDataToEditor()
+{
+    if (m_sceneEdit) m_sceneEdit->setPlainText(m_scene);
+    
+    QString shotTypeChinese = ShotTypeHelper::ShotType::toChinese(m_shotType);
+    if (m_shotTypeCombo) {
+        int shotIndex = m_shotTypeCombo->findText(shotTypeChinese, Qt::MatchContains);
+        if (shotIndex >= 0) m_shotTypeCombo->setCurrentIndex(shotIndex);
+    }
+    
+    QString cameraAngleChinese = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
+    if (m_cameraCombo) {
+        int cameraIndex = m_cameraCombo->findText(cameraAngleChinese, Qt::MatchContains);
+        if (cameraIndex >= 0) m_cameraCombo->setCurrentIndex(cameraIndex);
+    }
+    
+    if (m_charactersEdit) m_charactersEdit->setPlainText(m_characters);
+    if (m_dialogueEdit) m_dialogueEdit->setPlainText(m_dialogue);
+    if (m_imagenPromptEdit) m_imagenPromptEdit->setPlainText(m_visualPrompt);
+}
+
+QWidget* StoryboardItem::createComboBoxGroup(const QString &title1, QComboBox *&combo1, const QStringList &items1,
+                                              const QString &title2, QComboBox *&combo2, const QStringList &items2)
+{
+    QWidget *section = new QWidget();
+    section->setStyleSheet(TRANSPARENT_BG);
+    QVBoxLayout *outerLayout = new QVBoxLayout(section);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->setSpacing(6);
+    
+    QString shotCameraTitle = QString::fromUtf8("\u955c\u5934 / \u673a\u4f4d");
+    outerLayout->addWidget(createLabel(shotCameraTitle, "#333333", 12, true));
+    
+    QWidget *row = new QWidget();
+    row->setStyleSheet(TRANSPARENT_BG);
+    QHBoxLayout *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(12);
+    
+    QWidget *group1 = new QWidget();
+    group1->setStyleSheet(TRANSPARENT_BG);
+    QVBoxLayout *layout1 = new QVBoxLayout(group1);
+    layout1->setContentsMargins(0, 0, 0, 0);
+    layout1->setSpacing(4);
+    layout1->addWidget(createLabel(title1, "#6B7280", 11));
+    layout1->addWidget(createComboBoxWithArrow(combo1, items1));
+    rowLayout->addWidget(group1, 1);
+    
+    QWidget *group2 = new QWidget();
+    group2->setStyleSheet(TRANSPARENT_BG);
+    QVBoxLayout *layout2 = new QVBoxLayout(group2);
+    layout2->setContentsMargins(0, 0, 0, 0);
+    layout2->setSpacing(4);
+    layout2->addWidget(createLabel(title2, "#6B7280", 11));
+    layout2->addWidget(createComboBoxWithArrow(combo2, items2));
+    rowLayout->addWidget(group2, 1);
+    
+    outerLayout->addWidget(row);
+    return section;
+}
+
+QWidget* StoryboardItem::createComboBoxWithArrow(QComboBox *&combo, const QStringList &items)
+{
+    QWidget *container = new QWidget();
+    container->setStyleSheet(EditorStyles::TRANSPARENT_BG);
+    container->setFixedHeight(36);
+    
+    QHBoxLayout *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    
+    combo = new QComboBox();
+    combo->addItems(items);
+    combo->setStyleSheet(EditorStyles::storyboardComboBoxStyle());
+    combo->setFixedHeight(36);
+    layout->addWidget(combo, 1);
+    
+    QWidget *btnContainer = new QWidget();
+    btnContainer->setFixedWidth(28);
+    btnContainer->setStyleSheet(EditorStyles::storyboardComboBoxBtnStyle());
+    
+    QVBoxLayout *btnLayout = new QVBoxLayout(btnContainer);
+    btnLayout->setContentsMargins(2, 0, 2, 0);
+    btnLayout->setSpacing(0);
+    
+    QString arrowText = QString::fromUtf8("\u25bc");
+    QPushButton *arrowBtn = new QPushButton(arrowText);
+    arrowBtn->setFixedSize(24, 20);
+    arrowBtn->setCursor(Qt::PointingHandCursor);
+    arrowBtn->setStyleSheet(R"(
+        QPushButton {
+            border: none;
+            background: transparent;
+            color: #4d7c0f;
+            font-size: 8px;
+            border-radius: 4px;
+        }
+        QPushButton:hover { 
+            background: #2684cc16; 
+        }
+        QPushButton:pressed { 
+            background: #4084cc16; 
+        }
+    )");
+    connect(arrowBtn, &QPushButton::clicked, [this, combo]() { combo->showPopup(); });
+    btnLayout->addWidget(arrowBtn);
+    
+    layout->addWidget(btnContainer);
+    
+    return container;
+}
+
+void StoryboardItem::onSaveClicked()
+{
+    LOG_INFO("StoryboardItem", QString("onSaveClicked: panelId=%1, panelNumber=%2")
+        .arg(m_panelId).arg(m_panelNumber));
+    
+    m_scene = m_sceneEdit->toPlainText().trimmed();
+    m_shotType = m_shotTypeCombo->currentText();
+    m_cameraAngle = m_cameraCombo->currentText();
+    m_characters = m_charactersEdit->toPlainText().trimmed();
+    m_dialogue = m_dialogueEdit->toPlainText().trimmed();
+    m_visualPrompt = m_imagenPromptEdit->toPlainText().trimmed();
+    
+    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: scene=%1, shotType=%2, cameraAngle=%3")
+        .arg(m_scene.left(50), m_shotType, m_cameraAngle));
+    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: characters=%1, dialogue=%2")
+        .arg(m_characters.left(50), m_dialogue.left(50)));
+    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: visualPrompt=%1")
+        .arg(m_visualPrompt.left(50)));
+    
+    m_sceneLabel->setText(m_scene);
+    
+    QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
+    QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
+    QString shotTypeInfo = shotTypeDisplay;
+    if (!cameraAngleDisplay.isEmpty()) {
+        shotTypeInfo = QString("%1 / %2").arg(shotTypeDisplay, cameraAngleDisplay);
+    }
+    m_shotTypeLabel->setText(shotTypeInfo);
+    
+    m_charactersLabel->setText(m_characters);
+    
+    QString emptyText = QString::fromUtf8("\u65e0");
+    m_dialogueLabel->setText(m_dialogue.isEmpty() ? emptyText : m_dialogue);
+    
+    LOG_INFO("StoryboardItem", QString("onSaveClicked: emitting dataChanged signal"));
+    
+    emit dataChanged(m_panelId, m_panelNumber, m_scene, m_shotType, m_cameraAngle, m_characters, m_dialogue, m_visualPrompt, m_visualPromptEn);
+    
+    hideEditorCard();
+}
+
+void StoryboardItem::onCancelClicked()
+{
+    hideEditorCard();
+}

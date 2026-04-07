@@ -1,0 +1,11 @@
+../obj/tst_novelservice_failure.o
+../obj/NovelService.o
+../obj/BaseService.o
+../obj/DatabaseManager.o
+../obj/Logger.o
+../obj/EncodingUtils.o
+../obj/ServiceContainer.o
+../obj/Novel.o
+../obj/moc_NovelService.o
+../obj/moc_ServiceContainer.o
+../obj/moc_BaseService.o
