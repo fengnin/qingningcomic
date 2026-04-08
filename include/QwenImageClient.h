@@ -51,6 +51,7 @@ public:
         int seed = -1;
         bool textRendering = true;
         QString requestId;
+        QStringList referenceImages;  // 参考图片路径列表（用于角色一致性）
     };
 
     struct EditOptions {

@@ -26,6 +26,7 @@ public:
     
     static PromptResult buildPanelPrompt(const QJsonObject &panel,
                                           const QMap<QString, QJsonObject> &characterRefs = {},
+                                          const QMap<QString, QJsonObject> &sceneRefs = {},
                                           const QJsonObject &options = QJsonObject());
     
     static PromptResult buildScenePrompt(const QJsonObject &scene);

@@ -4,14 +4,17 @@
 #include "utils/SingletonUtils.h"
 #include "PromptBuilder.h"
 #include "QwenImageClient.h"
+#include "VolcEngineImageClient.h"
 #include "StorageClient.h"
 #include "FileStorage.h"
 #include "StoryboardService.h"
 #include "CharacterExtractor.h"
+#include "SceneExtractor.h"
 #include "TaskQueue.h"
 #include "Task.h"
 #include "Logger.h"
 #include "EncodingUtils.h"
+#include "AppConfig.h"
 #include <QJsonDocument>
 #include <QDateTime>
 #include <QFileInfo>
@@ -57,9 +60,15 @@ void ImageService::cancelCurrentBatch()
     m_batchCancelled = true;
     m_pendingPanelIds.clear();
     m_currentProcessIndex = 0;
+    
     if (m_batchFuture.isRunning()) {
         m_batchFuture.cancel();
     }
+    
+    m_generating = false;
+    m_batchResult = BatchResult();
+    
+    emit batchGenerationCancelled();
 }
 
 ImageService::GenerateResult ImageService::generatePanelImage(const QString& panelId, GenerateMode mode)
@@ -139,51 +148,71 @@ void ImageService::generatePanelImages(const QStringList& panelIds, GenerateMode
     startBatch(panelIds.size());
     LOG_INFO("ImageService", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
     
-    QtConcurrent::run(this, &ImageService::runBatchGeneration);
+    m_batchFuture = QtConcurrent::run(this, &ImageService::runBatchGeneration);
 }
 
 void ImageService::runBatchGeneration()
 {
+    const int MAX_RETRIES = 3;  // 最大重试次数（与原仓库一致）
+    
     while (true) {
+        QString panelId;
+        int currentIndex;
+        int total;
+        GenerateMode mode;
+        
         {
             QMutexLocker locker(&m_mutex);
             if (m_batchCancelled || m_currentProcessIndex >= m_pendingPanelIds.size()) {
                 break;
             }
-        }
-
-        QString panelId;
-        GenerateMode mode;
-        int currentIndex;
-        int total;
-        
-        {
-            QMutexLocker locker(&m_mutex);
             panelId = m_pendingPanelIds[m_currentProcessIndex];
-            mode = m_currentMode;
             currentIndex = m_currentProcessIndex;
             total = m_pendingPanelIds.size();
+            mode = m_currentMode;
         }
-
+        
         QMetaObject::invokeMethod(this, "batchProgressChanged", Qt::QueuedConnection,
             Q_ARG(int, currentIndex + 1), Q_ARG(int, total),
             Q_ARG(QString, TR("正在生成面板 %1/%2").arg(currentIndex + 1).arg(total)));
 
-        GenerateResult result = generatePanelImage(panelId, mode);
-
+        // 带指数退避重试的生成（与原仓库一致）
+        GenerateResult result;
+        int retryCount = 0;
+        bool success = false;
+        
+        while (!success && retryCount < MAX_RETRIES) {
+            result = generatePanelImage(panelId, mode);
+            success = result.success;
+            
+            if (!success) {
+                retryCount++;
+                if (retryCount < MAX_RETRIES) {
+                    // 指数退避: 10s, 20s,// 指数退避重试的生成（与原仓库一致）
+                    int delaySeconds = static_cast<int>(std::pow(2, retryCount)) * 10;
+                    LOG_WARNING("ImageService", QString("Panel %1 generation failed (attempt %2/%3): %4, retrying in %5s...")
+                        .arg(panelId).arg(retryCount).arg(MAX_RETRIES).arg(result.errorMessage).arg(delaySeconds));
+                    QThread::msleep(delaySeconds * 1000);
+                }
+            }
+        }
+        
         {
             QMutexLocker locker(&m_mutex);
-            if (result.success) {
+            if (success) {
                 m_batchResult.successCount++;
             } else {
                 m_batchResult.failedCount++;
-                LOG_WARNING("ImageService", QString("Panel generation failed: %1 - %2").arg(panelId).arg(result.errorMessage));
+                LOG_ERROR("ImageService", QString("Panel generation failed after %1 attempts: %2 - %3")
+                    .arg(MAX_RETRIES).arg(panelId).arg(result.errorMessage));
             }
             m_batchResult.results.append(result);
             m_currentProcessIndex++;
         }
         
-        QThread::msleep(50);
+        // 请求间隔，避免 API 限流（火山引擎免费版并发限制为1，需要串行请求）
+        // 每个请求完成后等待2秒再发送下一个
+        QThread::msleep(2000);
     }
 
     BatchResult finalResult;
@@ -288,40 +317,24 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
     try {
         QJsonObject panelJson = buildPanelJson(ctx.panel);
         
-        QMap<QString, QJsonObject> characterRefs;
-        
         QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
-        if (!novelId.isEmpty()) {
-            QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
-            for (const Character& ch : characters) {
-                QJsonObject charJson;
-                charJson["id"] = ch.id();
-                charJson["name"] = ch.name();
-                charJson["role"] = ch.role();
-                
-                CharacterAppearance app = ch.appearance();
-                QJsonObject appearanceJson;
-                appearanceJson["gender"] = app.gender;
-                appearanceJson["age"] = QString::number(app.age);
-                appearanceJson["build"] = app.build;
-                appearanceJson["hairStyle"] = app.hairStyle;
-                appearanceJson["hairColor"] = app.hairColor;
-                appearanceJson["eyeColor"] = app.eyeColor;
-                appearanceJson["clothing"] = QJsonArray::fromStringList(app.clothing);
-                appearanceJson["accessories"] = QJsonArray::fromStringList(QStringList());
-                appearanceJson["distinctiveFeatures"] = QJsonArray::fromStringList(app.distinctiveFeatures);
-                charJson["appearance"] = appearanceJson;
-                
-                characterRefs[ch.name()] = charJson;
-            }
-        }
+        QMap<QString, QJsonObject> characterRefs = fetchCharacterRefs(novelId, ctx.referenceImages);
+        QMap<QString, QJsonObject> sceneRefs = fetchSceneRefs(novelId, ctx.referenceImages);
         
         QJsonObject options;
         options["mode"] = (ctx.mode == GenerateMode::HD) ? "hd" : "preview";
         
-        PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, characterRefs, options);
+        PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, characterRefs, sceneRefs, options);
 
         ctx.prompt = result.text;
+        ctx.negativePrompt = result.negativePrompt;
+        
+        for (const QString& ref : result.referenceImages) {
+            if (!ref.isEmpty() && !ctx.referenceImages.contains(ref)) {
+                ctx.referenceImages.append(ref);
+            }
+        }
+        
         if (!ctx.panel.visualPrompt().isEmpty()) {
             ctx.prompt += ", " + ctx.panel.visualPrompt();
         }
@@ -330,9 +343,23 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
             setError(TR("无法构建提示词"));
             return false;
         }
+        
+        // 根据提供商限制参考图数量
+        QString provider = AppConfig::instance()->imageService().provider;
+        int maxRefImages = (provider == "volcengine") ? 1 : 3;  // 火山引擎只支持单张参考图
+        if (ctx.referenceImages.size() > maxRefImages) {
+            LOG_INFO("ImageService", QString("Limiting reference images from %1 to %2 for provider: %3")
+                .arg(ctx.referenceImages.size()).arg(maxRefImages).arg(provider));
+            ctx.referenceImages = ctx.referenceImages.mid(0, maxRefImages);
+        }
 
         LOG_INFO("ImageService", QString("Generated prompt for panel %1: %2")
             .arg(ctx.panelId).arg(ctx.prompt.left(200)));
+        
+        if (!ctx.referenceImages.isEmpty()) {
+            LOG_INFO("ImageService", QString("Using %1 reference images for panel %2")
+                .arg(ctx.referenceImages.size()).arg(ctx.panelId));
+        }
 
         return true;
     } catch (const std::exception& e) {
@@ -344,6 +371,111 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         setError(TR("构建提示词时发生未知错误"));
         return false;
     }
+}
+
+QJsonObject ImageService::buildCharacterRef(const Character& ch, QStringList& outPortraitPaths)
+{
+    QJsonObject charJson;
+    charJson["id"] = ch.id();
+    charJson["name"] = ch.name();
+    charJson["role"] = ch.role();
+    
+    QStringList portraitPaths;
+    if (!ch.portraitPath().isEmpty()) {
+        portraitPaths.append(ch.portraitPath());
+    }
+    charJson["portraitPaths"] = QJsonArray::fromStringList(portraitPaths);
+    
+    CharacterAppearance app = ch.appearance();
+    QJsonObject appearanceJson;
+    appearanceJson["gender"] = app.gender;
+    appearanceJson["age"] = QString::number(app.age);
+    appearanceJson["build"] = app.build;
+    appearanceJson["hairStyle"] = app.hairStyle;
+    appearanceJson["hairColor"] = app.hairColor;
+    appearanceJson["eyeColor"] = app.eyeColor;
+    appearanceJson["clothing"] = QJsonArray::fromStringList(app.clothing);
+    appearanceJson["accessories"] = QJsonArray::fromStringList(QStringList());
+    appearanceJson["distinctiveFeatures"] = QJsonArray::fromStringList(app.distinctiveFeatures);
+    charJson["appearance"] = appearanceJson;
+    
+    for (const QString& path : portraitPaths) {
+        if (!path.isEmpty() && !outPortraitPaths.contains(path)) {
+            outPortraitPaths.append(path);
+        }
+    }
+    
+    return charJson;
+}
+
+QMap<QString, QJsonObject> ImageService::fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages)
+{
+    QMap<QString, QJsonObject> characterRefs;
+    
+    if (novelId.isEmpty()) {
+        return characterRefs;
+    }
+    
+    QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
+    for (const Character& ch : characters) {
+        QJsonObject charJson = buildCharacterRef(ch, outReferenceImages);
+        characterRefs[ch.name()] = charJson;
+    }
+    
+    return characterRefs;
+}
+
+QJsonObject ImageService::buildSceneRef(const Scene& scene, QStringList& outReferenceImages)
+{
+    QJsonObject sceneJson;
+    sceneJson["id"] = scene.id();
+    sceneJson["name"] = scene.name();
+    sceneJson["sceneId"] = scene.sceneId();  // 同时存储 sceneId 作为 key
+    
+    // 场景详情
+    SceneDetails details = scene.details();
+    QJsonObject detailsJson;
+    detailsJson["description"] = details.description;
+    detailsJson["building"] = details.building;
+    detailsJson["color"] = details.color;
+    detailsJson["landmark"] = details.landmark;
+    detailsJson["layout"] = details.layout;
+    detailsJson["atmosphere"] = details.atmosphere;
+    detailsJson["type"] = details.type;
+    detailsJson["setting"] = details.setting;
+    detailsJson["timeOfDay"] = details.timeOfDay;
+    detailsJson["weather"] = details.weather;
+    detailsJson["details"] = QJsonArray::fromStringList(details.details);
+    sceneJson["details"] = detailsJson;
+    
+    // 场景参考图
+    QString refPath = scene.referenceImagePath();
+    if (!refPath.isEmpty()) {
+        sceneJson["referenceImagePath"] = refPath;
+        if (!outReferenceImages.contains(refPath)) {
+            outReferenceImages.append(refPath);
+        }
+    }
+    
+    return sceneJson;
+}
+
+QMap<QString, QJsonObject> ImageService::fetchSceneRefs(const QString& novelId, QStringList& outReferenceImages)
+{
+    QMap<QString, QJsonObject> sceneRefs;
+    
+    if (novelId.isEmpty()) {
+        return sceneRefs;
+    }
+    
+    QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(novelId);
+    for (const Scene& scene : scenes) {
+        QJsonObject sceneJson = buildSceneRef(scene, outReferenceImages);
+        sceneRefs[scene.name()] = sceneJson;  // 使用 name 作为 key
+        sceneRefs[scene.sceneId()] = sceneJson;  // 同时使用 sceneId 作为 key
+    }
+    
+    return sceneRefs;
 }
 
 QString ImageService::fetchNovelIdByStoryboardId(const QString& storyboardId)
@@ -404,47 +536,197 @@ bool ImageService::generateImage(GenerationContext& ctx)
 {
     emit progressChanged(TR("调用图像生成 API"), 30);
 
+    QByteArray refImageData;
+    if (!ctx.referenceImages.isEmpty()) {
+        // 多角色参考图处理：使用第一张作为主参考图
+        QString refPath = ctx.referenceImages.first();
+        // 将相对路径转换为完整路径
+        QString fullPath = FileStorage::instance()->getFullPath(refPath);
+        QFile refFile(fullPath);
+        
+        if (refFile.exists() && refFile.open(QIODevice::ReadOnly)) {
+            refImageData = refFile.readAll();
+            refFile.close();
+            LOG_INFO("ImageService", QString("Loaded reference image: %1 bytes").arg(refImageData.size()));
+            
+            // 多张参考图时的处理策略
+            if (ctx.referenceImages.size() > 1) {
+                LOG_INFO("ImageService", QString("Multiple reference images detected (%1), using first as primary")
+                    .arg(ctx.referenceImages.size()));
+                // 后续可扩展：将其他参考图特征融入 prompt
+            }
+        } else {
+            LOG_WARNING("ImageService", QString("Reference image not found: %1 (full path: %2), falling back to text2image")
+                .arg(refPath, fullPath));
+            ctx.referenceImages.clear();
+        }
+    }
+
+    return executeImageGeneration(ctx, refImageData);
+}
+
+bool ImageService::executeImageGeneration(GenerationContext& ctx, const QByteArray& refImageData)
+{
+    bool useRefImage = !refImageData.isEmpty();
+    QString operationName = useRefImage ? "generateWithReference" : "generateImage";
+    
+    // 根据配置选择图像服务提供商
+    QString provider = AppConfig::instance()->imageService().provider;
+    bool useVolcEngine = (provider == "volcengine");
+    
+    LOG_INFO("ImageService", QString("Using image provider: %1, hasRefImage: %2").arg(provider).arg(useRefImage));
+    
     bool success = m_apiRetryPolicy->executeWithRetry(
         [&]() -> bool {
-            QwenImageClient::GenerateOptions options;
-            options.prompt = ctx.prompt;
-            options.size = (ctx.mode == GenerateMode::HD)
-                ? QwenImageClient::ImageSize::Square
-                : QwenImageClient::ImageSize::Portrait;
-            options.style = "manga";
+            if (useVolcEngine) {
+                // 使用火山引擎 Seedream 3.0
+                VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
+                if (!volcClient || !volcClient->isInitialized()) {
+                    setError(TR("火山引擎图像客户端未初始化"));
+                    return false;
+                }
+                
+                VolcEngineImageClient::GenerateOptions options;
+                options.prompt = ctx.prompt;
+                options.width = (ctx.mode == GenerateMode::HD) ? 1328 : 1056;
+                options.height = (ctx.mode == GenerateMode::HD) ? 1328 : 1584;
+                options.seed = -1;
+                options.returnUrl = true;
+                
+                // 如果有参考图，使用图生图 API
+                if (useRefImage) {
+                    options.referenceImage = refImageData;
+                    LOG_INFO("ImageService", "Using img2img API with reference image");
+                }
+                
+                VolcEngineImageClient::GenerateResult imageResult = volcClient->generate(options);
+                
+                if (!imageResult.success) {
+                    setError(imageResult.errorMessage);
+                    return false;
+                }
+                
+                // 如果返回的是URL，需要下载图片
+                if (!imageResult.imageUrl.isEmpty() && imageResult.imageData.isEmpty()) {
+                    LOG_INFO("ImageService", QString("Downloading image from URL: %1").arg(imageResult.imageUrl.left(100)));
+                    ctx.imageData = volcClient->downloadImage(imageResult.imageUrl);
+                    if (ctx.imageData.isEmpty()) {
+                        setError("Failed to download image from URL");
+                        return false;
+                    }
+                } else {
+                    ctx.imageData = imageResult.imageData;
+                }
+                
+                return !ctx.imageData.isEmpty();
+            } else {
+                // 使用阿里云通义万相
+                QwenImageClient::GenerateResult imageResult;
+                
+                if (useRefImage) {
+                    QwenImageClient::EditOptions options;
+                    options.prompt = ctx.prompt;
+                    options.sourceImage = refImageData;
+                    options.negativePrompt = ctx.negativePrompt;
+                    options.size = (ctx.mode == GenerateMode::HD)
+                        ? QwenImageClient::ImageSize::Square
+                        : QwenImageClient::ImageSize::Portrait;
+                    imageResult = QwenImageClient::instance()->edit(options);
+                } else {
+                    QwenImageClient::GenerateOptions options;
+                    options.prompt = ctx.prompt;
+                    options.negativePrompt = ctx.negativePrompt;
+                    options.size = (ctx.mode == GenerateMode::HD)
+                        ? QwenImageClient::ImageSize::Square
+                        : QwenImageClient::ImageSize::Portrait;
+                    options.style = "manga";
+                    imageResult = QwenImageClient::instance()->generate(options);
+                }
 
-            QwenImageClient::GenerateResult imageResult = QwenImageClient::instance()->generate(options);
+                if (!imageResult.success) {
+                    setError(imageResult.errorMessage);
+                    return false;
+                }
 
-            if (!imageResult.success) {
-                setError(imageResult.errorMessage);
-                return false;
+                ctx.imageData = imageResult.imageData;
+                return true;
             }
-
-            ctx.imageData = imageResult.imageData;
-            return true;
         },
         [&](int attempt, const QString& error) {
             LOG_WARNING("ImageService", 
-                QString("generateImage retry %1/%2: %3")
+                QString("%1 retry %2/%3: %4")
+                    .arg(operationName)
                     .arg(attempt)
                     .arg(m_apiRetryPolicy->config().maxAttempts)
                     .arg(error));
         },
         [&](const QList<RetryAttempt>& attempts) {
             if (m_apiRetryPolicy->isFinalFailure()) {
-                setError(TR_FMT("图像生成失败 (重试%1次): %2", 
-                    QString::number(attempts.size()),
-                    m_apiRetryPolicy->lastError()));
+                if (useRefImage) {
+                    setError(TR_FMT("参考图生成失败 (重试%1次): %2", 
+                        QString::number(attempts.size()),
+                        m_apiRetryPolicy->lastError()));
+                } else {
+                    setError(TR_FMT("图像生成失败 (重试%1次): %2", 
+                        QString::number(attempts.size()),
+                        m_apiRetryPolicy->lastError()));
+                }
                 
                 LOG_ERROR("ImageService", 
-                    QString("generateImage 最终失败，共尝试 %1 次: %2")
+                    QString("%1 最终失败，共尝试 %2 次: %3")
+                        .arg(operationName)
                         .arg(attempts.size())
                         .arg(m_apiRetryPolicy->lastError()));
             }
         }
     );
-    
+
     return success;
+}
+
+bool ImageService::generateWithReference(GenerationContext& ctx)
+{
+    LOG_INFO("ImageService", QString("Generating with %1 reference images").arg(ctx.referenceImages.size()));
+    
+    if (ctx.referenceImages.isEmpty()) {
+        return generateImage(ctx);
+    }
+    
+    // 多角色参考图处理策略：
+    // 1. 如果只有一张参考图，直接使用
+    // 2. 如果有多张参考图，选择第一张作为主参考图，并在 prompt 中补充其他角色描述
+    QString refPath = ctx.referenceImages.first();
+    // 将相对路径转换为完整路径
+    QString fullPath = FileStorage::instance()->getFullPath(refPath);
+    QFile refFile(fullPath);
+    
+    if (!refFile.exists()) {
+        LOG_WARNING("ImageService", QString("Reference image not found: %1 (full path: %2), falling back to text2image")
+            .arg(refPath, fullPath));
+        ctx.referenceImages.clear();
+        return generateImage(ctx);
+    }
+    
+    if (!refFile.open(QIODevice::ReadOnly)) {
+        LOG_WARNING("ImageService", QString("Cannot open reference image: %1 (full path: %2), falling back to text2image")
+            .arg(refPath, fullPath));
+        ctx.referenceImages.clear();
+        return generateImage(ctx);
+    }
+    
+    QByteArray refImageData = refFile.readAll();
+    refFile.close();
+    
+    // 如果有多张参考图，在 prompt 中添加其他角色的参考信息
+    if (ctx.referenceImages.size() > 1) {
+        LOG_INFO("ImageService", QString("Multiple reference images detected (%1), using first as primary, others as prompt context")
+            .arg(ctx.referenceImages.size()));
+        
+        // 这里可以扩展：将其他参考图的特征描述添加到 prompt 中
+        // 目前先记录日志，后续可以接入图像理解 API 提取特征
+    }
+    
+    return executeImageGeneration(ctx, refImageData);
 }
 
 bool ImageService::storeImage(GenerationContext& ctx)
@@ -650,17 +932,30 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)
 {
-    QJsonObject json;
-    json["id"] = panel.id();
-    json["page"] = panel.page();
-    json["index"] = panel.index();
-    json["scene"] = panel.scene();
-    json["shotType"] = panel.shotType();
-    json["cameraAngle"] = panel.cameraAngle();
-    json["visualPrompt"] = panel.visualPrompt();
-    json["visualPromptEn"] = panel.visualPromptEn();
-    json["status"] = panel.status();
+    // 优先使用 rawContent 获取完整面板数据（包含 background、composition、artStyle、atmosphere 等）
+    QJsonObject json = panel.rawContent();
+    if (json.isEmpty()) {
+        // 如果 rawContent 为空，则手动构建基本字段
+        json["id"] = panel.id();
+        json["page"] = panel.page();
+        json["index"] = panel.index();
+        json["scene"] = panel.scene();
+        json["shotType"] = panel.shotType();
+        json["cameraAngle"] = panel.cameraAngle();
+        json["visualPrompt"] = panel.visualPrompt();
+        json["visualPromptEn"] = panel.visualPromptEn();
+        json["status"] = panel.status();
+    } else {
+        // 确保 id 和 status 字段存在
+        if (!json.contains("id")) {
+            json["id"] = panel.id();
+        }
+        if (!json.contains("status")) {
+            json["status"] = panel.status();
+        }
+    }
     
+    // 始终更新角色和对白数据（确保最新）
     QJsonArray charactersArray;
     for (const auto& c : panel.characters()) {
         QJsonObject charObj;

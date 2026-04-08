@@ -127,8 +127,9 @@ void BibleItem::setupUI()
     deleteImageBtn->setStyleSheet(EditorStyles::bibleDeleteButtonStyle());
     deleteImageBtn->setCursor(Qt::PointingHandCursor);
     connect(deleteImageBtn, &QPushButton::clicked, [this]() {
-        emit deleteImageClicked(m_name, m_bibleType);
+        emit deleteImageClicked(m_itemId, m_bibleType);
     });
+    
     imageContainerLayout->addWidget(deleteImageBtn);
     
     imageLayout->addWidget(imageContainer);
@@ -146,8 +147,9 @@ void BibleItem::setupUI()
     uploadBtn->setStyleSheet(EditorStyles::bibleUploadButtonStyle());
     uploadBtn->setCursor(Qt::PointingHandCursor);
     connect(uploadBtn, &QPushButton::clicked, [this]() {
-        emit uploadClicked(m_name, m_bibleType);
+        emit uploadClicked(m_itemId, m_bibleType);
     });
+    
     uploadContainerLayout->addWidget(uploadBtn);
     
     QWidget *spacer = new QWidget();
@@ -535,9 +537,15 @@ void BibleItem::onAsyncImageLoaded(const QString& id, const QString& cacheKey, c
     }
 }
 
+void BibleItem::setItemId(const QString &id)
+{
+    m_itemId = id;
+}
+
 void BibleItem::setDetails(const QStringList &details)
 {
     m_details = details;
+    populateEditorData();
     if (!m_detailsWidget) return;
     
     QVBoxLayout *layout = qobject_cast<QVBoxLayout*>(m_detailsWidget->layout());
@@ -643,7 +651,8 @@ void BibleItem::onEditBtnClicked()
     } else {
         expandEditor();
     }
-    emit editClicked(m_name);
+    
+    emit editClicked(m_itemId, m_bibleType);
 }
 
 void BibleItem::onSaveClicked()
@@ -805,7 +814,7 @@ void BibleItem::saveCharacterData()
     m_details = newDetails;
     setDetails(newDetails);
     
-    emit dataChanged(m_name, newDetails);
+    emit dataChanged(m_itemId, newDetails);
 }
 
 void BibleItem::saveSceneData()
@@ -856,7 +865,7 @@ void BibleItem::saveSceneData()
     m_details = newDetails;
     setDetails(newDetails);
     
-    emit dataChanged(m_name, newDetails);
+    emit dataChanged(m_itemId, newDetails);
 }
 
 void BibleItem::onCancelClicked()

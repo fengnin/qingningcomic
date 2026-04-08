@@ -91,8 +91,20 @@ QJsonObject AnalysisService::loadJsonSchema()
 
 bool AnalysisService::isTaskMatch(const QString& taskId, const TaskData& task) const
 {
-    return (taskId == m_currentTaskId) || 
-           (!task.novelId.isEmpty() && task.type == TaskType::GenerateStoryboard);
+    // 严格匹配：taskId 必须相等，防止并发任务串线
+    if (!taskId.isEmpty() && taskId == m_currentTaskId) {
+        return true;
+    }
+    
+    // 兼容旧逻辑：如果没有 taskId，则检查 novelId 和类型
+    // 但必须确保 novelId 与当前处理的 novelId 一致
+    if (taskId.isEmpty() && !task.novelId.isEmpty() && 
+        task.type == TaskType::GenerateStoryboard &&
+        task.novelId == m_currentNovelId) {
+        return true;
+    }
+    
+    return false;
 }
 
 void AnalysisService::analyzeNovel(const QString& novelId, const QString& text, int chapterNumber)
@@ -202,10 +214,15 @@ void AnalysisService::saveResults(const QString& novelId, int chapterNumber, con
             panel["characters"] = updatedCharacters;
         }
         
-        if (panel.contains("scene") && !panel["scene"].toString().isEmpty()) {
-            QString sceneName = panel["scene"].toString();
-            if (sceneNameToId.contains(sceneName)) {
+        // 从 background.setting 获取场景名称，用于匹配场景圣经
+        if (panel.contains("background")) {
+            QJsonObject background = panel["background"].toObject();
+            QString sceneName = background["setting"].toString();
+            if (!sceneName.isEmpty() && sceneNameToId.contains(sceneName)) {
                 panel["sceneId"] = sceneNameToId[sceneName];
+                // 同时更新 background.sceneId
+                background["sceneId"] = sceneNameToId[sceneName];
+                panel["background"] = background;
             }
         }
         

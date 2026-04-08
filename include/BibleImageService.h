@@ -5,6 +5,7 @@
 #include "Character.h"
 #include "Scene.h"
 #include "QwenImageClient.h"
+#include "VolcEngineImageClient.h"
 #include "PromptBuilder.h"
 
 class BibleImageService : public BatchImageProcessor
@@ -32,7 +33,8 @@ protected:
     void finishBatch() override;
 
 private slots:
-    void onImageGenerated(const QwenImageClient::GenerateResult& result);
+    void onQwenImageGenerated(const QwenImageClient::GenerateResult& result);
+    void onVolcEngineImageGenerated(const VolcEngineImageClient::GenerateResult& result);
     void processNextItem();
 
 private:

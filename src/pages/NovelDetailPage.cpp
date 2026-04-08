@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file NovelDetailPage.cpp
  * @brief 作品详情页面实现文件
  * 
@@ -2217,6 +2217,7 @@ void NovelDetailPage::populateCharacterBible(QVBoxLayout* layout, const QList<Ch
         for (const Character& character : characters) {
             QStringList details = buildCharacterDetails(character);
             BibleItem *item = new BibleItem(character.name(), details, BibleType::Character);
+            item->setItemId(character.id());  // 设置稳定 ID，避免同名角色数据错改
             
             QString portraitPath = character.portraitPath();
             if (!portraitPath.isEmpty()) {
@@ -2249,6 +2250,7 @@ void NovelDetailPage::populateSceneBible(QVBoxLayout* layout, const QList<Scene>
         for (const Scene& scene : scenes) {
             QStringList details = scene.details().toDisplayStrings();
             BibleItem *item = new BibleItem(scene.name(), details, BibleType::Scene);
+            item->setItemId(scene.sceneId());  // 设置稳定 ID，避免同名场景数据错改
             
             QString referencePath = scene.referenceImagePath();
             if (!referencePath.isEmpty()) {
@@ -2336,14 +2338,15 @@ void NovelDetailPage::onSceneCountChanged(int count)
     Q_UNUSED(count);
 }
 
-void NovelDetailPage::onBibleItemEditClicked(const QString &name)
+void NovelDetailPage::onBibleItemEditClicked(const QString &id)
 {
-    Q_UNUSED(name);
+    Q_UNUSED(id);
 }
 
-void NovelDetailPage::onBibleItemDataChanged(const QString &name, const QStringList &details)
+void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringList &details)
 {
-    Character character = CharacterExtractor::instance()->getCharacterByName(m_currentNovel.id(), name);
+    // 优先使用 ID 查询角色，避免同名角色数据错改
+    Character character = CharacterExtractor::instance()->getCharacterById(id);
     if (!character.id().isEmpty()) {
         CharacterAppearance app = character.appearance();
         
@@ -2398,7 +2401,8 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &name, const QStringL
         return;
     }
     
-    Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), name);
+    // 使用 sceneId 查询场景
+    Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
     if (!scene.id().isEmpty()) {
         SceneDetails det = scene.details();
         
@@ -2428,7 +2432,7 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &name, const QStringL
     }
 }
 
-void NovelDetailPage::onBibleItemUploadClicked(const QString &name, BibleType type)
+void NovelDetailPage::onBibleItemUploadClicked(const QString &id, BibleType type)
 {
     QString filter = TR("图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)");
     QString filePath = QFileDialog::getOpenFileName(this, TR("选择参考图片"), 
@@ -2444,13 +2448,15 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &name, BibleType ty
     }
     
     if (type == BibleType::Character) {
-        Character character = CharacterExtractor::instance()->getCharacterByName(m_currentNovel.id(), name);
+        // 使用 ID 查询角色，避免同名角色数据错改
+        Character character = CharacterExtractor::instance()->getCharacterById(id);
         if (!character.id().isEmpty()) {
             character.setPortraitPath(relativePath);
             CharacterExtractor::instance()->updateCharacter(character);
         }
     } else {
-        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), name);
+        // 使用 sceneId 查询场景
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
         if (!scene.id().isEmpty()) {
             scene.setReferenceImagePath(relativePath);
             SceneExtractor::instance()->updateScene(scene);
@@ -2460,7 +2466,7 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &name, BibleType ty
     refreshBibleUI();
 }
 
-void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &name, BibleType type)
+void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
 {
     bool confirmed = ConfirmDialog::showConfirm(this, TR("确认"), TR("确定要删除该参考图片吗？"));
     if (!confirmed) {
@@ -2468,7 +2474,8 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &name, BibleTy
     }
     
     if (type == BibleType::Character) {
-        Character character = CharacterExtractor::instance()->getCharacterByName(m_currentNovel.id(), name);
+        // 使用 ID 查询角色，避免同名角色数据错改
+        Character character = CharacterExtractor::instance()->getCharacterById(id);
         if (!character.id().isEmpty()) {
             QString oldPath = character.portraitPath();
             if (!oldPath.isEmpty()) {
@@ -2478,7 +2485,8 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &name, BibleTy
             CharacterExtractor::instance()->updateCharacter(character);
         }
     } else {
-        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), name);
+        // 使用 sceneId 查询场景
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
         if (!scene.id().isEmpty()) {
             QString oldPath = scene.referenceImagePath();
             if (!oldPath.isEmpty()) {

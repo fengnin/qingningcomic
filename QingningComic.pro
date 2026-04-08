@@ -52,6 +52,10 @@ SOURCES += \
     src/api/QwenClient.cpp \
     src/api/StorageClient.cpp \
     src/api/QwenImageClient.cpp \
+    src/api/VolcEngineImageClient.cpp \
+    src/api/VolcEngineSignature.cpp \
+    src/api/VolcEngineRequest.cpp \
+    src/api/VolcEngineResponse.cpp \
     src/api/QwenJsonRepair.cpp \
     src/api/QwenPromptBuilder.cpp \
     src/api/QwenStoryboardMerger.cpp \
@@ -131,6 +135,10 @@ HEADERS += \
     include/QwenClient.h \
     include/StorageClient.h \
     include/QwenImageClient.h \
+    include/VolcEngineImageClient.h \
+    include/api/VolcEngineSignature.h \
+    include/api/VolcEngineRequest.h \
+    include/api/VolcEngineResponse.h \
     include/api/QwenJsonRepair.h \
     include/api/QwenPromptBuilder.h \
     include/api/QwenStoryboardMerger.h \

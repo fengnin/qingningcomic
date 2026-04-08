@@ -3,6 +3,7 @@
 #include "DatabaseManager.h"
 #include "QwenClient.h"
 #include "QwenImageClient.h"
+#include "VolcEngineImageClient.h"
 #include "StorageClient.h"
 #include "FileStorage.h"
 #include "NovelService.h"
@@ -242,9 +243,53 @@ bool AppInitializer::initializeQwenImageClient(InitResult& result)
     return true;
 }
 
+bool AppInitializer::initializeVolcEngineImageClient(InitResult& result)
+{
+    AppConfig::VolcEngineConfig volcConfig = AppConfig::instance()->volcEngine();
+    
+    if (volcConfig.accessKey.isEmpty() || volcConfig.accessKey == "your-volcengine-access-key") {
+        LOG_WARNING("AppInitializer", "VolcEngine accessKey not configured, skipping VolcEngineImageClient initialization");
+        result.volcEngineImageSuccess = false;
+        return true;  // 不是致命错误，继续初始化
+    }
+    
+    if (volcConfig.forceMock) {
+        LOG_WARNING("AppInitializer", "VolcEngineImageClient running in MOCK mode");
+    }
+    
+    VolcEngineImageClient::Config config;
+    config.accessKey = volcConfig.accessKey;
+    config.secretKey = volcConfig.secretKey;
+    config.baseUrl = volcConfig.baseUrl;
+    config.region = volcConfig.region;
+    config.service = volcConfig.service;
+    config.reqKey = volcConfig.reqKey;
+    config.requestTimeout = volcConfig.requestTimeout;
+    config.forceMock = volcConfig.forceMock;
+    
+    VolcEngineImageClient* volcEngineClient = VolcEngineImageClient::instance();
+    if (!volcEngineClient->init(config)) {
+        LOG_ERROR("AppInitializer", "Failed to initialize VolcEngineImageClient");
+        result.errorMessage = "Failed to initialize VolcEngineImageClient";
+        return false;
+    }
+    LOG_INFO("AppInitializer", "VolcEngineImageClient initialized successfully");
+    
+    ServiceContainer::instance()->setVolcEngineImageClient(volcEngineClient);
+    result.volcEngineImageSuccess = true;
+    return true;
+}
+
 bool AppInitializer::initializeStorageClient(InitResult& result)
 {
     AppConfig::StorageConfig storageConfig = AppConfig::instance()->storage();
+    
+    // 如果使用本地存储，跳过 StorageClient 初始化
+    if (storageConfig.type == "local") {
+        LOG_INFO("AppInitializer", "Using local storage, skipping StorageClient initialization");
+        result.storageSuccess = true;
+        return true;
+    }
     
     StorageClient::Config config;
     config.endpoint = storageConfig.endpoint;
@@ -260,15 +305,16 @@ bool AppInitializer::initializeStorageClient(InitResult& result)
     bool useDirectMode = !config.accessKey.isEmpty() && !config.secretKey.isEmpty();
     
     if (!usePresignApi && !useDirectMode) {
-        result.errorMessage = "Storage not configured. Please configure StorageClient in config.ini";
-        LOG_ERROR("AppInitializer", result.errorMessage);
-        return false;
+        LOG_WARNING("AppInitializer", "StorageClient not configured for S3 mode, skipping");
+        result.storageSuccess = false;
+        return true;  // 不是致命错误
     }
     
     StorageClient* storageClient = nullptr;
     if (!initService(storageClient, config, "StorageClient")) {
-        result.errorMessage = "Failed to initialize StorageClient";
-        return false;
+        LOG_WARNING("AppInitializer", "Failed to initialize StorageClient, continuing without cloud storage");
+        result.storageSuccess = false;
+        return true;  // 不是致命错误
     }
     
     ServiceContainer::instance()->setStorageClient(storageClient);
@@ -342,6 +388,7 @@ AppInitializer::InitResult AppInitializer::initialize()
     
     initializeQwenClient(result);
     initializeQwenImageClient(result);
+    initializeVolcEngineImageClient(result);
     initializeStorageClient(result);
     
     QString dataDir = AppConfig::instance()->storage().dataDir;

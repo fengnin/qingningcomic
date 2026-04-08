@@ -62,6 +62,7 @@ signals:
     void storyboardsLoaded(const QList<Storyboard>& storyboards);
     void storyboardLoaded(const Storyboard& storyboard);
     void panelsLoaded(const QList<Panel>& panels);
+    void panelUpdated(const QString& panelId, const QJsonObject& content);
     
     void analysisStarted(const QString& novelId);
     void analysisProgress(const QString& stage, int progress);

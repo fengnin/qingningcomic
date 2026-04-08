@@ -89,7 +89,7 @@ QJsonObject toJson(const Panel& panel)
     obj["visualPrompt"] = panel.visualPrompt();
     obj["previewS3Key"] = panel.previewS3Key();
     obj["hdS3Key"] = panel.hdS3Key();
-    obj["content"] = panel.content();
+    obj["rawContent"] = panel.rawContent();  // 使用 rawContent 保留完整字段
     return obj;
 }
 
@@ -100,11 +100,19 @@ Panel toPanel(const QJsonObject& obj)
     panel.setStoryboardId(get<QString>(obj, "storyboardId"));
     panel.setPage(get<int>(obj, "page"));
     panel.setIndex(get<int>(obj, "index"));
+    
+    // 优先使用 rawContent，如果没有则使用 content
+    if (obj.contains("rawContent")) {
+        panel.setContent(getObject(obj, "rawContent"));
+    } else {
+        panel.setContent(getObject(obj, "content"));
+    }
+    
     panel.setScene(get<QString>(obj, "scene"));
     panel.setVisualPrompt(get<QString>(obj, "visualPrompt"));
-    panel.setContent(getObject(obj, "content"));
     panel.setPreviewS3Key(get<QString>(obj, "previewS3Key"));
     panel.setHdS3Key(get<QString>(obj, "hdS3Key"));
+    
     return panel;
 }
 

@@ -1,0 +1,361 @@
+13:14:29: Starting E:\QingningComic\qingning\comic\build\Desktop_Qt_5_15_2_MinGW_64_bit-Debug\bin\QingningComic.exe...
+Error 20 (this feature has not been implemented yet) in function AVolute::GetProductInfoT::<lambda_3920e95365a48b95dd51020986e9e351>::operator ()
+Error 20 (this feature has not been implemented yet) in function AVolute::GetProductInfoT::<lambda_3920e95365a48b95dd51020986e9e351>::operator ()
+========== QingningComic Opened at 2026-04-08 13:14:29 ==========
+[2026-04-08 13:14:29.553] [INFO] [Application] QingningComic starting...
+[2026-04-08 13:14:29.553] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-04-08 13:14:31.642] [INFO] [Database] Connected to qingning_comic (utf8mb4)
+[2026-04-08 13:14:31.642] [INFO] [Database] Database connected successfully
+[2026-04-08 13:14:31.642] [INFO] [Database] Skipping default user creation (not in dev mode)
+[2026-04-08 13:14:31.642] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-04-08 13:14:31.642] [INFO] [QwenClient] Initialized with model: qwen-plus
+[2026-04-08 13:14:31.642] [INFO] [AppInitializer] QwenClient initialized successfully
+[2026-04-08 13:14:31.661] [INFO] [QwenImageClient] Initialized with generateModel: wanx2.1-t2i-turbo, editModel: qwen-image-edit
+[2026-04-08 13:14:31.661] [INFO] [AppInitializer] QwenImageClient initialized successfully
+[2026-04-08 13:14:31.670] [INFO] [VolcEngineImageClient] Initialized with reqKey: high_aes_general_v30l_zt2i, baseUrl: https://visual.volcengineapi.com
+[2026-04-08 13:14:31.670] [INFO] [AppInitializer] VolcEngineImageClient initialized successfully
+[2026-04-08 13:14:31.670] [INFO] [AppInitializer] Using local storage, skipping StorageClient initialization
+[2026-04-08 13:14:31.670] [INFO] [FileStorage] Storage initialized at: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data (absolute path)
+[2026-04-08 13:14:31.670] [INFO] [AppInitializer] FileStorage initialized at: data
+[2026-04-08 13:14:31.670] [INFO] [TaskRegistry] GenerateStoryboard handler registered
+[2026-04-08 13:14:31.670] [INFO] [TaskRegistry] GeneratePanelImage handler registered
+[2026-04-08 13:14:31.670] [INFO] [TaskRegistry] GeneratePanels handler registered
+[2026-04-08 13:14:31.670] [INFO] [TaskRegistry] All task handlers registered
+[2026-04-08 13:14:31.682] [INFO] [TaskQueue] Loaded 82 tasks, 0 pending
+[2026-04-08 13:14:31.682] [INFO] [TaskQueue] Started with 1 workers (signal-driven)
+[2026-04-08 13:14:31.682] [INFO] [AppInitializer] ViewModels initialized
+[2026-04-08 13:14:31.682] [INFO] [TaskWorker] Worker started (signal-driven)
+[2026-04-08 13:14:32.148] [INFO] [UserSession] Initialized with default user: qingning
+[2026-04-08 13:14:32.303] [DEBUG] [BibleCache] Character cache set for novel: , count: 0
+[2026-04-08 13:14:32.317] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:14:54.939] [DEBUG] [Database] Transaction committed successfully
+[2026-04-08 13:14:54.940] [INFO] [NovelService] Created novel: 我不是戏神, id=830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:14:54.963] [DEBUG] [Database] Transaction committed successfully
+[2026-04-08 13:14:54.997] [DEBUG] [BibleCache] Character cache set for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 0
+[2026-04-08 13:14:54.997] [INFO] [BibleGenerator] Collected 0 existing characters for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:14:54.999] [INFO] [BibleGenerator] Collected 0 existing scenes for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:14:54.999] [INFO] [AnalysisService] Starting streaming analysis for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, chapter: 1
+[2026-04-08 13:14:55.016] [INFO] [AnalysisService] Created job: f71c4ae9-a19f-4243-97e7-277b2283898b for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2, chapter 1
+[2026-04-08 13:14:55.016] [INFO] [AnalysisService] Loaded schema from E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/schemas/storyboard.json
+[2026-04-08 13:14:55.017] [DEBUG] [QwenClient] ?? Starting storyboard generation (streaming)
+[2026-04-08 13:14:55.017] [DEBUG] [QwenClient]   Text length: 2453
+[2026-04-08 13:14:55.018] [DEBUG] [QwenClient] 
+?? ===== QWEN API REQUEST =====
+[2026-04-08 13:14:55.018] [DEBUG] [QwenClient] ?? Model: qwen-plus
+[2026-04-08 13:14:55.018] [DEBUG] [QwenClient] ?? Text Length: 2453 chars
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] ?? System Prompt Length: 16698 chars
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] ?? User Message Length: 2453 chars
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] 
+[System Prompt first 200 chars, truncated for security]:
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] 你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
+
+?? **跨章节连续性规则**（如果提供了现有圣经）：
+
+- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
+- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组...
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] 
+[User Message first 200 chars, truncated for security]:
+[2026-04-08 13:14:55.019] [DEBUG] [QwenClient] 我……是谁？”
+　　
+　　轰隆——
+　　
+　　苍白的雷光闪过如墨云层，
+　　
+　　雨流狂落，神怒般的雷雨浇灌在泥泞大地，涟漪层叠的水洼倒影中，一道朱红色的人影支离破碎。
+　　
+　　那是位披着大红戏袍的少年，他好似醉酒般踉跄淌过满地泥泞，宽大的袖摆在狂风中飘舞，戏袍表面的泥沙被雨水冲落，那抹似血的鲜红在黑夜中触目惊心。
+　　
+　　“别吵了……别吵了！”
+　　
+　　“都给我住嘴！”
+　　
+　　“我马上...
+[2026-04-08 13:14:55.020] [DEBUG] [QwenClient] === Streaming API Request ===
+[2026-04-08 13:14:55.020] [DEBUG] [QwenClient] URL: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+[2026-04-08 13:14:55.021] [DEBUG] [QwenClient] Payload size: 61510 bytes
+[2026-04-08 13:17:19.982] [INFO] [QwenClient] Stream completed, total content length: 23525
+[2026-04-08 13:17:19.983] [DEBUG] [QwenClient] ensureStoryboardShape 输入: panels=6, characters=3, scenes=3
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+QRegularExpressionPrivate::doMatch(): called on an invalid QRegularExpression object
+[2026-04-08 13:17:19.984] [DEBUG] [QwenClient] 从 panels 提取的角色数: 3, 场景数: 4
+[2026-04-08 13:17:19.984] [DEBUG] [QwenClient] ensureStoryboardShape 输出: panels=6, characters=3, scenes=4
+[2026-04-08 13:17:19.984] [INFO] [AnalysisService] Stream completed, processing result...
+[2026-04-08 13:17:20.003] [INFO] [AnalysisService] saveResults called: novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2, chapter=1, panels=6, characters=3, scenes=4
+[2026-04-08 13:17:20.004] [INFO] [CharacterExtractor] Extracted 3 characters from AI response
+[2026-04-08 13:17:20.010] [INFO] [CharacterExtractor] Saved new character: 陈伶
+[2026-04-08 13:17:20.016] [INFO] [CharacterExtractor] Saved new character: 父亲
+[2026-04-08 13:17:20.026] [INFO] [CharacterExtractor] Saved new character: 母亲
+[2026-04-08 13:17:20.026] [INFO] [CharacterExtractor] Saved 3/3 characters for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.026] [INFO] [AnalysisService] Saved 3 characters to database
+[2026-04-08 13:17:20.027] [INFO] [SceneExtractor] Extracted 4 scenes from AI response
+[2026-04-08 13:17:20.036] [INFO] [SceneExtractor] Saved scene: 荒僻泥路
+[2026-04-08 13:17:20.046] [INFO] [SceneExtractor] Saved scene: 陈家老宅玄关
+[2026-04-08 13:17:20.056] [INFO] [SceneExtractor] Saved scene: 陈家老宅客厅
+[2026-04-08 13:17:20.071] [INFO] [SceneExtractor] Saved scene: 陈家老宅厨房
+[2026-04-08 13:17:20.076] [INFO] [SceneExtractor] Saved 4/4 scenes for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.077] [INFO] [AnalysisService] Saved 4 scenes to database
+[2026-04-08 13:17:20.077] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 0
+[2026-04-08 13:17:20.127] [DEBUG] [Database] Transaction committed successfully
+[2026-04-08 13:17:20.127] [INFO] [AnalysisService] Storyboard saved successfully
+[2026-04-08 13:17:20.136] [INFO] [CharacterExtractor] Updated character: 父亲
+[2026-04-08 13:17:20.136] [DEBUG] [BibleCache] Character cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.136] [INFO] [BibleGenerator] Updated character: 父亲
+[2026-04-08 13:17:20.143] [INFO] [CharacterExtractor] Updated character: 母亲
+[2026-04-08 13:17:20.143] [DEBUG] [BibleCache] Character cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.143] [INFO] [BibleGenerator] Updated character: 母亲
+[2026-04-08 13:17:20.143] [INFO] [BibleGenerator] Updated 2 characters for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.153] [INFO] [BibleGenerator] Updated 0 scenes for novel 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:20.162] [INFO] [AnalysisService] Generating images after analysis: novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2, chapter=1
+[2026-04-08 13:17:20.165] [DEBUG] [BibleCache] Character cache set for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:17:20.167] [INFO] [AnalysisService] Generating bible images: 3 characters, 4 scenes
+[2026-04-08 13:17:20.168] [INFO] [BibleImageService] Starting combined generation: 3 characters + 4 scenes = 7 total
+[2026-04-08 13:17:20.177] [INFO] [BibleImageService] Generating portrait for: 母亲 (provider: volcengine)
+[2026-04-08 13:17:20.177] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:20.177] [INFO] [AnalysisService] Stream analysis completed: novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2, panels=6, chars=3, scenes=4
+[2026-04-08 13:17:26.170] [INFO] [VolcEngineImageClient] Got image URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131716831E61FBE3CA481A2556-6297-0~tplv
+[2026-04-08 13:17:26.170] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131716831E61FBE3CA481A2556-6297-0~tplv
+[2026-04-08 13:17:26.583] [INFO] [VolcEngineImageClient] Downloaded 168357 bytes
+[2026-04-08 13:17:26.584] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 168357 bytes
+[2026-04-08 13:17:26.584] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0da8d408-616a-44c8-9057-c477c45be124
+[2026-04-08 13:17:26.584] [INFO] [FileStorage] Character reference saved: characters/0da8d408-616a-44c8-9057-c477c45be124/reference.png
+[2026-04-08 13:17:26.594] [INFO] [CharacterExtractor] Updated character: 母亲
+[2026-04-08 13:17:26.594] [DEBUG] [BibleCache] Character cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:26.595] [INFO] [BibleImageService] Portrait saved: characters/0da8d408-616a-44c8-9057-c477c45be124/reference.png
+[2026-04-08 13:17:26.712] [INFO] [BibleImageService] Generating portrait for: 父亲 (provider: volcengine)
+[2026-04-08 13:17:26.713] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:32.873] [INFO] [VolcEngineImageClient] Got image URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131723382E5CF9E3D9370DD1B6-9364-0~tplv-
+[2026-04-08 13:17:32.873] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131723382E5CF9E3D9370DD1B6-9364-0~tplv-
+[2026-04-08 13:17:33.262] [INFO] [VolcEngineImageClient] Downloaded 184580 bytes
+[2026-04-08 13:17:33.262] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 184580 bytes
+[2026-04-08 13:17:33.262] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/706f9faf-6d5a-4fe1-b9ec-5ddae2924ba7
+[2026-04-08 13:17:33.263] [INFO] [FileStorage] Character reference saved: characters/706f9faf-6d5a-4fe1-b9ec-5ddae2924ba7/reference.png
+[2026-04-08 13:17:33.271] [INFO] [CharacterExtractor] Updated character: 父亲
+[2026-04-08 13:17:33.271] [DEBUG] [BibleCache] Character cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:33.271] [INFO] [BibleImageService] Portrait saved: characters/706f9faf-6d5a-4fe1-b9ec-5ddae2924ba7/reference.png
+[2026-04-08 13:17:33.394] [INFO] [BibleImageService] Generating portrait for: 陈伶 (provider: volcengine)
+[2026-04-08 13:17:33.394] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:39.216] [INFO] [VolcEngineImageClient] Got image URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131729A4DC5CBF7C85C7705ADF-4124-0~tplv-
+[2026-04-08 13:17:39.216] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131729A4DC5CBF7C85C7705ADF-4124-0~tplv-
+[2026-04-08 13:17:39.568] [INFO] [VolcEngineImageClient] Downloaded 273183 bytes
+[2026-04-08 13:17:39.569] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 273183 bytes
+[2026-04-08 13:17:39.569] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/87322b6e-556a-4031-942d-e8b4bd11ceb9
+[2026-04-08 13:17:39.569] [INFO] [FileStorage] Character reference saved: characters/87322b6e-556a-4031-942d-e8b4bd11ceb9/reference.png
+[2026-04-08 13:17:39.579] [INFO] [CharacterExtractor] Updated character: 陈伶
+[2026-04-08 13:17:39.579] [DEBUG] [BibleCache] Character cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:39.579] [INFO] [BibleImageService] Portrait saved: characters/87322b6e-556a-4031-942d-e8b4bd11ceb9/reference.png
+[2026-04-08 13:17:39.792] [INFO] [BibleImageService] Generating reference for: 陈家老宅玄关 (provider: volcengine)
+[2026-04-08 13:17:39.792] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:45.607] [INFO] [VolcEngineImageClient] Got image URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/202604081317360C543AC6E07652180465-8513-0~tplv
+[2026-04-08 13:17:45.607] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/202604081317360C543AC6E07652180465-8513-0~tplv
+[2026-04-08 13:17:45.916] [INFO] [VolcEngineImageClient] Downloaded 559391 bytes
+[2026-04-08 13:17:45.917] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 559391 bytes
+[2026-04-08 13:17:45.917] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/scenes/8364f6dd-69f4-4690-98cd-708af3ea5bb9
+[2026-04-08 13:17:45.918] [INFO] [FileStorage] Scene reference saved: scenes/8364f6dd-69f4-4690-98cd-708af3ea5bb9/reference.png
+[2026-04-08 13:17:45.930] [INFO] [SceneExtractor] Updated scene: 陈家老宅玄关
+[2026-04-08 13:17:45.930] [DEBUG] [BibleCache] Scene cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:45.930] [INFO] [BibleImageService] Scene reference saved: scenes/8364f6dd-69f4-4690-98cd-708af3ea5bb9/reference.png
+[2026-04-08 13:17:46.038] [INFO] [BibleImageService] Generating reference for: 陈家老宅客厅 (provider: volcengine)
+[2026-04-08 13:17:46.039] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:52.260] [INFO] [VolcEngineImageClient] Got image URL: https://p9-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131742C9D6118B6537390E0FDC-4660-0~tplv-
+[2026-04-08 13:17:52.260] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p9-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/20260408131742C9D6118B6537390E0FDC-4660-0~tplv-
+[2026-04-08 13:17:52.813] [INFO] [VolcEngineImageClient] Downloaded 472605 bytes
+[2026-04-08 13:17:52.813] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 472605 bytes
+[2026-04-08 13:17:52.814] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/scenes/8a55f561-2b90-42d8-bfd5-2b0f57ea425b
+[2026-04-08 13:17:52.815] [INFO] [FileStorage] Scene reference saved: scenes/8a55f561-2b90-42d8-bfd5-2b0f57ea425b/reference.png
+[2026-04-08 13:17:52.825] [INFO] [SceneExtractor] Updated scene: 陈家老宅客厅
+[2026-04-08 13:17:52.825] [DEBUG] [BibleCache] Scene cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:52.825] [INFO] [BibleImageService] Scene reference saved: scenes/8a55f561-2b90-42d8-bfd5-2b0f57ea425b/reference.png
+[2026-04-08 13:17:52.932] [INFO] [BibleImageService] Generating reference for: 陈家老宅厨房 (provider: volcengine)
+[2026-04-08 13:17:52.933] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:17:59.076] [INFO] [VolcEngineImageClient] Got image URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/202604081317494B6557E6BFA8DE721ECE-4246-0~tplv
+[2026-04-08 13:17:59.076] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/202604081317494B6557E6BFA8DE721ECE-4246-0~tplv
+[2026-04-08 13:17:59.597] [INFO] [VolcEngineImageClient] Downloaded 533614 bytes
+[2026-04-08 13:17:59.597] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 533614 bytes
+[2026-04-08 13:17:59.597] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/scenes/b6e7ef5d-2106-4961-a2e4-cddd4d814169
+[2026-04-08 13:17:59.598] [INFO] [FileStorage] Scene reference saved: scenes/b6e7ef5d-2106-4961-a2e4-cddd4d814169/reference.png
+[2026-04-08 13:17:59.609] [INFO] [SceneExtractor] Updated scene: 陈家老宅厨房
+[2026-04-08 13:17:59.609] [DEBUG] [BibleCache] Scene cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:17:59.609] [INFO] [BibleImageService] Scene reference saved: scenes/b6e7ef5d-2106-4961-a2e4-cddd4d814169/reference.png
+[2026-04-08 13:17:59.717] [INFO] [BibleImageService] Generating reference for: 荒僻泥路 (provider: volcengine)
+[2026-04-08 13:17:59.717] [DEBUG] [VolcEngineImageClient] Sending async request to: https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+[2026-04-08 13:18:05.859] [INFO] [VolcEngineImageClient] Got image URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/2026040813175651A461E480354426BFFB-1236-0~tplv-
+[2026-04-08 13:18:05.859] [INFO] [VolcEngineImageClient] Downloading image from URL: https://p3-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/2026040813175651A461E480354426BFFB-1236-0~tplv-
+[2026-04-08 13:18:06.761] [INFO] [VolcEngineImageClient] Downloaded 593251 bytes
+[2026-04-08 13:18:06.761] [INFO] [VolcEngineImageClient] Image downloaded successfully, size: 593251 bytes
+[2026-04-08 13:18:06.762] [DEBUG] [FileStorage] Created directory: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/scenes/d4998062-2852-4c88-a7b9-3f67d9897151
+[2026-04-08 13:18:06.762] [INFO] [FileStorage] Scene reference saved: scenes/d4998062-2852-4c88-a7b9-3f67d9897151/reference.png
+[2026-04-08 13:18:06.772] [INFO] [SceneExtractor] Updated scene: 荒僻泥路
+[2026-04-08 13:18:06.772] [DEBUG] [BibleCache] Scene cache invalidated for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:18:06.772] [INFO] [BibleImageService] Scene reference saved: scenes/d4998062-2852-4c88-a7b9-3f67d9897151/reference.png
+[2026-04-08 13:18:06.773] [INFO] [AnalysisService] === onBibleImageCompleted called: success=7, failed=0 ===
+[2026-04-08 13:18:06.773] [INFO] [AnalysisService] === finalizeAnalysis called: novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2 ===
+[2026-04-08 13:18:06.789] [INFO] [AnalysisService] Updated job f71c4ae9-a19f-4243-97e7-277b2283898b status to: completed, progress: 100
+[2026-04-08 13:18:06.789] [INFO] [AnalysisService] === Emitting analysisCompleted signal: novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2 ===
+[2026-04-08 13:18:06.789] [INFO] [AnalysisService] Analysis fully completed (including bible images): novelId=830784d5-c82f-4d39-a4ea-c4445eef79b2
+[2026-04-08 13:18:06.789] [INFO] [BibleImageService] === finishBatch: All Bible images completed: success=7, failed=0 ===
+[2026-04-08 13:18:06.819] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:18:06.824] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:18:06.824] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:18:06.826] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:18:06.827] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:18:06.828] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:18:06.829] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:18:06.830] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 
+[2026-04-08 13:18:06.854] [DEBUG] [BibleCache] Character cache set for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:18:06.906] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:18:06.912] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:18:06.912] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:18:06.913] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:18:06.914] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:18:06.915] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:18:06.916] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:18:06.917] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 
+[2026-04-08 13:18:07.322] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:18:07.353] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:18:07.358] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:18:07.359] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:18:07.360] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:18:07.361] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:18:07.362] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:18:07.363] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:18:07.364] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 
+[2026-04-08 13:18:07.619] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:18:07.622] [INFO] [BibleImageService] Starting combined generation: 3 characters + 4 scenes = 7 total
+[2026-04-08 13:18:07.622] [INFO] [BibleImageService] Skipping character 母亲, already has portrait
+[2026-04-08 13:18:07.722] [INFO] [BibleImageService] Skipping character 父亲, already has portrait
+[2026-04-08 13:18:07.823] [INFO] [BibleImageService] Skipping character 陈伶, already has portrait
+[2026-04-08 13:18:08.025] [INFO] [BibleImageService] Skipping scene 陈家老宅玄关, already has reference
+[2026-04-08 13:18:08.125] [INFO] [BibleImageService] Skipping scene 陈家老宅客厅, already has reference
+[2026-04-08 13:18:08.227] [INFO] [BibleImageService] Skipping scene 陈家老宅厨房, already has reference
+[2026-04-08 13:18:08.327] [INFO] [BibleImageService] Skipping scene 荒僻泥路, already has reference
+[2026-04-08 13:18:08.327] [INFO] [BibleImageService] === finishBatch: All Bible images completed: success=7, failed=0 ===
+[2026-04-08 13:18:08.327] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:18:08.334] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:18:08.334] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:18:08.336] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:18:08.336] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:18:08.338] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:18:08.338] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:18:08.339] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 
+[2026-04-08 13:18:08.348] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:18:10.506] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:18:10.512] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:18:10.512] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:18:10.513] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:18:10.514] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:18:10.515] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:18:10.516] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:18:10.517] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 
+[2026-04-08 13:18:10.662] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:42.355] [INFO] [NovelDetailPage] Starting batch generation for 6 panels
+[2026-04-08 13:25:42.365] [INFO] [TaskQueue] Task enqueued: 6bfc5ac7-b6ab-4f65-8bb8-940930eed547 (GeneratePanels)
+[2026-04-08 13:25:42.366] [INFO] [ImageService] Enqueued batch panel image generation task: 6bfc5ac7-b6ab-4f65-8bb8-940930eed547 for 6 panels
+[2026-04-08 13:25:42.378] [INFO] [TaskWorker] Processing task: 6bfc5ac7-b6ab-4f65-8bb8-940930eed547
+[2026-04-08 13:25:42.386] [DEBUG] [BibleCache] Character cache set for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Generated prompt for panel c8922b3a-ef10-42aa-9bdc-889f0afd58ac: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Using 1 reference images for panel c8922b3a-ef10-42aa-9bdc-889f0afd58ac
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:42.388] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:42.388] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:42.388] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:42.390] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:42.392] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:42.749] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:42.750] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:42.750] [WARN] [TaskRegistry] Panel c8922b3a-ef10-42aa-9bdc-889f0afd58ac failed: Host requires authentication
+[2026-04-08 13:25:42.751] [DEBUG] [TaskRegistry] Waiting 3 seconds before next request to avoid rate limiting
+[2026-04-08 13:25:45.768] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Generated prompt for panel aa1b3c44-61c0-4fee-a231-30ca89c5119d: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Using 1 reference images for panel aa1b3c44-61c0-4fee-a231-30ca89c5119d
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:45.771] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:45.771] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:45.771] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:45.772] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:45.774] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:46.154] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:46.155] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:46.156] [WARN] [TaskRegistry] Panel aa1b3c44-61c0-4fee-a231-30ca89c5119d failed: Host requires authentication
+[2026-04-08 13:25:46.156] [DEBUG] [TaskRegistry] Waiting 3 seconds before next request to avoid rate limiting
+[2026-04-08 13:25:49.161] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:49.164] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:49.165] [INFO] [ImageService] Generated prompt for panel 72877713-cac5-446e-9104-3a8a848bbdff: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:49.165] [INFO] [ImageService] Using 1 reference images for panel 72877713-cac5-446e-9104-3a8a848bbdff
+[2026-04-08 13:25:49.165] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:49.165] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:49.165] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:49.165] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:49.165] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:49.166] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:49.168] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:49.429] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:49.430] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:49.430] [WARN] [TaskRegistry] Panel 72877713-cac5-446e-9104-3a8a848bbdff failed: Host requires authentication
+[2026-04-08 13:25:49.431] [DEBUG] [TaskRegistry] Waiting 3 seconds before next request to avoid rate limiting
+[2026-04-08 13:25:52.437] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:52.439] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:52.440] [INFO] [ImageService] Generated prompt for panel 423ea3a9-2246-4141-99d3-d1479da8d8d8: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:52.440] [INFO] [ImageService] Using 1 reference images for panel 423ea3a9-2246-4141-99d3-d1479da8d8d8
+[2026-04-08 13:25:52.441] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:52.441] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:52.441] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:52.441] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:52.441] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:52.442] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:52.443] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:52.794] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:52.795] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:52.796] [WARN] [TaskRegistry] Panel 423ea3a9-2246-4141-99d3-d1479da8d8d8 failed: Host requires authentication
+[2026-04-08 13:25:52.796] [DEBUG] [TaskRegistry] Waiting 3 seconds before next request to avoid rate limiting
+[2026-04-08 13:25:55.802] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Generated prompt for panel f41ac4d6-c4cc-422e-b0b0-84cc4fa103fa: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Using 1 reference images for panel f41ac4d6-c4cc-422e-b0b0-84cc4fa103fa
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:55.805] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:55.805] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:55.805] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:55.806] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:55.808] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:56.144] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:56.146] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:56.146] [WARN] [TaskRegistry] Panel f41ac4d6-c4cc-422e-b0b0-84cc4fa103fa failed: Host requires authentication
+[2026-04-08 13:25:56.146] [DEBUG] [TaskRegistry] Waiting 3 seconds before next request to avoid rate limiting
+[2026-04-08 13:25:59.152] [DEBUG] [BibleCache] Character cache hit for novel: 830784d5-c82f-4d39-a4ea-c4445eef79b2, count: 3
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Limiting reference images from 7 to 1 for provider: volcengine
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Generated prompt for panel f95bee48-3003-4981-afda-4a3a3a6c10ed: manga panel illustration, full-color vibrant palette, no grayscale output, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, pr
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Using 1 reference images for panel f95bee48-3003-4981-afda-4a3a3a6c10ed
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Loaded reference image: 168357 bytes
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Using image provider: volcengine, hasRefImage: 1
+[2026-04-08 13:25:59.154] [INFO] [ImageService] Using img2img API with reference image
+[2026-04-08 13:25:59.154] [INFO] [VolcEngineImageClient] generate() called, shouldMock=0, hasRefImage=1
+[2026-04-08 13:25:59.154] [INFO] [VolcEngineImageClient] Using img2img API with reference image
+[2026-04-08 13:25:59.155] [INFO] [VolcEngineImageClient] Submitting img2img task to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:59.157] [DEBUG] [VolcEngineImageClient] Sending sync request to: https://visual.volcengineapi.com?Action=CVSync2AsyncSubmitTask&Version=2022-08-31
+[2026-04-08 13:25:59.520] [ERROR] [VolcEngineImageClient] Host requires authentication
+[2026-04-08 13:25:59.521] [ERROR] [VolcEngineImageClient] Submit task failed: Host requires authentication
+[2026-04-08 13:25:59.522] [WARN] [TaskRegistry] Panel f95bee48-3003-4981-afda-4a3a3a6c10ed failed: Host requires authentication
+[2026-04-08 13:25:59.522] [INFO] [TaskRegistry] Batch completed: 0 success, 6 failed
+[2026-04-08 13:25:59.543] [INFO] [TaskWorker] Task completed: 6bfc5ac7-b6ab-4f65-8bb8-940930eed547
+[2026-04-08 13:25:59.546] [INFO] [AnalysisService] onTaskCompleted: taskId=6bfc5ac7-b6ab-4f65-8bb8-940930eed547
+[2026-04-08 13:25:59.546] [WARN] [AnalysisService] Task not matched: taskId=6bfc5ac7-b6ab-4f65-8bb8-940930eed547, currentTaskId=
+[2026-04-08 13:25:59.647] [INFO] [NovelDetailPage] refreshPanelPreview called
+[2026-04-08 13:25:59.653] [INFO] [NovelDetailPage] refreshPanelPreview: loaded 6 panels
+[2026-04-08 13:25:59.653] [DEBUG] [NovelDetailPage] Panel 1 previewUrl: 
+[2026-04-08 13:25:59.654] [DEBUG] [NovelDetailPage] Panel 2 previewUrl: 
+[2026-04-08 13:25:59.656] [DEBUG] [NovelDetailPage] Panel 3 previewUrl: 
+[2026-04-08 13:25:59.657] [DEBUG] [NovelDetailPage] Panel 4 previewUrl: 
+[2026-04-08 13:25:59.658] [DEBUG] [NovelDetailPage] Panel 5 previewUrl: 
+[2026-04-08 13:25:59.659] [DEBUG] [NovelDetailPage] Panel 6 previewUrl: 

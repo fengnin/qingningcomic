@@ -259,7 +259,19 @@ bool StoryboardViewModel::updatePanel(const QString& panelId, const QJsonObject&
 {
     if (!m_storyboardService) { return false; }
     
-    return m_storyboardService->updatePanel(panelId, content);
+    bool success = m_storyboardService->updatePanel(panelId, content);
+    
+    if (success) {
+        // 清除缓存，确保下次加载时从数据库获取最新数据
+        if (!m_currentStoryboard.id().isEmpty()) {
+            m_panelsCache.remove(m_currentStoryboard.id());
+        }
+        
+        // 发送信号通知 UI 刷新
+        emit panelUpdated(panelId, content);
+    }
+    
+    return success;
 }
 
 void StoryboardViewModel::onStoryboardSaved(const QString& novelId)

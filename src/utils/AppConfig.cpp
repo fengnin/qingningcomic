@@ -41,6 +41,8 @@ bool AppConfig::load(const QString& configPath)
     readQwenConfig(settings);
     readStorageConfig(settings);
     readQwenImageConfig(settings);
+    readVolcEngineConfig(settings);
+    readImageServiceConfig(settings);
 
     return validateConfig();
 }
@@ -103,6 +105,27 @@ void AppConfig::readQwenImageConfig(QSettings& settings)
     if (m_qwenImage.apiKey.isEmpty() || m_qwenImage.apiKey == "sk-your-api-key-here") {
         m_qwenImage.apiKey = m_qwen.apiKey;
     }
+}
+
+void AppConfig::readVolcEngineConfig(QSettings& settings)
+{
+    settings.beginGroup("volcEngine");
+    m_volcEngine.accessKey = settings.value("accessKey").toString();
+    m_volcEngine.secretKey = settings.value("secretKey").toString();
+    m_volcEngine.baseUrl = settings.value("baseUrl", "https://visual.volcengineapi.com").toString();
+    m_volcEngine.region = settings.value("region", "cn-north-1").toString();
+    m_volcEngine.service = settings.value("service", "cv").toString();
+    m_volcEngine.reqKey = settings.value("reqKey", "high_aes_general_v30l_zt2i").toString();
+    m_volcEngine.requestTimeout = settings.value("requestTimeout", 120000).toInt();
+    m_volcEngine.forceMock = settings.value("forceMock", false).toBool();
+    settings.endGroup();
+}
+
+void AppConfig::readImageServiceConfig(QSettings& settings)
+{
+    settings.beginGroup("imageService");
+    m_imageService.provider = settings.value("provider", "qwen").toString();
+    settings.endGroup();
 }
 
 bool AppConfig::setValidationError(const QString& message)

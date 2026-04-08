@@ -23,19 +23,21 @@ public:
     
     void setImage(const QString &imageUrl);
     void setDetails(const QStringList &details);
+    void setItemId(const QString &id);  // 设置稳定 ID
     void expandEditor();
     void collapseEditor();
     
     QString getName() const { return m_name; }
+    QString getItemId() const { return m_itemId; }  // 获取稳定 ID
     BibleType getType() const { return m_bibleType; }
     QStringList getDetails() const { return m_details; }
 
 signals:
-    void editClicked(const QString &name);
-    void dataChanged(const QString &name, const QStringList &details);
+    void editClicked(const QString &id, BibleType type);  // 改为传递 ID
+    void dataChanged(const QString &id, const QStringList &details);  // 改为传递 ID
     void imageClicked(const QString &imagePath);
-    void uploadClicked(const QString &name, BibleType type);
-    void deleteImageClicked(const QString &name, BibleType type);
+    void uploadClicked(const QString &id, BibleType type);  // 改为传递 ID
+    void deleteImageClicked(const QString &id, BibleType type);  // 改为传递 ID
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -84,6 +86,7 @@ private:
     
     // 数据
     QString m_name;
+    QString m_itemId;  // 稳定 ID（用于数据库查询）
     QStringList m_details;
     bool m_isExpanded;
     BibleType m_bibleType;

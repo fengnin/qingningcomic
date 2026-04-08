@@ -8,6 +8,7 @@
 class DatabaseManager;
 class QwenClient;
 class QwenImageClient;
+class VolcEngineImageClient;
 class StorageClient;
 class FileStorage;
 class StoryboardService;
@@ -30,6 +31,7 @@ class ServiceContainer : public QObject
     SERVICE_CONTAINER_METHODS(DatabaseManager, databaseManager, databaseManager)
     SERVICE_CONTAINER_METHODS(QwenClient, qwenClient, qwenClient)
     SERVICE_CONTAINER_METHODS(QwenImageClient, qwenImageClient, qwenImageClient)
+    SERVICE_CONTAINER_METHODS(VolcEngineImageClient, volcEngineImageClient, volcEngineImageClient)
     SERVICE_CONTAINER_METHODS(StorageClient, storageClient, storageClient)
     SERVICE_CONTAINER_METHODS(FileStorage, fileStorage, fileStorage)
     SERVICE_CONTAINER_METHODS(StoryboardService, storyboardService, storyboardService)
@@ -54,6 +56,7 @@ private:
     DatabaseManager* m_databaseManager = nullptr;
     QwenClient* m_qwenClient = nullptr;
     QwenImageClient* m_qwenImageClient = nullptr;
+    VolcEngineImageClient* m_volcEngineImageClient = nullptr;
     StorageClient* m_storageClient = nullptr;
     FileStorage* m_fileStorage = nullptr;
     StoryboardService* m_storyboardService = nullptr;

@@ -109,8 +109,12 @@ QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions&
     QJsonObject response = sendSyncRequest(url, payload);
     
     if (response.isEmpty()) {
-        LOG_WARNING("QwenImageClient", QString("Response is empty, lastError: %1").arg(m_lastError));
-        return generatePlaceholder(options.prompt);
+        LOG_ERROR("QwenImageClient", QString("API request failed: %1").arg(m_lastError));
+        GenerateResult result;
+        result.success = false;
+        result.errorMessage = m_lastError.isEmpty() ? "API request failed" : m_lastError;
+        result.requestId = options.requestId;
+        return result;
     }
     
     LOG_INFO("QwenImageClient", QString("Response received, extracting image..."));
@@ -837,7 +841,8 @@ QwenImageClient::GenerateResult QwenImageClient::generatePlaceholder(const QStri
 {
     GenerateResult result;
     result.success = true;
-    result.imageData = PLACEHOLDER_IMAGE;
+    // 将 base64 字符串解码为真正的图片数据
+    result.imageData = QByteArray::fromBase64(PLACEHOLDER_IMAGE);
     result.mimeType = "image/png";
     result.requestId = QString("mock-%1").arg(QDateTime::currentMSecsSinceEpoch());
     result.width = 1;

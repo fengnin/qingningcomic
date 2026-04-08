@@ -12,6 +12,8 @@
 #include <QFormLayout>
 #include <QTextEdit>
 #include <QComboBox>
+#include <QMouseEvent>
+#include <QTimer>
 #include <QUuid>
 #include <QFont>
 
@@ -884,17 +886,24 @@ QPushButton* NovelPage::createSecondaryButton(const QString &text)
 
 bool NovelPage::eventFilter(QObject *watched, QEvent *event)
 {
-    if (event->type() != QEvent::MouseButtonPress) {
-        return QWidget::eventFilter(watched, event);
+    if (event->type() != QEvent::MouseButtonRelease) {
+        return false;
+    }
+
+    QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+    if (mouseEvent->button() != Qt::LeftButton) {
+        return false;
     }
     
     QString novelId = findNovelIdFromWidget(qobject_cast<QWidget*>(watched));
     if (!novelId.isEmpty()) {
-        onNovelCardClicked(novelId);
+        QTimer::singleShot(0, this, [this, novelId]() {
+            onNovelCardClicked(novelId);
+        });
         return true;
     }
     
-    return QWidget::eventFilter(watched, event);
+    return false;
 }
 
 QString NovelPage::findNovelIdFromWidget(QWidget *widget) const

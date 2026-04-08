@@ -56,6 +56,21 @@ public:
         bool forceMock = false;                    // 强制使用占位图
     };
 
+    struct VolcEngineConfig {
+        QString accessKey;                         // Access Key ID
+        QString secretKey;                         // Secret Access Key
+        QString baseUrl = "https://visual.volcengineapi.com";
+        QString region = "cn-north-1";
+        QString service = "cv";
+        QString reqKey = "high_aes_general_v30l_zt2i";  // Seedream 3.0 文生图
+        int requestTimeout = 120000;
+        bool forceMock = false;
+    };
+
+    struct ImageServiceConfig {
+        QString provider = "qwen";  // qwen 或 volcengine
+    };
+
     static AppConfig* instance();
 
     bool load(const QString& configPath = QString());
@@ -65,6 +80,8 @@ public:
     QwenConfig qwen() const { return m_qwen; }
     StorageConfig storage() const { return m_storage; }
     QwenImageConfig qwenImage() const { return m_qwenImage; }
+    VolcEngineConfig volcEngine() const { return m_volcEngine; }
+    ImageServiceConfig imageService() const { return m_imageService; }
     QString configPath() const { return m_configPath; }
     QString lastError() const { return m_lastError; }
 
@@ -78,6 +95,8 @@ private:
     void readQwenConfig(QSettings& settings);
     void readStorageConfig(QSettings& settings);
     void readQwenImageConfig(QSettings& settings);
+    void readVolcEngineConfig(QSettings& settings);
+    void readImageServiceConfig(QSettings& settings);
     bool validateConfig();
     bool validateQwenConfig();
     bool validateS3Config();
@@ -89,6 +108,8 @@ private:
     QwenConfig m_qwen;
     StorageConfig m_storage;
     QwenImageConfig m_qwenImage;
+    VolcEngineConfig m_volcEngine;
+    ImageServiceConfig m_imageService;
     
     QString m_configPath;
     QString m_lastError;

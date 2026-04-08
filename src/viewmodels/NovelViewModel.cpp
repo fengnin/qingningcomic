@@ -56,7 +56,7 @@ void NovelViewModel::loadNovel(const QString& novelId)
 {
     if (!m_novelService) { return; }
     
-    withBusy([this, &novelId]() {
+    withBusy([this, novelId]() {
         m_currentNovel = m_novelService->getNovelById(novelId);
     });
     

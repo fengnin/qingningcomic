@@ -13,6 +13,9 @@
 #include <QFutureWatcher>
 #include <QtConcurrent>
 
+class Character;  // 前向声明
+class Scene;     // 前向声明
+
 class ImageService : public BatchImageProcessor
 {
     Q_OBJECT
@@ -57,6 +60,7 @@ public:
 signals:
     void panelGenerated(const ImageService::GenerateResult& result);
     void imageBatchCompleted(const ImageService::BatchResult& result);
+    void batchGenerationCancelled();
     void progressChanged(const QString& stage, int progress);
     void batchProgressChanged(int current, int total, const QString& message);
 
@@ -70,14 +74,17 @@ private:
         GenerateMode mode;
         Panel panel;
         QString prompt;
+        QString negativePrompt;
         QByteArray imageData;
         QString s3Key;
+        QStringList referenceImages;  // 角色参考图片路径列表
     };
 
     bool safeFetchPanel(GenerationContext& ctx);
     bool safeUpdateDatabase(GenerationContext& ctx);
     bool buildPromptForPanel(GenerationContext& ctx);
     bool generateImage(GenerationContext& ctx);
+    bool generateWithReference(GenerationContext& ctx);  // 使用参考图片生成
     bool storeImage(GenerationContext& ctx);
     GenerateResult finalizeResult(GenerationContext& ctx);
 
@@ -85,6 +92,13 @@ private:
     QString fetchNovelIdByStoryboardId(const QString& storyboardId);
     QString generateS3Key(const QString& panelId, GenerateMode mode);
     GenerateResult createErrorResult(const QString& panelId, const QString& message);
+    
+    // 重构：提取的辅助方法
+    QJsonObject buildCharacterRef(const Character& ch, QStringList& outPortraitPaths);
+    QMap<QString, QJsonObject> fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages);
+    QJsonObject buildSceneRef(const Scene& scene, QStringList& outReferenceImages);
+    QMap<QString, QJsonObject> fetchSceneRefs(const QString& novelId, QStringList& outReferenceImages);
+    bool executeImageGeneration(GenerationContext& ctx, const QByteArray& refImageData);
     
     void runBatchGeneration();
 

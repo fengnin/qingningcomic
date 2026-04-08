@@ -180,19 +180,39 @@ QList<QJsonObject> QwenClient::processChunksParallel(
     int totalChunks = chunks.size();
     int failedCount = 0;
     
+    // 累积的角色和场景，用于保持连续性
+    QJsonArray accumulatedCharacters = existingCharacters;
+    QJsonArray accumulatedScenes = existingScenes;
+    
     for (int i = 0; i < chunks.size(); ++i) {
         emit progressChanged(i + 1, totalChunks,
             QString(TR("正在处理第 %1/%2 块")).arg(i + 1).arg(totalChunks));
         
+        // 所有 chunk 都传递累积的角色和场景，保持连续性
         QJsonObject response = callStoryboardApi(
             chunks[i], jsonSchema, strictMode,
-            (i == 0) ? existingCharacters : QJsonArray(),
-            (i == 0) ? existingScenes : QJsonArray(),
+            accumulatedCharacters,
+            accumulatedScenes,
             chapterNumber
         );
         
         if (!response.isEmpty()) {
             results.append(response);
+            
+            // 从结果中提取新角色和场景，累积到列表中供后续 chunk 使用
+            if (response.contains("characters")) {
+                QJsonArray newChars = response["characters"].toArray();
+                for (const auto& c : newChars) {
+                    accumulatedCharacters.append(c);
+                }
+            }
+            if (response.contains("scenes")) {
+                QJsonArray newScenes = response["scenes"].toArray();
+                for (const auto& s : newScenes) {
+                    accumulatedScenes.append(s);
+                }
+            }
+            
             log(QString("✅ Chunk %1/%2 succeeded").arg(i + 1).arg(totalChunks));
         } else {
             failedCount++;

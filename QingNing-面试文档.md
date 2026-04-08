@@ -1155,9 +1155,444 @@ docker run -d --name guacamole \
 |------|------|
 | 短期 | 完善演示账号权限，限制操作范围 |
 | 中期 | 添加访问日志，了解面试官行为 |
-| 长期 | 考虑 Qt WebAssembly 方案，实现原生画质 |
+| 长期 | 考虑 Qt WebAssembly 方案
+实现原生画质 |
 
 ---
 
-*文档版本: 4.0*  
+## 十四、开发问题与解决方案（2025年更新）
+
+### 14.1 BibleItem 稳定 ID 修复
+
+#### 问题描述
+
+Bible 组件（角色/场景圣经条目）仅使用 `name` 作为标识，存在数据错改风险：
+
+```
+问题场景：
+┌─────────────────────────────────────────────────────────────┐
+│  用户有两个同名角色 "小明"                                    │
+│                                                             │
+│  BibleItem A (小明_1) ──┬── 发出 dataChanged("小明", ...)   │
+│                         │                                   │
+│  BibleItem B (小明_2) ──┘                                   │
+│                                                             │
+│  页面收到信号后用 getCharacterByName("小明") 查询            │
+│         ↓                                                   │
+│  返回第一个匹配的角色（可能是错误的那个！）                   │
+│         ↓                                                   │
+│  数据被错误修改到另一个角色上                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 问题代码位置
+
+| 文件 | 行号 | 问题 |
+|------|------|------|
+| BibleItem.cpp | 130, 149, 655, 817, 868 | emit 信号传递 m_name |
+| NovelDetailPage.cpp | 2344, 2431, 2463 | 使用 name 查询数据库 |
+| CharacterExtractor.cpp | 404 | getCharacterByName 可能返回错误记录 |
+
+#### 解决方案
+
+**1. BibleItem 添加稳定 ID**
+
+```cpp
+// BibleItem.h
+class BibleItem : public QFrame
+{
+public:
+    void setItemId(const QString &id);  // 设置稳定 ID
+    QString getItemId() const { return m_itemId; }
+
+signals:
+    void editClicked(const QString &id, BibleType type);      // 改为传递 ID
+    void dataChanged(const QString &id, const QStringList &details);
+    void uploadClicked(const QString &id, BibleType type);
+    void deleteImageClicked(const QString &id, BibleType type);
+
+private:
+    QString m_itemId;  // 稳定 ID（用于数据库查询）
+};
+```
+
+**2. 创建 BibleItem 时设置 ID**
+
+```cpp
+// NovelDetailPage.cpp - populateCharacterBible
+for (const Character& character : characters) {
+    BibleItem *item = new BibleItem(character.name(), details, BibleType::Character);
+    item->setItemId(character.id());  // 设置稳定 ID
+    // ...
+}
+
+// NovelDetailPage.cpp - populateSceneBible
+for (const Scene& scene : scenes) {
+    BibleItem *item = new BibleItem(scene.name(), details, BibleType::Scene);
+    item->setItemId(scene.sceneId());  // 设置稳定 ID
+    // ...
+}
+```
+
+**3. 信号处理器使用 ID 查询**
+
+```cpp
+// 修复前：使用 name 查询，可能返回错误记录
+Character character = CharacterExtractor::instance()->getCharacterByName(novelId, name);
+
+// 修复后：使用 ID 精确查询
+Character character = CharacterExtractor::instance()->getCharacterById(id);
+```
+
+#### 修复效果
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 同名角色编辑 | 可能修改错误的角色 | 精确修改目标角色 |
+| 同名场景上传图片 | 图片可能关联错误场景 | 图片正确关联目标场景 |
+| 数据一致性 | 存在数据错改风险 | ID 唯一标识，无风险 |
+
+### 14.2 批量取消功能修复
+
+#### 问题描述
+
+批量图像生成的取消功能存在两个严重问题：
+
+**问题一：m_batchFuture 未接收返回值**
+
+```cpp
+// ImageService.cpp 第151行 - 原代码
+QtConcurrent::run(this, &ImageService::runBatchGeneration);  // 返回值丢失！
+
+// cancelCurrentBatch() 中检查
+if (m_batchFuture.isRunning()) {  // 永远为 false，因为 m_batchFuture 是空的
+    m_batchFuture.cancel();
+}
+```
+
+**问题二：m_generating 未重置**
+
+```cpp
+// 原代码 - 缺少状态重置
+void ImageService::cancelCurrentBatch()
+{
+    m_batchCancelled = true;
+    // m_generating 没有重置为 false！
+}
+
+// runBatchGeneration 循环检查
+while (!m_batchCancelled && ...) {  // 但 isGenerating() 返回 m_generating
+    // UI 层可能认为还在生成中
+}
+```
+
+#### 解决方案
+
+```cpp
+void ImageService::generatePanelImages(const QStringList& panelIds, GenerateMode mode)
+{
+    // ...
+    startBatch(panelIds.size());
+    
+    // 修复：保存 QFuture 返回值
+    m_batchFuture = QtConcurrent::run(this, &ImageService::runBatchGeneration);
+}
+
+void ImageService::cancelCurrentBatch()
+{
+    QMutexLocker locker(&m_mutex);
+    m_batchCancelled = true;
+    m_pendingPanelIds.clear();
+    m_currentProcessIndex = 0;
+    
+    // 修复：现在可以正确取消运行中的任务
+    if (m_batchFuture.isRunning()) {
+        m_batchFuture.cancel();
+    }
+    
+    // 修复：重置生成状态
+    m_generating = false;
+    m_batchCount = 0;
+    
+    emit batchGenerationCancelled();
+}
+```
+
+#### 技术要点
+
+| 要点 | 说明 |
+|------|------|
+| **QFuture 作用** | 用于控制和监视异步任务，支持 cancel()、isRunning() 等 |
+| **QtConcurrent::run 返回值** | 必须保存才能控制任务 |
+| **状态一致性** | 取消时必须重置所有相关状态标志 |
+| **信号通知** | 发出 batchGenerationCancelled 通知 UI 更新 |
+
+### 14.3 单例模式的坑点与修复
+
+#### 问题描述
+
+项目中大量使用了单例模式，但在初始化时出现了严重问题：
+
+```
+// 错误的初始化方式
+QwenClient* client = new QwenClient();  // 创建了新实例
+client->init(config);
+
+// 但其他地方使用的是
+QwenClient::instance();  // 这是另一个未初始化的实例！
+```
+
+#### 根本原因
+
+单例模式要求**全局只有一个实例**，但 `initService` 模板函数使用 `new` 创建了新实例，而其他代码使用 `instance()` 获取的是另一个实例。
+
+#### 正确做法
+
+```cpp
+// 正确的单例初始化
+QwenClient* client = QwenClient::instance();  // 获取单例
+client->init(config);  // 初始化同一个实例
+```
+
+#### 经验总结
+
+| 问题 | 声明 | 解决方案 |
+|------|------|---------|
+| 单例初始化 | 使用 `new` 创建新实例 | 使用 `instance()` 获取单例 |
+| 头文件保护符冲突 | 两个文件同名保护符 | 使用带命名空间的保护符 |
+| 缓存不一致 | 数据库更新后缓存未更新 | 更新后调用 `invalidate` |
+
+### 14.2 角色一致性问题
+
+#### 问题描述
+
+面板生成的人物与角色圣经中的人物外观不一致。
+
+#### 原仓库方案（Google Imagen 3）
+
+```
+角色圣经生成 → 图片保存到 S3/GCS
+                    ↓
+面板生成时 → 获取角色圣经图片作为参考图
+                    ↓
+          → 将参考图传给 Google Imagen API
+                    ↓
+          → Imagen 根据参考图生成一致的角色
+```
+
+#### 阿里云方案限制
+
+阿里云 `wanx` 系列文生图模型**不支持参考图输入**，与 Google Imagen 3 不同。
+
+#### 我们的解决方案
+
+使用 `image2image` API 实现类似功能：
+
+```
+角色圣经生成角色肖像
+        ↓
+面板生成时，        ↓
+使用 image2image API，将角色肖像作为源图像
+        ↓
+用 prompt 描述新场景
+        ↓
+生成与角色圣经一致的面板图片
+```
+
+#### 代码实现
+
+```cpp
+// 1. 收集角色肖像路径
+for (const Character& ch : characters) {
+    if (!ch.portraitPath().isEmpty()) {
+        ctx.referenceImages.append(ch.portraitPath());
+    }
+}
+
+// 2. 使用 image2image API
+if (!ctx.referenceImages.isEmpty()) {
+    // 读取参考图片
+    QByteArray refImageData = readFile(ctx.referenceImages.first());
+    
+    // 使用 edit API 而不是 generate API
+    QwenImageClient::EditOptions options;
+    options.prompt = ctx.prompt;
+    options.sourceImage = refImageData;
+    
+    QwenImageClient::instance()->edit(options);
+}
+```
+
+### 14.3 场景圣经不出现人物
+
+#### 问题描述
+
+场景圣经图片中出现了不应该出现的人物。
+
+#### 解决方案
+
+在 prompt 中添加正向和负向提示词：
+
+```cpp
+// 正向提示词
+parts << "empty scene, no characters";
+
+// 负向提示词
+QString sceneNegative = DEFAULT_NEGATIVE_PROMPT + ", "
+    "no people, no characters, no humans, no figures, "
+    "empty scene, uninhabited, no faces, no bodies";
+```
+
+### 14.4 缓存一致性问题
+
+#### 问题描述
+
+角色/场景图片重新生成后，UI 没有更新显示新图片。
+
+#### 原因分析
+
+1. 数据库更新了 ✅
+2. 缓存没有更新 ❌
+3. UI 没有收到更新通知 ❌
+
+#### 解决方案
+
+```cpp
+// 1. 更新数据库后，使缓存失效
+BibleCache::instance()->invalidateCharacters(novelId);
+
+// 2. 发出信号通知 UI 更新
+emit characterUpdated(characterId, portraitPath);
+
+// 3. UI 连接信号刷新显示
+connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
+        this, [this]() { refreshBibleUI(); });
+```
+
+### 14.5 技术选型对比
+
+| 方面 | 原仓库 (Google Imagen 3) | 我们的方案 (阿里云通义万相) |
+|------|-------------------------|---------------------------|
+| 参考图支持 | ✅ 原生支持 | ⚠️ 需要 image2image 模拟 |
+| 角色一致性 | 参考图直接注入 | 源图像 + prompt |
+| API 复杂度 | 简单 | 稍复杂（需要判断是否有参考图） |
+| 效果 | 更精确 | 依赖 prompt 质量 |
+
+### 14.6 代码质量改进
+
+#### PromptBuilder 统一
+
+原有两个 `SingletonUtils.h` 文件，保护符冲突导致编译错误：
+
+```
+include/SingletonUtils.h        // 保护符: SINGLETONUTILS_H
+include/utils/SingletonUtils.h  // 保护符: SINGLETONUTILS_H (冲突!)
+```
+
+解决方案：
+1. 统一到 `include/utils/SingletonUtils.h`
+2. 修改保护符为 `UTILS_SINGLETONUTILS_H`
+3. 删除旧文件，更新引用
+
+#### 滚动条样式统一
+
+所有弹窗的滚动条样式统一使用 `EditorStyles::scrollBarStyle()`。
+
+### 14.7 图像服务层重构
+
+#### 重构前的问题
+
+| 问题类型 | 具体问题 | 影响 |
+|---------|---------|------|
+| **重复代码** | `generateImage` 和 `generateWithReference` 重试逻辑相同 | 维护成本高 |
+| **函数过长** | `buildPromptForPanel` 约100行 | 可读性差 |
+| **过度嵌套** | 多层循环和条件判断 | 难以理解 |
+| **职责不清** | 角色数据转换散落在主流程中 | 耦合度高 |
+
+#### 重构方案
+
+**1. 提取角色数据转换函数**
+
+```cpp
+// 重构前：角色转换逻辑散落在 buildPromptForPanel 中
+for (const Character& ch : characters) {
+    QJsonObject charJson;
+    charJson["id"] = ch.id();
+    // ... 20多行转换代码
+    characterRefs[ch.name()] = charJson;
+}
+
+// 重构后：提取为独立函数
+QJsonObject ImageService::buildCharacterRef(const Character& ch, QStringList& outPortraitPaths)
+{
+    QJsonObject charJson;
+    charJson["id"] = ch.id();
+    charJson["name"] = ch.name();
+    // ... 清晰的转换逻辑
+    return charJson;
+}
+
+QMap<QString, QJsonObject> ImageService::fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages)
+{
+    QMap<QString, QJsonObject> characterRefs;
+    QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
+    for (const Character& ch : characters) {
+        characterRefs[ch.name()] = buildCharacterRef(ch, outReferenceImages);
+    }
+    return characterRefs;
+}
+```
+
+**2. 合并图像生成方法**
+
+```cpp
+// 重构前：两个方法有大量重复代码
+bool generateImage(GenerationContext& ctx);      // text2image
+bool generateWithReference(GenerationContext& ctx); // image2image
+
+// 重构后：统一入口 + 核心方法
+bool generateImage(GenerationContext& ctx)
+{
+    QByteArray refImageData;
+    if (!ctx.referenceImages.isEmpty()) {
+        // 加载参考图片
+        refImageData = loadReferenceImage(ctx.referenceImages.first());
+    }
+    return executeImageGeneration(ctx, refImageData);
+}
+
+bool executeImageGeneration(GenerationContext& ctx, const QByteArray& refImageData)
+{
+    bool useRefImage = !refImageData.isEmpty();
+    
+    // 统一的重试逻辑
+    return m_apiRetryPolicy->executeWithRetry([&]() {
+        if (useRefImage) {
+            return QwenImageClient::instance()->edit(...);
+        } else {
+            return QwenImageClient::instance()->generate(...);
+        }
+    }, ...);
+}
+```
+
+#### 重构效果
+
+| 指标 | 重构前 | 重构后 | 改善 |
+|------|--------|--------|------|
+| `buildPromptForPanel` 行数 | ~100行 | ~50行 | -50% |
+| 重复代码行数 | ~80行 | ~10行 | -87% |
+| 函数数量 | 2个生成方法 | 1个入口+1个核心 | 更清晰 |
+| 可测试性 | 低 | 高 | 可单独测试转换函数 |
+
+#### 重构原则应用
+
+1. **单一职责原则**：每个函数只做一件事
+2. **DRY 原则**：消除重复的重试逻辑
+3. **函数提取**：将复杂逻辑拆分为小函数
+4. **命名清晰**：`buildCharacterRef`、`fetchCharacterRefs`、`executeImageGeneration`
+
+---
+
+*文档版本: 4.3*  
 *最后更新: 2025年*

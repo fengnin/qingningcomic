@@ -9,7 +9,9 @@ namespace {
         QString::fromUtf8("nsfw, blurry, low quality, extra limbs, deformed hands, "
                           "text watermark, logo, cropped face, overexposed, underexposed, "
                           "photorealistic, realistic, photo, photograph, real person, "
-                          "realistic skin texture, real human, 3d render, cgi");
+                          "realistic skin texture, real human, 3d render, cgi, "
+                          "split background, half black half white, gradient background, "
+                          "dark background, black border, frame, shadow on background");
     
     using MappingInit = std::initializer_list<std::pair<QString, QString>>;
     
@@ -139,6 +141,18 @@ namespace {
             parts.append(QString("%1 %2").arg(prefix, list.join(", ")));
         }
     }
+    
+    QString formatHair(const QString& hairColor, const QString& hairStyle) {
+        if (hairColor.isEmpty() && hairStyle.isEmpty()) {
+            return QString();
+        }
+        if (!hairColor.isEmpty() && !hairStyle.isEmpty()) {
+            return QString("%1 %2 hair").arg(hairColor, hairStyle);
+        }
+        return hairColor.isEmpty() 
+            ? QString("%1 hair").arg(hairStyle)
+            : QString("%1 hair").arg(hairColor);
+    }
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObject &character,
@@ -176,18 +190,21 @@ PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObjec
     addListIfNotEmpty(parts, normaliseList(appearance["distinctiveFeatures"]), "distinctive features");
     addListIfNotEmpty(parts, tags, "style keywords:");
     
-    parts << "studio lighting" << "clean background" << "line art with screentone shading" << "vibrant colors" << JAPANESE_MANGA_DIRECTIVE;
+    parts << "studio lighting" << "solid white background, plain background, no gradient, no shadow on background" 
+         << "line art with screentone shading" << "vibrant colors" << JAPANESE_MANGA_DIRECTIVE;
     
-    return { parts.join(", "), DEFAULT_NEGATIVE_PROMPT + ", monochrome, grayscale, black and white", {} };
+    return { parts.join(", "), DEFAULT_NEGATIVE_PROMPT + ", monochrome, grayscale, black and white, split background, dark side", {} };
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &panel,
                                                               const QMap<QString, QJsonObject> &characterRefs,
+                                                              const QMap<QString, QJsonObject> &sceneRefs,
                                                               const QJsonObject &options)
 {
     QString mode = options.value("mode").toString("preview");
     
-    QString scene = panel["scene"].toString();
+    // scene 字段存储的是场景描述文本，不是场景名称
+    QString sceneDescription = panel["scene"].toString();
     QString shotType = panel["shotType"].toString();
     QString cameraAngle = panel["cameraAngle"].toString();
     QJsonObject atmosphere = panel["atmosphere"].toObject();
@@ -196,11 +213,50 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QJsonArray characters = panel["characters"].toArray();
     QString visualPrompt = panel["visualPrompt"].toString();
     
+    // 从 background.setting 获取场景名称，用于匹配场景圣经
+    QJsonObject background = panel["background"].toObject();
+    QString sceneName = background["setting"].toString();
+    QString sceneId = background["sceneId"].toString();
+    
     QStringList parts;
     parts << "manga panel illustration" << "full-color vibrant palette, no grayscale output" << JAPANESE_MANGA_DIRECTIVE;
     parts.append(mode == "hd" ? "high resolution detailed render" : "preview quality");
     
-    addIfNotEmpty(parts, scene);
+    // 场景参考：从场景圣经获取详细信息
+    // 优先使用 sceneId 匹配
+    if (!sceneId.isEmpty() && sceneRefs.contains(sceneId)) {
+        QJsonObject sceneRef = sceneRefs.value(sceneId);
+        QJsonObject details = sceneRef["details"].toObject();
+        
+        // 添加场景圣经中的详细信息
+        addIfNotEmpty(parts, details["description"].toString());
+        addIfNotEmpty(parts, details["building"].toString());
+        addIfNotEmpty(parts, details["color"].toString());
+        addIfNotEmpty(parts, details["atmosphere"].toString());
+        addIfNotEmpty(parts, details["landmark"].toString());
+        addIfNotEmpty(parts, details["layout"].toString());
+        addIfNotEmpty(parts, details["timeOfDay"].toString());
+        addIfNotEmpty(parts, details["weather"].toString());
+    }
+    // 如果 sceneId 没有匹配到，尝试使用 sceneName 匹配
+    else if (!sceneName.isEmpty() && sceneRefs.contains(sceneName)) {
+        QJsonObject sceneRef = sceneRefs.value(sceneName);
+        QJsonObject details = sceneRef["details"].toObject();
+        
+        // 添加场景圣经中的详细信息
+        addIfNotEmpty(parts, details["description"].toString());
+        addIfNotEmpty(parts, details["building"].toString());
+        addIfNotEmpty(parts, details["color"].toString());
+        addIfNotEmpty(parts, details["atmosphere"].toString());
+        addIfNotEmpty(parts, details["landmark"].toString());
+        addIfNotEmpty(parts, details["layout"].toString());
+        addIfNotEmpty(parts, details["timeOfDay"].toString());
+        addIfNotEmpty(parts, details["weather"].toString());
+    }
+    
+    // 无论是否匹配到场景圣经，都添加面板中的场景描述
+    addIfNotEmpty(parts, sceneDescription);
+    
     addIfNotEmpty(parts, shotType.isEmpty() ? QString() : QString("%1 shot").arg(shotType));
     addIfNotEmpty(parts, cameraAngle.isEmpty() ? QString() : QString("camera angle %1").arg(cameraAngle));
     addIfContains(parts, atmosphere, "mood", "mood %1");
@@ -208,6 +264,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     if (!composition.isEmpty()) {
         addIfContains(parts, composition, "focusPoint", "focus on %1");
         addIfContains(parts, composition, "rule", "%1 composition");
+        addIfContains(parts, composition, "depthOfField", "%1 depth of field");
     }
     
     if (!artStyle.isEmpty()) {
@@ -218,25 +275,92 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     }
     
     QStringList refUris;
+    
+    // 添加场景参考图（优先使用 sceneId，其次使用 sceneName）
+    if (!sceneId.isEmpty() && sceneRefs.contains(sceneId)) {
+        QJsonObject sceneRef = sceneRefs.value(sceneId);
+        QString sceneRefPath = sceneRef["referenceImagePath"].toString();
+        if (!sceneRefPath.isEmpty()) {
+            refUris.append(sceneRefPath);
+        }
+    } else if (!sceneName.isEmpty() && sceneRefs.contains(sceneName)) {
+        QJsonObject sceneRef = sceneRefs.value(sceneName);
+        QString sceneRefPath = sceneRef["referenceImagePath"].toString();
+        if (!sceneRefPath.isEmpty()) {
+            refUris.append(sceneRefPath);
+        }
+    }
+    
+    // 添加角色参考图和角色外观描述
     for (const auto &charVal : characters) {
         QJsonObject charObj = charVal.toObject();
         QString charName = charObj["name"].toString();
         
+        // 基本角色描述（名称、姿势、表情）
         addIfNotEmpty(parts, formatCharacterDescriptor(charName, charObj["pose"].toString(), charObj["expression"].toString()));
         
+        // 从角色圣经获取外观信息并添加到 prompt
         if (characterRefs.contains(charName)) {
             QJsonObject fullChar = characterRefs.value(charName);
+            
+            // 添加角色外观描述
             QJsonObject appearance = fullChar["appearance"].toObject();
             if (!appearance.isEmpty()) {
-                // 添加完整的外观信息，确保与角色圣经一致
-                addIfContains(parts, appearance, "gender");
-                addIfContains(parts, appearance, "age", "age %1");
-                addIfContains(parts, appearance, "build");
-                addIfNotEmpty(parts, buildHairDescription(appearance));
-                addIfContains(parts, appearance, "eyeColor", "%1 eyes");
-                addListIfNotEmpty(parts, normaliseList(appearance["clothing"]), "wearing");
-                addListIfNotEmpty(parts, normaliseList(appearance["accessories"]), "accessories");
-                addListIfNotEmpty(parts, normaliseList(appearance["distinctiveFeatures"]), "distinctive features");
+                // 性别和年龄
+                QString gender = appearance["gender"].toString();
+                QString age = appearance["age"].toString();
+                if (!gender.isEmpty()) {
+                    addIfNotEmpty(parts, gender);
+                }
+                if (!age.isEmpty() && age != "0") {
+                    addIfNotEmpty(parts, QString("%1 years old").arg(age));
+                }
+                
+                // 体型
+                addIfNotEmpty(parts, appearance["build"].toString());
+                
+                // 头发
+                QString hairColor = appearance["hairColor"].toString();
+                QString hairStyle = appearance["hairStyle"].toString();
+                if (!hairColor.isEmpty() || !hairStyle.isEmpty()) {
+                    addIfNotEmpty(parts, formatHair(hairColor, hairStyle));
+                }
+                
+                // 眼睛颜色
+                QString eyeColor = appearance["eyeColor"].toString();
+                if (!eyeColor.isEmpty()) {
+                    addIfNotEmpty(parts, QString("%1 eyes").arg(eyeColor));
+                }
+                
+                // 服装
+                QJsonArray clothingArr = appearance["clothing"].toArray();
+                QStringList clothing;
+                for (const auto& c : clothingArr) {
+                    QString item = c.toString();
+                    if (!item.isEmpty()) {
+                        clothing.append(item);
+                    }
+                }
+                addListIfNotEmpty(parts, clothing, "wearing");
+                
+                // 显著特征
+                QJsonArray featuresArr = appearance["distinctiveFeatures"].toArray();
+                QStringList features;
+                for (const auto& f : featuresArr) {
+                    QString feature = f.toString();
+                    if (!feature.isEmpty()) {
+                        features.append(feature);
+                    }
+                }
+                addListIfNotEmpty(parts, features, "distinctive features");
+            }
+            
+            // 获取角色参考图片
+            QStringList portraitPaths = normaliseList(fullChar["portraitPaths"].toArray());
+            for (const QString &path : portraitPaths) {
+                if (!path.isEmpty()) {
+                    refUris.append(path);
+                }
             }
         }
     }
@@ -251,7 +375,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
 PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &scene)
 {
     QStringList parts;
-    parts << "environment concept art" << "ultra detailed manga background" << JAPANESE_MANGA_DIRECTIVE;
+    parts << "environment concept art" << "ultra detailed manga background" << "empty scene, no characters" << JAPANESE_MANGA_DIRECTIVE;
     
     QString name = scene["name"].toString();
     QString description = scene["description"].toString();
@@ -305,5 +429,10 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     
     parts << "high detail, volumetric lighting, cinematic environment" << "vibrant colors, full color" << JAPANESE_MANGA_DIRECTIVE;
     
-    return { parts.join(", "), DEFAULT_NEGATIVE_PROMPT + ", monochrome, grayscale, black and white", {} };
+    // 场景圣经不应该出现人物
+    QString sceneNegative = DEFAULT_NEGATIVE_PROMPT + ", monochrome, grayscale, black and white, "
+        "no people, no characters, no humans, no figures, no person, no human, "
+        "empty scene, uninhabited, no faces, no bodies";
+    
+    return { parts.join(", "), sceneNegative, {} };
 }

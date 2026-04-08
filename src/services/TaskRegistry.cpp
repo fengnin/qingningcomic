@@ -4,6 +4,7 @@
 #include "StoryboardService.h"
 #include "AnalysisService.h"
 #include "Logger.h"
+#include <QThread>
 
 namespace {
     ImageService* getImageService()
@@ -168,6 +169,13 @@ void TaskRegistry::registerGeneratePanelsHandler()
                     emit TaskQueue::instance()->taskProgress(task.id, 
                         (i + 1) * 100 / total, 
                         QString("正在生成面板图像 %1/%2").arg(i + 1).arg(total));
+                }
+                
+                // 在请求之间添加延迟，避免 API 限流（火山引擎免费版并发限制为1）
+                // 最后一个面板不需要延迟
+                if (i < panelIds.size() - 1) {
+                    LOG_DEBUG("TaskRegistry", "Waiting 3 seconds before next request to avoid rate limiting");
+                    QThread::sleep(3);
                 }
             }
         } catch (const std::exception& e) {

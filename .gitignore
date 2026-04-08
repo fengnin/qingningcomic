@@ -1,2 +1,37 @@
+# 1. 忽略编译生成的二进制文件和临时文件
 *.exe
+*.o
+*.obj
+*.ilk
+*.pdb
+*.exp
+*.lib
+*.a
+*.so
+*.dll
+
+# 2. 忽略 Qt 生成的 moc 文件 (非常重要！)
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+
+# 3. 忽略整个 build 目录 (这是最大的垃圾堆)
+build/
+tests/
 config.ini
+
+# 4. 忽略 Qt 项目配置文件 (每个人的电脑配置不同，不要上传)
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+
+# 5. 忽略日志和缓存
+*.log
+.cache
+qwen.log
+
+# 6. 忽略系统文件
+Thumbs.db
+.DS_Store
