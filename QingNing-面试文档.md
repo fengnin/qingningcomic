@@ -1362,7 +1362,73 @@ client->init(config);  // 初始化同一个实例
 | 头文件保护符冲突 | 两个文件同名保护符 | 使用带命名空间的保护符 |
 | 缓存不一致 | 数据库更新后缓存未更新 | 更新后调用 `invalidate` |
 
-### 14.2 角色一致性问题
+### 14.4 BibleItem 空指针崩溃修复
+
+#### 问题描述
+
+点击作品进入详情页时，程序崩溃。崩溃发生在 `BibleItem` 构造函数中。
+
+#### 根本原因
+
+`BibleItem` 构造函数调用链：
+
+```
+BibleItem() 
+  → setupUI()
+  → setDetails(details)
+    → populateEditorData()
+      → populateCharacterEditorData()  // 访问 m_genderCombo 等成员
+```
+
+问题是：`m_genderCombo`、`m_ageSpin` 等编辑器控件是在 `createCharacterEditorCard()` 中创建的，而这个函数只有在用户点击"编辑"按钮时才会被调用。
+
+**所以在构造函数阶段，这些成员变量都是 nullptr，导致崩溃！**
+
+#### 问题代码
+
+```cpp
+void BibleItem::populateCharacterEditorData()
+{
+    if (m_details.isEmpty()) return;
+    
+    // 没有检查 m_genderCombo 是否为空！
+    int index = m_genderCombo->findText(gender);  // 崩溃！
+    m_ageSpin->setValue(age);  // 崩溃！
+}
+```
+
+#### 解决方案
+
+在 `populateCharacterEditorData()` 和 `populateSceneEditorData()` 中添加空指针检查：
+
+```cpp
+void BibleItem::populateCharacterEditorData()
+{
+    // 编辑器控件可能还未创建，需要检查空指针
+    if (m_details.isEmpty()) return;
+    if (!m_genderCombo || !m_ageSpin || !m_hairColorEdit || !m_eyeColorEdit) return;
+    
+    // 安全访问成员变量...
+}
+
+void BibleItem::populateSceneEditorData()
+{
+    // 编辑器控件可能还未创建，需要检查空指针
+    if (m_details.isEmpty()) return;
+    if (!m_sceneNameEdit || !m_sceneDescEdit) return;
+    
+    // 安全访问成员变量...
+}
+```
+
+#### 经验总结
+
+| 问题 | 原因 | 解决方案 |
+|------|------|---------|
+| 构造函数中访问未初始化成员 | 编辑器控件延迟创建 | 添加空指针检查 |
+| 调用顺序错误 | `setDetails` 在控件创建前被调用 | 使用惰性初始化或空指针保护 |
+
+### 14.5 角色一致性问题
 
 #### 问题描述
 

@@ -2338,9 +2338,10 @@ void NovelDetailPage::onSceneCountChanged(int count)
     Q_UNUSED(count);
 }
 
-void NovelDetailPage::onBibleItemEditClicked(const QString &id)
+void NovelDetailPage::onBibleItemEditClicked(const QString &id, BibleType type)
 {
     Q_UNUSED(id);
+    Q_UNUSED(type);
 }
 
 void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringList &details)

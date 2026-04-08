@@ -24,6 +24,7 @@ BibleItem::BibleItem(const QString &name, const QStringList &details, BibleType 
     , m_imageLabel(nullptr)
     , m_editBtn(nullptr)
     , m_name(name)
+    , m_itemId()  // 显式初始化为空字符串
     , m_details(details)
     , m_isExpanded(false)
     , m_bibleType(type)
@@ -677,7 +678,9 @@ void BibleItem::populateEditorData()
 
 void BibleItem::populateCharacterEditorData()
 {
+    // 编辑器控件可能还未创建，需要检查空指针
     if (m_details.isEmpty()) return;
+    if (!m_genderCombo || !m_ageSpin || !m_hairColorEdit || !m_eyeColorEdit) return;
     
     for (const QString &detail : m_details) {
         if (detail.contains(QString::fromUtf8("\u5916\u89c2"))) {
@@ -726,7 +729,9 @@ void BibleItem::populateCharacterEditorData()
 
 void BibleItem::populateSceneEditorData()
 {
+    // 编辑器控件可能还未创建，需要检查空指针
     if (m_details.isEmpty()) return;
+    if (!m_sceneNameEdit || !m_sceneDescEdit) return;
     
     m_sceneNameEdit->setText(m_name);
     

@@ -76,7 +76,7 @@ private slots:
     void onBibleDataChanged();
     void onCharacterCountChanged(int count);
     void onSceneCountChanged(int count);
-    void onBibleItemEditClicked(const QString &id);
+    void onBibleItemEditClicked(const QString &id, BibleType type);
     void onBibleItemDataChanged(const QString &id, const QStringList &details);
     void onBibleItemUploadClicked(const QString &id, BibleType type);
     void onBibleItemDeleteImageClicked(const QString &id, BibleType type);
