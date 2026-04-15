@@ -38,14 +38,14 @@ QHBoxLayout* ChapterCard::createHeaderRow()
     headerRow->setSpacing(8);
     headerRow->setContentsMargins(0, 0, 0, 0);
     
-    QString chapterText = QString::fromUtf8("\u7b2c%1\u7ae0").arg(m_chapterNumber);
+    QString chapterText = QString::fromUtf8("第 %1 章").arg(m_chapterNumber);
     QLabel *titleLabel = new QLabel(chapterText);
     titleLabel->setStyleSheet("font-size: 15px; font-weight: bold; color: #1F2937; background: transparent;");
     headerRow->addWidget(titleLabel);
     
     headerRow->addStretch();
     
-    QPushButton *deleteBtn = new QPushButton(QString::fromUtf8("\u00d7"));
+    QPushButton *deleteBtn = new QPushButton(QStringLiteral("×"));
     deleteBtn->setFixedSize(24, 24);
     deleteBtn->setCursor(Qt::PointingHandCursor);
     deleteBtn->setStyleSheet(R"(
@@ -75,7 +75,7 @@ QWidget* ChapterCard::createInfoRow()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(16);
     
-    QString panelText = QString::fromUtf8("%1 \u4e2a\u9762\u677f").arg(m_panelCount);
+    QString panelText = QString::fromUtf8("共 %1 个分镜").arg(m_panelCount);
     QLabel *panelLabel = new QLabel(panelText);
     panelLabel->setStyleSheet("font-size: 13px; color: #6B7280; background: transparent;");
     layout->addWidget(panelLabel);

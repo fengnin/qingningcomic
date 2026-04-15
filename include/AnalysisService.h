@@ -95,6 +95,8 @@ private:
     bool m_processing = false;
     
     bool m_bibleImagesCompleted = false;
+    
+    QJsonObject m_cachedSchema;
 };
 
 #endif // ANALYSISSERVICE_H

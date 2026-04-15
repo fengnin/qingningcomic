@@ -13,21 +13,13 @@
 
 namespace {
     using namespace StatusHelper;
-    // ========== 尺寸常量 ==========
-    constexpr int INPUT_HEIGHT = 50;            // 输入框高度
-    constexpr int SEARCH_BTN_WIDTH = 140;       // 搜索按钮宽度
-    constexpr int DETAIL_ITEM_HEIGHT = 72;      // 详情项高度
-    constexpr int HISTORY_LIST_HEIGHT = 160;    // 历史列表最小高度
-    
-    // ========== 颜色常量 ==========
-    const QString COLOR_PRIMARY = "#84cc16";        // 主色调：青柠绿
-    const QString COLOR_SUCCESS = "#10b981";        // 成功色：绿色
-    const QString COLOR_ERROR = "#ef4444";          // 错误色：红色
-    const QString COLOR_TEXT = "#1e293b";           // 主文字色
-    const QString COLOR_TEXT_LIGHT = "#64748b";     // 浅文字色
-    const QString COLOR_BORDER = "#d4d4d4";         // 边框色
-    
-    // ========== 输入框样式 ==========
+    constexpr int INPUT_HEIGHT = 50;
+    constexpr int DETAIL_ITEM_HEIGHT = 72;
+    const QString COLOR_PRIMARY = "#84cc16";
+    const QString COLOR_ERROR = "#ef4444";
+    const QString COLOR_TEXT = "#1e293b";
+    const QString COLOR_TEXT_LIGHT = "#64748b";
+    const QString COLOR_BORDER = "#d4d4d4";
     const QString INPUT_STYLE = R"(
         QLineEdit {
             padding: 14px 16px;
@@ -46,7 +38,6 @@ namespace {
         }
     )";
     
-    // ========== 按钮样式 ==========
     const QString BTN_PRIMARY_STYLE = R"(
         QPushButton {
             padding: 14px 32px;
@@ -85,7 +76,6 @@ namespace {
         }
     )";
     
-    // ========== 错误提示样式 ==========
     const QString ERROR_LABEL_STYLE = R"(
         QLabel {
             padding: 14px 18px;
@@ -97,7 +87,6 @@ namespace {
         }
     )";
     
-    // ========== 详情项样式 ==========
     const QString DETAIL_ITEM_STYLE = R"(
         #detailItem {
             background: #0a6366f1;
@@ -106,7 +95,6 @@ namespace {
         }
     )";
     
-    // ========== 历史列表样式 ==========
     const QString HISTORY_LIST_STYLE = R"(
         QListWidget {
             border: none;
@@ -179,11 +167,10 @@ ExportPage::~ExportPage()
 {
 }
 
-// ========== 辅助方法 ==========
 
 QWidget* ExportPage::createTransparentWidget()
 {
-    // 创建透明背景容器
+    
     QWidget *widget = new QWidget();
     widget->setStyleSheet("background: transparent;");
     return widget;
@@ -191,7 +178,6 @@ QWidget* ExportPage::createTransparentWidget()
 
 QLabel* ExportPage::createLabel(const QString &text, const QString &style, int fontSize, bool bold)
 {
-    // 创建标签组件
     QLabel *label = new QLabel(text);
     label->setStyleSheet(style);
     if (fontSize > 0) {
@@ -208,7 +194,6 @@ void ExportPage::setupLayout(QLayout *layout, int left, int top, int right, int 
 
 QWidget* ExportPage::createCard(const QString &objectName)
 {
-    // 创建带阴影的卡片容器
     QWidget *card = new QWidget();
     card->setObjectName(objectName);
     card->setStyleSheet(QString(R"(
@@ -219,7 +204,6 @@ QWidget* ExportPage::createCard(const QString &objectName)
         }
     )").arg(objectName));
     
-    // 阴影效果
     QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(card);
     shadow->setBlurRadius(40);
     shadow->setColor(QColor(99, 102, 241, 25));
@@ -229,11 +213,9 @@ QWidget* ExportPage::createCard(const QString &objectName)
     return card;
 }
 
-// ========== UI 初始化 ==========
 
 void ExportPage::setupUI()
 {
-    // 页面背景：柔和的紫白渐变
     this->setObjectName("exportPage");
     this->setStyleSheet(R"(
         #exportPage {
@@ -270,7 +252,6 @@ QScrollArea* ExportPage::createScrollArea()
 
 QWidget* ExportPage::createContentWidget()
 {
-    // 内容容器
     QWidget *contentWidget = new QWidget();
     contentWidget->setObjectName("exportContent");
     contentWidget->setStyleSheet("#exportContent { background: transparent; }");
@@ -286,21 +267,17 @@ QWidget* ExportPage::createContentWidget()
     return contentWidget;
 }
 
-// ========== 头部区域 ==========
 
 QWidget* ExportPage::createHeader()
 {
-    // 头部区域：图标 + 标题 + 描述
     QWidget *header = createTransparentWidget();
     QVBoxLayout *layout = new QVBoxLayout(header);
     setupLayout(layout, 0, 0, 0, 0, 12);
 
-    // 图标 + 标题行
     QWidget *titleRow = createTransparentWidget();
     QHBoxLayout *titleLayout = new QHBoxLayout(titleRow);
     setupLayout(titleLayout, 0, 0, 0, 0, 12);
 
-    // 图标背景
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
     iconLabel->setStyleSheet(R"(
@@ -310,18 +287,17 @@ QWidget* ExportPage::createHeader()
         color: white;
         font-size: 24px;
     )");
-    iconLabel->setText(QString::fromUtf8("\U0001F4E6"));
+    iconLabel->setText(QString::fromUtf8("📦"));
+    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
     iconLabel->setAlignment(Qt::AlignCenter);
 
-    // 标题
-    QLabel *titleLabel = createLabel("导出中心", "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
+    QLabel *titleLabel = createLabel(tr("导出中心"), "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
 
     titleLayout->addWidget(iconLabel);
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
-    // 描述文字
-    QLabel *descLabel = createLabel("查询导出结果、下载文件、追踪导出历史。支持 PDF、Webtoon 长图、资源包三种格式。", "font-size: 15px; color: #64748b; background: transparent; padding-left: 60px;");
+    QLabel *descLabel = createLabel(tr("查看导出结果、下载文件并跟踪导出历史。支持 PDF、Webtoon 和资源包格式。"), "font-size: 15px; color: #64748b; background: transparent; padding-left: 60px;");
     descLabel->setWordWrap(true);
 
     layout->addWidget(titleRow);
@@ -330,11 +306,9 @@ QWidget* ExportPage::createHeader()
     return header;
 }
 
-// ========== 搜索卡片 ==========
 
 QWidget* ExportPage::createSearchCard()
 {
-    // 搜索卡片：输入框 + 结果区域
     QWidget *card = createCard("searchCard");
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, 32, 28, 32, 28, 24);
@@ -347,48 +321,21 @@ QWidget* ExportPage::createSearchCard()
 
 QWidget* ExportPage::createSearchArea()
 {
-    // 搜索区域：标签 + 输入行 + 错误提示
-    QWidget *widget = createTransparentWidget();
-    QVBoxLayout *layout = new QVBoxLayout(widget);
-    setupLayout(layout, 0, 0, 0, 0, 14);
-
-    // 标签
-    QLabel *label = createLabel("导出 ID", "font-size: 14px; font-weight: 600; color: #374151; background: transparent;");
-
-    // 输入行
-    layout->addWidget(label);
-    layout->addWidget(createSearchInputRow());
-
-    // 错误提示
-    m_errorLabel = new QLabel();
-    m_errorLabel->setStyleSheet(ERROR_LABEL_STYLE);
-    m_errorLabel->setVisible(false);
-    m_errorLabel->setWordWrap(true);
-    layout->addWidget(m_errorLabel);
-
-    return widget;
-}
-
-QWidget* ExportPage::createSearchInputRow()
-{
-    // 搜索输入行：输入框 + 按钮
     QWidget *searchRow = createTransparentWidget();
     QHBoxLayout *searchLayout = new QHBoxLayout(searchRow);
     setupLayout(searchLayout, 0, 0, 0, 0, 16);
 
-    // 输入框
     m_exportIdEdit = new QLineEdit();
-    m_exportIdEdit->setPlaceholderText("例如：export-1234");
+    m_exportIdEdit->setPlaceholderText(tr("请输入导出任务ID"));
     m_exportIdEdit->setStyleSheet(INPUT_STYLE);
     m_exportIdEdit->setMinimumHeight(INPUT_HEIGHT);
     connect(m_exportIdEdit, &QLineEdit::textChanged, this, &ExportPage::validateInput);
 
-    // 搜索按钮
-    m_searchBtn = new QPushButton("🔍 查询");
-    m_searchBtn->setEnabled(false);
+    m_searchBtn = new QPushButton(tr("查询"));
     m_searchBtn->setStyleSheet(BTN_PRIMARY_STYLE);
-    m_searchBtn->setMinimumSize(SEARCH_BTN_WIDTH, INPUT_HEIGHT);
     m_searchBtn->setCursor(Qt::PointingHandCursor);
+    m_searchBtn->setMinimumHeight(INPUT_HEIGHT);
+    m_searchBtn->setEnabled(false);
     connect(m_searchBtn, &QPushButton::clicked, this, &ExportPage::onSearchClicked);
 
     searchLayout->addWidget(m_exportIdEdit, 1);
@@ -397,48 +344,38 @@ QWidget* ExportPage::createSearchInputRow()
     return searchRow;
 }
 
-// ========== 结果区域 ==========
-
 QWidget* ExportPage::createResultArea()
 {
-    // 结果区域：分隔线 + 标题 + 详情 + 下载按钮
-    m_resultWidget = createTransparentWidget();
-    m_resultWidget->setVisible(false);
+    m_resultWidget = createCard("resultCard");
+    QVBoxLayout *resultLayout = new QVBoxLayout(m_resultWidget);
+    setupLayout(resultLayout, 32, 28, 32, 28, 18);
 
-    QVBoxLayout *layout = new QVBoxLayout(m_resultWidget);
-    setupLayout(layout, 0, 0, 0, 0, 20);
+    resultLayout->addWidget(createResultHeader());
+    resultLayout->addWidget(createResultDetails());
 
-    // 分隔线
-    QFrame *separator = new QFrame();
-    separator->setFrameShape(QFrame::HLine);
-    separator->setStyleSheet("background: #e2e8f0;");
-    separator->setFixedHeight(1);
+    QWidget *buttonRow = createTransparentWidget();
+    QHBoxLayout *buttonLayout = new QHBoxLayout(buttonRow);
+    setupLayout(buttonLayout, 0, 0, 0, 0, 0);
+    buttonLayout->addStretch();
 
-    layout->addWidget(separator);
-    layout->addWidget(createResultHeader());
-    layout->addWidget(createResultDetails());
-
-    // 下载按钮
-    m_downloadBtn = new QPushButton("📥 打开下载链接");
-    m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
-    m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
-    m_downloadBtn->setCursor(Qt::PointingHandCursor);
+    m_downloadBtn = new QPushButton(tr("下载"));
     connect(m_downloadBtn, &QPushButton::clicked, []() {
         QDesktopServices::openUrl(QUrl("https://example.com/download"));
     });
-    layout->addWidget(m_downloadBtn);
+    buttonLayout->addWidget(m_downloadBtn);
 
+    resultLayout->addWidget(buttonRow);
+    m_resultWidget->setVisible(false);
     return m_resultWidget;
 }
 
 QWidget* ExportPage::createResultHeader()
 {
-    // 结果标题行
     QWidget *headerRow = createTransparentWidget();
     QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
     setupLayout(headerLayout, 0, 0, 0, 0, 0);
 
-    QLabel *resultTitle = createLabel("导出详情", "font-size: 16px; font-weight: bold; color: #1e293b; background: transparent;");
+    QLabel *resultTitle = createLabel(tr("导出结果"), "font-size: 16px; font-weight: bold; color: #1e293b; background: transparent;");
 
     QLabel *resultIdLabel = new QLabel();
     resultIdLabel->setObjectName("resultIdLabel");
@@ -453,24 +390,21 @@ QWidget* ExportPage::createResultHeader()
 
 QWidget* ExportPage::createResultDetails()
 {
-    // 详情网格
     QWidget *detailsGrid = createTransparentWidget();
     QGridLayout *gridLayout = new QGridLayout(detailsGrid);
     gridLayout->setContentsMargins(0, 0, 0, 0);
     gridLayout->setSpacing(14);
-
-    gridLayout->addWidget(createDetailItem("作品 ID", &m_resultNovelIdLabel), 0, 0);
-    gridLayout->addWidget(createDetailItem("格式", &m_resultFormatLabel), 0, 1);
-    gridLayout->addWidget(createDetailItem("状态", &m_resultStatusLabel), 1, 0);
-    gridLayout->addWidget(createDetailItem("文件大小", &m_resultFileSizeLabel), 1, 1);
-    gridLayout->addWidget(createDetailItem("创建时间", &m_resultCreatedAtLabel), 2, 0, 1, 2);
+    gridLayout->addWidget(createDetailItem(tr("作品ID"), &m_resultNovelIdLabel), 0, 0);
+    gridLayout->addWidget(createDetailItem(tr("格式"), &m_resultFormatLabel), 0, 1);
+    gridLayout->addWidget(createDetailItem(tr("状态"), &m_resultStatusLabel), 1, 0);
+    gridLayout->addWidget(createDetailItem(tr("文件大小"), &m_resultFileSizeLabel), 1, 1);
+    gridLayout->addWidget(createDetailItem(tr("创建时间"), &m_resultCreatedAtLabel), 2, 0, 1, 2);
 
     return detailsGrid;
 }
 
 QWidget* ExportPage::createDetailItem(const QString &labelText, QLabel **valueLabel)
 {
-    // 详情项：标签 + 值
     QWidget *widget = new QWidget();
     widget->setObjectName("detailItem");
     widget->setStyleSheet(DETAIL_ITEM_STYLE);
@@ -492,11 +426,9 @@ QWidget* ExportPage::createDetailItem(const QString &labelText, QLabel **valueLa
     return widget;
 }
 
-// ========== 历史卡片 ==========
 
 QWidget* ExportPage::createHistoryCard()
 {
-    // 历史卡片：标题 + 列表
     QWidget *card = createCard("historyCard");
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, 32, 28, 32, 28, 24);
@@ -509,14 +441,13 @@ QWidget* ExportPage::createHistoryCard()
 
 QWidget* ExportPage::createHistoryHeader()
 {
-    // 历史标题行
     QWidget *widget = createTransparentWidget();
     QHBoxLayout *layout = new QHBoxLayout(widget);
     setupLayout(layout, 0, 0, 0, 0, 0);
 
-    QLabel *titleLabel = createLabel("最近的导出记录", "font-size: 18px; font-weight: bold; color: #1e293b; background: transparent;");
+    QLabel *titleLabel = createLabel(tr("历史记录"), "font-size: 18px; font-weight: bold; color: #1e293b; background: transparent;");
 
-    QLabel *hintLabel = createLabel("本地缓存，仅保存最近 10 项", "font-size: 13px; color: #94a3b8; background: transparent;");
+    QLabel *hintLabel = createLabel(tr("本地缓存仅保留最近 10 条记录。"), "font-size: 13px; color: #94a3b8; background: transparent;");
 
     layout->addWidget(titleLabel);
     layout->addStretch();
@@ -527,9 +458,8 @@ QWidget* ExportPage::createHistoryHeader()
 
 QWidget* ExportPage::createHistoryList()
 {
-    // 历史列表
     m_historyList = new QListWidget();
-    m_historyList->setMinimumHeight(HISTORY_LIST_HEIGHT);
+    m_historyList->setMinimumHeight(240);
     m_historyList->setStyleSheet(HISTORY_LIST_STYLE);
     
     connect(m_historyList, &QListWidget::itemClicked, [this](QListWidgetItem *item) {
@@ -540,24 +470,21 @@ QWidget* ExportPage::createHistoryList()
     return m_historyList;
 }
 
-// ========== 业务逻辑 ==========
 
 void ExportPage::loadHistory()
 {
-    // 加载历史记录
     QSettings settings("QingningComic", "ExportHistory");
     m_historyData = settings.value("recentExports", QStringList()).toStringList();
 
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
+        QListWidgetItem *item = new QListWidgetItem(tr("导出任务: %1").arg(id));
         m_historyList->addItem(item);
     }
 }
 
 void ExportPage::saveHistory(const QString &exportId)
 {
-    // 保存历史记录
     m_historyData.removeAll(exportId);
     m_historyData.prepend(exportId);
     if (m_historyData.size() > MAX_HISTORY) {
@@ -567,30 +494,33 @@ void ExportPage::saveHistory(const QString &exportId)
     QSettings settings("QingningComic", "ExportHistory");
     settings.setValue("recentExports", m_historyData);
 
-    // 刷新列表
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
+        QListWidgetItem *item = new QListWidgetItem(tr("导出任务: %1").arg(id));
         m_historyList->addItem(item);
     }
 }
 
 void ExportPage::onSearchClicked()
 {
+    if (!m_searchBtn || !m_exportIdEdit) {
+        return;
+    }
+
     QString exportId = m_exportIdEdit->text().trimmed();
     if (exportId.isEmpty()) {
-        showError(TR("请输入导出 ID"));
+        showError(tr("请输入导出任务ID"));
         return;
     }
 
     clearMessages();
-    m_searchBtn->setText(TR("查询中..."));
+    m_searchBtn->setText(tr("查询中..."));
     m_searchBtn->setEnabled(false);
 
     ExportService* exportService = ServiceContainer::instance()->exportService();
     if (!exportService) {
-        showError(TR("导出服务未初始化"));
-        m_searchBtn->setText(TR("查询"));
+        showError(tr("服务不可用"));
+        m_searchBtn->setText(tr("查询"));
         m_searchBtn->setEnabled(true);
         return;
     }
@@ -598,8 +528,8 @@ void ExportPage::onSearchClicked()
     ExportResult result = exportService->getById(exportId);
     
     if (result.id.isEmpty()) {
-        showError(TR("未找到导出记录: %1").arg(exportId));
-        m_searchBtn->setText(TR("查询"));
+    showError(tr("未找到导出记录: %1").arg(exportId));
+        m_searchBtn->setText(tr("查询"));
         m_searchBtn->setEnabled(true);
         return;
     }
@@ -616,14 +546,13 @@ void ExportPage::onSearchClicked()
     showResult(data);
     saveHistory(exportId);
 
-    m_searchBtn->setText(TR("查询"));
+    m_searchBtn->setText(tr("查询"));
     m_searchBtn->setEnabled(true);
     validateInput();
 }
 
 void ExportPage::onHistoryItemClicked(int index)
 {
-    // 点击历史记录项
     if (index >= 0 && index < m_historyData.size()) {
         QString exportId = m_historyData[index];
         m_exportIdEdit->setText(exportId);
@@ -633,15 +562,17 @@ void ExportPage::onHistoryItemClicked(int index)
 
 void ExportPage::validateInput()
 {
-    // 验证输入
+    if (!m_searchBtn || !m_exportIdEdit) {
+        return;
+    }
+
     bool isValid = !m_exportIdEdit->text().trimmed().isEmpty();
     m_searchBtn->setEnabled(isValid);
 }
 
 QString ExportPage::formatBytes(qint64 size)
 {
-    // 格式化文件大小
-    if (size <= 0) return "—";
+    if (size <= 0) return QStringLiteral("-");
     if (size < 1024) return QString("%1 B").arg(size);
     if (size < 1024 * 1024) return QString("%1 KB").arg((double)size / 1024, 0, 'f', 1);
     if (size < 1024 * 1024 * 1024) return QString("%1 MB").arg((double)size / 1024 / 1024, 0, 'f', 1);
@@ -650,8 +581,7 @@ QString ExportPage::formatBytes(qint64 size)
 
 QString ExportPage::formatDateTime(const QString &dateTime)
 {
-    // 格式化日期时间
-    if (dateTime.isEmpty()) return "—";
+    if (dateTime.isEmpty()) return QStringLiteral("-");
     QDateTime dt = QDateTime::fromString(dateTime, Qt::ISODate);
     if (!dt.isValid()) return dateTime;
     return dt.toLocalTime().toString("yyyy-MM-dd hh:mm:ss");
@@ -659,10 +589,9 @@ QString ExportPage::formatDateTime(const QString &dateTime)
 
 QString ExportPage::formatLabel(const QString &format)
 {
-    // 格式化导出格式标签
     if (format == "pdf") return "PDF";
-    if (format == "webtoon") return "Webtoon 长图";
-    if (format == "resources") return "资源包 (ZIP)";
+    if (format == "webtoon") return "Webtoon";
+    if (format == "resources") return "Resources (ZIP)";
     return format;
 }
 
@@ -673,15 +602,21 @@ QString ExportPage::statusLabel(const QString &status)
 
 void ExportPage::showError(const QString &message)
 {
-    // 显示错误消息
+    if (!m_errorLabel) {
+        return;
+    }
     clearMessages();
-    m_errorLabel->setText("❌ " + message);
+    m_errorLabel->setText(message);
     m_errorLabel->setVisible(true);
 }
 
 void ExportPage::showResult(const QVariantMap &data)
 {
-    // 显示查询结果
+    if (!m_resultWidget || !m_resultNovelIdLabel || !m_resultFormatLabel ||
+        !m_resultStatusLabel || !m_resultFileSizeLabel || !m_resultCreatedAtLabel) {
+        return;
+    }
+
     clearMessages();
 
     QLabel *resultIdLabel = m_resultWidget->findChild<QLabel*>("resultIdLabel");
@@ -700,7 +635,11 @@ void ExportPage::showResult(const QVariantMap &data)
 
 void ExportPage::clearMessages()
 {
-    // 清除所有消息
-    m_errorLabel->setVisible(false);
     m_resultWidget->setVisible(false);
 }
+
+
+
+
+
+

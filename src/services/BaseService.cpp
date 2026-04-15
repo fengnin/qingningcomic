@@ -12,7 +12,7 @@ BaseService::BaseService(DatabaseManager* db, QObject* parent)
 bool BaseService::checkConnection(const QString& operation) const
 {
     if (!m_db || !m_db->isConnected()) {
-        LOG_ERROR("Service", QString("%1: %2").arg(operation, TR("数据库未连接")));
+        LOG_ERROR("Service", QString("%1: %2").arg(operation, tr("服务未连接")));
         return false;
     }
     return true;

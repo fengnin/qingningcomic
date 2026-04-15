@@ -98,17 +98,17 @@ void AnalysisProgressWidget::setResult(const QJsonObject &result)
         QStringList resultParts;
         
         if (result.contains("panelCount")) {
-            resultParts << TR("面板：%1").arg(result["panelCount"].toInt());
+            resultParts << QString::fromUtf8(u8"\u5206\u955c: %1").arg(result["panelCount"].toInt());
         }
         if (result.contains("characterCount")) {
-            resultParts << TR("角色：%1").arg(result["characterCount"].toInt());
+            resultParts << QString::fromUtf8(u8"\u89d2\u8272: %1").arg(result["characterCount"].toInt());
         }
         if (result.contains("sceneCount")) {
-            resultParts << TR("场景：%1").arg(result["sceneCount"].toInt());
+            resultParts << QString::fromUtf8(u8"\u573a\u666f: %1").arg(result["sceneCount"].toInt());
         }
         
         if (!resultParts.isEmpty()) {
-            m_resultLabel->setText(resultParts.join(" · "));
+            m_resultLabel->setText(resultParts.join(" / "));
             m_resultLabel->setVisible(true);
         }
     } else {
@@ -175,17 +175,17 @@ QString AnalysisProgressWidget::stateToText(State state) const
 {
     switch (state) {
         case State::Idle:
-            return TR("就绪");
+            return QString::fromUtf8(u8"\u672a\u5f00\u59cb");
         case State::Connecting:
-            return TR("正在连接 AI 服务...");
+            return QString::fromUtf8(u8"\u8fde\u63a5\u4e2d");
         case State::Streaming:
-            return TR("正在生成内容...");
+            return QString::fromUtf8(u8"\u5206\u6790\u4e2d");
         case State::Processing:
-            return TR("正在处理结果...");
+            return QString::fromUtf8(u8"\u5904\u7406\u4e2d");
         case State::Completed:
-            return TR("分析完成");
+            return QString::fromUtf8(u8"\u5df2\u5b8c\u6210");
         case State::Failed:
-            return TR("分析失败");
+            return QString::fromUtf8(u8"\u5931\u8d25");
         default:
             return QString();
     }
@@ -208,3 +208,4 @@ QString AnalysisProgressWidget::stateToColor(State state) const
             return "#6B7280";
     }
 }
+

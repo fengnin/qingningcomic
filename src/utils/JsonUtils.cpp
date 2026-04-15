@@ -37,6 +37,7 @@ QJsonObject toJson(const CharacterAppearance& appearance)
     obj["height"] = appearance.height;
     obj["build"] = appearance.build;
     obj["clothing"] = toJsonArray(appearance.clothing);
+    obj["accessories"] = toJsonArray(appearance.accessories);
     obj["distinctiveFeatures"] = toJsonArray(appearance.distinctiveFeatures);
     return obj;
 }
@@ -52,6 +53,7 @@ CharacterAppearance toAppearance(const QJsonObject& obj)
     appearance.height = get<QString>(obj, "height");
     appearance.build = get<QString>(obj, "build");
     appearance.clothing = toStringList(getArray(obj, "clothing"));
+    appearance.accessories = toStringList(getArray(obj, "accessories"));
     appearance.distinctiveFeatures = toStringList(getArray(obj, "distinctiveFeatures"));
     return appearance;
 }

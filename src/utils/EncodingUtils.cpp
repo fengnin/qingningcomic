@@ -40,7 +40,7 @@ QString EncodingUtils::tryFixGbkAsUtf8(const QString& str)
     QTextCodec* gbkCodec = QTextCodec::codecForName("GBK");
     if (!gbkCodec) { return QString(); }
     
-    QString fixed = gbkCodec->toUnicode(str.toUtf8());
+    QString fixed = gbkCodec->toUnicode(str.toLatin1());
     return containsChinese(fixed) ? fixed : QString();
 }
 

@@ -69,7 +69,7 @@ bool RetryPolicy::executeWithRetry(Operation operation,
             
             performRetry(i, attempt, onRetry);
         } catch (...) {
-            handleException(attempt, "unknown", TR("未知异常"));
+            handleException(attempt, "unknown", tr("未知错误"));
             
             if (!shouldContinueRetry(i, attempt.errorMessage)) {
                 if (onComplete) {

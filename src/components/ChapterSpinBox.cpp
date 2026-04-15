@@ -77,7 +77,7 @@ ChapterSpinBox::ChapterSpinBox(QWidget *parent)
     btnLayout->setContentsMargins(2, 0, 2, 0);
     btnLayout->setSpacing(0);
     
-    QString upArrow = QString::fromUtf8("\u25b2");
+    QString upArrow = QStringLiteral("▲");
     m_upBtn = new QPushButton(upArrow);
     m_upBtn->setFixedSize(24, 20);
     m_upBtn->setCursor(Qt::PointingHandCursor);
@@ -85,7 +85,7 @@ ChapterSpinBox::ChapterSpinBox(QWidget *parent)
     connect(m_upBtn, &QPushButton::clicked, this, &ChapterSpinBox::onUpClicked);
     btnLayout->addWidget(m_upBtn);
     
-    QString downArrow = QString::fromUtf8("\u25bc");
+    QString downArrow = QStringLiteral("▼");
     m_downBtn = new QPushButton(downArrow);
     m_downBtn->setFixedSize(24, 20);
     m_downBtn->setCursor(Qt::PointingHandCursor);

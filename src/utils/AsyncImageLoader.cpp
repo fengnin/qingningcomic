@@ -99,7 +99,7 @@ void AsyncImageLoader::onNetworkReplyFinished(QNetworkReply* reply, const QStrin
     
     if (pixmap.loadFromData(imageData)) {
         if (targetSize.isValid() && (pixmap.width() > targetSize.width() || pixmap.height() > targetSize.height())) {
-            pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
         emit imageLoaded(id, cacheKey, pixmap);
     } else {
@@ -154,7 +154,7 @@ QPixmap AsyncImageLoader::loadImageFromFile(const QString& path, const QSize& ta
     }
     
     if (targetSize.isValid() && (pixmap.width() > targetSize.width() || pixmap.height() > targetSize.height())) {
-        pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
     
     return pixmap;

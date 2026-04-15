@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QFile>
 #include <QTextStream>
+#include <utility>
 
 namespace Enc {
     inline QString utf8(const char* str) 
@@ -101,7 +102,7 @@ namespace Enc {
 }
 
 #define TR(str) Enc::utf8(str)
-#define TR_FMT(str, ...) Enc::fmt(str, __VA_ARGS__)
+#define TR_FMT(...) Enc::fmt(__VA_ARGS__)
 
 class EncodingUtils
 {

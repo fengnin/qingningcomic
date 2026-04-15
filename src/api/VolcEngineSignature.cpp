@@ -66,9 +66,9 @@ QString calculateSignature(const QString& secretKey,
                             const QString& service,
                             const QString& stringToSign)
 {
-    // 签名派生流程（火山引擎 V4 签名算法)
-    // 注意： 第一步需要添加 "VOLC" 前缀
-    QByteArray kDate = hmacSha256(QByteArray("VOLC") + secretKey.toUtf8(), date.toUtf8());
+    // 火山引擎 V4 签名派生流程
+    // 官方文档: https://www.volcengine.com/docs/6369/67269
+    QByteArray kDate = hmacSha256(secretKey.toUtf8(), date.toUtf8());
     QByteArray kRegion = hmacSha256(kDate, region.toUtf8());
     QByteArray kService = hmacSha256(kRegion, service.toUtf8());
     QByteArray kSigning = hmacSha256(kService, QByteArray("request"));

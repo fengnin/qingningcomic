@@ -107,7 +107,7 @@ QWidget* EditorCardBase::createTitleRow(const QString &title)
     layout->addWidget(titleLabel);
     layout->addStretch();
     
-    QString closeText = QString::fromUtf8("\u00d7");
+    QString closeText = QStringLiteral("×");
     QPushButton *closeBtn = new QPushButton(closeText);
     closeBtn->setFixedSize(28, 28);
     closeBtn->setStyleSheet(EditorStyles::closeButtonStyle());

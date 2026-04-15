@@ -18,6 +18,7 @@ class BibleImageService;
 class TaskQueue;
 class AppConfig;
 class ExportService;
+class ChangeRequestService;
 
 #define SERVICE_CONTAINER_METHODS(Type, member, getterName) \
     void set##Type(Type* service) { m_##member = service; } \
@@ -41,6 +42,7 @@ class ServiceContainer : public QObject
     SERVICE_CONTAINER_METHODS(TaskQueue, taskQueue, taskQueue)
     SERVICE_CONTAINER_METHODS(AppConfig, appConfig, appConfig)
     SERVICE_CONTAINER_METHODS(ExportService, exportService, exportService)
+    SERVICE_CONTAINER_METHODS(ChangeRequestService, changeRequestService, changeRequestService)
     
     void clear();
 
@@ -66,6 +68,7 @@ private:
     TaskQueue* m_taskQueue = nullptr;
     AppConfig* m_appConfig = nullptr;
     ExportService* m_exportService = nullptr;
+    ChangeRequestService* m_changeRequestService = nullptr;
 };
 
 #undef SERVICE_CONTAINER_METHODS

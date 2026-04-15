@@ -1,6 +1,7 @@
 #include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
 #include "ImageService.h"
+#include "Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -9,50 +10,59 @@
 #include <QFileDialog>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSizePolicy>
+#include <QtConcurrent>
 
 namespace {
     using EditorStyles::TRANSPARENT_BG;
     
     namespace Text {
-        const QString PREVIEW = QString::fromUtf8("\u9884\u89c8");
-        const QString LOADING = QString::fromUtf8("\u52a0\u8f7d\u4e2d...");
-        const QString LOAD_FAILED = QString::fromUtf8("\u52a0\u8f7d\u5931\u8d25");
-        const QString WAIT_GENERATE = QString::fromUtf8("\u7b49\u5f85\u751f\u6210...");
-        const QString SCENE = QString::fromUtf8("\u573a\u666f: ");
-        const QString POSITION = QString::fromUtf8("\u4f4d\u7f6e: ");
-        const QString SCENE_DESC = QString::fromUtf8("\u573a\u666f\u63cf\u8ff0");
-        const QString EDIT_MODE = QString::fromUtf8("\u7f16\u8f91\u6a21\u5f0f");
-        const QString EDIT_INSTRUCTION = QString::fromUtf8("\u7f16\u8f91\u6307\u4ee4");
-        const QString INPAINT = QString::fromUtf8("\u5c40\u90e8\u91cd\u7ed8");
-        const QString OUTPAINT = QString::fromUtf8("\u6269\u5c55\u751f\u6210");
-        const QString BG_SWAP = QString::fromUtf8("\u80cc\u666f\u66ff\u6362");
-        const QString SAVE_SCENE = QString::fromUtf8("\u4fdd\u5b58\u573a\u666f\u63cf\u8ff0");
-        const QString SUBMIT_EDIT = QString::fromUtf8("\u63d0\u4ea4\u7f16\u8f91");
-        const QString SELECT_FILE = QString::fromUtf8("\u9009\u62e9\u6587\u4ef6");
-        const QString MASK_FILE = QString::fromUtf8("\u9009\u62e9\u906e\u7f69\u6587\u4ef6:");
-        const QString NOT_SELECTED = QString::fromUtf8("\u672a\u9009\u62e9");
-        const QString SELECTED = QString::fromUtf8("\u5df2\u9009\u62e9");
-        const QString TASK_STATUS = QString::fromUtf8("\u4efb\u52a1\u72b6\u6001: ");
-        const QString PENDING = QString::fromUtf8("\u5f85\u63d0\u4ea4");
-        const QString PROCESSING = QString::fromUtf8("\u5904\u7406\u4e2d");
-        const QString SUCCESS = QString::fromUtf8("\u5df2\u5b8c\u6210");
-        const QString FAILED = QString::fromUtf8("\u5931\u8d25");
-        const QString SCENE_HINT = QString::fromUtf8("\u4fee\u6539\u573a\u666f\u63cf\u8ff0\u540e\u70b9\u51fb\u4fdd\u5b58\u5373\u53ef\u66f4\u65b0");
-        const QString EDIT_HINT = QString::fromUtf8("\u8f93\u5165\u4f60\u60f3\u8981\u4fee\u6539\u7684\u5185\u5bb9\u63cf\u8ff0...");
+        const QString PREVIEW = QString::fromUtf8("预览");
+        const QString LOADING = QString::fromUtf8("加载中...");
+        const QString LOAD_FAILED = QString::fromUtf8("加载失败");
+        const QString WAIT_GENERATE = QString::fromUtf8("待生成");
+        const QString SCENE = QString::fromUtf8("场景");
+        const QString POSITION = QString::fromUtf8("位置");
+        const QString SCENE_DESC = QString::fromUtf8("场景描述");
+        const QString EDIT_MODE = QString::fromUtf8("编辑模式");
+        const QString EDIT_INSTRUCTION = QString::fromUtf8("编辑指令");
+        const QString INPAINT = QString::fromUtf8("局部重绘");
+        const QString OUTPAINT = QString::fromUtf8("扩展绘制");
+        const QString BG_SWAP = QString::fromUtf8("背景替换");
+        const QString SAVE_SCENE = QString::fromUtf8("保存场景");
+        const QString SUBMIT_EDIT = QString::fromUtf8("提交编辑");
+        const QString SELECT_FILE = QString::fromUtf8("选择文件");
+        const QString MASK_FILE = QString::fromUtf8("遮罩文件");
+        const QString NOT_SELECTED = QString::fromUtf8("未选择");
+        const QString SELECTED = QString::fromUtf8("已选择");
+        const QString TASK_STATUS = QString::fromUtf8("任务状态");
+        const QString PENDING = QString::fromUtf8("等待中");
+        const QString PROCESSING = QString::fromUtf8("处理中");
+        const QString SUCCESS = QString::fromUtf8("成功");
+        const QString FAILED = QString::fromUtf8("失败");
+        const QString SCENE_HINT = QString::fromUtf8("用于生成当前分镜画面");
+        const QString EDIT_HINT = QString::fromUtf8("输入修改要求，例如局部重绘、扩展画面或背景替换...");
     }
     
     namespace Size {
-        constexpr int DIALOG_WIDTH = 580;
-        constexpr int DIALOG_HEIGHT = 750;
-        constexpr int PREVIEW_WIDTH = 140;
-        constexpr int PREVIEW_HEIGHT = 185;
-        constexpr int SCENE_DESC_HEIGHT = 100;
-        constexpr int INSTRUCTION_HEIGHT = 80;
+        constexpr int DIALOG_WIDTH = 860;
+        constexpr int DIALOG_HEIGHT = 660;
+        constexpr int PREVIEW_WIDTH = 240;
+        constexpr int PREVIEW_HEIGHT = 320;
+        constexpr int SCENE_DESC_HEIGHT = 120;
+        constexpr int INSTRUCTION_HEIGHT = 104;
     }
     
     namespace Style {
         const QString SECTION_TITLE = "font-size: 13px; font-weight: 600; color: #374151; background: transparent;";
         const QString INFO_TEXT = "font-size: 12px; color: #6B7280; background: transparent;";
+        const QString HERO_CARD = R"(
+            QWidget#heroCard {
+                background: rgba(255, 255, 255, 0.82);
+                border-radius: 18px;
+                border: 1px solid #E5E7EB;
+            }
+        )";
         const QString CARD_BG = R"(
             QWidget#sectionCard {
                 background: #F9FAFB;
@@ -73,6 +83,7 @@ namespace {
         
         const QString PANEL_ID_STYLE = "font-size: 16px; font-weight: bold; color: #1F2937; background: transparent;";
         const QString PANEL_META_STYLE = "font-size: 13px; color: #6B7280; background: transparent;";
+        const QString SCENE_SUMMARY_STYLE = "font-size: 13px; color: #4B5563; background: transparent; line-height: 1.5;";
         
         const QString SCENE_EDIT_STYLE = R"(
             QTextEdit {
@@ -266,18 +277,49 @@ void PanelEditorWidget::setupUI()
             background: transparent;
         }
     )");
-    setFixedSize(Size::DIALOG_WIDTH, Size::DIALOG_HEIGHT);
+    setMinimumWidth(Size::DIALOG_WIDTH);
+    setMaximumWidth(Size::DIALOG_WIDTH);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(24, 20, 24, 24);
-    mainLayout->setSpacing(16);
-    
-    mainLayout->addWidget(createHeader());
-    mainLayout->addWidget(createSceneDescSection());
-    mainLayout->addWidget(createEditModeSection());
-    mainLayout->addWidget(createInstructionSection());
-    mainLayout->addStretch();
-    mainLayout->addWidget(createFooter());
+    mainLayout->setSpacing(14);
+
+    QWidget *heroCard = new QWidget();
+    heroCard->setObjectName("heroCard");
+    heroCard->setStyleSheet(Style::HERO_CARD);
+    QHBoxLayout *heroLayout = new QHBoxLayout(heroCard);
+    heroLayout->setContentsMargins(20, 20, 20, 20);
+    heroLayout->setSpacing(14);
+    heroLayout->addWidget(createHeaderPreview());
+    heroLayout->addWidget(createHeaderInfo(), 1);
+    heroLayout->addWidget(createCloseButton(), 0, Qt::AlignTop);
+    mainLayout->addWidget(heroCard);
+
+    QWidget *bodyRow = new QWidget();
+    QHBoxLayout *bodyLayout = new QHBoxLayout(bodyRow);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    bodyLayout->setSpacing(14);
+
+    QWidget *leftColumn = new QWidget();
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftColumn);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(14);
+    leftLayout->addWidget(createSceneDescSection());
+
+    QWidget *rightColumn = new QWidget();
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightColumn);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(14);
+    rightLayout->addWidget(createEditModeSection());
+    rightLayout->addWidget(createInstructionSection());
+    rightLayout->addWidget(createFooter());
+    rightLayout->addStretch();
+
+    bodyLayout->addWidget(leftColumn, 1);
+    bodyLayout->addWidget(rightColumn, 1);
+    mainLayout->addWidget(bodyRow);
+    adjustSize();
 }
 
 void PanelEditorWidget::setupConnections()
@@ -305,7 +347,7 @@ void PanelEditorWidget::setPanelInfo(int chapterNumber, int panelNumber, const Q
     m_panelId = panelId;
     
     if (m_idLabel) {
-        m_idLabel->setText(QString("Panel %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
+        m_idLabel->setText(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     }
     if (m_posLabel) {
         m_posLabel->setText(Text::POSITION + QString("P%1-%2").arg(m_chapterNumber).arg(m_panelNumber));
@@ -430,7 +472,7 @@ QWidget* PanelEditorWidget::createHeaderInfo()
     layout->setContentsMargins(0, 4, 0, 0);
     layout->setSpacing(6);
     
-    m_idLabel = new QLabel(QString("Panel %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
+    m_idLabel = new QLabel(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     m_idLabel->setStyleSheet(Style::PANEL_ID_STYLE);
     layout->addWidget(m_idLabel);
     
@@ -438,7 +480,7 @@ QWidget* PanelEditorWidget::createHeaderInfo()
     m_posLabel->setStyleSheet(Style::PANEL_META_STYLE);
     layout->addWidget(m_posLabel);
     
-    QLabel *sceneLabel = new QLabel(Text::SCENE + Text::WAIT_GENERATE);
+    QLabel *sceneLabel = new QLabel(QString::fromUtf8("场景：%1").arg(Text::WAIT_GENERATE));
     sceneLabel->setStyleSheet(Style::PANEL_META_STYLE);
     layout->addWidget(sceneLabel);
     layout->addStretch();
@@ -448,7 +490,7 @@ QWidget* PanelEditorWidget::createHeaderInfo()
 
 QPushButton* PanelEditorWidget::createCloseButton()
 {
-    QString closeText = QString::fromUtf8("\u00d7");
+    QString closeText = QString::fromUtf8("关闭");
     QPushButton *btn = new QPushButton(closeText);
     btn->setFixedSize(32, 32);
     btn->setStyleSheet(Style::CLOSE_BTN_STYLE);
@@ -662,11 +704,18 @@ void PanelEditorWidget::onEditModeClicked(int mode)
 
 void PanelEditorWidget::onSubmitEditClicked()
 {
+    if (m_imageService && m_imageService->isGenerating()) {
+        LOG_WARNING("PanelEditorWidget", "已有生成任务在进行中，请等待完成");
+        return;
+    }
+    
     setState(State::Processing);
     emit editSubmitted(static_cast<int>(m_currentEditMode), editInstruction(), m_maskFilePath);
     
     if (m_imageService && !m_panelId.isEmpty()) {
-        m_imageService->generatePanelImage(m_panelId, ImageService::GenerateMode::Preview);
+        QtConcurrent::run([this]() {
+            m_imageService->generatePanelImage(m_panelId, ImageService::GenerateMode::Preview);
+        });
     }
 }
 

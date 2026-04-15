@@ -66,27 +66,27 @@ QString Panel::positionLabel() const
 QString Panel::charactersText() const
 {
     if (m_characters.isEmpty()) {
-        return QString::fromUtf8("未填写");
+        return QString::fromUtf8(u8"\u65e0\u89d2\u8272");
     }
     QStringList names;
     names.reserve(m_characters.size());
     for (const auto &c : m_characters) {
         names << c.name;
     }
-    return names.join(QString::fromUtf8("、"));
+    return names.join(QString::fromUtf8(u8"\u3001"));
 }
 
 QString Panel::dialogueText() const
 {
     if (m_dialogue.isEmpty()) {
-        return QString::fromUtf8("未填写");
+        return QString::fromUtf8(u8"\u65e0\u5bf9\u767d");
     }
     QStringList lines;
     lines.reserve(m_dialogue.size());
     for (const auto &d : m_dialogue) {
-        lines << (d.text.isEmpty() ? d.speaker : QString("%1：%2").arg(d.speaker, d.text));
+        lines << (d.text.isEmpty() ? d.speaker : QString::fromUtf8(u8"%1\uff1a%2").arg(d.speaker, d.text));
     }
-    return lines.join(" / ");
+    return lines.join(QString::fromUtf8(u8"\uff1b"));
 }
 
 QJsonArray Panel::charactersToJsonArray() const

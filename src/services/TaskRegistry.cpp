@@ -5,6 +5,9 @@
 #include "AnalysisService.h"
 #include "Logger.h"
 #include <QThread>
+#include <QEventLoop>
+#include <QJsonDocument>
+#include <stdexcept>
 
 namespace {
     ImageService* getImageService()
@@ -12,12 +15,29 @@ namespace {
         ImageService* service = ServiceContainer::instance()->imageService();
         return service ? service : ImageService::instance();
     }
-    
+
+    bool parseBatchPresetMode(const QString& modeStr, ImageService::BatchPresetMode& outMode)
+    {
+        if (modeStr == "1x1") {
+            outMode = ImageService::BatchPresetMode::Square_1x1;
+            return true;
+        }
+        if (modeStr == "3x2" || modeStr == "3:2") {
+            outMode = ImageService::BatchPresetMode::Standard_3x2;
+            return true;
+        }
+        if (modeStr == "16x9" || modeStr == "16:9") {
+            outMode = ImageService::BatchPresetMode::Widescreen_16x9;
+            return true;
+        }
+        return false;
+    }
+
     ImageService::GenerateMode parseMode(const QString& modeStr)
     {
         return (modeStr == "hd") ? ImageService::GenerateMode::HD : ImageService::GenerateMode::Preview;
     }
-    
+
     QJsonObject buildBatchResult(int success, int failed, int total)
     {
         QJsonObject result;
@@ -26,7 +46,7 @@ namespace {
         result["total"] = total;
         return result;
     }
-    
+
     void logHandlerRegistered(const QString& name)
     {
         LOG_INFO("TaskRegistry", QString("%1 handler registered").arg(name));
@@ -98,7 +118,7 @@ void TaskRegistry::registerGenerateStoryboardHandler()
             service->processTask(task);
         }
     };
-    
+
     registerHandler(TaskType::GenerateStoryboard, handler);
     logHandlerRegistered("GenerateStoryboard");
 }
@@ -108,7 +128,7 @@ void TaskRegistry::registerGeneratePanelImageHandler()
     auto handler = [](TaskData& task) -> QJsonObject {
         return getImageService()->handleGeneratePanelImageTask(task.toJson());
     };
-    
+
     registerHandler(TaskType::GeneratePanelImage, handler);
     logHandlerRegistered("GeneratePanelImage");
 }
@@ -118,84 +138,97 @@ void TaskRegistry::registerGeneratePanelsHandler()
     auto handler = [](TaskData& task) {
         ImageService* imageService = getImageService();
         if (!imageService) {
-            LOG_ERROR("TaskRegistry", "ImageService is null");
+            throw std::runtime_error("ImageService is null");
+        }
+
+        QJsonArray panelIds = task.params["panelIds"].toArray();
+        QString modeStr = task.params["mode"].toString("1x1");
+
+        const int total = panelIds.size();
+        if (total == 0) {
+            task.result = buildBatchResult(0, 0, 0);
             return;
         }
-        
-        QJsonArray panelIds = task.params["panelIds"].toArray();
-        ImageService::GenerateMode mode = parseMode(task.params["mode"].toString("preview"));
-        
-        int total = panelIds.size();
-        int successCount = 0;
-        int failedCount = 0;
-        
-        // 初始化批量生成状态，使 shouldContinue() 返回 true
-        imageService->startBatch(total);
-        
-        try {
-            for (int i = 0; i < panelIds.size(); ++i) {
-                // 检查是否被取消
-                if (!imageService->isGenerating()) {
-                    LOG_INFO("TaskRegistry", "Batch generation cancelled by user");
-                    break;
-                }
-                
-                QString panelId = panelIds[i].toString();
-                
-                // 捕获单个面板生成的异常，防止一个面板失败导致整个批次终止
-                try {
-                    ImageService::GenerateResult result = imageService->generatePanelImage(panelId, mode);
-                    
-                    if (result.success) {
-                        ++successCount;
-                        LOG_INFO("TaskRegistry", QString("Panel %1 generated").arg(panelId));
-                    } else {
-                        ++failedCount;
-                        LOG_WARNING("TaskRegistry", QString("Panel %1 failed: %2").arg(panelId, result.errorMessage));
-                    }
-                } catch (const std::exception& e) {
-                    ++failedCount;
-                    LOG_ERROR("TaskRegistry", QString("Exception generating panel %1: %2")
-                        .arg(panelId).arg(QString::fromUtf8(e.what())));
-                } catch (...) {
-                    ++failedCount;
-                    LOG_ERROR("TaskRegistry", QString("Unknown exception generating panel %1").arg(panelId));
-                }
-                
-                task.completed = i + 1;
-                
-                // 安全地发射进度信号（检查 TaskQueue 是否仍然有效）
+
+        QStringList panelIdList;
+        panelIdList.reserve(total);
+        for (const QJsonValue& v : panelIds) {
+            panelIdList << v.toString();
+        }
+
+        bool batchFinished = false;
+        bool batchFailed = false;
+        QString batchError;
+
+        QEventLoop loop;
+        QMetaObject::Connection progressConn = QObject::connect(
+            imageService, &ImageService::batchProgressChanged,
+            &loop,
+            [&task, total](int current, int totalPanel, const QString& info) {
+                Q_UNUSED(totalPanel)
+                task.completed = current;
                 if (TaskQueue::instance()) {
-                    emit TaskQueue::instance()->taskProgress(task.id, 
-                        (i + 1) * 100 / total, 
-                        QString("正在生成面板图像 %1/%2").arg(i + 1).arg(total));
+                    emit TaskQueue::instance()->taskProgress(task.id, current * 100 / total, info);
                 }
-                
-                // 在请求之间添加延迟，避免 API 限流（火山引擎免费版并发限制为1）
-                // 最后一个面板不需要延迟
-                if (i < panelIds.size() - 1) {
-                    LOG_DEBUG("TaskRegistry", "Waiting 3 seconds before next request to avoid rate limiting");
-                    QThread::sleep(3);
+            },
+            Qt::QueuedConnection);
+
+        QMetaObject::Connection completedConn = QObject::connect(
+            imageService, &ImageService::imageBatchCompleted,
+            &loop,
+            [&loop, &task, &batchFinished, &batchFailed, &batchError](const ImageService::BatchResult& result) {
+                batchFinished = true;
+                task.result = buildBatchResult(result.successCount, result.failedCount, result.totalCount);
+                task.completed = result.totalCount;
+                if ((result.totalCount > 0 && result.successCount == 0) || !batchError.isEmpty()) {
+                    batchFailed = true;
+                    if (batchError.isEmpty()) {
+                        batchError = QStringLiteral("Batch generation failed");
+                    }
                 }
-            }
-        } catch (const std::exception& e) {
-            LOG_ERROR("TaskRegistry", QString("Batch generation exception: %1").arg(QString::fromUtf8(e.what())));
-        } catch (...) {
-            LOG_ERROR("TaskRegistry", "Unknown exception during batch generation");
+                loop.quit();
+            },
+            Qt::QueuedConnection);
+
+        QMetaObject::Connection errorConn = QObject::connect(
+            imageService, &ImageService::errorOccurred,
+            &loop,
+            [&loop, &batchFailed, &batchError, &task](const QString& operation, const QString& message) {
+                if (operation == "startBatchGeneration") {
+                    batchFailed = true;
+                    batchError = message;
+                    task.result = buildBatchResult(0, 0, 0);
+                    loop.quit();
+                }
+            },
+            Qt::QueuedConnection);
+
+        ImageService::BatchPresetMode presetMode;
+        if (parseBatchPresetMode(modeStr, presetMode)) {
+            imageService->generatePanelImages(panelIdList, presetMode);
+        } else {
+            ImageService::GenerateMode mode = parseMode(modeStr);
+            imageService->generatePanelImages(panelIdList, mode);
         }
-        
-        // 确保总是完成批量生成状态
-        try {
-            imageService->finishBatch();
-        } catch (...) {
-            LOG_ERROR("TaskRegistry", "Exception calling finishBatch");
+
+        loop.exec();
+
+        QObject::disconnect(progressConn);
+        QObject::disconnect(completedConn);
+        QObject::disconnect(errorConn);
+
+        if (batchFailed) {
+            throw std::runtime_error(batchError.toUtf8().constData());
         }
-        
-        task.result = buildBatchResult(successCount, failedCount, total);
-        LOG_INFO("TaskRegistry", QString("Batch completed: %1 success, %2 failed")
-            .arg(successCount).arg(failedCount));
+
+        if (!batchFinished) {
+            throw std::runtime_error("Batch generation finished without a completion signal");
+        }
+
+        LOG_INFO("TaskRegistry", QString("Batch generation task completed: %1")
+            .arg(QString::fromUtf8(QJsonDocument(task.result).toJson())));
     };
-    
+
     registerHandler(TaskType::GeneratePanels, handler);
     logHandlerRegistered("GeneratePanels");
 }

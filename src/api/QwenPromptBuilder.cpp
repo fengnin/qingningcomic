@@ -2,10 +2,17 @@
 #include "SchemaToPrompt.h"
 #include <QFile>
 #include <QJsonDocument>
+#include <QCoreApplication>
+#include <QDir>
 
 QString QwenPromptBuilder::buildSystemPrompt(const QString& schemaPath)
 {
-    QFile schemaFile(schemaPath);
+    QString absolutePath = schemaPath;
+    if (QDir::isRelativePath(schemaPath)) {
+        absolutePath = QDir(QCoreApplication::applicationDirPath()).filePath(schemaPath);
+    }
+    
+    QFile schemaFile(absolutePath);
     QJsonObject schema;
     
     if (schemaFile.open(QIODevice::ReadOnly)) {
@@ -15,7 +22,7 @@ QString QwenPromptBuilder::buildSystemPrompt(const QString& schemaPath)
     }
     
     if (schema.isEmpty()) {
-        return QString::fromUtf8("你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。请严格按照 JSON Schema 输出。");
+        return QString::fromUtf8("\u65e0\u6cd5\u52a0\u8f7dSchema\u914d\u7f6e\u6587\u4ef6");
     }
     
     SchemaToPrompt::Options options;
@@ -36,54 +43,45 @@ QString QwenPromptBuilder::buildUserMessageWithBible(
         return userMessage;
     }
     
-    userMessage = QString::fromUtf8("章节 %1：\n\n").arg(chapterNumber > 0 ? QString::number(chapterNumber) : "?");
+    userMessage = QString::fromUtf8("\u4ee5\u4e0b\u662f\u7b2c%1\u7ae0\u7684\u8bbe\u5b9a\u8d44\u6599\uff1a\n\n").arg(chapterNumber > 0 ? QString::number(chapterNumber) : "?");
     
     if (!existingCharacters.isEmpty()) {
-        userMessage += QString::fromUtf8("【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：\n");
+        userMessage += QString::fromUtf8("\u3010\u89d2\u8272\u8bbe\u5b9a\u3011\n");
         userMessage += QString::fromUtf8(QJsonDocument(existingCharacters).toJson(QJsonDocument::Indented));
         userMessage += "\n\n";
     }
     
     if (!existingScenes.isEmpty()) {
-        userMessage += QString::fromUtf8("【现有场景圣经】请在生成的 scenes 数组中包含以下所有场景，并保持其 visualCharacteristics 不变。在 panel.background.sceneId 中优先使用这些场景ID：\n");
+        userMessage += QString::fromUtf8("\u3010\u573a\u666f\u8bbe\u5b9a\u3011\n");
         userMessage += QString::fromUtf8(QJsonDocument(existingScenes).toJson(QJsonDocument::Indented));
         userMessage += "\n\n";
     }
     
-    userMessage += QString::fromUtf8("【新章节文本】\n") + text;
+    userMessage += QString::fromUtf8("\u3010\u6b63\u6587\u5185\u5bb9\u3011\n") + text;
     
     return userMessage;
 }
 
 QString QwenPromptBuilder::buildChangeRequestPrompt()
 {
-    return QString::fromUtf8("你是一个漫画修改助手。\n\n"
-        "你的任务是将用户的自然语言修改请求转换为结构化的 CR-DSL（Change Request Domain Specific Language）。\n\n"
-        "CR-DSL 包含以下要素：\n"
-        "- scope: 修改范围\n"
-        "- targetId: 目标 ID（如果适用）\n"
-        "- type: 修改类型\n"
-        "- ops: 操作列表，每个操作包含 action 和 params\n\n"
-        "可用的 action：\n"
-        "- inpaint: 局部重绘（需要遮罩区域）\n"
-        "- outpaint: 扩展画面\n"
-        "- bg_swap: 替换背景\n"
-        "- repose: 改变角色姿势\n"
-        "- regen_panel: 重新生成整个面板\n"
-        "- rewrite_dialogue: 重写对白\n"
-        "- reorder: 重新排序\n\n"
-        "请根据用户的自然语言请求，生成符合 Schema 的 CR-DSL JSON。");
+    return QStringLiteral(
+        "你是漫画分镜编辑助手。\n\n"
+        "请将用户的自然语言修改需求转换为结构化 CR-DSL JSON。\n"
+        "只输出 JSON，不要添加额外说明。\n"
+    );
 }
 
 QString QwenPromptBuilder::buildDialogueRewritePrompt()
 {
-    return QString::fromUtf8("你是一个专业的对白编辑。\n\n"
-        "你的任务是根据用户的指示重写漫画对白，保持角色性格和语气，同时满足修改要求。\n\n"
+    return QStringLiteral(
+        "你是对白改写助手。\n\n"
+        "请根据用户的修改要求，重写原对白。\n"
         "要求：\n"
-        "1. 保持对白简洁（漫画气泡空间有限）\n"
-        "2. 符合角色性格\n"
-        "3. 自然流畅\n"
-        "4. 直接输出重写后的对白，不要添加引号或解释");
+        "1. 保持原意和人物关系不变。\n"
+        "2. 语言自然，符合漫画对白风格。\n"
+        "3. 不要输出分析过程。\n"
+        "4. 只返回改写后的对白文本。\n"
+    );
 }
 
 QJsonObject QwenPromptBuilder::buildExamplePanel()
@@ -91,49 +89,49 @@ QJsonObject QwenPromptBuilder::buildExamplePanel()
     QJsonObject panel;
     panel["page"] = 1;
     panel["index"] = 0;
-    panel["scene"] = QString::fromUtf8("夕阳西下，金色余晖洒在小镇石板路上。李明背着书包独自走在回家路上，街道两旁是低矮砖房。");
-    
+    panel["scene"] = QString::fromUtf8("\u6821\u56ed\u8d70\u5eca");
+
     QJsonObject background;
-    background["sceneId"] = QString::fromUtf8("ancient_town_main_street");
-    background["setting"] = QString::fromUtf8("古镇石板街道");
-    background["timeOfDay"] = QString::fromUtf8("dusk");
-    background["weather"] = QString::fromUtf8("clear");
-    background["lighting"] = QString::fromUtf8("natural");
-    background["details"] = QJsonArray{QString::fromUtf8("远处山峦"), QString::fromUtf8("街边灯笼"), QString::fromUtf8("砖墙上的爬山虎")};
+    background["sceneId"] = QString::fromUtf8("scene_001");
+    background["setting"] = QString::fromUtf8("\u5ba4\u5185");
+    background["timeOfDay"] = QString::fromUtf8("\u5348\u540e");
+    background["weather"] = QString::fromUtf8("\u6674\u6717");
+    background["lighting"] = QString::fromUtf8("\u81ea\u7136\u5149");
+    background["details"] = QJsonArray{QString::fromUtf8("\u6728\u8d28\u5730\u677f"), QString::fromUtf8("\u7a97\u6237\u900f\u5149"), QString::fromUtf8("\u516c\u544a\u680f")};
     panel["background"] = background;
-    
+
     QJsonObject atmosphere;
-    atmosphere["mood"] = QString::fromUtf8("peaceful");
-    atmosphere["soundEffects"] = QJsonArray{QJsonObject{{"sound", QString::fromUtf8("脚步声")}, {"style", QString::fromUtf8("subtle")}}};
-    atmosphere["particleEffects"] = QJsonArray{QString::fromUtf8("光尘飘浮"), QString::fromUtf8("微风吹动树叶")};
+    atmosphere["mood"] = QString::fromUtf8("\u5b81\u9759\u6e29\u99a8");
+    atmosphere["soundEffects"] = QJsonArray{QJsonObject{{"sound", QString::fromUtf8("\u811a\u6b65\u58f0")}, {"style", QString::fromUtf8("\u8f7b\u5fae")}}};
+    atmosphere["particleEffects"] = QJsonArray{QString::fromUtf8("\u5c18\u57c3\u6f02\u6d6e"), QString::fromUtf8("\u9633\u5149\u65d1\u9a7b")};
     panel["atmosphere"] = atmosphere;
-    
-    panel["shotType"] = QString::fromUtf8("wide");
-    panel["cameraAngle"] = QString::fromUtf8("eye-level");
-    
+
+    panel["shotType"] = QString::fromUtf8("\u4e2d\u666f");
+    panel["cameraAngle"] = QString::fromUtf8("\u5e73\u89c6");
+
     QJsonObject composition;
-    composition["focusPoint"] = QString::fromUtf8("李明的侧影");
-    composition["depthOfField"] = QString::fromUtf8("deep");
-    composition["rule"] = QString::fromUtf8("rule-of-thirds");
+    composition["focusPoint"] = QString::fromUtf8("\u4eba\u7269\u4e2d\u5fc3");
+    composition["depthOfField"] = QString::fromUtf8("\u6d45\u666f\u6df1");
+    composition["rule"] = QString::fromUtf8("\u4e09\u5206\u6cd5");
     panel["composition"] = composition;
-    
+
     QJsonObject artStyle;
-    artStyle["genre"] = QString::fromUtf8("seinen");
-    artStyle["lineWeight"] = QString::fromUtf8("medium");
-    artStyle["shading"] = QString::fromUtf8("screentone");
-    artStyle["colorPalette"] = QString::fromUtf8("warm sunset tones with golden oranges");
+    artStyle["genre"] = QString::fromUtf8("\u65e5\u7cfb\u6f2b\u753b");
+    artStyle["lineWeight"] = QString::fromUtf8("\u7ec6\u7ebf\u6761");
+    artStyle["shading"] = QString::fromUtf8("\u8d5b\u749f\u73af\u98ce\u683c");
+    artStyle["colorPalette"] = QString::fromUtf8("\u6696\u8272\u8c03");
     panel["artStyle"] = artStyle;
-    
+
     panel["characters"] = QJsonArray{QJsonObject{
-        {"name", QString::fromUtf8("李明")},
-        {"pose", QString::fromUtf8("缓慢行走，微微低头")},
-        {"expression", QString::fromUtf8("neutral")},
-        {"position", QString::fromUtf8("midground")}
+        {"name", QString::fromUtf8("\u6797\u5c0f\u96e8")},
+        {"pose", QString::fromUtf8("\u7ad9\u7acb\uff0c\u53cc\u624b\u4ea4\u53e0")},
+        {"expression", QString::fromUtf8("\u5fae\u7b11")},
+        {"position", QString::fromUtf8("\u753b\u9762\u4e2d\u592e\u504f\u53f3")}
     }};
     panel["dialogue"] = QJsonArray();
-    panel["visualPrompt"] = QString::fromUtf8("夕阳下的古镇街道，金色阳光洒在青石板路上，穿着校服的少年背着书包独自走在街上，两旁是低矮的砖房，远处是连绵的山峦，温暖宁静的氛围，少年漫画风格，网点纸阴影");
-    panel["visualPromptEn"] = QString::fromUtf8("A quiet small town street at sunset, golden light on cobblestone pavement, teenage boy in school uniform walking alone with backpack, low brick houses on both sides, distant mountains, warm peaceful atmosphere, seinen manga style, screentone shading");
-    panel["narrativeFunction"] = QString::fromUtf8("establishing-shot");
+    panel["visualPrompt"] = QString::fromUtf8("\u4e00\u4f4d\u5c11\u5973\u7ad9\u5728\u9633\u5149\u6d12\u843d\u7684\u6821\u56ed\u8d70\u5eca\u4e2d\uff0c\u88ab\u7a97\u5916\u6296\u52a8\u7684\u6811\u5f71\u6620\u7167\u7740\u3002");
+    panel["visualPromptEn"] = QString::fromUtf8("A girl standing in a sunlit school corridor, with tree shadows dancing outside windows.");
+    panel["narrativeFunction"] = QString::fromUtf8("\u5f00\u573a\u5f15\u5165");
     
     return panel;
 }
@@ -141,21 +139,21 @@ QJsonObject QwenPromptBuilder::buildExamplePanel()
 QJsonObject QwenPromptBuilder::buildExampleCharacter()
 {
     QJsonObject character;
-    character["name"] = QString::fromUtf8("李明");
-    character["role"] = QString::fromUtf8("protagonist");
-    
+    character["name"] = QString::fromUtf8("\u6797\u5c0f\u96e8");
+    character["role"] = QString::fromUtf8("\u4e3b\u89d2");
+
     QJsonObject appearance;
-    appearance["gender"] = QString::fromUtf8("male");
+    appearance["gender"] = QString::fromUtf8("\u5973");
     appearance["age"] = 16;
-    appearance["hairColor"] = QString::fromUtf8("black");
-    appearance["hairStyle"] = QString::fromUtf8("short");
-    appearance["eyeColor"] = QString::fromUtf8("brown");
-    appearance["height"] = QString::fromUtf8("average");
-    appearance["build"] = QString::fromUtf8("slim");
-    appearance["clothing"] = QJsonArray{QString::fromUtf8("校服"), QString::fromUtf8("书包")};
-    appearance["distinctiveFeatures"] = QJsonArray{QString::fromUtf8("圆框眼镜")};
+    appearance["hairColor"] = QString::fromUtf8("\u9ed1\u8272");
+    appearance["hairStyle"] = QString::fromUtf8("\u957f\u53d1\u53ca\u8170");
+    appearance["eyeColor"] = QString::fromUtf8("\u68d5\u8272");
+    appearance["height"] = QString::fromUtf8("165cm");
+    appearance["build"] = QString::fromUtf8("\u82d7\u6761");
+    appearance["clothing"] = QJsonArray{QString::fromUtf8("\u6821\u670d\u88d9\u88c5"), QString::fromUtf8("\u767d\u8272\u886c\u886b")};
+    appearance["distinctiveFeatures"] = QJsonArray{QString::fromUtf8("\u53d1\u672b\u5fae\u5377")};
     character["appearance"] = appearance;
-    character["personality"] = QJsonArray{QString::fromUtf8("内向"), QString::fromUtf8("善良"), QString::fromUtf8("细心")};
+    character["personality"] = QJsonArray{QString::fromUtf8("\u6e29\u67d4"), QString::fromUtf8("\u52c7\u6562"), QString::fromUtf8("\u5584\u826f")};
     
     return character;
 }
@@ -163,62 +161,56 @@ QJsonObject QwenPromptBuilder::buildExampleCharacter()
 QJsonObject QwenPromptBuilder::buildExampleScene()
 {
     QJsonObject scene;
-    scene["id"] = QString::fromUtf8("ancient_town_main_street");
-    scene["name"] = QString::fromUtf8("古镇主街");
-    scene["type"] = QString::fromUtf8("outdoor");
-    scene["description"] = QString::fromUtf8("小镇中心的古老石板路，两旁是传统砖木结构低矮房屋，承载着小镇几代人的记忆。");
-    
+    scene["id"] = QString::fromUtf8("scene_001");
+    scene["name"] = QString::fromUtf8("\u9752\u4e91\u4e2d\u5b66\u00b7\u4e3b\u6559\u5b66\u697c\u8d70\u5eca");
+    scene["type"] = QString::fromUtf8("\u5ba4\u5185");
+    scene["description"] = QString::fromUtf8("\u4e00\u6761\u5bbd\u655e\u660e\u4eae\u7684\u8d70\u5eca\uff0c\u4e24\u4fa7\u662f\u6559\u5ba4\u95e8\u548c\u516c\u544a\u680f\uff0c9633\u5149\u4ece\u7a97\u623b\u6d12\u8fdb\u6765\uff0c\u5730\u9762\u662f\u5149\u6ed1\u7684\u7817\u787e\u5730\u677f\u3002");
+
     QJsonObject visualChars;
-    visualChars["architecture"] = QString::fromUtf8("传统砖木结构，青瓦屋顶，木质门窗，墙面有岁月痕迹");
-    visualChars["keyLandmarks"] = QJsonArray{QString::fromUtf8("石拱桥"), QString::fromUtf8("百年老槐树"), QString::fromUtf8("李家茶馆")};
-    visualChars["colorScheme"] = QString::fromUtf8("暖色调为主，砖红、木褐、青灰色");
-    
+    visualChars["architecture"] = QString::fromUtf8("\u73b0\u4ee3\u6559\u5b66\u697c\u98ce\u683c");
+    visualChars["keyLandmarks"] = QJsonArray{QString::fromUtf8("\u697c\u68af\u53e3"), QString::fromUtf8("\u516c\u544a\u680f"), QString::fromUtf8("\u996e\u6c34\u673a")};
+    visualChars["colorScheme"] = QString::fromUtf8("\u7c73\u767d\u4e0e\u6d45\u6728\u8272");
+
     QJsonObject lighting;
-    lighting["naturalLight"] = QString::fromUtf8("abundant");
-    lighting["artificialLight"] = QString::fromUtf8("moderate");
-    lighting["lightSources"] = QJsonArray{QString::fromUtf8("街灯"), QString::fromUtf8("店铺灯光"), QString::fromUtf8("窗户透出的光")};
+    lighting["naturalLight"] = QString::fromUtf8("\u5348\u540e\u659c\u9633");
+    lighting["artificialLight"] = QString::fromUtf8("\u65e5\u5149\u706f\u7167\u660e");
+    lighting["lightSources"] = QJsonArray{QString::fromUtf8("\u7a97\u6237\u9633\u5149"), QString::fromUtf8("\u5929\u82b1\u677f\u706f\u7ba1"), QString::fromUtf8("\u5e94\u6025\u51fa\u53e3\u6307\u793a\u706f")};
     visualChars["lighting"] = lighting;
-    
-    visualChars["atmosphere"] = QString::fromUtf8("宁静中带着烟火气，时间在这里流淌得很慢");
-    visualChars["soundscape"] = QJsonArray{QString::fromUtf8("脚步声"), QString::fromUtf8("风铃"), QString::fromUtf8("远处狗吠"), QString::fromUtf8("茶馆里的谈笑")};
-    visualChars["textures"] = QJsonArray{QString::fromUtf8("粗糙石板路"), QString::fromUtf8("斑驳墙面"), QString::fromUtf8("光滑木门")};
+
+    visualChars["atmosphere"] = QString::fromUtf8("\u5b89\u9759\u7965\u548c");
+    visualChars["soundscape"] = QJsonArray{QString::fromUtf8("\u8fdc\u5904\u7684\u8bfb\u4e66\u58f0"), QString::fromUtf8("\u5076\u5c14\u7684\u811a\u6b65\u58f0"), QString::fromUtf8("\u7a97\u5916\u9e1f\u9e23"), QString::fromUtf8("\u7a7a\u8c03\u8fd0\u8f6c\u58f0")};
+    visualChars["textures"] = QJsonArray{QString::fromUtf8("\u5149\u6ed1\u74f7\u7801\u5730\u9762"), QString::fromUtf8("\u78e8\u7801\u73bb\u7483\u7a97"), QString::fromUtf8("\u6728\u8d28\u6276\u624b")};
     scene["visualCharacteristics"] = visualChars;
-    
+
     QJsonObject spatialLayout;
-    spatialLayout["size"] = QString::fromUtf8("medium");
-    spatialLayout["layout"] = QString::fromUtf8("长约200米的街道，宽约6米，两侧各有店铺和民居");
+    spatialLayout["size"] = QString::fromUtf8("\u957f\u7ea630\u7c73\uff0c\u5bbd\u7ea64\u7c73");
+    spatialLayout["layout"] = QString::fromUtf8("\u76f4\u7ebf\u578b\u8d70\u5eca\uff0c\u4e24\u4fa7\u5bf9\u79f0\u5206\u5e03\u6559\u5ba4");
     spatialLayout["keyAreas"] = QJsonArray{
-        QJsonObject{{"name", QString::fromUtf8("石拱桥")}, {"position", QString::fromUtf8("街道中段")}},
-        QJsonObject{{"name", QString::fromUtf8("老槐树")}, {"position", QString::fromUtf8("街道北端")}},
-        QJsonObject{{"name", QString::fromUtf8("李家茶馆")}, {"position", QString::fromUtf8("街道南侧")}}
+        QJsonObject{{"name", QString::fromUtf8("\u697c\u68af\u53e3")}, {"position", QString::fromUtf8("\u8d70\u5eca\u5de7\u7aef")}},
+        QJsonObject{{"name", QString::fromUtf8("\u516c\u544a\u680f")}, {"position", QString::fromUtf8("\u53f3\u4fa7\u5899\u58c1")}},
+        QJsonObject{{"name", QString::fromUtf8("\u996e\u6c34\u673a")}, {"position", QString::fromUtf8("\u5de6\u4fa7\u5899\u89d2")}}
     };
     scene["spatialLayout"] = spatialLayout;
-    
+
     scene["timeVariations"] = QJsonArray{
         QJsonObject{
-            {"timeOfDay", QString::fromUtf8("morning")},
-            {"description", QString::fromUtf8("晨光透过薄雾，石板路泛着湿润光泽，早起的居民开始活动")}
+            {"timeOfDay", QString::fromUtf8("\u65e9\u6668")},
+            {"description", QString::fromUtf8("\u65e9\u6668\u7684\u9633\u5149\u900f\u8fc7\u7a97\u6237\u6295\u5c04\u5728\u8d70\u5eca\u4e0a\uff0c\u5b66\u751f\u4eec\u52b2\u52c8\u5730\u8d70\u8fc7\u3002")}
         },
         QJsonObject{
-            {"timeOfDay", QString::fromUtf8("dusk")},
-            {"description", QString::fromUtf8("夕阳将街道染成金色，街灯开始点亮，炊烟袅袅升起")}
+            {"timeOfDay", QString::fromUtf8("\u508d\u665a")},
+            {"description", QString::fromUtf8("\u5915\u9633\u897f\u4e0b\uff0c\u8d70\u5eca\u88ab\u67d3\u6210\u91d1\u8272\uff0c\u5bd2\u51b7\u7684\u706f\u5149\u5f00\u59cb\u4eae\u8d77\u3002")}
         }
     };
-    
+
     scene["weatherVariations"] = QJsonArray{
         QJsonObject{
-            {"weather", QString::fromUtf8("rainy")},
-            {"description", QString::fromUtf8("雨水在石板路上形成小水洼，屋檐滴水声清脆，空气中弥漫着泥土香")}
+            {"weather", QString::fromUtf8("\u96e8\u5929")},
+            {"description", QString::fromUtf8("\u96e8\u6ef4\u4ece\u7a97\u5916\u6252\u5728\u73bb\u7483\u4e0a\uff0c\u5b66\u751f\u4eec\u6491\u4f1e\u7a7f\u884c\u3002")}
         }
     };
-    
-    scene["narrativeRole"] = QString::fromUtf8("primary-setting");
-    
-    QJsonObject firstAppearance;
-    firstAppearance["chapter"] = 1;
-    firstAppearance["page"] = 1;
-    firstAppearance["panelIndex"] = 0;
-    scene["firstAppearance"] = firstAppearance;
+
+    scene["narrativeRole"] = QString::fromUtf8("\u4e3b\u8981\u6d3b\u52a8\u573a\u6240");
     
     scene["referenceImages"] = QJsonArray();
     
@@ -234,3 +226,4 @@ QJsonObject QwenPromptBuilder::buildCustomExample()
     example["totalPages"] = 1;
     return example;
 }
+

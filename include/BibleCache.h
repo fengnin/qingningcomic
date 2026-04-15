@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QMutex>
 #include <QDateTime>
+#include <mutex>
 #include "Character.h"
 #include "Scene.h"
 
@@ -34,6 +35,9 @@ public:
     void setMaxCacheAge(int seconds);
     int maxCacheAge() const { return m_maxCacheAgeSeconds; }
     
+    void setMaxCacheEntries(int maxEntries);
+    int maxCacheEntries() const { return m_maxCacheEntries; }
+    
     int characterCacheCount() const;
     int sceneCacheCount() const;
 
@@ -52,6 +56,7 @@ private:
     
     static BibleCache* m_instance;
     static QMutex m_instanceMutex;
+    static std::once_flag m_instanceOnceFlag;
     
     mutable QMutex m_cacheMutex;
     
@@ -62,6 +67,9 @@ private:
     QMap<QString, QDateTime> m_sceneTimestamp;
     
     int m_maxCacheAgeSeconds = 300;
+    int m_maxCacheEntries = 50;
+    
+    void evictIfNeeded();
 };
 
 #endif // BIBLECACHE_H

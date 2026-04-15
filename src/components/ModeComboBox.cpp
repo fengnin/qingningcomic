@@ -89,7 +89,7 @@ ModeComboBox::ModeComboBox(QWidget *parent)
     QHBoxLayout *btnLayout = new QHBoxLayout(btnContainer);
     btnLayout->setContentsMargins(2, 0, 2, 0);
     
-    QString dropArrow = QString::fromUtf8("\u25bc");
+    QString dropArrow = QStringLiteral("▼");
     m_dropBtn = new QPushButton(dropArrow);
     m_dropBtn->setFixedSize(24, 36);
     m_dropBtn->setCursor(Qt::PointingHandCursor);
@@ -133,6 +133,11 @@ QString ModeComboBox::currentText() const
         return m_items[m_currentIndex];
     }
     return QString();
+}
+
+int ModeComboBox::findText(const QString &text) const
+{
+    return m_items.indexOf(text);
 }
 
 void ModeComboBox::setFixedHeight(int height)

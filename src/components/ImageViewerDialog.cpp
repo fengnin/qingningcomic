@@ -128,35 +128,35 @@ void ImageViewerDialog::setupUI()
     toolbarLayout->setContentsMargins(16, 8, 16, 8);
     toolbarLayout->setSpacing(8);
     
-    m_zoomInBtn = new QPushButton(QString::fromUtf8("放大"));
+    m_zoomInBtn = new QPushButton(QString::fromUtf8("+"));
     m_zoomInBtn->setFixedHeight(BUTTON_SIZE);
     m_zoomInBtn->setStyleSheet(BUTTON_STYLE);
     m_zoomInBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomInBtn->setToolTip(QString::fromUtf8("滚轮向上放大"));
-    
-    m_zoomOutBtn = new QPushButton(QString::fromUtf8("缩小"));
+    m_zoomInBtn->setToolTip(QString::fromUtf8("\u653e\u5927"));
+
+    m_zoomOutBtn = new QPushButton(QString::fromUtf8("-"));
     m_zoomOutBtn->setFixedHeight(BUTTON_SIZE);
     m_zoomOutBtn->setStyleSheet(BUTTON_STYLE);
     m_zoomOutBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOutBtn->setToolTip(QString::fromUtf8("滚轮向下缩小"));
-    
-    m_resetBtn = new QPushButton(QString::fromUtf8("重置"));
+    m_zoomOutBtn->setToolTip(QString::fromUtf8("\u7f29\u5c0f"));
+
+    m_resetBtn = new QPushButton(QString::fromUtf8("\u91cd\u7f6e"));
     m_resetBtn->setFixedHeight(BUTTON_SIZE);
     m_resetBtn->setStyleSheet(BUTTON_STYLE);
     m_resetBtn->setCursor(Qt::PointingHandCursor);
-    m_resetBtn->setToolTip(QString::fromUtf8("按 0 重置"));
-    
-    m_rotateLeftBtn = new QPushButton(QString::fromUtf8("左转"));
+    m_resetBtn->setToolTip(QString::fromUtf8("\u91cd\u7f6e\u89c6\u56fe"));
+
+    m_rotateLeftBtn = new QPushButton(QString::fromUtf8("\u2190"));
     m_rotateLeftBtn->setFixedHeight(BUTTON_SIZE);
     m_rotateLeftBtn->setStyleSheet(BUTTON_STYLE);
     m_rotateLeftBtn->setCursor(Qt::PointingHandCursor);
-    m_rotateLeftBtn->setToolTip(QString::fromUtf8("按 L 左旋转"));
-    
-    m_rotateRightBtn = new QPushButton(QString::fromUtf8("右转"));
+    m_rotateLeftBtn->setToolTip(QString::fromUtf8("\u5de6\u8f6c90\u00b0"));
+
+    m_rotateRightBtn = new QPushButton(QString::fromUtf8("\u2192"));
     m_rotateRightBtn->setFixedHeight(BUTTON_SIZE);
     m_rotateRightBtn->setStyleSheet(BUTTON_STYLE);
     m_rotateRightBtn->setCursor(Qt::PointingHandCursor);
-    m_rotateRightBtn->setToolTip(QString::fromUtf8("按 R 右旋转"));
+    m_rotateRightBtn->setToolTip(QString::fromUtf8("\u53f3\u8f6c90\u00b0"));
     
     m_zoomLabel = new QLabel("100%");
     m_zoomLabel->setStyleSheet(LABEL_STYLE);
@@ -173,11 +173,11 @@ void ImageViewerDialog::setupUI()
     toolbarLayout->addWidget(m_zoomLabel);
     toolbarLayout->addStretch();
     
-    m_closeBtn = new QPushButton(QString::fromUtf8("关闭"));
+    m_closeBtn = new QPushButton(QString::fromUtf8("\u5173\u95ed"));
     m_closeBtn->setFixedSize(60, BUTTON_SIZE);
     m_closeBtn->setStyleSheet(BUTTON_STYLE + "QPushButton { color: #ef4444; }");
     m_closeBtn->setCursor(Qt::PointingHandCursor);
-    m_closeBtn->setToolTip(QString::fromUtf8("按 Esc 关闭"));
+    m_closeBtn->setToolTip(QString::fromUtf8("\u5173\u95ed\u7a97\u53e3"));
     toolbarLayout->addWidget(m_closeBtn);
     
     mainLayout->addWidget(m_scrollArea, 1);
@@ -222,7 +222,7 @@ bool ImageViewerDialog::loadFromNetworkUrl(const QString &url, QPixmap &outPixma
     
     if (reply->error() != QNetworkReply::NoError) {
         LOG_WARNING("ImageViewerDialog", QString("Network error: %1").arg(reply->errorString()));
-        m_imageLabel->setText(QString::fromUtf8("图片加载失败"));
+        m_imageLabel->setText(QString::fromUtf8("\u52a0\u8f7d\u5931\u8d25\uff1a\u7f51\u7edc\u9519\u8bef"));
         reply->deleteLater();
         return false;
     }
@@ -232,7 +232,7 @@ bool ImageViewerDialog::loadFromNetworkUrl(const QString &url, QPixmap &outPixma
     
     if (!outPixmap.loadFromData(imageData)) {
         LOG_WARNING("ImageViewerDialog", "Failed to parse image data");
-        m_imageLabel->setText(QString::fromUtf8("无法解析图片"));
+        m_imageLabel->setText(QString::fromUtf8("加载失败：图片格式错误"));
         return false;
     }
     
@@ -244,14 +244,14 @@ bool ImageViewerDialog::loadFromLocalFile(const QString &path, QPixmap &outPixma
     QFileInfo fileInfo(path);
     if (!fileInfo.exists()) {
         LOG_WARNING("ImageViewerDialog", QString("File not found: %1").arg(path));
-        m_imageLabel->setText(QString::fromUtf8("图片不存在"));
+        m_imageLabel->setText(QString::fromUtf8("加载失败：文件不存在"));
         return false;
     }
     
     outPixmap = QPixmap(path);
     if (outPixmap.isNull()) {
         LOG_WARNING("ImageViewerDialog", QString("Failed to load image: %1").arg(path));
-        m_imageLabel->setText(QString::fromUtf8("无法加载图片"));
+        m_imageLabel->setText(QString::fromUtf8("加载失败：图片无法打开"));
         return false;
     }
     

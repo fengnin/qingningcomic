@@ -1,6 +1,7 @@
 #include "components/PanelCard.h"
 #include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
+#include "Logger.h"
 #include "utils/AsyncImageLoader.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,17 +14,40 @@ namespace {
     using EditorStyles::TRANSPARENT_BG;
     
     namespace Text {
-        const QString PREVIEW = QString::fromUtf8("\u9884\u89c8");
-        const QString LOADING = QString::fromUtf8("\u52a0\u8f7d\u4e2d...");
-        const QString LOAD_FAILED = QString::fromUtf8("\u52a0\u8f7d\u5931\u8d25");
+        const QString PREVIEW = QString::fromUtf8("预览");
+        const QString LOADING = QString::fromUtf8("加载中...");
+        const QString LOAD_FAILED = QString::fromUtf8("加载失败");
     }
     
     namespace Size {
-        constexpr int CARD_WIDTH = 200;
-        constexpr int CARD_HEIGHT = 340;
-        constexpr int PREVIEW_WIDTH = 176;
-        constexpr int PREVIEW_HEIGHT = 160;
-        constexpr int DESC_HEIGHT = 90;
+        constexpr int CARD_WIDTH = 220;
+        constexpr int CARD_HEIGHT = 400;
+        constexpr int PREVIEW_WIDTH = 180;
+        constexpr int PREVIEW_HEIGHT = 190;
+        constexpr int DESC_HEIGHT = 110;
+    }
+    
+    QString simplifyRatio(int w, int h)
+    {
+        if (w <= 0 || h <= 0) return "?";
+        int a = w, b = h;
+        while (b != 0) {
+            int t = b;
+            b = a % b;
+            a = t;
+        }
+        return QString("%1:%2").arg(w / a).arg(h / a);
+    }
+    
+    template<typename LayoutType>
+    QWidget* createContainerWidget()
+    {
+        QWidget *container = new QWidget();
+        container->setStyleSheet(TRANSPARENT_BG);
+        LayoutType *layout = new LayoutType(container);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        return container;
     }
 }
 
@@ -67,7 +91,7 @@ void PanelCard::setupCardAppearance()
 void PanelCard::setupMainLayout()
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(12, 12, 12, 10);
+    layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);
     
     layout->addWidget(createPreviewSection());
@@ -77,13 +101,10 @@ void PanelCard::setupMainLayout()
 
 QWidget* PanelCard::createPreviewSection()
 {
-    QWidget *container = new QWidget();
-    container->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    QWidget *container = createContainerWidget<QVBoxLayout>();
+    QVBoxLayout *layout = qobject_cast<QVBoxLayout*>(container->layout());
     
-    QLabel *titleLabel = new QLabel(QString("Panel %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
+    QLabel *titleLabel = new QLabel(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     titleLabel->setStyleSheet(EditorStyles::panelTitleLabelStyle());
     titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(titleLabel);
@@ -97,18 +118,21 @@ QWidget* PanelCard::createPreviewSection()
     m_previewLabel->setCursor(Qt::ArrowCursor);
     layout->addWidget(m_previewLabel);
     
+    m_sizeLabel = new QLabel();
+    m_sizeLabel->setAlignment(Qt::AlignCenter);
+    m_sizeLabel->setStyleSheet("font-size: 10px; color: #9CA3AF; background: transparent; padding: 0px; margin: 0px;");
+    m_sizeLabel->hide();
+    layout->addWidget(m_sizeLabel);
+    
     return container;
 }
 
 QWidget* PanelCard::createNumberLabel()
 {
-    QWidget *container = new QWidget();
-    container->setStyleSheet(TRANSPARENT_BG);
-    QHBoxLayout *layout = new QHBoxLayout(container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    QWidget *container = createContainerWidget<QHBoxLayout>();
+    QHBoxLayout *layout = qobject_cast<QHBoxLayout*>(container->layout());
     
-    m_numberLabel = new QLabel(QString("P%1-%2").arg(m_chapterNumber).arg(m_panelNumber));
+    m_numberLabel = new QLabel(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     m_numberLabel->setStyleSheet(EditorStyles::panelNumberLabelStyle());
     layout->addWidget(m_numberLabel);
     
@@ -117,11 +141,8 @@ QWidget* PanelCard::createNumberLabel()
 
 QWidget* PanelCard::createDescriptionLabel()
 {
-    QWidget *container = new QWidget();
-    container->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    QWidget *container = createContainerWidget<QVBoxLayout>();
+    QVBoxLayout *layout = qobject_cast<QVBoxLayout*>(container->layout());
     
     m_descLabel = new QLabel();
     m_descLabel->setWordWrap(true);
@@ -154,7 +175,7 @@ void PanelCard::setPreviewUrl(const QString &url)
         return;
     }
     
-    // 使用 URL 的哈希值作为缓存键的一部分，确保不同 URL 有不同的缓存
+    // Use the URL hash as part of the cache key so different URLs map to different cache entries.
     QString urlHash = QString(QCryptographicHash::hash(url.toUtf8(), QCryptographicHash::Md5).toHex());
     QString id = QString("panel_%1_%2_%3")
         .arg(m_chapterNumber).arg(m_panelNumber).arg(urlHash);
@@ -222,6 +243,23 @@ void PanelCard::setPreviewPixmap(const QPixmap &pixmap)
     if (m_editorWidget) {
         m_editorWidget->setPreviewPixmap(pixmap);
     }
+}
+
+void PanelCard::setImageSize(int width, int height)
+{
+    if (!m_sizeLabel) return;
+    
+    if (width <= 0 || height <= 0) {
+        m_sizeLabel->hide();
+        return;
+    }
+    
+    QString ratio = simplifyRatio(width, height);
+    m_sizeLabel->setText(QString("%1x%2 (%3)").arg(width).arg(height).arg(ratio));
+    m_sizeLabel->show();
+    
+    LOG_INFO("PanelCard", QString("面板 %1-%2 图像尺寸: %3x%4, 比例: %5")
+        .arg(m_chapterNumber).arg(m_panelNumber).arg(width).arg(height).arg(ratio));
 }
 
 void PanelCard::setPreviewText(const QString &text)
@@ -322,9 +360,15 @@ void PanelCard::onSceneDescriptionChanged(const QString &description)
 
 void PanelCard::onEditSubmitted(int editMode, const QString &instruction, const QString &maskPath)
 {
-    Q_UNUSED(editMode)
-    Q_UNUSED(instruction)
-    Q_UNUSED(maskPath)
+    m_lastEditMode = editMode;
+    m_lastEditInstruction = instruction;
+    m_lastEditMaskPath = maskPath;
+
+    LOG_INFO("PanelCard", QString("Edit submitted for P%1-%2: mode=%3, mask=%4")
+        .arg(m_chapterNumber)
+        .arg(m_panelNumber)
+        .arg(editMode)
+        .arg(maskPath));
 }
 
 void PanelCard::onImageGenerated(const QString &imageUrl)

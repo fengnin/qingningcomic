@@ -94,7 +94,7 @@ namespace {
         setupLayout(headerLayout, 0, 0, 0, 0, 0);
         headerLayout->addWidget(createLabel(labelText, uploadFormLabelStyle()));
         headerLayout->addStretch();
-        headerLayout->addWidget(createLabel(QString::fromUtf8("建议 %1 字以内").arg(Limits::TEXT_MAX), uploadFormHintStyle()));
+        headerLayout->addWidget(createLabel(QString::fromUtf8("最多 %1 字").arg(Limits::TEXT_MAX), uploadFormHintStyle()));
         
         layout->addWidget(header);
         layout->addWidget(textEdit);
@@ -209,10 +209,11 @@ QWidget* NovelUploadPage::createHeaderSection()
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
     iconLabel->setStyleSheet(uploadHeaderIconStyle());
-    iconLabel->setText("📝");
+    iconLabel->setText(QString::fromUtf8("📤"));
+    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
     iconLabel->setAlignment(Qt::AlignCenter);
 
-    m_headerTitleLabel = createLabel(QString::fromUtf8("上传小说"), uploadPageTitleStyle());
+    m_headerTitleLabel = createLabel(QString::fromUtf8("上传作品"), uploadPageTitleStyle());
     QFont titleFont = m_headerTitleLabel->font();
     titleFont.setPointSize(26);
     titleFont.setBold(true);
@@ -232,20 +233,20 @@ QWidget* NovelUploadPage::createFormSection()
     QVBoxLayout *layout = new QVBoxLayout(section);
     setupLayout(layout, 0, 0, 0, 0, 24);
 
-    m_titleEdit = createLineEdit(QString::fromUtf8("输入小说标题..."), Size::INPUT_HEIGHT);
+    m_titleEdit = createLineEdit(QString::fromUtf8("输入作品标题"), Size::INPUT_HEIGHT);
     connect(m_titleEdit, &QLineEdit::textChanged, this, &NovelUploadPage::validateInput);
-    layout->addWidget(createFieldGroup(QString::fromUtf8("小说标题"), m_titleEdit));
+    layout->addWidget(createFieldGroup(QString::fromUtf8("作品标题"), m_titleEdit));
 
     QWidget *metaRow = createTransparentWidget();
     QHBoxLayout *metaLayout = new QHBoxLayout(metaRow);
     setupLayout(metaLayout, 0, 0, 0, 0, 20);
 
-    m_genreEdit = createLineEdit(QString::fromUtf8("如：奇幻、科幻、都市..."), Size::INPUT_HEIGHT);
-    metaLayout->addWidget(createFieldGroup(QString::fromUtf8("小说类型"), m_genreEdit), 1);
+    m_genreEdit = createLineEdit(QString::fromUtf8("输入类型标签"), Size::INPUT_HEIGHT);
+    metaLayout->addWidget(createFieldGroup(QString::fromUtf8("类型"), m_genreEdit), 1);
     metaLayout->addStretch(1);
     layout->addWidget(metaRow);
 
-    m_textEdit = createTextEdit(QString::fromUtf8("在此粘贴小说文本内容...\n\n支持直接粘贴或通过「选择文件」导入 TXT 文件。"), Size::TEXT_EDIT_HEIGHT);
+    m_textEdit = createTextEdit(QString::fromUtf8("粘贴或输入小说正文..."), Size::TEXT_EDIT_HEIGHT);
     connect(m_textEdit, &QTextEdit::textChanged, this, &NovelUploadPage::validateInput);
     layout->addWidget(createTextFieldGroup(QString::fromUtf8("小说正文"), m_textEdit));
 
@@ -262,13 +263,13 @@ QWidget* NovelUploadPage::createActionSection()
     QHBoxLayout *buttonLayout = new QHBoxLayout(buttonRow);
     setupLayout(buttonLayout, 0, 0, 0, 0, 16);
 
-    m_selectFileBtn = new QPushButton("📁 选择文件");
+    m_selectFileBtn = new QPushButton("选择文件");
     m_selectFileBtn->setStyleSheet(uploadSecondaryButtonStyle());
     m_selectFileBtn->setFixedHeight(Size::INPUT_HEIGHT);
     m_selectFileBtn->setCursor(Qt::PointingHandCursor);
     connect(m_selectFileBtn, &QPushButton::clicked, this, &NovelUploadPage::onSelectFileClicked);
 
-    m_uploadBtn = new QPushButton(QString::fromUtf8("✅ 上传小说"));
+    m_uploadBtn = new QPushButton(QString::fromUtf8("开始上传"));
     m_uploadBtn->setEnabled(false);
     m_uploadBtn->setStyleSheet(uploadPrimaryButtonStyle());
     m_uploadBtn->setMinimumWidth(Size::BUTTON_MIN_WIDTH);
@@ -317,15 +318,15 @@ QWidget* NovelUploadPage::createTipsSection()
     QVBoxLayout *layout = new QVBoxLayout(section);
     setupLayout(layout, 20, 18, 20, 18, 12);
 
-    layout->addWidget(createLabel(QString::fromUtf8("💡 温馨提示"), uploadTipsTitleStyle()));
+    layout->addWidget(createLabel(QString::fromUtf8("上传提示"), uploadTipsTitleStyle()));
 
     QWidget *tipsList = createTransparentWidget();
     QVBoxLayout *tipsLayout = new QVBoxLayout(tipsList);
     setupLayout(tipsLayout, 0, 0, 0, 0, 8);
 
     const QStringList tips = {
-        QString::fromUtf8("上传后可在详情页管理角色"),
-        QString::fromUtf8("支持多章节上传，后续可在作品详情中追加内容")
+        QString::fromUtf8("支持 .txt 格式的纯文本文件"),
+        QString::fromUtf8("正文长度不超过 %1 字").arg(Limits::TEXT_MAX)
     };
     
     for (const QString &tip : tips) {
@@ -349,12 +350,12 @@ void NovelUploadPage::validateInput()
 bool NovelUploadPage::validateFormData(const QString &title, const QString &text)
 {
     if (title.isEmpty() || text.isEmpty()) {
-        showError(QString::fromUtf8("请填写完整的小说标题与正文内容。"));
+        showError(QString::fromUtf8("请填写标题和正文"));
         return false;
     }
     
     if (text.length() > Limits::TEXT_MAX) {
-        showError(QString::fromUtf8("单章字数请控制在 %1 字以内。").arg(Limits::TEXT_MAX));
+        showError(QString::fromUtf8("正文过长，最多 %1 字").arg(Limits::TEXT_MAX));
         return false;
     }
     
@@ -363,13 +364,13 @@ bool NovelUploadPage::validateFormData(const QString &title, const QString &text
 
 void NovelUploadPage::onSelectFileClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, QString::fromUtf8("选择小说文件"), "", QString::fromUtf8("文本文件 (*.txt);;所有文件 (*.*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("选择文件"), QString(), tr("文本文件 (*.txt);;所有文件 (*.*)"));
     
     if (fileName.isEmpty()) return;
 
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        showError(QString::fromUtf8("无法打开文件: ") + file.errorString());
+        showError(QString::fromUtf8("文件读取失败: ") + file.errorString());
         return;
     }
 
@@ -455,10 +456,10 @@ void NovelUploadPage::setWaitingAnalysisState()
     m_isWaitingAnalysis = true;
     m_pendingNovelId = m_editNovelId;
     m_uploadBtn->setEnabled(false);
-    m_uploadBtn->setText(QString::fromUtf8("正在分析小说中..."));
+    m_uploadBtn->setText(QString::fromUtf8("分析中..."));
     m_progressBar->setVisible(true);
     m_progressBar->setValue(0);
-    m_successLabel->setText(QString::fromUtf8("正在分析小说中，请等待完成..."));
+    m_successLabel->setText(QString::fromUtf8("正在分析小说内容，请稍候..."));
     m_successLabel->setStyleSheet(uploadWaitingLabelStyle());
     m_successLabel->setVisible(true);
 }
@@ -467,7 +468,7 @@ void NovelUploadPage::resetAfterAnalysis()
 {
     m_isWaitingAnalysis = false;
     m_uploadBtn->setEnabled(true);
-    m_uploadBtn->setText(QString::fromUtf8("✅ 上传小说"));
+    m_uploadBtn->setText(QString::fromUtf8("开始上传"));
     m_progressBar->setVisible(false);
     m_progressBar->setValue(0);
 }
@@ -475,9 +476,9 @@ void NovelUploadPage::resetAfterAnalysis()
 void NovelUploadPage::setButtonLoadingState(bool loading)
 {
     m_uploadBtn->setEnabled(!loading);
-    m_uploadBtn->setText(loading ? 
-        (m_isEditMode ? QString::fromUtf8("保存中...") : QString::fromUtf8("上传中...")) : 
-        (m_isEditMode ? QString::fromUtf8("保存修改") : QString::fromUtf8("✅ 上传小说")));
+    m_uploadBtn->setText(loading ?
+        (m_isEditMode ? QString::fromUtf8("保存中...") : QString::fromUtf8("上传中...")) :
+        (m_isEditMode ? QString::fromUtf8("保存修改") : QString::fromUtf8("开始上传")));
 }
 
 int NovelUploadPage::showChapterNumberDialog()
@@ -502,7 +503,7 @@ void NovelUploadPage::showSuccess(const QString &novelId)
 {
     QString message = novelId.isEmpty() 
         ? getSuccessMessage() 
-        : QString("%1 作品ID: %2").arg(getSuccessMessage(), novelId);
+        : QString("%1 作品 ID: %2").arg(getSuccessMessage(), novelId);
     showMessage(message, false);
     resetToCreateMode();
 }
@@ -518,7 +519,7 @@ void NovelUploadPage::setNovelForEdit(const Novel &novel)
     m_isEditMode = true;
     m_editNovelId = novel.id();
     
-    m_headerTitleLabel->setText(QString::fromUtf8("编辑小说"));
+    m_headerTitleLabel->setText(QString::fromUtf8("编辑作品"));
     m_uploadBtn->setText(QString::fromUtf8("保存修改"));
     
     m_titleEdit->setText(novel.title());
@@ -534,8 +535,8 @@ void NovelUploadPage::resetToCreateMode()
     m_isEditMode = false;
     m_editNovelId.clear();
     
-    m_headerTitleLabel->setText(QString::fromUtf8("上传小说"));
-    m_uploadBtn->setText(QString::fromUtf8("✅ 上传小说"));
+    m_headerTitleLabel->setText(QString::fromUtf8("上传作品"));
+    m_uploadBtn->setText(QString::fromUtf8("开始上传"));
     
     m_titleEdit->clear();
     m_genreEdit->clear();
@@ -559,7 +560,7 @@ void NovelUploadPage::onAnalysisCompleted(const QString& novelId, int chapter)
         m_progressBar->setValue(0);
     });
     
-    m_successLabel->setText(QString::fromUtf8("作品创建成功！ <a href='#' style='color: #4d7c0f; text-decoration: none;'>查看详情</a>"));
+    m_successLabel->setText(QString::fromUtf8("分析完成！作品已创建，即将跳转到详情页..."));
     m_successLabel->setTextFormat(Qt::RichText);
     m_successLabel->setStyleSheet(uploadSuccessLabelStyle());
     m_successLabel->setVisible(true);
@@ -572,15 +573,17 @@ void NovelUploadPage::onAnalysisFailed(const QString& novelId, const QString& er
     if (!isCurrentAnalysis(novelId)) return;
     
     resetAfterAnalysis();
-    showError(QString::fromUtf8("分析小说失败: %1").arg(error));
+    showError(QString::fromUtf8("分析失败: %1").arg(error));
 }
 
 QString NovelUploadPage::getSuccessMessage() const
 {
-    return m_isEditMode ? QString::fromUtf8("小说更新成功！") : QString::fromUtf8("小说上传成功！");
+    return m_isEditMode ? QString::fromUtf8("作品修改成功！") : QString::fromUtf8("作品上传成功！");
 }
 
 QString NovelUploadPage::getErrorMessage() const
 {
-    return m_isEditMode ? QString::fromUtf8("保存失败，请检查数据库连接") : QString::fromUtf8("上传失败，请检查数据库连接");
+    return m_isEditMode ? QString::fromUtf8("保存失败，请重试") : QString::fromUtf8("上传失败，请重试");
 }
+
+

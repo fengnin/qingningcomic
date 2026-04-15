@@ -7,6 +7,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QMap>
+#include <mutex>
 #include "Character.h"
 
 struct ExtractedCharacter {
@@ -17,8 +18,9 @@ struct ExtractedCharacter {
     QString hairStyle;
     QString eyeColor;
     QString bodyType;
-    QString clothing;
-    QString features;
+    QStringList clothing;
+    QStringList accessories;
+    QStringList distinctiveFeatures;
     QStringList personality;
     QStringList tags;
     
@@ -66,11 +68,14 @@ private:
     
     static bool containsChinese(const QString& text);
     
+    // 名称标准化：去除AI生成的常见后缀，如"（本体）"、"（真身）"等
+    static QString normalizeCharacterName(const QString& name);
+    
     // 合并相关方法
     Character mergeCharacters(const Character& existing, const ExtractedCharacter& incoming) const;
-    QStringList mergeStringLists(const QStringList& a, const QStringList& b) const;
     
     static CharacterExtractor* m_instance;
+    static std::once_flag m_instanceOnceFlag;
 };
 
 #endif // CHARACTEREXTRACTOR_H

@@ -39,10 +39,10 @@ protected:
     
 private slots:
     virtual void onCloseButtonClicked() { hideEditorCard(); }
-    
+
 private:
-    virtual void setupEditorCard() = 0;
-    virtual void syncDataToEditor() = 0;
+    virtual void setupEditorCard() {}
+    virtual void syncDataToEditor() {}
 };
 
 #endif // EDITORCARDBASE_H

@@ -91,46 +91,46 @@ FortuneCookieWidget::~FortuneCookieWidget()
 void FortuneCookieWidget::initFortunes()
 {
     m_fortunes = {
-        {QString::fromUtf8("你的未来由今天的行动创造，而非明天。"), {7, 14, 23, 31, 42, 56}},
-        {QString::fromUtf8("种一棵树最好的时间是20年前，其次是现在。"), {3, 18, 27, 35, 49, 63}},
-        {QString::fromUtf8("成功不是终点，失败也不是末日，重要的是继续前进的勇气。"), {9, 16, 24, 38, 47, 55}},
-        {QString::fromUtf8("相信你能做到，你就已经成功了一半。"), {2, 11, 29, 33, 44, 51}},
-        {QString::fromUtf8("成就伟业的唯一途径是热爱你所做的事。"), {5, 12, 21, 36, 43, 58}},
-        {QString::fromUtf8("生活就是当你忙着制定其他计划时发生的事。"), {1, 19, 26, 34, 41, 62}},
-        {QString::fromUtf8("只要你不停止，走得多慢都无所谓。"), {8, 15, 22, 37, 46, 59}},
-        {QString::fromUtf8("困难之中蕴藏着机遇。"), {4, 13, 25, 32, 48, 57}},
-        {QString::fromUtf8("千里之行，始于足下。"), {6, 17, 28, 39, 45, 61}},
-        {QString::fromUtf8("内心的力量远比身前身后的事物重要。"), {10, 20, 30, 40, 50, 60}},
-        {QString::fromUtf8("做你自己，因为其他人都已经有人做了。"), {12, 24, 36, 41, 53, 65}},
-        {QString::fromUtf8("林中有两条路，我选择了人迹罕至的那条，这改变了一切。"), {14, 28, 35, 49, 56, 63}},
-        {QString::fromUtf8("心态决定一切，你想成为什么样的人，就会成为什么样的人。"), {1, 8, 15, 22, 29, 36}},
-        {QString::fromUtf8("无论你认为自己行还是不行，你都是对的。"), {3, 9, 18, 27, 45, 54}},
-        {QString::fromUtf8("昨天是历史，明天是谜团，今天是上帝的礼物，所以我们称之为现在。"), {7, 21, 28, 42, 49, 56}},
-        {QString::fromUtf8("不要用收获来衡量每一天，而要用你播下的种子。"), {11, 22, 33, 44, 55, 66}},
-        {QString::fromUtf8("唯一不可能的旅程是你从未开始的那一个。"), {2, 13, 24, 35, 46, 57}},
-        {QString::fromUtf8("最终，我们记住的不是敌人的话语，而是朋友的沉默。"), {16, 32, 48, 64, 17, 33}},
-        {QString::fromUtf8("在最黑暗的时刻，我们必须集中精力看到光明。"), {5, 10, 25, 40, 55, 65}},
-        {QString::fromUtf8("走到哪里，就把爱带到哪里，让每个接近你的人都更快乐。"), {9, 18, 36, 45, 54, 63}},
-        {QString::fromUtf8("当你走到绳子的尽头时，打个结，坚持下去。"), {4, 8, 16, 32, 48, 52}},
-        {QString::fromUtf8("不要让你做不到的事干扰你能做到的事。"), {6, 12, 24, 30, 42, 60}},
-        {QString::fromUtf8("如果你想提升自己，就先提升别人。"), {15, 30, 45, 52, 67, 3}},
-        {QString::fromUtf8("未来属于那些相信自己梦想之美的人。"), {19, 38, 57, 4, 23, 68}},
-        {QString::fromUtf8("与其模仿成功，不如创新失败。"), {23, 46, 69, 8, 17, 54}},
-        {QString::fromUtf8("开始的方法是停止空谈，开始行动。"), {27, 54, 12, 41, 65, 29}},
-        {QString::fromUtf8("不要害怕放弃好的去追求更好的。"), {31, 62, 18, 47, 6, 35}},
-        {QString::fromUtf8("创新区分领导者和追随者。"), {35, 70, 14, 53, 9, 26}},
-        {QString::fromUtf8("生活中最大的荣耀不在于从不跌倒，而在于每次跌倒后都能站起来。"), {39, 7, 28, 56, 11, 64}},
-        {QString::fromUtf8("你的时间有限，不要浪费在过别人的生活上。"), {43, 16, 32, 59, 5, 48}},
-        {QString::fromUtf8("如果生活可以预测，那它就不再是生活，也就没有味道了。"), {47, 24, 61, 13, 37, 52}},
-        {QString::fromUtf8("生活其实很简单，但我们坚持把它变得复杂。"), {51, 2, 39, 66, 21, 44}},
-        {QString::fromUtf8("你现在拥有应对世界抛给你的一切所需的一切。"), {55, 10, 43, 69, 25, 38}},
-        {QString::fromUtf8("相信自己和你的一切。知道你内心有一种力量比任何障碍都强大。"), {59, 18, 47, 3, 29, 65}},
-        {QString::fromUtf8("你注定成为的唯一一个人是你决定成为的那个人。"), {63, 26, 51, 7, 33, 58}},
-        {QString::fromUtf8("自信地朝着梦想的方向前进，过你想象中的生活。"), {67, 34, 55, 11, 37, 62}},
-        {QString::fromUtf8("当一扇幸福之门关闭时，另一扇会打开，但我们常常太久地注视着关闭的门，而看不到为我们打开的那扇门。"), {4, 42, 59, 15, 68, 27}},
-        {QString::fromUtf8("你想要的一切都在恐惧的另一边。"), {8, 46, 63, 19, 35, 52}},
-        {QString::fromUtf8("敢于梦想，敢于失败。"), {12, 50, 67, 23, 39, 56}},
-        {QString::fromUtf8("你不尝试的每一枪都会百分之百错过。"), {16, 54, 2, 27, 43, 60}}
+        {QString::fromUtf8("\u5927\u5409\u5927\u5229\uff0c\u4e07\u4e8b\u5982\u610f"), {7, 14, 23, 31, 42, 56}},
+        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u597d\u8fd0\u5f53\u5934"), {3, 18, 27, 35, 49, 63}},
+        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u524d\u7a0b\u4f3c\u9526"), {9, 16, 24, 38, 47, 55}},
+        {QString::fromUtf8("\u52e4\u52b3\u81f4\u5bcc\uff0c\u52e4\u4fa6\u6301\u5bb6"), {2, 11, 29, 33, 44, 51}},
+        {QString::fromUtf8("\u5b66\u4e1a\u6709\u6210\uff0c\u91d1\u699c\u9898\u540d"), {5, 12, 21, 36, 43, 58}},
+        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u8d22\u6e90\u5e7f\u8fdb"), {1, 19, 26, 34, 41, 62}},
+        {QString::fromUtf8("\u7231\u60c5\u7f8e\u6ee1\uff0c\u5e78\u798f\u7f8e\u6ee1"), {8, 15, 22, 37, 46, 59}},
+        {QString::fromUtf8("\u5bb6\u5ead\u548c\u7766\uff0c\u5176\u4e50\u878d\u878d"), {4, 13, 25, 32, 48, 57}},
+        {QString::fromUtf8("\u8eab\u4f53\u5065\u5eb7\uff0c\u5fc3\u60c5\u6109\u5feb"), {6, 17, 28, 39, 45, 61}},
+        {QString::fromUtf8("\u670b\u53cb\u76f8\u52a9\uff0c\u8d35\u4eba\u76f8\u6276"), {10, 20, 30, 40, 50, 60}},
+        {QString::fromUtf8("\u521b\u4e1a\u6709\u6210\uff0c\u524d\u9014\u65e0\u91cf"), {12, 24, 36, 41, 53, 65}},
+        {QString::fromUtf8("\u8d22\u8fd0\u4ea8\u901a\uff0c\u597d\u8fd0\u8fde\u8fde"), {14, 28, 35, 49, 56, 63}},
+        {QString::fromUtf8("\u5de5\u4f5c\u987a\u5229\uff0c\u5347\u804c\u52a0\u85aa"), {1, 8, 15, 22, 29, 36}},
+        {QString::fromUtf8("\u611f\u60c5\u7a33\u5b9a\uff0c\u767d\u5934\u5055\u8001"), {3, 9, 18, 27, 45, 54}},
+        {QString::fromUtf8("\u8d22\u6e90\u6eda\u6eda\uff0c\u65e5\u8fdb\u6597\u91d1"), {7, 21, 28, 42, 49, 56}},
+        {QString::fromUtf8("\u5e78\u8fd0\u4e34\u95e8\uff0c\u597d\u4e8b\u6210\u53cc"), {11, 22, 33, 44, 55, 66}},
+        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u4e07\u4e8b\u5982\u610f"), {2, 13, 24, 35, 46, 57}},
+        {QString::fromUtf8("\u5e73\u5b89\u5409\u7965\uff0c\u4e00\u751f\u987a\u9042"), {16, 32, 48, 64, 17, 33}},
+        {QString::fromUtf8("\u597d\u8fd0\u5f53\u5934\uff0c\u597d\u4e8b\u8fde\u8fde"), {5, 10, 25, 40, 55, 65}},
+        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u8d22\u8fd0\u4ea8\u901a"), {9, 18, 36, 45, 54, 63}},
+        {QString::fromUtf8("\u5bb6\u548c\u4e07\u4e8b\u5174\uff0c\u5e78\u798f\u7f8e\u6ee1"), {4, 8, 16, 32, 48, 52}},
+        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u524d\u7a0b\u4f3c\u9526"), {6, 12, 24, 30, 42, 60}},
+        {QString::fromUtf8("\u5b66\u4e1a\u8fdb\u6b65\uff0c\u8003\u8bd5\u987a\u5229"), {15, 30, 45, 52, 67, 3}},
+        {QString::fromUtf8("\u7231\u60c5\u751c\u871c\uff0c\u60c5\u611f\u5347\u6e29"), {19, 38, 57, 4, 23, 68}},
+        {QString::fromUtf8("\u8d22\u6e90\u5e7f\u8fdb\uff0c\u5bcc\u8d35\u53cc\u5168"), {23, 46, 69, 8, 17, 54}},
+        {QString::fromUtf8("\u8eab\u4f53\u5eb7\u5065\uff0c\u7cbe\u795e\u9971\u6ee1"), {27, 54, 12, 41, 65, 29}},
+        {QString::fromUtf8("\u5de5\u4f5c\u987a\u5229\uff0c\u4e8b\u4e1a\u6709\u6210"), {31, 62, 18, 47, 6, 35}},
+        {QString::fromUtf8("\u5bb6\u5ead\u5e78\u798f\uff0c\u5176\u4e50\u878d\u878d"), {35, 70, 14, 53, 9, 26}},
+        {QString::fromUtf8("\u670b\u53cb\u5e7f\u7ed3\uff0c\u8d35\u4eba\u76f8\u52a9"), {39, 7, 28, 56, 11, 64}},
+        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u597d\u8fd0\u8fde\u8fde"), {43, 16, 32, 59, 5, 48}},
+        {QString::fromUtf8("\u521b\u4e1a\u6709\u6210\uff0c\u8d22\u6e90\u6eda\u6eda"), {47, 24, 61, 13, 37, 52}},
+        {QString::fromUtf8("\u597d\u8fd0\u5f53\u5934\uff0c\u4e07\u4e8b\u5982\u610f"), {51, 2, 39, 66, 21, 44}},
+        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u5de5\u4f5c\u987a\u5229"), {55, 10, 43, 69, 25, 38}},
+        {QString::fromUtf8("\u5b66\u4e1a\u6709\u6210\uff0c\u524d\u7a0b\u4f3c\u9526"), {59, 18, 47, 3, 29, 65}},
+        {QString::fromUtf8("\u7231\u60c5\u7f8e\u6ee1\uff0c\u5e78\u798f\u7f8e\u6ee1"), {63, 26, 51, 7, 33, 58}},
+        {QString::fromUtf8("\u5bb6\u548c\u4e07\u4e8b\u5174\uff0c\u5e73\u5b89\u5409\u7965"), {67, 34, 55, 11, 37, 62}},
+        {QString::fromUtf8("\u8d22\u8fd0\u4ea8\u901a\uff0c\u597d\u4e8b\u6210\u53cc"), {4, 42, 59, 15, 68, 27}},
+        {QString::fromUtf8("\u8eab\u4f53\u5065\u5eb7\uff0c\u5fc3\u60c5\u6109\u5feb"), {8, 46, 63, 19, 35, 52}},
+        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u8d35\u4eba\u76f8\u52a9"), {12, 50, 67, 23, 39, 56}},
+        {QString::fromUtf8("\u5e78\u8fd0\u4e34\u95e8\uff0c\u5fc3\u60f3\u4e8b\u6210"), {16, 54, 2, 27, 43, 60}}
     };
 }
 
@@ -164,7 +164,7 @@ void FortuneCookieWidget::initAnimations()
 FortuneData FortuneCookieWidget::getRandomFortune()
 {
     if (m_fortunes.isEmpty()) {
-        return {QString::fromUtf8("好运即将降临！"), {1, 2, 3, 4, 5, 6}};
+        return {QString::fromUtf8("\u5927\u5409\u5927\u5229\uff0c\u4e07\u4e8b\u5982\u610f"), {1, 2, 3, 4, 5, 6}};
     }
     
     int index = QRandomGenerator::global()->bounded(m_fortunes.size());
@@ -478,7 +478,7 @@ void FortuneCookieWidget::drawLuckyNumberBalls(QPainter &painter, const QPointF 
 
 void FortuneCookieWidget::drawRetryButton(QPainter &painter, const QPointF &center, qreal y)
 {
-    QString btnText = QString::fromUtf8("🔄 再来一次");
+    QString btnText = QString::fromUtf8("\u518d\u6765\u4e00\u6b21");
     QFont btnFont(QStringLiteral("Microsoft YaHei"), 10, QFont::Medium);
     QFontMetrics btnFm(btnFont);
     int btnTextWidth = btnFm.horizontalAdvance(btnText);
@@ -633,7 +633,7 @@ void FortuneCookieWidget::drawCrackingCookie(QPainter &painter)
     painter.setFont(loadingFont);
     painter.setPen(TEXT_SUBTITLE);
     
-    QString loadingText = QString::fromUtf8("正在打开你的好运...");
+    QString loadingText = QString::fromUtf8("\u6b63\u5728\u4e3a\u60a8\u62bd\u53d6\u8fd0\u52bf...");
     QFontMetrics fm(loadingFont);
     int textWidth = fm.horizontalAdvance(loadingText);
     painter.drawText(QPointF(center.x() - textWidth / 2, widgetHeight * 0.72), loadingText);
@@ -688,7 +688,7 @@ void FortuneCookieWidget::drawOpenedFortune(QPainter &painter)
     }
     
     QFont titleFont(QStringLiteral("Microsoft YaHei"), 18, QFont::Bold);
-    drawGradientText(painter, QString::fromUtf8("今日好运"), 
+    drawGradientText(painter, QString::fromUtf8("\u4eca\u65e5\u8fd0\u52bf"), 
                      QPointF(center.x(), widgetHeight * 0.30), titleFont);
     
     QFont quoteFont(QStringLiteral("Georgia"), 11);
@@ -699,7 +699,7 @@ void FortuneCookieWidget::drawOpenedFortune(QPainter &painter)
     QString quote = m_currentFortune.quote;
     QFontMetrics quoteFm(quoteFont);
     int availableWidth = static_cast<int>(widgetRect.width() - 40);
-    int charWidth = quoteFm.horizontalAdvance(QStringLiteral("测"));
+    int charWidth = qMax(1, quoteFm.horizontalAdvance(QStringLiteral("A")));
     int charsPerLine = qMax(12, availableWidth / charWidth);
     
     QStringList lines;
@@ -735,7 +735,7 @@ void FortuneCookieWidget::drawOpenedFortune(QPainter &painter)
     painter.setFont(luckyTitleFont);
     painter.setPen(TEXT_SUBTITLE);
     
-    QString luckyTitle = QString::fromUtf8("幸运数字");
+    QString luckyTitle = QString::fromUtf8("\u5e78\u8fd0\u6570\u5b57");
     QFontMetrics luckyTitleFm(luckyTitleFont);
     int luckyTitleWidth = luckyTitleFm.horizontalAdvance(luckyTitle);
     painter.drawText(QPointF(center.x() - luckyTitleWidth / 2, widgetHeight * 0.72), luckyTitle);
@@ -749,7 +749,7 @@ void FortuneCookieWidget::drawMagicButton(QPainter &painter, const QPointF &cent
 {
     painter.save();
     
-    QString buttonText = QStringLiteral("✨ 魔法等待着你 ✨");
+    QString buttonText = QStringLiteral("Magic waiting button");
     QFont btnFont(QStringLiteral("Microsoft YaHei"), 10, QFont::Medium);
     QFontMetrics fm(btnFont);
     int textWidth = fm.horizontalAdvance(buttonText);
@@ -789,7 +789,7 @@ QRectF FortuneCookieWidget::getRetryButtonRect() const
     qreal widgetHeight = widgetRect.height();
     QPointF center = widgetRect.center();
     
-    QString btnText = QString::fromUtf8("🔄 再来一次");
+    QString btnText = QString::fromUtf8("\u518d\u62bd\u4e00\u6b21");
     QFont btnFont(QStringLiteral("Microsoft YaHei"), 10, QFont::Medium);
     QFontMetrics btnFm(btnFont);
     int btnTextWidth = btnFm.horizontalAdvance(btnText);
@@ -830,3 +830,4 @@ bool FortuneCookieWidget::isPointInCookie(const QPointF &point) const
     
     return (dx * dx + dy * dy) <= 1.0;
 }
+

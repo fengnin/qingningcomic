@@ -73,7 +73,7 @@ void ChapterSelectDialog::setupUI()
     layout->setContentsMargins(20, 16, 20, 16);
     layout->setSpacing(10);
     
-    m_titleLabel = new QLabel(QString::fromUtf8("这是作品的第几章？"));
+    m_titleLabel = new QLabel(QString::fromUtf8("选择章节"));
     m_titleLabel->setStyleSheet(TITLE_STYLE);
     m_titleLabel->setAlignment(Qt::AlignCenter);
     

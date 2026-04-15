@@ -6,12 +6,6 @@
 #include <QJsonArray>
 #include <QMap>
 
-/**
- * @brief Prompt 构建工具类
- * 
- * 将面板、角色、场景数据转换为图像生成提示词。
- * 包含视角、姿态、风格、表情等映射表。
- */
 class PromptBuilder
 {
 public:
@@ -29,14 +23,32 @@ public:
                                           const QMap<QString, QJsonObject> &sceneRefs = {},
                                           const QJsonObject &options = QJsonObject());
     
-    static PromptResult buildScenePrompt(const QJsonObject &scene);
+    static PromptResult buildScenePrompt(const QJsonObject &scene,
+                                          const QJsonObject &options = QJsonObject());
+
+    static QString filterHumanKeywords(const QString &text);
 
 private:
+    static QStringList normalizeList(const QJsonValue &value);
+    static QString formatHair(const QJsonObject &appearance);
     static QString formatCharacterDescriptor(const QString &name, 
                                               const QString &pose, 
                                               const QString &expression);
-    static QString buildHairDescription(const QJsonObject &appearance);
-    static QStringList normaliseList(const QJsonValue &value);
+    static QString buildCharacterAppearance(const QJsonObject &appearance);
+    static QString matchSceneDetails(const QMap<QString, QJsonObject> &sceneRefs,
+                                      const QString &sceneId,
+                                      const QString &sceneName);
+    static QStringList extractDialogueSpeakers(const QJsonArray &dialogue);
+    static QString resolveSceneRefPath(const QMap<QString, QJsonObject> &sceneRefs,
+                                        const QString &sceneId,
+                                        const QString &sceneName);
+    static void appendVariationDescs(QStringList &parts,
+                                      const QJsonArray &variations,
+                                      const QMap<QString, QString> &mapping,
+                                      const QString &keyField,
+                                      const QString &label);
+    static void appendSpatialLayout(QStringList &parts, const QJsonObject &spatialLayout);
+    static void appendVisualCharacteristics(QStringList &parts, const QJsonObject &visual);
 };
 
 #endif // PROMPTBUILDER_H

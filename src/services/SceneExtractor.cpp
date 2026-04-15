@@ -4,9 +4,24 @@
 #include "Logger.h"
 #include "BibleCache.h"
 #include "utils/JsonUtils.h"
+#include <QDateTime>
 #include <QUuid>
 
 SceneExtractor* SceneExtractor::m_instance = nullptr;
+std::once_flag SceneExtractor::m_instanceOnceFlag;
+
+SceneExtractor::SceneExtractor(QObject* parent)
+    : QObject(parent)
+{
+}
+
+SceneExtractor* SceneExtractor::instance()
+{
+    std::call_once(m_instanceOnceFlag, []() {
+        m_instance = new SceneExtractor();
+    });
+    return m_instance;
+}
 
 QJsonObject ExtractedScene::toJson() const
 {
@@ -56,19 +71,6 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
     
     scene.details = JsonUtils::jsonArrayToStringList(json["details"].toArray());
     return scene;
-}
-
-SceneExtractor::SceneExtractor(QObject* parent)
-    : QObject(parent)
-{
-}
-
-SceneExtractor* SceneExtractor::instance()
-{
-    if (!m_instance) {
-        m_instance = new SceneExtractor();
-    }
-    return m_instance;
 }
 
 QList<ExtractedScene> SceneExtractor::extractFromScenes(const QJsonArray& scenes)
@@ -151,6 +153,7 @@ bool SceneExtractor::saveScene(const QString& novelId, const ExtractedScene& ext
     
     if (result > 0) {
         LOG_INFO("SceneExtractor", QString("Saved scene: %1").arg(scene.name()));
+        BibleCache::instance()->invalidateScenes(novelId);
         emit sceneSaved(scene.id(), scene.name());
         emit sceneCountChanged(getSceneCountByNovel(novelId));
     } else {
@@ -173,7 +176,8 @@ bool SceneExtractor::updateScene(const Scene& scene)
         // 更新缓存
         BibleCache::instance()->invalidateScenes(scene.novelId());
         
-        emit sceneUpdated(scene.id(), scene.name());
+        // 传递 referenceImagePath 以便 UI 直接更新图片显示
+        emit sceneUpdated(scene.sceneId(), scene.referenceImagePath());
     } else {
         LOG_ERROR("SceneExtractor", QString("Failed to update scene: %1").arg(scene.name()));
     }
@@ -199,66 +203,57 @@ int SceneExtractor::saveScenes(const QString& novelId, const QList<ExtractedScen
 
 QVariantMap SceneExtractor::sceneToData(const Scene& scene) const
 {
-    QVariantMap data;
-    data["id"] = scene.id();
-    data["novel_id"] = scene.novelId();
-    data["name"] = scene.name();
-    data["scene_id"] = scene.sceneId();
-    data["details"] = JsonUtils::jsonToString(scene.details().toJson());
-    data["tags"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(scene.tags()));
-    
-    // 保存参考图路径（包括清空的情况）
-    data["reference_image_path"] = scene.referenceImagePath();
-    
-    return data;
+    return scene.toVariantMap();
 }
 
 Scene SceneExtractor::sceneFromRow(const QVariantMap& row)
 {
-    Scene scene;
-    scene.setId(row["id"].toString());
-    scene.setNovelId(row["novel_id"].toString());
-    scene.setName(row["name"].toString());
-    scene.setSceneId(row["scene_id"].toString());
-    
-    QJsonObject detailsJson = JsonUtils::variantToJson(row["details"]);
-    if (!detailsJson.isEmpty()) {
-        scene.setDetails(SceneDetails::fromJson(detailsJson));
-    }
-    
-    scene.setTags(JsonUtils::variantToStringList(row["tags"]));
-    
-    // 读取参考图路径
-    scene.setReferenceImagePath(row["reference_image_path"].toString());
-    
-    return scene;
+    return Scene::fromVariantMap(row);
 }
 
 QList<Scene> SceneExtractor::getScenesByNovel(const QString& novelId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("scenes")) {
+        LOG_WARNING("SceneExtractor", "Failed to ensure scene soft-delete columns");
+    }
+    
+    if (BibleCache::instance()->hasScenes(novelId)) {
+        return BibleCache::instance()->getScenes(novelId);
+    }
+    
     QList<Scene> scenes;
     QList<QVariantMap> results = DatabaseManager::instance()->selectAll(
-        "scenes", "novel_id = ?", QVariantList() << novelId);
+        "scenes", "novel_id = ? AND is_deleted = 0", QVariantList() << novelId);
     
     for (const QVariantMap& row : results) {
         scenes.append(sceneFromRow(row));
     }
+    
+    BibleCache::instance()->setScenes(novelId, scenes);
     
     return scenes;
 }
 
 Scene SceneExtractor::getSceneById(const QString& sceneId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("scenes")) {
+        LOG_WARNING("SceneExtractor", "Failed to ensure scene soft-delete columns");
+    }
+    
     QVariantMap row = DatabaseManager::instance()->selectOne(
-        "scenes", "id = ?", QVariantList() << sceneId);
+        "scenes", "id = ? AND is_deleted = 0", QVariantList() << sceneId);
     
     return row.isEmpty() ? Scene() : sceneFromRow(row);
 }
 
 Scene SceneExtractor::getSceneBySceneId(const QString& novelId, const QString& sceneId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("scenes")) {
+        LOG_WARNING("SceneExtractor", "Failed to ensure scene soft-delete columns");
+    }
+    
     QVariantMap row = DatabaseManager::instance()->selectOne(
-        "scenes", "novel_id = ? AND (scene_id = ? OR name = ?)", 
+        "scenes", "novel_id = ? AND (scene_id = ? OR name = ?) AND is_deleted = 0", 
         QVariantList() << novelId << sceneId << sceneId);
     
     return row.isEmpty() ? Scene() : sceneFromRow(row);
@@ -270,7 +265,7 @@ Scene SceneExtractor::findExistingScene(const QString& novelId, const QString& s
         if (value.isEmpty()) {
             return Scene();
         }
-        QString whereClause = QString("novel_id = ? AND %1 = ?").arg(field);
+        QString whereClause = QString("novel_id = ? AND %1 = ? AND is_deleted = 0").arg(field);
         QVariantMap row = DatabaseManager::instance()->selectOne(
             "scenes", whereClause, QVariantList() << novelId << value);
         return row.isEmpty() ? Scene() : sceneFromRow(row);
@@ -286,18 +281,39 @@ Scene SceneExtractor::findExistingScene(const QString& novelId, const QString& s
 
 int SceneExtractor::getSceneCountByNovel(const QString& novelId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("scenes")) {
+        LOG_WARNING("SceneExtractor", "Failed to ensure scene soft-delete columns");
+    }
+    
     QList<QVariantMap> results = DatabaseManager::instance()->selectAll(
-        "scenes", "novel_id = ?", QVariantList() << novelId);
+        "scenes", "novel_id = ? AND is_deleted = 0", QVariantList() << novelId);
     return results.size();
 }
 
 bool SceneExtractor::deleteScene(const QString& sceneId)
 {
-    bool success = DatabaseManager::instance()->remove(
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("scenes")) {
+        LOG_WARNING("SceneExtractor", "Failed to ensure scene soft-delete columns");
+    }
+    
+    QVariantMap row = DatabaseManager::instance()->selectOne(
         "scenes", "id = ?", QVariantList() << sceneId);
+    if (row.isEmpty()) {
+        return false;
+    }
+    
+    QVariantMap data;
+    data["is_deleted"] = 1;
+    data["deleted_at"] = QDateTime::currentDateTimeUtc().toString("yyyy-MM-dd HH:mm:ss");
+    
+    bool success = DatabaseManager::instance()->update(
+        "scenes", data, "id = ?", QVariantList() << sceneId);
     
     if (success) {
-        LOG_INFO("SceneExtractor", QString("Deleted scene: %1").arg(sceneId));
+        LOG_INFO("SceneExtractor", QString("Soft-deleted scene: %1").arg(sceneId));
+        const QString novelId = row["novel_id"].toString();
+        BibleCache::instance()->invalidateScenes(novelId);
+        emit sceneCountChanged(getSceneCountByNovel(novelId));
     }
     
     return success;

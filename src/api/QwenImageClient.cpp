@@ -33,7 +33,7 @@ DEFINE_SINGLETON_INSTANCE(QwenImageClient, qwenImageClient)
 bool QwenImageClient::init(const Config& config)
 {
     if (config.apiKey.isEmpty()) {
-        LOG_WARNING("QwenImageClient", "API Key 为空，将使用占位图模式");
+        LOG_WARNING("QwenImageClient", "API key is empty; using placeholder mode.");
     }
     
     m_config = config;
@@ -50,7 +50,6 @@ bool QwenImageClient::shouldMock() const
     return m_config.forceMock || !m_initialized || m_config.apiKey.isEmpty();
 }
 
-// ==================== 异步 API ====================
 
 void QwenImageClient::generateAsync(const GenerateOptions& options)
 {
@@ -84,7 +83,6 @@ void QwenImageClient::editAsync(const EditOptions& options)
     sendAsyncRequest(options, RequestType::Edit);
 }
 
-// ==================== 同步 API ====================
 
 QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions& options)
 {
@@ -139,7 +137,6 @@ QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options
     return extractImageFromResponse(response);
 }
 
-// ==================== 异步请求发送 ====================
 
 void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestType type)
 {
@@ -151,9 +148,6 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
     
     QNetworkRequest request = createNetworkRequest(url);
     QByteArray jsonData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
-    
-    LOG_DEBUG("QwenImageClient", QString("Sending async %1 request: %2")
-        .arg(type == RequestType::Generate ? "generate" : "edit").arg(url));
     
     QNetworkReply* reply = m_networkManager->post(request, jsonData);
     
@@ -175,8 +169,6 @@ void QwenImageClient::sendAsyncRequest(const EditOptions& options, RequestType t
     
     QNetworkRequest request = createNetworkRequest(url);
     QByteArray jsonData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
-    
-    LOG_DEBUG("QwenImageClient", QString("Sending async edit request: %1").arg(url));
     
     QNetworkReply* reply = m_networkManager->post(request, jsonData);
     
@@ -229,7 +221,6 @@ void QwenImageClient::downloadImageFromUrl(const QString& url, const QString& re
     connect(reply, &QNetworkReply::finished, this, &QwenImageClient::onImageDownloadFinished);
 }
 
-// ==================== 响应处理槽函数 ====================
 
 void QwenImageClient::onReplyFinished()
 {
@@ -255,16 +246,13 @@ void QwenImageClient::onReplyFinished()
         return;
     }
     
-    // 检查是否是异步任务
     QString taskId = response["output"].toObject()["task_id"].toString();
     if (!taskId.isEmpty()) {
-        LOG_DEBUG("QwenImageClient", QString("Async task created: %1").arg(taskId));
         emit progressChanged("task_submitted", 10);
         pollTaskStatus(taskId, requestId);
         return;
     }
     
-    // 同步响应
     GenerateResult result = extractImageFromResponse(response);
     result.requestId = requestId;
     
@@ -294,8 +282,6 @@ void QwenImageClient::onTaskStatusReplyFinished()
     
     QJsonObject output = response["output"].toObject();
     QString taskStatus = output["task_status"].toString();
-    
-    LOG_DEBUG("QwenImageClient", QString("Task %1 status: %2").arg(taskId).arg(taskStatus));
     
     if (taskStatus == "SUCCEEDED") {
         handleTaskSuccess(output, requestId);
@@ -371,15 +357,12 @@ void QwenImageClient::onReplyError(QNetworkReply::NetworkError error)
     emit errorOccurred("network", errorMessage);
 }
 
-// ==================== 同步请求 ====================
 
 QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObject& payload)
 {
     try {
         QNetworkRequest request = createNetworkRequest(url);
         QByteArray jsonData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
-        
-        LOG_DEBUG("QwenImageClient", QString("Sending sync request to: %1").arg(url));
         
         QNetworkAccessManager *localManager = new QNetworkAccessManager();
         QNetworkReply* reply = localManager->post(request, jsonData);
@@ -392,8 +375,6 @@ QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObje
         connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
         
         timer.start(m_config.requestTimeout);
-        // 使用 ExcludeUserInputEvents 避免处理可能导致问题的用户输入事件
-        loop.exec(QEventLoop::ExcludeUserInputEvents);
         
         if (!timer.isActive()) {
             reply->abort();
@@ -418,7 +399,6 @@ QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObje
         
         QString taskId = response["output"].toObject()["task_id"].toString();
         if (!taskId.isEmpty()) {
-            LOG_DEBUG("QwenImageClient", QString("Async task created: %1, polling...").arg(taskId));
             response = pollTaskSync(taskId);
         }
         
@@ -428,7 +408,7 @@ QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObje
         LOG_ERROR("QwenImageClient", QString("Exception in sendSyncRequest: %1").arg(QString::fromUtf8(e.what())));
         return QJsonObject();
     } catch (...) {
-        setError("sendSyncRequest unknown exception");
+        setError("发送同步请求时发生异常");
         LOG_ERROR("QwenImageClient", "Unknown exception in sendSyncRequest");
         return QJsonObject();
     }
@@ -455,8 +435,6 @@ QJsonObject QwenImageClient::pollTaskSync(const QString& taskId)
             connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
             
             timer.start(10000);
-            // 使用 ExcludeUserInputEvents 避免处理可能导致问题的用户输入事件
-            loop.exec(QEventLoop::ExcludeUserInputEvents);
             
             if (!timer.isActive()) {
                 reply->abort();
@@ -480,8 +458,6 @@ QJsonObject QwenImageClient::pollTaskSync(const QString& taskId)
             QJsonObject output = response["output"].toObject();
             QString taskStatus = output["task_status"].toString();
             
-            LOG_DEBUG("QwenImageClient", QString("Task %1 status: %2").arg(taskId).arg(taskStatus));
-            
             if (taskStatus == "SUCCEEDED") {
                 return response;
             } else if (taskStatus == "FAILED") {
@@ -494,12 +470,12 @@ QJsonObject QwenImageClient::pollTaskSync(const QString& taskId)
             LOG_WARNING("QwenImageClient", QString("Exception in pollTaskSync: %1").arg(QString::fromUtf8(e.what())));
             QThread::msleep(1000);
         } catch (...) {
-            LOG_WARNING("QwenImageClient", "Unknown exception in pollTaskSync");
+        setError("发送同步请求时发生异常");
             QThread::msleep(1000);
         }
     }
     
-    setError("任务轮询超时");
+            setError("轮询任务状态时发生异常");
     return QJsonObject();
 }
 
@@ -530,7 +506,6 @@ QByteArray QwenImageClient::downloadImage(const QString& url)
     return imageData;
 }
 
-// ==================== 响应解析 ====================
 
 QwenImageClient::GenerateResult QwenImageClient::extractImageFromResponse(const QJsonObject& response)
 {
@@ -602,12 +577,11 @@ QwenImageClient::GenerateResult QwenImageClient::parseAsyncResponse(const QJsonO
     return result;
 }
 
-// ==================== 辅助方法 ====================
 
 bool QwenImageClient::validateGenerateOptions(const GenerateOptions& options)
 {
     if (options.prompt.isEmpty()) {
-        setError("Prompt is required");
+        setError("提示词不能为空");
         return false;
     }
     return true;
@@ -616,11 +590,11 @@ bool QwenImageClient::validateGenerateOptions(const GenerateOptions& options)
 bool QwenImageClient::validateEditOptions(const EditOptions& options)
 {
     if (options.prompt.isEmpty()) {
-        setError("Prompt is required");
+        setError("提示词不能为空");
         return false;
     }
     if (options.sourceImage.isEmpty()) {
-        setError("Source image is required");
+        setError("源图像不能为空");
         return false;
     }
     return true;
@@ -685,7 +659,11 @@ QJsonObject QwenImageClient::buildEditRequestBody(const EditOptions& options)
     }
     body["input"] = input;
     
-    body["parameters"] = buildCommonParameters(options.size, options.seed);
+    QJsonObject parameters = buildCommonParameters(options.size, options.seed);
+    if (options.size == ImageSize::Custom && options.width > 0 && options.height > 0) {
+        parameters["size"] = QString("%1*%2").arg(options.width).arg(options.height);
+    }
+    body["parameters"] = parameters;
     return body;
 }
 
@@ -701,7 +679,6 @@ QString QwenImageClient::sizeToString(ImageSize size, int width, int height)
     }
 }
 
-// ==================== 私有辅助方法 ====================
 
 QString QwenImageClient::buildApiUrl(const QString& service) const
 {
@@ -801,7 +778,6 @@ void QwenImageClient::handleTaskSuccess(const QJsonObject& output, const QString
     emit progressChanged("generating", 80);
     
     QJsonArray results = output["results"].toArray();
-    LOG_DEBUG("QwenImageClient", QString("handleTaskSuccess: results array size=%1").arg(results.size()));
     
     if (results.isEmpty()) {
         LOG_WARNING("QwenImageClient", "handleTaskSuccess: results array is empty!");
@@ -841,17 +817,12 @@ QwenImageClient::GenerateResult QwenImageClient::generatePlaceholder(const QStri
 {
     GenerateResult result;
     result.success = true;
-    // 将 base64 字符串解码为真正的图片数据
-    result.imageData = QByteArray::fromBase64(PLACEHOLDER_IMAGE);
     result.mimeType = "image/png";
     result.requestId = QString("mock-%1").arg(QDateTime::currentMSecsSinceEpoch());
     result.width = 1;
     result.height = 1;
     result.timestamp = QDateTime::currentMSecsSinceEpoch();
     
-    if (!prompt.isEmpty()) {
-        LOG_DEBUG("QwenImageClient", QString("Generated placeholder for prompt: %1").arg(prompt.left(100)));
-    }
-    
     return result;
 }
+

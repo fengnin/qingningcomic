@@ -33,7 +33,7 @@ public:
 
     struct StorageConfig {
         QString type = "local";         // local 或 s3
-        QString dataDir = "data";       // 本地存储路径
+        QString dataDir = "/data/comic";
         QString endpoint;               // S3 端点
         QString bucket;                 // S3 存储桶
         QString accessKey;              // S3 Access Key

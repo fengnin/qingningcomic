@@ -60,6 +60,8 @@ public:
         QByteArray maskImage;
         QString negativePrompt;
         ImageSize size = ImageSize::Square;
+        int width = 0;
+        int height = 0;
         int seed = -1;
         QString requestId;
         
@@ -68,6 +70,8 @@ public:
             e.prompt = opts.prompt;
             e.negativePrompt = opts.negativePrompt;
             e.size = opts.size;
+            e.width = opts.width;
+            e.height = opts.height;
             e.seed = opts.seed;
             e.requestId = opts.requestId;
             return e;

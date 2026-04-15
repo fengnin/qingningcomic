@@ -54,6 +54,9 @@ public:
     QStringList personality() const { return m_personality; }
     void setPersonality(const QStringList& p) { m_personality = p; }
     
+    QString updatedBy() const { return m_updatedBy; }
+    void setUpdatedBy(const QString& by) { m_updatedBy = by; }
+    
     QStringList toDisplayDetails() const;
     
     QJsonObject toJson() const;
@@ -75,6 +78,7 @@ private:
     CharacterAppearance m_characterAppearance;
     SceneDetails m_sceneDetails;
     QStringList m_personality;
+    QString m_updatedBy;
 };
 
 Q_DECLARE_METATYPE(BibleEntry)

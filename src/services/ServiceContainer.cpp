@@ -2,6 +2,7 @@
 #include "DatabaseManager.h"
 #include "QwenClient.h"
 #include "QwenImageClient.h"
+#include "VolcEngineImageClient.h"
 #include "StorageClient.h"
 #include "FileStorage.h"
 #include "StoryboardService.h"
@@ -10,6 +11,8 @@
 #include "BibleImageService.h"
 #include "TaskQueue.h"
 #include "AppConfig.h"
+#include "services/ExportService.h"
+#include "ChangeRequestService.h"
 
 ServiceContainer* ServiceContainer::m_instance = nullptr;
 QMutex ServiceContainer::m_instanceMutex;
@@ -48,4 +51,5 @@ void ServiceContainer::clear()
     m_taskQueue = nullptr;
     m_appConfig = nullptr;
     m_exportService = nullptr;
+    m_changeRequestService = nullptr;
 }

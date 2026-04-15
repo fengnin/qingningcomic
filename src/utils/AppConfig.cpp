@@ -25,12 +25,12 @@ AppConfig* AppConfig::instance()
 
 bool AppConfig::load(const QString& configPath)
 {
-    m_configPath = configPath.isEmpty() 
+    m_configPath = configPath.isEmpty()
         ? QCoreApplication::applicationDirPath() + "/config.ini"
         : configPath;
 
     if (!QFile::exists(m_configPath)) {
-        m_lastError = TR("配置文件不存在: %1\n请复制 config.ini.example 为 config.ini 并填入配置").arg(m_configPath);
+        m_lastError = QStringLiteral("Config file not found: %1").arg(m_configPath);
         return false;
     }
 
@@ -74,16 +74,15 @@ void AppConfig::readStorageConfig(QSettings& settings)
 {
     settings.beginGroup("storage");
     m_storage.type = settings.value("type", "local").toString();
-    m_storage.dataDir = settings.value("dataDir", "data").toString();
-    
+    m_storage.dataDir = settings.value("dataDir", "/data/comic").toString();
+
     m_storage.endpoint = settings.value("endpoint").toString();
     m_storage.bucket = settings.value("bucket").toString();
     m_storage.accessKey = settings.value("accessKey").toString();
     m_storage.secretKey = settings.value("secretKey").toString();
     m_storage.region = settings.value("region", "us-east-1").toString();
     m_storage.presignExpiresIn = settings.value("presignExpiresIn", 900).toInt();
-    
-    // 预签名 API 配置
+
     m_storage.presignApiEndpoint = settings.value("presignApiEndpoint").toString();
     m_storage.authToken = settings.value("authToken").toString();
     settings.endGroup();
@@ -100,8 +99,7 @@ void AppConfig::readQwenImageConfig(QSettings& settings)
     m_qwenImage.maxRetries = settings.value("maxRetries", 3).toInt();
     m_qwenImage.forceMock = settings.value("forceMock", false).toBool();
     settings.endGroup();
-    
-    // 如果 qwenImage.apiKey 为空，自动使用 qwen.apiKey（两者共用同一个 API Key）
+
     if (m_qwenImage.apiKey.isEmpty() || m_qwenImage.apiKey == "sk-your-api-key-here") {
         m_qwenImage.apiKey = m_qwen.apiKey;
     }
@@ -137,7 +135,7 @@ bool AppConfig::setValidationError(const QString& message)
 bool AppConfig::validateQwenConfig()
 {
     if (m_qwen.apiKey.isEmpty() || m_qwen.apiKey == "sk-your-api-key-here") {
-        return setValidationError(TR("请在 config.ini 中配置有效的 Qwen API Key"));
+        return setValidationError(QStringLiteral("Qwen API key is missing"));
     }
     return true;
 }
@@ -147,20 +145,20 @@ bool AppConfig::validateS3Config()
     if (m_storage.type != "s3") {
         return true;
     }
-    
+
     if (m_storage.endpoint.isEmpty()) {
-        return setValidationError(TR("使用 S3 存储时，endpoint 不能为空"));
+        return setValidationError(QStringLiteral("Storage endpoint is missing"));
     }
     if (m_storage.bucket.isEmpty()) {
-        return setValidationError(TR("使用 S3 存储时，bucket 不能为空"));
+        return setValidationError(QStringLiteral("Storage bucket is missing"));
     }
     if (m_storage.accessKey.isEmpty() || m_storage.accessKey == "your-access-key-here") {
-        return setValidationError(TR("使用 S3 存储时，请配置有效的 accessKey"));
+        return setValidationError(QStringLiteral("Storage access key is missing"));
     }
     if (m_storage.secretKey.isEmpty() || m_storage.secretKey == "your-secret-key-here") {
-        return setValidationError(TR("使用 S3 存储时，请配置有效的 secretKey"));
+        return setValidationError(QStringLiteral("Storage secret key is missing"));
     }
-    
+
     return true;
 }
 
@@ -169,11 +167,11 @@ bool AppConfig::validateConfig()
     if (!validateQwenConfig()) {
         return false;
     }
-    
+
     if (!validateS3Config()) {
         return false;
     }
-    
+
     m_loaded = true;
     return true;
 }

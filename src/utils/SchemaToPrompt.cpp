@@ -5,36 +5,20 @@
 QString SchemaToPrompt::buildSystemPrompt(const QJsonObject &schema, const Options &options)
 {
     QString prompt = QString::fromUtf8(
-        "你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。\n\n"
-        "📖 **跨章节连续性规则**（如果提供了现有圣经）：\n\n"
-        "- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色\n"
-        "- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组中包含所有现有场景（保持原有属性不变），并添加新出现的场景\n"
-        "- **引用场景ID**：在 panel.background.sceneId 中优先使用现有场景的 id，确保重复出现的地点使用相同的场景定义\n"
-        "- **补全新内容**：遇到新角色或新场景时，按照正常规则创建新条目，但保持与现有风格一致\n"
-        "- **禁止修改**：不要修改现有角色的 appearance 或现有场景的 visualCharacteristics，保持视觉连续性\n\n"
-        "🎬 **核心任务规则**：\n\n"
-        "1. **场景描写**：详细描述每个面板的视觉画面，包括环境、氛围、人物动作\n"
-        "2. **背景设定**：明确场景地点、时间、天气、光照\n"
-        "3. **镜头设计**：选择合适的景别和机位强化叙事\n"
-        "4. **氛围营造**：定义情绪基调、音效、粒子效果\n"
-        "5. **画风控制**：指定艺术风格包括类型、线条、阴影、配色\n"
-        "6. **构图原则**：运用构图法则确定焦点、景深、视觉引导\n"
-        "7. **角色刻画**：准确描述姿态、表情、位置\n"
-        "8. **对白处理**：提取对话，标注说话者、气泡类型、情感\n"
-        "9. **叙事功能**：明确面板的故事作用\n"
-        "10. **分页规范**：每个面板的 index 从 0-5 循环（每页最多 6 个面板），page 自动递增。根据小说内容需要，可以生成任意数量的面板，不要人为限制数量。\n"
-        "11. **场景圣经**：为重复出现的场景创建统一视觉定义，确保跨章节一致性\n\n"
-        "🌐 **语言要求**：\n\n"
-        "- 所有文字类字段必须使用**简体中文**\n"
-        "- Imagen Prompt 也需要使用简体中文描述画面\n"
-        "- 除变量名、接口字段名或必要的专有名词外，请避免英文单词或拼音\n\n"
-        "📋 **JSON Schema 字段说明**：\n\n"
-        "以下是完整的输出结构定义。所有字段说明都直接来自 JSON Schema，是唯一的事实来源。\n\n"
+        "你是漫画分镜 JSON Schema 说明助手。\n\n"
+        "请把下面的 Schema 整理成适合模型阅读的说明，重点突出字段用途、必填项、枚举值和约束。\n\n"
+        "- 优先说明 `existingCharacters` 和 `existingScenes` 对应的已有角色/场景，避免重复创建。\n"
+        "- `panel.background.sceneId` 应尽量映射到已有场景的 id。\n"
+        "- `appearance` 描述角色外貌，不要写成镜头语言。\n"
+        "- `visualCharacteristics` 用于固定场景的视觉特征。\n"
+        "- `scene` 只描述场景本身，不包含人物或动作。\n"
+        "- `visualPrompt` 必须是中文图像提示词。\n\n"
+        "请按字段层级输出，保持字段名不变。\n\n"
     );
     
     prompt += generateFieldDocs(schema);
     
-    prompt += "\n📝 **完整示例**：\n\n";
+    prompt += "\n示例 JSON：\n\n";
     
     QJsonObject example = options.customExample.isEmpty() ? generateExample(schema) : options.customExample;
     prompt += "```json\n";
@@ -72,10 +56,10 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
             }
         }
         
-        QString requiredMark = isRequired ? QString::fromUtf8("**必填**") : QString::fromUtf8("可选");
+        QString requiredMark = isRequired ? QString::fromUtf8("必填") : QString::fromUtf8("可选");
         QString fieldType = getFieldType(fieldSchema);
-        
-        docs += QString("%1- **%2** (%3)").arg(indent, fieldName, requiredMark);
+
+        docs += QString("%1- **%2**（%3）").arg(indent, fieldName, requiredMark);
         
         if (!fieldType.isEmpty()) {
             docs += QString(" [%1]").arg(fieldType);
@@ -92,12 +76,12 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
             for (const QJsonValue &v : enumValues) {
                 enumStrings.append(v.toString());
             }
-            docs += QString("%1  %2: %3\n").arg(indent, QString::fromUtf8("可选值"), enumStrings.join(", "));
+            docs += QString("%1  枚举: %2\n").arg(indent, enumStrings.join(", "));
         }
         
         QStringList constraints = getFieldConstraints(fieldSchema);
         if (!constraints.isEmpty()) {
-            docs += QString("%1  %2: %3\n").arg(indent, QString::fromUtf8("约束"), constraints.join(", "));
+            docs += QString("%1  约束: %2\n").arg(indent, constraints.join(", "));
         }
         
         if (fieldSchema["type"].toString() == "object" && fieldSchema.contains("properties")) {
@@ -107,10 +91,10 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
         if (fieldSchema["type"].toString() == "array" && fieldSchema.contains("items")) {
             QJsonObject items = fieldSchema["items"].toObject();
             if (items["type"].toString() == "object" && items.contains("properties")) {
-                docs += QString("%1  %2:\n").arg(indent, QString::fromUtf8("数组元素结构"));
+                docs += QString("%1  子项:\n").arg(indent);
                 docs += generateFieldDocs(items, indentLevel + 2);
             } else if (items.contains("type")) {
-                docs += QString("%1  %2: %3\n").arg(indent, QString::fromUtf8("数组元素类型"), items["type"].toString());
+                docs += QString("%1  子项类型: %2\n").arg(indent, items["type"].toString());
             }
         }
         
@@ -224,8 +208,8 @@ QStringList SchemaToPrompt::getFieldConstraints(const QJsonObject &fieldSchema)
         {"maxLength", QString::fromUtf8("最大长度")},
         {"minimum", QString::fromUtf8("最小值")},
         {"maximum", QString::fromUtf8("最大值")},
-        {"minItems", QString::fromUtf8("最少元素")},
-        {"maxItems", QString::fromUtf8("最多元素")}
+        {"minItems", QString::fromUtf8("最少项数")},
+        {"maxItems", QString::fromUtf8("最多项数")}
     };
     
     QStringList constraints;

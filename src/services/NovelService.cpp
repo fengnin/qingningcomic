@@ -42,6 +42,7 @@ Novel NovelService::buildNovelFromMap(const QVariantMap& data)
     novel.setId(data["id"].toString());
     novel.setUserId(data["user_id"].toString());
     novel.setTitle(data["title"].toString());
+    novel.setOriginalText(data["original_text"].toString());
     novel.setStatus(Novel::stringToStatus(data["status"].toString()));
     novel.setCreatedAt(data["created_at"].toDateTime());
     novel.setUpdatedAt(data["updated_at"].toDateTime());
@@ -109,6 +110,7 @@ Novel NovelService::createNovel(const QString& userId, const QString& title, con
     data["id"] = novelId;
     data["user_id"] = userId;
     data["title"] = title;
+    data["original_text"] = text;
     data["status"] = Novel::statusToString(NovelStatus::Created);
     data["metadata"] = serializeJson(novelMetadata);
     
@@ -123,13 +125,6 @@ Novel NovelService::createNovel(const QString& userId, const QString& title, con
         return Novel();
     }
     
-    if (!text.isEmpty()) {
-        if (!saveText(novelId, text)) {
-            LOG_ERROR("NovelService", QString("saveText failed for novel %1, rolling back").arg(novelId));
-            return Novel();
-        }
-    }
-    
     if (!transaction.commit()) {
         emitError("createNovel", "Failed to commit transaction");
         return Novel();
@@ -138,7 +133,8 @@ Novel NovelService::createNovel(const QString& userId, const QString& title, con
     Novel novel = getNovelById(novelId);
     emit novelCreated(novel);
     
-    LOG_INFO("NovelService", QString("Created novel: %1, id=%2").arg(title, novelId));
+    LOG_INFO("NovelService", QString("Created novel: %1, text length: %2").arg(novelId).arg(text.length()));
+    
     return novel;
 }
 

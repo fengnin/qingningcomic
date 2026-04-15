@@ -55,7 +55,7 @@ void AnalysisResultWidget::setupUI()
     headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->setSpacing(8);
     
-    m_titleLabel = new QLabel(TR("分析完成"));
+    m_titleLabel = new QLabel(tr("分析结果"));
     m_titleLabel->setStyleSheet(TITLE_STYLE);
     headerLayout->addWidget(m_titleLabel);
     
@@ -91,9 +91,9 @@ void AnalysisResultWidget::setupUI()
         return item;
     };
     
-    createStatItem(TR("面板"), m_panelCountLabel);
-    createStatItem(TR("角色"), m_characterCountLabel);
-    createStatItem(TR("场景"), m_sceneCountLabel);
+    createStatItem(tr("分镜数"), m_panelCountLabel);
+    createStatItem(tr("角色数"), m_characterCountLabel);
+    createStatItem(tr("场景数"), m_sceneCountLabel);
     
     statsLayout->addStretch();
     contentLayout->addWidget(m_statsContainer);
@@ -162,7 +162,7 @@ void AnalysisResultWidget::hideAnimated()
 void AnalysisResultWidget::updateDisplay()
 {
     if (m_chapterNumber > 0) {
-        m_chapterLabel->setText(TR("第 %1 章").arg(m_chapterNumber));
+        m_chapterLabel->setText(tr("第 %1 章").arg(m_chapterNumber));
     } else {
         m_chapterLabel->clear();
     }

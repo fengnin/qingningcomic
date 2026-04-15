@@ -9,14 +9,14 @@
  * @brief 文件存储管理类
  * 
  * 负责管理小说文本、面板图片、角色参考图、导出文件等的存储。
- * 当前使用本地文件存储，后续可扩展支持云存储（如滨纷云）。
+ * 当前使用本地文件存储，后续可扩展支持云存储。
  */
 class FileStorage
 {
 public:
     static FileStorage* instance();
     
-    void init(const QString& basePath = "data");
+    void init(const QString& basePath = "/data/comic");
     bool isStorageAvailable() const;
     
     // ========== 小说文本存储 ==========

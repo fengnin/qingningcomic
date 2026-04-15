@@ -9,10 +9,23 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QScrollArea>
+#include <QSize>
 
 #include "Bible.h"
+#include "Character.h"
+#include "Scene.h"
+#include "ModeComboBox.h"
 
-// 圣经条目组件，用于显示角色或场景信息
+class QVBoxLayout;
+
+namespace BibleItemConstants {
+    constexpr int LABEL_WIDTH = 128;
+    constexpr int LABEL_HEIGHT = 180;
+    constexpr int LOAD_SCALE = 3;  // 提高缩放比例，使缩略图更清晰
+    const QSize LABEL_SIZE(LABEL_WIDTH, LABEL_HEIGHT);
+    const QSize LOAD_SIZE(LABEL_WIDTH * LOAD_SCALE, LABEL_HEIGHT * LOAD_SCALE);
+}
+
 class BibleItem : public QFrame
 {
     Q_OBJECT
@@ -32,12 +45,22 @@ public:
     BibleType getType() const { return m_bibleType; }
     QStringList getDetails() const { return m_details; }
 
+    void setCharacterData(const Character& character);
+    void setSceneData(const Scene& scene);
+    Character getCharacterData() const { return m_characterData; }
+    Scene getSceneData() const { return m_sceneData; }
+    bool hasCharacterData() const { return m_hasCharacterData; }
+    bool hasSceneData() const { return m_hasSceneData; }
+
 signals:
-    void editClicked(const QString &id, BibleType type);  // 改为传递 ID
-    void dataChanged(const QString &id, const QStringList &details);  // 改为传递 ID
+    void editClicked(const QString &id, BibleType type);
+    void dataChanged(const QString &id, const QStringList &details);
+    void characterDataChanged(const QString &id, const Character &character);
+    void sceneDataChanged(const QString &id, const Scene &scene);
     void imageClicked(const QString &imagePath);
-    void uploadClicked(const QString &id, BibleType type);  // 改为传递 ID
-    void deleteImageClicked(const QString &id, BibleType type);  // 改为传递 ID
+    void deleteRequested(const QString &id, BibleType type);
+    void uploadClicked(const QString &id, BibleType type);
+    void deleteImageClicked(const QString &id, BibleType type);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -56,12 +79,16 @@ private:
     void showEditorCard();
     void hideEditorCard();
     void updateEditorCardPosition();
+    void displayProcessedImage(const QPixmap& pixmap);
+    static QPixmap trimWhiteBorders(const QPixmap& pixmap, int threshold = 240, int margin = 4);
     
     void saveCharacterData();
     void saveSceneData();
     void populateEditorData();
     void populateCharacterEditorData();
+    void populateCharacterEditorFromData(const Character& character);
     void populateSceneEditorData();
+    void populateSceneEditorFromData(const Scene& scene);
     QString extractValue(const QString &detail, const QString &key);
     
     // 通用字段填充方法
@@ -71,6 +98,7 @@ private:
     // UI 辅助方法
     QWidget* createInputField(const QString &label, QLineEdit *&edit, const QString &placeholder);
     QWidget* createInputField(const QString &label, QTextEdit *&edit, const QString &placeholder, int height = 80);
+    QWidget* createComboBoxField(const QString &label, ModeComboBox *&combo, const QStringList &items);
     QWidget* createButtonRow();
     QWidget* createEditorTitleRow(const QString &title);
     QWidget* createEditorOverlay();
@@ -78,11 +106,22 @@ private:
     QFrame* createSeparator();
     QScrollArea* createEditorScrollArea(QWidget *&contentWidget);
     
+    // 编辑器卡片初始化结构（用于提取公共代码）
+    struct EditorCardContext {
+        QWidget* scrollContent;
+        QVBoxLayout* cardLayout;
+        QScrollArea* scrollArea;
+        QVBoxLayout* cardMainLayout;
+    };
+    EditorCardContext initEditorCard(const QString& title, int height);
+    void finishEditorCard(EditorCardContext& ctx);
+    
     // 基础组件
     QLabel *m_nameLabel;
     QWidget *m_detailsWidget;
     QLabel *m_imageLabel;
     QPushButton *m_editBtn;
+    QPushButton *m_deleteBtn;
     
     // 数据
     QString m_name;
@@ -92,6 +131,12 @@ private:
     BibleType m_bibleType;
     QString m_currentImagePath;
     QString m_loadingImageId;
+    
+    // 原始数据对象（直接从数据源回填编辑器，避免从显示文本反解析）
+    Character m_characterData;
+    Scene m_sceneData;
+    bool m_hasCharacterData = false;
+    bool m_hasSceneData = false;
     
     // 浮动编辑卡片层
     QWidget *m_overlayWidget;
@@ -116,6 +161,11 @@ private:
     QLineEdit *m_landmarkEdit;
     QLineEdit *m_layoutEdit;
     QLineEdit *m_atmosphereEdit;
+    ModeComboBox *m_typeCombo;
+    ModeComboBox *m_settingCombo;
+    ModeComboBox *m_timeOfDayCombo;
+    ModeComboBox *m_weatherCombo;
+    QLineEdit *m_narrativeRoleEdit;
     
     QPushButton *m_saveBtn;
     QPushButton *m_cancelBtn;

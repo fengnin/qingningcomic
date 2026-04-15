@@ -65,11 +65,11 @@ void StoryboardItem::setupUI()
     mainLayout->setContentsMargins(20, 16, 20, 16);
     mainLayout->setSpacing(12);
     
-    QString sceneTitle = QString::fromUtf8("\u573a\u666f");
-    QString shotTypeTitle = QString::fromUtf8("\u955c\u5934/\u673a\u4f4d");
-    QString charactersTitle = QString::fromUtf8("\u89d2\u8272");
-    QString dialogueTitle = QString::fromUtf8("\u5bf9\u767d");
-    QString emptyDialogue = QString::fromUtf8("\u65e0");
+    QString sceneTitle = QString::fromUtf8("场景");
+    QString shotTypeTitle = QString::fromUtf8("景别/机位");
+    QString charactersTitle = QString::fromUtf8("角色");
+    QString dialogueTitle = QString::fromUtf8("对白");
+    QString emptyDialogue = QString::fromUtf8("(空)");
     
     QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
     QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
@@ -95,13 +95,13 @@ QWidget* StoryboardItem::createHeaderRow()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(8);
     
-    QString panelText = QString::fromUtf8("\u9762\u677f %1").arg(m_panelNumber);
+    QString panelText = QString::fromUtf8("面板 #%1").arg(m_panelNumber);
     m_panelNumberLabel = new QLabel(panelText);
     m_panelNumberLabel->setStyleSheet(EditorStyles::panelNumberLabelStyle());
     layout->addWidget(m_panelNumberLabel);
     layout->addStretch();
     
-    QString editText = QString::fromUtf8("\u7f16\u8f91\u5206\u955c");
+    QString editText = QString::fromUtf8("编辑");
     m_editBtn = new QPushButton(editText);
     m_editBtn->setFixedSize(90, 32);
     m_editBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -160,7 +160,7 @@ void StoryboardItem::setCharacters(const QString &characters)
 void StoryboardItem::setDialogue(const QString &dialogue)
 {
     m_dialogue = dialogue;
-    QString emptyText = QString::fromUtf8("\u65e0");
+    QString emptyText = QString::fromUtf8("(空)");
     if (m_dialogueLabel) m_dialogueLabel->setText(dialogue.isEmpty() ? emptyText : dialogue);
 }
 
@@ -189,7 +189,7 @@ void StoryboardItem::setupEditorCard()
     cardMainLayout->setContentsMargins(0, 0, 0, 0);
     cardMainLayout->setSpacing(0);
     
-    QString titleText = QString::fromUtf8("\u7f16\u8f91\u5206\u955c - \u9762\u677f %1").arg(m_panelNumber);
+    QString titleText = QString::fromUtf8("编辑面板 #%1").arg(m_panelNumber);
     QWidget *titleRow = createTitleRow(titleText);
     titleRow->setContentsMargins(24, 20, 24, 0);
     cardMainLayout->addWidget(titleRow);
@@ -207,39 +207,43 @@ void StoryboardItem::setupEditorCard()
     cardLayout->setContentsMargins(24, 12, 24, 12);
     cardLayout->setSpacing(12);
     
-    QString scenePlaceholder = QString::fromUtf8("\u8bf7\u8f93\u5165\u573a\u666f\u63cf\u8ff0...");
-    QString charactersHint = QString::fromUtf8("\u591a\u4e2a\u89d2\u8272\u7528 | \u5206\u9694");
-    QString dialogueHint = QString::fromUtf8("\u89d2\u8272\uff1a\u53f0\u8bcd\uff0c\u53ef\u591a\u884c\u8f93\u5165");
-    QString promptPlaceholder = QString::fromUtf8("\u8f93\u5165\u751f\u6210\u56fe\u7247\u7684 AI \u63d0\u793a\u8bcd...");
+    QString scenePlaceholder = QString::fromUtf8("请输入场景描述...");
+    QString charactersPlaceholder = QString::fromUtf8("请输入角色信息...");
+    QString dialoguePlaceholder = QString::fromUtf8("请输入对白内容...");
+    QString sceneHint = QString::fromUtf8("用于描述当前分镜场景");
+    QString charactersHint = QString::fromUtf8("多个角色用 | 分隔，格式：角色名（表情、动作）");
+    QString dialogueHint = QString::fromUtf8("格式：角色名：对白内容");
+    QString promptPlaceholder = QString::fromUtf8("输入图像提示词...");
+    QString promptHint = QString::fromUtf8("可选，用于补充分镜画面提示");
     
-    QString wide = QString::fromUtf8("\u5e7f\u89d2");
-    QString medium = QString::fromUtf8("\u4e2d\u666f");
-    QString closeShot = QString::fromUtf8("\u8fd1\u666f");
-    QString closeup = QString::fromUtf8("\u7279\u5199");
-    QString longShot = QString::fromUtf8("\u8fdc\u666f");
-    QString panoramic = QString::fromUtf8("\u5168\u666f");
-    QString highAngle = QString::fromUtf8("\u4ef0\u62cd");
-    QString lowAngle = QString::fromUtf8("\u4fef\u62cd");
-    QString eyeLevel = QString::fromUtf8("\u5e73\u89c6");
-    QString dutchAngle = QString::fromUtf8("\u659c\u89d2");
-    QString birdEye = QString::fromUtf8("\u9e1f\u773c");
-    QString wormEye = QString::fromUtf8("\u866b\u89c6");
+    QString wide = QString::fromUtf8("远景");
+    QString medium = QString::fromUtf8("中景");
+    QString closeShot = QString::fromUtf8("近景");
+    QString closeup = QString::fromUtf8("特写");
+    QString longShot = QString::fromUtf8("全景");
+    QString panoramic = QString::fromUtf8("远全景");
+    QString highAngle = QString::fromUtf8("俯视");
+    QString lowAngle = QString::fromUtf8("仰视");
+    QString eyeLevel = QString::fromUtf8("平视");
+    QString dutchAngle = QString::fromUtf8("倾斜");
+    QString birdEye = QString::fromUtf8("鸟瞰");
+    QString wormEye = QString::fromUtf8("虫视");
     
-    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u573a\u666f\u63cf\u8ff0"), m_sceneEdit, m_scene, 70, scenePlaceholder));
-    cardLayout->addWidget(createComboBoxGroup(QString::fromUtf8("\u955c\u5934"), m_shotTypeCombo, 
+    cardLayout->addWidget(createComboBoxGroup(QString::fromUtf8("景别"), m_shotTypeCombo,
         {wide, medium, closeShot, closeup, longShot, panoramic},
-        QString::fromUtf8("\u673a\u4f4d"), m_cameraCombo,
+        QString::fromUtf8("机位"), m_cameraCombo,
         {highAngle, lowAngle, eyeLevel, dutchAngle, birdEye, wormEye}));
-    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u89d2\u8272"), m_charactersEdit, m_characters, 60, QString(), charactersHint));
-    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("\u5bf9\u767d"), m_dialogueEdit, m_dialogue, 60, QString(), dialogueHint));
-    cardLayout->addWidget(createTextEditSection("Imagen Prompt", m_imagenPromptEdit, QString(), 60, promptPlaceholder));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("场景"), m_sceneEdit, m_scene, 100, scenePlaceholder, sceneHint));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("角色"), m_charactersEdit, m_characters, 80, charactersPlaceholder, charactersHint));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("对白"), m_dialogueEdit, m_dialogue, 80, dialoguePlaceholder, dialogueHint));
+    cardLayout->addWidget(createTextEditSection(QString::fromUtf8("图像提示词"), m_imagenPromptEdit, QString(), 60, promptPlaceholder, promptHint));
     cardLayout->addStretch();
     
     scrollArea->setWidget(scrollContent);
     cardMainLayout->addWidget(scrollArea, 1);
     
-    QString saveText = QString::fromUtf8("\u4fdd\u5b58\u4fee\u6539");
-    QString cancelText = QString::fromUtf8("\u53d6\u6d88");
+    QString saveText = QString::fromUtf8("保存");
+    QString cancelText = QString::fromUtf8("取消");
     QWidget *buttonRow = createButtonRow(m_saveBtn, saveText, m_cancelBtn, cancelText);
     buttonRow->setContentsMargins(24, 0, 24, 20);
     cardMainLayout->addWidget(buttonRow);
@@ -278,7 +282,7 @@ QWidget* StoryboardItem::createComboBoxGroup(const QString &title1, QComboBox *&
     outerLayout->setContentsMargins(0, 0, 0, 0);
     outerLayout->setSpacing(6);
     
-    QString shotCameraTitle = QString::fromUtf8("\u955c\u5934 / \u673a\u4f4d");
+    QString shotCameraTitle = QString::fromUtf8("景别 / 机位");
     outerLayout->addWidget(createLabel(shotCameraTitle, "#333333", 12, true));
     
     QWidget *row = new QWidget();
@@ -333,7 +337,7 @@ QWidget* StoryboardItem::createComboBoxWithArrow(QComboBox *&combo, const QStrin
     btnLayout->setContentsMargins(2, 0, 2, 0);
     btnLayout->setSpacing(0);
     
-    QString arrowText = QString::fromUtf8("\u25bc");
+    QString arrowText = QStringLiteral("▼");
     QPushButton *arrowBtn = new QPushButton(arrowText);
     arrowBtn->setFixedSize(24, 20);
     arrowBtn->setCursor(Qt::PointingHandCursor);
@@ -372,13 +376,6 @@ void StoryboardItem::onSaveClicked()
     m_dialogue = m_dialogueEdit->toPlainText().trimmed();
     m_visualPrompt = m_imagenPromptEdit->toPlainText().trimmed();
     
-    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: scene=%1, shotType=%2, cameraAngle=%3")
-        .arg(m_scene.left(50), m_shotType, m_cameraAngle));
-    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: characters=%1, dialogue=%2")
-        .arg(m_characters.left(50), m_dialogue.left(50)));
-    LOG_DEBUG("StoryboardItem", QString("onSaveClicked: visualPrompt=%1")
-        .arg(m_visualPrompt.left(50)));
-    
     m_sceneLabel->setText(m_scene);
     
     QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
@@ -391,7 +388,7 @@ void StoryboardItem::onSaveClicked()
     
     m_charactersLabel->setText(m_characters);
     
-    QString emptyText = QString::fromUtf8("\u65e0");
+    QString emptyText = QString::fromUtf8("(空)");
     m_dialogueLabel->setText(m_dialogue.isEmpty() ? emptyText : m_dialogue);
     
     LOG_INFO("StoryboardItem", QString("onSaveClicked: emitting dataChanged signal"));

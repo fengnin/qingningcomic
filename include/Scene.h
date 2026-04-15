@@ -6,6 +6,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QVariantMap>
+#include <QHash>
+#include <QMap>
 #include "utils/JsonUtils.h"
 
 namespace SceneJsonParser {
@@ -15,6 +17,10 @@ namespace SceneJsonParser {
         QString atmosphere;
         QString landmark;
         QString layout;
+        QString spaceSize;
+        QJsonArray keyAreas;
+        QJsonArray timeVariations;
+        QJsonArray weatherVariations;
     };
     
     inline ParsedVisualData parseVisualCharacteristics(const QJsonObject& json)
@@ -40,7 +46,12 @@ namespace SceneJsonParser {
         QJsonObject spatialLayout = json["spatialLayout"].toObject();
         if (!spatialLayout.isEmpty()) {
             data.layout = spatialLayout["layout"].toString();
+            data.spaceSize = spatialLayout["size"].toString();
+            data.keyAreas = spatialLayout["keyAreas"].toArray();
         }
+        
+        data.timeVariations = json["timeVariations"].toArray();
+        data.weatherVariations = json["weatherVariations"].toArray();
         
         return data;
     }
@@ -50,7 +61,11 @@ namespace SceneJsonParser {
                                             const QString& color,
                                             const QString& atmosphere,
                                             const QString& landmark,
-                                            const QString& layout)
+                                            const QString& layout,
+                                            const QString& spaceSize = QString(),
+                                            const QJsonArray& keyAreas = QJsonArray(),
+                                            const QJsonArray& timeVariations = QJsonArray(),
+                                            const QJsonArray& weatherVariations = QJsonArray())
     {
         QJsonObject visualChars;
         if (!building.isEmpty()) {
@@ -77,10 +92,25 @@ namespace SceneJsonParser {
             json["visualCharacteristics"] = visualChars;
         }
         
-        if (!layout.isEmpty()) {
+        if (!layout.isEmpty() || !spaceSize.isEmpty() || !keyAreas.isEmpty()) {
             QJsonObject spatialLayout;
-            spatialLayout["layout"] = layout;
+            if (!layout.isEmpty()) {
+                spatialLayout["layout"] = layout;
+            }
+            if (!spaceSize.isEmpty()) {
+                spatialLayout["size"] = spaceSize;
+            }
+            if (!keyAreas.isEmpty()) {
+                spatialLayout["keyAreas"] = keyAreas;
+            }
             json["spatialLayout"] = spatialLayout;
+        }
+        
+        if (!timeVariations.isEmpty()) {
+            json["timeVariations"] = timeVariations;
+        }
+        if (!weatherVariations.isEmpty()) {
+            json["weatherVariations"] = weatherVariations;
         }
     }
 }
@@ -97,49 +127,73 @@ struct SceneDetails
     QString setting;
     QString timeOfDay;
     QString weather;
+    QString spaceSize;
+    QString narrativeRole;
     QStringList details;
+    
+    QJsonObject visualCharacteristics;
+    QJsonObject spatialLayout;
+    QJsonArray timeVariations;
+    QJsonArray weatherVariations;
     
     QJsonObject toJson() const
     {
-        QJsonObject obj;
-        obj["description"] = description;
-        obj["type"] = type;
-        obj["setting"] = setting;
-        obj["timeOfDay"] = timeOfDay;
-        obj["weather"] = weather;
-        obj["details"] = QJsonArray::fromStringList(details);
+        QJsonObject json;
+        if (!description.isEmpty()) json["description"] = description;
+        if (!building.isEmpty()) json["building"] = building;
+        if (!color.isEmpty()) json["color"] = color;
+        if (!landmark.isEmpty()) json["landmark"] = landmark;
+        if (!layout.isEmpty()) json["layout"] = layout;
+        if (!atmosphere.isEmpty()) json["atmosphere"] = atmosphere;
+        if (!type.isEmpty()) json["type"] = type;
+        if (!setting.isEmpty()) json["setting"] = setting;
+        if (!timeOfDay.isEmpty()) json["timeOfDay"] = timeOfDay;
+        if (!weather.isEmpty()) json["weather"] = weather;
+        if (!spaceSize.isEmpty()) json["spaceSize"] = spaceSize;
+        if (!narrativeRole.isEmpty()) json["narrativeRole"] = narrativeRole;
+        if (!details.isEmpty()) json["details"] = QJsonArray::fromStringList(details);
         
-        SceneJsonParser::writeVisualCharacteristics(obj, building, color, 
-                                                      atmosphere, landmark, layout);
-        return obj;
-    }
-    
-    static SceneDetails fromJson(const QJsonObject& obj)
-    {
-        SceneDetails det;
-        det.description = obj["description"].toString();
-        det.type = obj["type"].toString();
-        det.setting = obj["setting"].toString();
-        det.timeOfDay = obj["timeOfDay"].toString();
-        det.weather = obj["weather"].toString();
-        
-        if (obj.contains("visualCharacteristics") || obj.contains("spatialLayout")) {
-            SceneJsonParser::ParsedVisualData visual = 
-                SceneJsonParser::parseVisualCharacteristics(obj);
-            det.building = visual.building;
-            det.color = visual.color;
-            det.atmosphere = visual.atmosphere;
-            det.landmark = visual.landmark;
-            det.layout = visual.layout;
-        } else {
-            det.building = obj["building"].toString();
-            det.color = obj["color"].toString();
-            det.atmosphere = obj["atmosphere"].toString();
-            det.landmark = obj["landmark"].toString();
-            det.layout = obj["layout"].toString();
+        if (!visualCharacteristics.isEmpty()) {
+            json["visualCharacteristics"] = visualCharacteristics;
+        }
+        if (!spatialLayout.isEmpty()) {
+            json["spatialLayout"] = spatialLayout;
+        }
+        if (!timeVariations.isEmpty()) {
+            json["timeVariations"] = timeVariations;
+        }
+        if (!weatherVariations.isEmpty()) {
+            json["weatherVariations"] = weatherVariations;
         }
         
-        det.details = JsonUtils::jsonArrayToStringList(obj["details"].toArray());
+        return json;
+    }
+    
+    static SceneDetails fromJson(const QJsonObject& json)
+    {
+        SceneDetails det;
+        det.description = json["description"].toString();
+        det.building = json["building"].toString();
+        det.color = json["color"].toString();
+        det.landmark = json["landmark"].toString();
+        det.layout = json["layout"].toString();
+        det.atmosphere = json["atmosphere"].toString();
+        det.type = json["type"].toString();
+        det.setting = json["setting"].toString();
+        det.timeOfDay = json["timeOfDay"].toString();
+        det.weather = json["weather"].toString();
+        det.spaceSize = json["spaceSize"].toString();
+        det.narrativeRole = json["narrativeRole"].toString();
+        
+        QJsonArray detailsArray = json["details"].toArray();
+        for (const QJsonValue& v : detailsArray) {
+            det.details << v.toString();
+        }
+        
+        det.visualCharacteristics = json["visualCharacteristics"].toObject();
+        det.spatialLayout = json["spatialLayout"].toObject();
+        det.timeVariations = json["timeVariations"].toArray();
+        det.weatherVariations = json["weatherVariations"].toArray();
         
         return det;
     }
@@ -154,12 +208,138 @@ struct SceneDetails
             }
         };
         
+        // 枚举值转换：英文 -> 中文
+        auto translateType = [](const QString& v) -> QString {
+            static const QMap<QString, QString> map = {
+                {"indoor", QString::fromUtf8("\u5ba4\u5185")},
+                {"outdoor", QString::fromUtf8("\u5ba4\u5916")},
+                {"urban", QString::fromUtf8("\u57ce\u5e02")},
+                {"rural", QString::fromUtf8("\u4e61\u6751")},
+                {"nature", QString::fromUtf8("\u81ea\u7136")},
+                {"fantasy", QString::fromUtf8("\u5947\u5e7b")},
+                {"historical", QString::fromUtf8("\u5386\u53f2")}
+            };
+            return map.value(v.toLower(), v);
+        };
+        
+        auto translateSetting = [](const QString& v) -> QString {
+            static const QMap<QString, QString> map = {
+                {"modern", QString::fromUtf8("\u73b0\u4ee3")},
+                {"ancient", QString::fromUtf8("\u53e4\u4ee3")},
+                {"medieval", QString::fromUtf8("\u4e2d\u4e16\u7eaa")},
+                {"future", QString::fromUtf8("\u672a\u6765")},
+                {"contemporary", QString::fromUtf8("\u5f53\u4ee3")},
+                {"fantasy", QString::fromUtf8("\u5947\u5e7b")},
+                {"scifi", QString::fromUtf8("\u79d1\u5e7b")},
+                {"post-apocalyptic", QString::fromUtf8("\u672b\u4e16")}
+            };
+            return map.value(v.toLower(), v);
+        };
+        
+        auto translateTimeOfDay = [](const QString& v) -> QString {
+            static const QMap<QString, QString> map = {
+                {"dawn", QString::fromUtf8("\u9ece\u660e")},
+                {"morning", QString::fromUtf8("\u65e9\u6668")},
+                {"noon", QString::fromUtf8("\u6b63\u5348")},
+                {"afternoon", QString::fromUtf8("\u4e0b\u5348")},
+                {"dusk", QString::fromUtf8("\u9ec4\u660f")},
+                {"evening", QString::fromUtf8("\u508d\u665a")},
+                {"night", QString::fromUtf8("\u591c\u665a")},
+                {"midnight", QString::fromUtf8("\u5348\u591c")}
+            };
+            return map.value(v.toLower(), v);
+        };
+        
+        auto translateWeather = [](const QString& v) -> QString {
+            static const QMap<QString, QString> map = {
+                {"sunny", QString::fromUtf8("\u6674\u6717")},
+                {"cloudy", QString::fromUtf8("\u591a\u4e91")},
+                {"rainy", QString::fromUtf8("\u96e8\u5929")},
+                {"snowy", QString::fromUtf8("\u96ea\u5929")},
+                {"foggy", QString::fromUtf8("\u96fe\u5929")},
+                {"stormy", QString::fromUtf8("\u66b4\u98ce\u96e8")},
+                {"windy", QString::fromUtf8("\u5927\u98ce")}
+            };
+            return map.value(v.toLower(), v);
+        };
+        
+        auto translateNarrativeRole = [](const QString& v) -> QString {
+            static const QMap<QString, QString> map = {
+                {"primary", QString::fromUtf8("\u4e3b\u8981\u573a\u666f")},
+                {"secondary", QString::fromUtf8("\u8fc7\u6e21\u573a\u666f")},
+                {"background", QString::fromUtf8("\u80cc\u666f\u573a\u666f")}
+            };
+            if (v.contains("-", Qt::CaseInsensitive)) {
+                QString result = v;
+                for (auto it = map.begin(); it != map.end(); ++it) {
+                    result.replace(it.key(), it.value(), Qt::CaseInsensitive);
+                }
+                return result;
+            }
+            return map.value(v.toLower(), v);
+        };
+        
         addLine(QString::fromUtf8("\u573a\u666f\u63cf\u8ff0"), description);
         addLine(QString::fromUtf8("\u5efa\u7b51"), building);
         addLine(QString::fromUtf8("\u8272\u8c03"), color);
         addLine(QString::fromUtf8("\u5730\u6807"), landmark);
         addLine(QString::fromUtf8("\u5e03\u5c40"), layout);
         addLine(QString::fromUtf8("\u6c1b\u56f4"), atmosphere);
+        addLine(QString::fromUtf8("\u7a7a\u95f4\u5c3a\u5bf8"), spaceSize);
+        
+        if (!type.isEmpty()) {
+            addLine(QString::fromUtf8("\u7c7b\u578b"), translateType(type));
+        }
+        if (!setting.isEmpty()) {
+            addLine(QString::fromUtf8("\u80cc\u666f"), translateSetting(setting));
+        }
+        if (!timeOfDay.isEmpty()) {
+            addLine(QString::fromUtf8("\u65f6\u6bb5"), translateTimeOfDay(timeOfDay));
+        }
+        if (!weather.isEmpty()) {
+            addLine(QString::fromUtf8("\u5929\u6c14"), translateWeather(weather));
+        }
+        if (!narrativeRole.isEmpty()) {
+            addLine(QString::fromUtf8("\u53d9\u4e8b\u89d2\u8272"), translateNarrativeRole(narrativeRole));
+        }
+        
+        if (!timeVariations.isEmpty()) {
+            QStringList tvDescs;
+            for (const auto& tvVal : timeVariations) {
+                QJsonObject tv = tvVal.toObject();
+                QString tod = translateTimeOfDay(tv["timeOfDay"].toString());
+                QString desc = tv["description"].toString();
+                if (!tod.isEmpty()) {
+                    if (desc.isEmpty()) {
+                        tvDescs << tod;
+                    } else {
+                        tvDescs << QString("%1：%2").arg(tod, desc);
+                    }
+                }
+            }
+            if (!tvDescs.isEmpty()) {
+                addLine(QString::fromUtf8("\u65f6\u95f4\u53d8\u5316"), tvDescs.join(" | "));
+            }
+        }
+        
+        if (!weatherVariations.isEmpty()) {
+            QStringList wvDescs;
+            for (const auto& wvVal : weatherVariations) {
+                QJsonObject wv = wvVal.toObject();
+                QString w = translateWeather(wv["weather"].toString());
+                QString desc = wv["description"].toString();
+                if (!w.isEmpty()) {
+                    if (desc.isEmpty()) {
+                        wvDescs << w;
+                    } else {
+                        wvDescs << QString("%1：%2").arg(w, desc);
+                    }
+                }
+            }
+            if (!wvDescs.isEmpty()) {
+                addLine(QString::fromUtf8("\u5929\u6c14\u53d8\u5316"), wvDescs.join(" | "));
+            }
+        }
         
         return lines;
     }
@@ -200,6 +380,7 @@ public:
         json["sceneId"] = m_sceneId;
         json["details"] = m_details.toJson();
         json["tags"] = QJsonArray::fromStringList(m_tags);
+        json["referenceImagePath"] = m_referenceImagePath;
         return json;
     }
     
@@ -212,6 +393,38 @@ public:
         scene.m_sceneId = json["sceneId"].toString();
         scene.m_details = SceneDetails::fromJson(json["details"].toObject());
         scene.m_tags = JsonUtils::jsonArrayToStringList(json["tags"].toArray());
+        scene.m_referenceImagePath = json["referenceImagePath"].toString();
+        return scene;
+    }
+    
+    QVariantMap toVariantMap() const
+    {
+        QVariantMap map;
+        map["id"] = m_id;
+        map["novel_id"] = m_novelId;
+        map["name"] = m_name;
+        map["scene_id"] = m_sceneId;
+        map["details"] = JsonUtils::jsonToString(m_details.toJson());
+        map["tags"] = JsonUtils::jsonToString(QJsonArray::fromStringList(m_tags));
+        map["reference_image_path"] = m_referenceImagePath;
+        return map;
+    }
+    
+    static Scene fromVariantMap(const QVariantMap& map)
+    {
+        Scene scene;
+        scene.m_id = map["id"].toString();
+        scene.m_novelId = map["novel_id"].toString();
+        scene.m_name = map["name"].toString();
+        scene.m_sceneId = map["scene_id"].toString();
+        
+        QJsonObject detailsJson = JsonUtils::variantToJson(map["details"]);
+        if (!detailsJson.isEmpty()) {
+            scene.m_details = SceneDetails::fromJson(detailsJson);
+        }
+        
+        scene.m_tags = JsonUtils::variantToStringList(map["tags"]);
+        scene.m_referenceImagePath = map["reference_image_path"].toString();
         return scene;
     }
     

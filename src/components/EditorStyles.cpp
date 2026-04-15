@@ -890,7 +890,7 @@ QString bibleEditorTitleStyle()
 
 QString bibleImageHasImageStyle()
 {
-    return "background: #E8F5E9; border-radius: 12px; border: 1px solid #C8E6C9;";
+    return "background: transparent; border-radius: 12px; border: 1px solid #C8E6C9;";
 }
 
 QString headerSectionStyle()

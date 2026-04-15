@@ -11,12 +11,13 @@
 #include <QTimer>
 
 BibleImageService* BibleImageService::m_instance = nullptr;
+std::once_flag BibleImageService::m_instanceOnceFlag;
 
 BibleImageService* BibleImageService::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new BibleImageService();
-    }
+    });
     return m_instance;
 }
 
@@ -52,36 +53,7 @@ void BibleImageService::generateCharacterPortraitAsync(const Character& characte
     PromptBuilder::PromptResult promptResult = buildCharacterPortraitPrompt(character);
     LOG_INFO("BibleImageService", QString("Generating portrait for: %1").arg(character.name()));
     
-    QString provider = AppConfig::instance()->imageService().provider;
-    LOG_INFO("BibleImageService", QString("Using image provider: %1").arg(provider));
-    
-    if (provider == "volcengine") {
-        VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
-        if (!volcClient || !volcClient->isInitialized()) {
-            LOG_ERROR("BibleImageService", "VolcEngine image client not initialized");
-            emit portraitGenerated(character.id(), QString());
-            return;
-        }
-        
-        VolcEngineImageClient::GenerateOptions options;
-        options.prompt = promptResult.text;
-        options.width = 1328;
-        options.height = 1328;
-        options.seed = -1;
-        options.returnUrl = true;
-        options.requestId = character.id();
-        
-        volcClient->generateAsync(options);
-    } else {
-        QwenImageClient::GenerateOptions options;
-        options.prompt = promptResult.text;
-        options.negativePrompt = promptResult.negativePrompt;
-        options.style = "manga";
-        options.textRendering = false;
-        options.requestId = character.id();
-        
-        QwenImageClient::instance()->generateAsync(options);
-    }
+    startImageGeneration(character.id(), promptResult.text, promptResult.negativePrompt);
 }
 
 void BibleImageService::generateSceneReferenceAsync(const Scene& scene)
@@ -100,36 +72,7 @@ void BibleImageService::generateSceneReferenceAsync(const Scene& scene)
     PromptBuilder::PromptResult promptResult = buildSceneReferencePrompt(scene);
     LOG_INFO("BibleImageService", QString("Generating reference for: %1").arg(scene.name()));
     
-    QString provider = AppConfig::instance()->imageService().provider;
-    LOG_INFO("BibleImageService", QString("Using image provider: %1").arg(provider));
-    
-    if (provider == "volcengine") {
-        VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
-        if (!volcClient || !volcClient->isInitialized()) {
-            LOG_ERROR("BibleImageService", "VolcEngine image client not initialized");
-            emit sceneReferenceGenerated(scene.id(), QString());
-            return;
-        }
-        
-        VolcEngineImageClient::GenerateOptions options;
-        options.prompt = promptResult.text;
-        options.width = 1328;
-        options.height = 1328;
-        options.seed = -1;
-        options.returnUrl = true;
-        options.requestId = scene.id();
-        
-        volcClient->generateAsync(options);
-    } else {
-        QwenImageClient::GenerateOptions options;
-        options.prompt = promptResult.text;
-        options.negativePrompt = promptResult.negativePrompt;
-        options.style = "manga";
-        options.textRendering = false;
-        options.requestId = scene.id();
-        
-        QwenImageClient::instance()->generateAsync(options);
-    }
+    startImageGeneration(scene.id(), promptResult.text, promptResult.negativePrompt);
 }
 
 void BibleImageService::generateCharacterPortraits(const QList<Character>& characters)
@@ -202,104 +145,161 @@ void BibleImageService::generateAllBibleImages(const QList<Character>& character
 
 void BibleImageService::onQwenImageGenerated(const QwenImageClient::GenerateResult& result)
 {
-    if (!isGenerating()) {
+    if (!validateAndHandleResult(result.requestId, result.imageData, result.success, result.errorMessage)) {
         return;
     }
+}
+
+void BibleImageService::onVolcEngineImageGenerated(const VolcEngineImageClient::GenerateResult& result)
+{
+    if (!validateAndHandleResult(result.requestId, result.imageData, result.success, result.errorMessage)) {
+        return;
+    }
+}
+
+bool BibleImageService::validateAndHandleResult(const QString& requestId, const QByteArray& imageData, bool success, const QString& errorMessage)
+{
+    if (!isGenerating()) {
+        return false;
+    }
     
-    QString imagePath;
-    bool success = result.success && !result.imageData.isEmpty();
+    if (!m_currentRequestId.isEmpty() && requestId != m_currentRequestId) {
+        return false;
+    }
     
-    if (success) {
-        if (m_currentType == "character") {
-            imagePath = FileStorage::instance()->saveCharacterReference(
-                m_currentCharacter.id(), result.imageData);
-            
-            if (!imagePath.isEmpty()) {
-                Character updatedCharacter = m_currentCharacter;
-                updatedCharacter.setPortraitPath(imagePath);
-                CharacterExtractor::instance()->updateCharacter(updatedCharacter);
-                
-                LOG_INFO("BibleImageService", QString("Portrait saved: %1").arg(imagePath));
-                emit portraitGenerated(m_currentCharacter.id(), imagePath);
-            }
-        } else if (m_currentType == "scene") {
-            imagePath = FileStorage::instance()->saveSceneReference(
-                m_currentScene.id(), result.imageData);
-            
-            if (!imagePath.isEmpty()) {
-                Scene updatedScene = m_currentScene;
-                updatedScene.setReferenceImagePath(imagePath);
-                SceneExtractor::instance()->updateScene(updatedScene);
-                
-                LOG_INFO("BibleImageService", QString("Scene reference saved: %1").arg(imagePath));
-                emit sceneReferenceGenerated(m_currentScene.id(), imagePath);
-            }
+    handleImageGenerated(imageData, success, errorMessage);
+    return true;
+}
+
+void BibleImageService::handleImageGenerated(const QByteArray& imageData, bool success, const QString& errorMessage)
+{
+    if (success && !imageData.isEmpty()) {
+        saveAndEmitResult(imageData);
+        m_currentRetryCount = 0;
+    } else {
+        bool shouldRetry = false;
+        
+        if (errorMessage.contains("timeout", Qt::CaseInsensitive) ||
+            errorMessage.contains("connection", Qt::CaseInsensitive) ||
+            errorMessage.contains("network", Qt::CaseInsensitive) ||
+            errorMessage.contains("503", Qt::CaseInsensitive) ||
+            errorMessage.contains("502", Qt::CaseInsensitive) ||
+            errorMessage.contains("504", Qt::CaseInsensitive)) {
+            shouldRetry = true;
         }
         
-        if (!imagePath.isEmpty()) {
-            recordSuccess();
+        if (shouldRetry && m_currentRetryCount < MAX_RETRY_COUNT) {
+            m_currentRetryCount++;
+            LOG_WARNING("BibleImageService", QString("Network error (attempt %1/%2): %3. Retrying...")
+                .arg(m_currentRetryCount).arg(MAX_RETRY_COUNT).arg(errorMessage));
+            scheduleNext([this]() { retryCurrentItem(); }, 2000);
+            return;
         } else {
             recordFailure();
-            LOG_WARNING("BibleImageService", "Failed to save image");
+            if (shouldRetry) {
+                LOG_ERROR("BibleImageService", QString("Network error after %1 retries: %2")
+                    .arg(MAX_RETRY_COUNT).arg(errorMessage));
+            } else {
+                LOG_WARNING("BibleImageService", QString("API error (no retry to save quota): %1").arg(errorMessage));
+            }
+            m_currentRetryCount = 0;
         }
-    } else {
-        recordFailure();
-        LOG_WARNING("BibleImageService", QString("Image generation failed: %1")
-            .arg(result.errorMessage));
     }
     
     scheduleNext([this]() { processNextItem(); });
 }
 
-void BibleImageService::onVolcEngineImageGenerated(const VolcEngineImageClient::GenerateResult& result)
+void BibleImageService::saveAndEmitResult(const QByteArray& imageData)
 {
-    if (!isGenerating()) {
-        return;
-    }
-    
     QString imagePath;
-    bool success = result.success && !result.imageData.isEmpty();
     
-    if (success) {
-        if (m_currentType == "character") {
-            imagePath = FileStorage::instance()->saveCharacterReference(
-                m_currentCharacter.id(), result.imageData);
-            
-            if (!imagePath.isEmpty()) {
-                Character updatedCharacter = m_currentCharacter;
-                updatedCharacter.setPortraitPath(imagePath);
-                CharacterExtractor::instance()->updateCharacter(updatedCharacter);
-                
-                LOG_INFO("BibleImageService", QString("Portrait saved: %1").arg(imagePath));
-                emit portraitGenerated(m_currentCharacter.id(), imagePath);
-            }
-        } else if (m_currentType == "scene") {
-            imagePath = FileStorage::instance()->saveSceneReference(
-                m_currentScene.id(), result.imageData);
-            
-            if (!imagePath.isEmpty()) {
-                Scene updatedScene = m_currentScene;
-                updatedScene.setReferenceImagePath(imagePath);
-                SceneExtractor::instance()->updateScene(updatedScene);
-                
-                LOG_INFO("BibleImageService", QString("Scene reference saved: %1").arg(imagePath));
-                emit sceneReferenceGenerated(m_currentScene.id(), imagePath);
-            }
-        }
+    if (m_currentType == "character") {
+        imagePath = FileStorage::instance()->saveCharacterReference(
+            m_currentCharacter.id(), imageData);
         
         if (!imagePath.isEmpty()) {
+            Character updatedCharacter = m_currentCharacter;
+            updatedCharacter.setPortraitPath(imagePath);
+            CharacterExtractor::instance()->updateCharacter(updatedCharacter);
+            
+            LOG_INFO("BibleImageService", QString("Portrait saved: %1").arg(imagePath));
+            emit portraitGenerated(m_currentCharacter.id(), imagePath);
             recordSuccess();
-        } else {
-            recordFailure();
-            LOG_WARNING("BibleImageService", "Failed to save image");
         }
-    } else {
-        recordFailure();
-        LOG_WARNING("BibleImageService", QString("Image generation failed: %1")
-            .arg(result.errorMessage));
+    } else if (m_currentType == "scene") {
+        imagePath = FileStorage::instance()->saveSceneReference(
+            m_currentScene.id(), imageData);
+        
+        if (!imagePath.isEmpty()) {
+            Scene updatedScene = m_currentScene;
+            updatedScene.setReferenceImagePath(imagePath);
+            SceneExtractor::instance()->updateScene(updatedScene);
+            
+            LOG_INFO("BibleImageService", QString("Scene reference saved: %1").arg(imagePath));
+            emit sceneReferenceGenerated(m_currentScene.id(), imagePath);
+            recordSuccess();
+        }
     }
     
-    scheduleNext([this]() { processNextItem(); });
+    if (imagePath.isEmpty()) {
+        recordFailure();
+        LOG_WARNING("BibleImageService", "Failed to save image");
+    }
+}
+
+void BibleImageService::startImageGeneration(const QString& requestId, const QString& prompt, const QString& negativePrompt)
+{
+    m_currentPrompt = prompt;
+    m_currentNegativePrompt = negativePrompt;
+    m_currentRequestId = requestId;
+    
+    QString provider = AppConfig::instance()->imageService().provider;
+    
+    if (provider == "volcengine") {
+        VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
+        if (!volcClient || !volcClient->isInitialized()) {
+            LOG_ERROR("BibleImageService", "VolcEngine image client not initialized");
+            recordFailure();
+            scheduleNext([this]() { processNextItem(); });
+            return;
+        }
+        
+        VolcEngineImageClient::GenerateOptions options;
+        options.prompt = prompt;
+        options.negativePrompt = negativePrompt;
+        options.width = 1328;
+        options.height = 1328;
+        options.seed = -1;
+        options.returnUrl = true;
+        options.requestId = requestId;
+        
+        volcClient->generateAsync(options);
+    } else {
+        QwenImageClient::GenerateOptions options;
+        options.prompt = prompt;
+        options.negativePrompt = negativePrompt;
+        options.style = "manga";
+        options.textRendering = false;
+        options.requestId = requestId;
+        
+        QwenImageClient::instance()->generateAsync(options);
+    }
+}
+
+void BibleImageService::retryCurrentItem()
+{
+    QString requestId;
+    if (m_currentType == "character") {
+        requestId = m_currentCharacter.id();
+        LOG_INFO("BibleImageService", QString("Retrying portrait for: %1 (attempt %2)")
+            .arg(m_currentCharacter.name()).arg(m_currentRetryCount));
+    } else {
+        requestId = m_currentScene.id();
+        LOG_INFO("BibleImageService", QString("Retrying reference for: %1 (attempt %2)")
+            .arg(m_currentScene.name()).arg(m_currentRetryCount));
+    }
+    
+    startImageGeneration(requestId, m_currentPrompt, m_currentNegativePrompt);
 }
 
 void BibleImageService::processNextItem()
@@ -309,18 +309,17 @@ void BibleImageService::processNextItem()
     }
     
     bool hasMore = false;
-    QString provider = AppConfig::instance()->imageService().provider;
     
     if (m_currentType == "character" && m_currentCharIndex < m_pendingCharacters.size()) {
         const Character& character = m_pendingCharacters[m_currentCharIndex];
         
         advanceProgress(character.name());
+        m_currentCharIndex++;
         
         if (!character.portraitPath().isEmpty()) {
             LOG_INFO("BibleImageService", QString("Skipping character %1, already has portrait")
                 .arg(character.name()));
             recordSuccess();
-            m_currentCharIndex++;
             scheduleNext([this]() { processNextItem(); });
             return;
         }
@@ -330,50 +329,21 @@ void BibleImageService::processNextItem()
         hasMore = true;
         
         PromptBuilder::PromptResult promptResult = buildCharacterPortraitPrompt(character);
-        LOG_INFO("BibleImageService", QString("Generating portrait for: %1 (provider: %2)")
-            .arg(character.name()).arg(provider));
+        LOG_INFO("BibleImageService", QString("Generating portrait for: %1")
+            .arg(character.name()));
         
-        if (provider == "volcengine") {
-            VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
-            if (!volcClient || !volcClient->isInitialized()) {
-                LOG_ERROR("BibleImageService", "VolcEngine image client not initialized");
-                recordFailure();
-                m_currentCharIndex++;
-                scheduleNext([this]() { processNextItem(); });
-                return;
-            }
-            
-            VolcEngineImageClient::GenerateOptions options;
-            options.prompt = promptResult.text;
-            options.width = 1328;
-            options.height = 1328;
-            options.seed = -1;
-            options.returnUrl = true;
-            options.requestId = character.id();
-            
-            volcClient->generateAsync(options);
-        } else {
-            QwenImageClient::GenerateOptions options;
-            options.prompt = promptResult.text;
-            options.negativePrompt = promptResult.negativePrompt;
-            options.style = "manga";
-            options.textRendering = false;
-            options.requestId = character.id();
-            
-            QwenImageClient::instance()->generateAsync(options);
-        }
-        m_currentCharIndex++;
+        startImageGeneration(character.id(), promptResult.text, promptResult.negativePrompt);
         
     } else if (m_currentType == "scene" && m_currentSceneIndex < m_pendingScenes.size()) {
         const Scene& scene = m_pendingScenes[m_currentSceneIndex];
         
         advanceProgress(scene.name());
+        m_currentSceneIndex++;
         
         if (!scene.referenceImagePath().isEmpty()) {
             LOG_INFO("BibleImageService", QString("Skipping scene %1, already has reference")
                 .arg(scene.name()));
             recordSuccess();
-            m_currentSceneIndex++;
             scheduleNext([this]() { processNextItem(); });
             return;
         }
@@ -383,39 +353,10 @@ void BibleImageService::processNextItem()
         hasMore = true;
         
         PromptBuilder::PromptResult promptResult = buildSceneReferencePrompt(scene);
-        LOG_INFO("BibleImageService", QString("Generating reference for: %1 (provider: %2)")
-            .arg(scene.name()).arg(provider));
+        LOG_INFO("BibleImageService", QString("Generating reference for: %1")
+            .arg(scene.name()));
         
-        if (provider == "volcengine") {
-            VolcEngineImageClient* volcClient = ServiceContainer::instance()->volcEngineImageClient();
-            if (!volcClient || !volcClient->isInitialized()) {
-                LOG_ERROR("BibleImageService", "VolcEngine image client not initialized");
-                recordFailure();
-                m_currentSceneIndex++;
-                scheduleNext([this]() { processNextItem(); });
-                return;
-            }
-            
-            VolcEngineImageClient::GenerateOptions options;
-            options.prompt = promptResult.text;
-            options.width = 1328;
-            options.height = 1328;
-            options.seed = -1;
-            options.returnUrl = true;
-            options.requestId = scene.id();
-            
-            volcClient->generateAsync(options);
-        } else {
-            QwenImageClient::GenerateOptions options;
-            options.prompt = promptResult.text;
-            options.negativePrompt = promptResult.negativePrompt;
-            options.style = "manga";
-            options.textRendering = false;
-            options.requestId = scene.id();
-            
-            QwenImageClient::instance()->generateAsync(options);
-        }
-        m_currentSceneIndex++;
+        startImageGeneration(scene.id(), promptResult.text, promptResult.negativePrompt);
     }
     
     if (!hasMore && m_combinedMode && m_currentType == "character" && !m_pendingScenes.isEmpty()) {
@@ -429,12 +370,8 @@ void BibleImageService::processNextItem()
         setGenerating(false);
         if (m_combinedMode) {
             emit allBibleImagesCompleted(batchState().successCount, batchState().failedCount);
-            LOG_INFO("BibleImageService", QString("All Bible images completed: success=%1, failed=%2")
-                .arg(batchState().successCount).arg(batchState().failedCount));
         } else {
             emit bibleBatchCompleted(m_currentType, batchState().successCount, batchState().failedCount);
-            LOG_INFO("BibleImageService", QString("Batch generation completed: type=%1, success=%2, failed=%3")
-                .arg(m_currentType).arg(batchState().successCount).arg(batchState().failedCount));
         }
     }
 }
@@ -454,6 +391,7 @@ PromptBuilder::PromptResult BibleImageService::buildCharacterPortraitPrompt(cons
     appearanceJson["eyeColor"] = app.eyeColor;
     appearanceJson["build"] = app.build;
     appearanceJson["clothing"] = QJsonArray::fromStringList(app.clothing);
+    appearanceJson["accessories"] = QJsonArray::fromStringList(app.accessories);
     appearanceJson["distinctiveFeatures"] = QJsonArray::fromStringList(app.distinctiveFeatures);
     characterJson["appearance"] = appearanceJson;
     
@@ -472,24 +410,11 @@ PromptBuilder::PromptResult BibleImageService::buildSceneReferencePrompt(const S
     sceneJson["name"] = scene.name();
     
     SceneDetails details = scene.details();
-    sceneJson["description"] = details.description;
+    QJsonObject detailsJson = details.toJson();
     
-    QJsonObject visualCharacteristics;
-    visualCharacteristics["architecture"] = details.building;
-    visualCharacteristics["colorScheme"] = details.color;
-    visualCharacteristics["atmosphere"] = details.atmosphere;
-    
-    QJsonArray landmarks;
-    if (!details.landmark.isEmpty()) {
-        landmarks.append(details.landmark);
+    for (const QString& key : detailsJson.keys()) {
+        sceneJson[key] = detailsJson[key];
     }
-    visualCharacteristics["keyLandmarks"] = landmarks;
-    
-    QJsonObject lighting;
-    lighting["naturalLight"] = details.timeOfDay;
-    visualCharacteristics["lighting"] = lighting;
-    
-    sceneJson["visualCharacteristics"] = visualCharacteristics;
     
     return PromptBuilder::buildScenePrompt(sceneJson);
 }

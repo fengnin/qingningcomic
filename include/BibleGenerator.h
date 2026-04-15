@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QJsonArray>
 #include <QString>
+#include <mutex>
 #include "Character.h"
 #include "Scene.h"
 
@@ -39,6 +40,7 @@ private:
     BibleGenerator& operator=(const BibleGenerator&) = delete;
     
     static BibleGenerator* m_instance;
+    static std::once_flag m_instanceOnceFlag;
 };
 
 #endif // BIBLEGENERATOR_H

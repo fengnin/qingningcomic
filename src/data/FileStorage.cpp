@@ -14,7 +14,7 @@ namespace {
 FileStorage* FileStorage::m_instance = nullptr;
 
 FileStorage::FileStorage()
-    : m_basePath("data")
+    : m_basePath("/data/comic")
 {
 }
 
@@ -32,8 +32,11 @@ FileStorage* FileStorage::instance()
 
 void FileStorage::init(const QString& basePath)
 {
-    // 转换为绝对路径
-    QDir dir(basePath);
+    QString resolvedBasePath = basePath.trimmed().isEmpty()
+        ? QStringLiteral("/data/comic")
+        : basePath.trimmed();
+
+    QDir dir(resolvedBasePath);
     m_basePath = dir.absolutePath();
     
     ensureDirectoryExists(m_basePath);
@@ -244,7 +247,7 @@ bool FileStorage::deleteSceneReference(const QString& sceneId)
     return deleteFile(relativePath, "Scene reference");
 }
 
-// ========== 通用参考图存储（从本地文件） ==========
+// ========== 通用参考图存储 ==========
 
 QString FileStorage::saveReferenceImage(const QString& sourceFilePath, const QString& novelId)
 {

@@ -110,8 +110,7 @@ void ConfirmDialog::createMessageArea(QVBoxLayout *parentLayout)
     m_messageLabel->setWordWrap(true);
     m_messageLabel->setFont(QFont("Microsoft YaHei", 11));
     m_messageLabel->setStyleSheet("color: #525252; background: transparent; line-height: 1.5;");
-    m_messageLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    m_messageLabel->setIndent(52);
+    m_messageLabel->setAlignment(Qt::AlignCenter | Qt::AlignVCenter);
     
     parentLayout->addWidget(m_messageLabel);
     parentLayout->addStretch();
@@ -125,7 +124,7 @@ void ConfirmDialog::createButtonArea(QVBoxLayout *parentLayout)
     
     buttonLayout->addStretch();
     
-    m_cancelBtn = new QPushButton(TR("取消"));
+    m_cancelBtn = new QPushButton(tr("取消"));
     m_cancelBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
     m_cancelBtn->setCursor(Qt::PointingHandCursor);
     m_cancelBtn->setFont(QFont("Microsoft YaHei", 10));
@@ -144,7 +143,7 @@ void ConfirmDialog::createButtonArea(QVBoxLayout *parentLayout)
         "}"
     );
     
-    m_confirmBtn = new QPushButton(TR("确定"));
+    m_confirmBtn = new QPushButton(tr("确定"));
     m_confirmBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
     m_confirmBtn->setCursor(Qt::PointingHandCursor);
     m_confirmBtn->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
@@ -191,9 +190,9 @@ void ConfirmDialog::adjustSize()
     if (!m_messageLabel) return;
     
     QFontMetrics msgFm(m_messageLabel->font());
-    int msgWidth = DIALOG_WIDTH - H_PADDING * 2 - 52;
+    int msgWidth = DIALOG_WIDTH - H_PADDING * 2;
     int msgHeight = msgFm.boundingRect(0, 0, msgWidth, 0, 
-                                        Qt::TextWordWrap | Qt::AlignLeft, 
+                                        Qt::TextWordWrap | Qt::AlignCenter, 
                                         m_messageLabel->text()).height();
     msgHeight = qMax(msgHeight, 30);
     

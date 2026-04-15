@@ -11,6 +11,7 @@
 #include "ImageService.h"
 #include "BibleImageService.h"
 #include "services/ExportService.h"
+#include "ChangeRequestService.h"
 #include "TaskQueue.h"
 #include "TaskRegistry.h"
 #include "viewmodels/NovelViewModel.h"
@@ -386,14 +387,18 @@ AppInitializer::InitResult AppInitializer::initialize()
     ExportService* exportService = new ExportService(db);
     container->setExportService(exportService);
     
+    ChangeRequestService* changeRequestService = new ChangeRequestService(db);
+    container->setChangeRequestService(changeRequestService);
+
     initializeQwenClient(result);
     initializeQwenImageClient(result);
     initializeVolcEngineImageClient(result);
     initializeStorageClient(result);
-    
+
     QString dataDir = AppConfig::instance()->storage().dataDir;
     FileStorage::instance()->init(dataDir);
-    LOG_INFO("AppInitializer", QString("FileStorage initialized at: %1").arg(dataDir));
+    LOG_INFO("AppInitializer", QString("FileStorage initialized at: %1")
+        .arg(FileStorage::instance()->getFullPath(QString())));
     
     registerTaskHandlers();
     

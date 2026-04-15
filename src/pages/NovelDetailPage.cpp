@@ -1,9 +1,5 @@
-﻿/**
+/**
  * @file NovelDetailPage.cpp
- * @brief 作品详情页面实现文件
- * 
- * 本文件包含 NovelDetailPage 作品详情主页面的实现
- * 组件已拆分到 components 目录：
  * - ChapterSpinBox: components/ChapterSpinBox.cpp
  * - ModeComboBox: components/ModeComboBox.cpp
  * - ChapterCard: components/ChapterCard.cpp
@@ -16,6 +12,7 @@
 #include "StyleManager.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
+#include "NovelService.h"
 #include "CharacterExtractor.h"
 #include "SceneExtractor.h"
 #include "BibleGenerator.h"
@@ -35,6 +32,7 @@
 #include "components/ImageViewerDialog.h"
 #include "AnalysisStatusManager.h"
 #include "utils/StatusHelper.h"
+#include "ChangeRequestService.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -59,11 +57,12 @@
 #include <QDateTime>
 #include <QSet>
 
-// ==================== 命名空间常量和样式定义 ====================
 
 namespace {
     using namespace EditorStyles;
+    using EditorStyles::UI::setupLayout;
     
+    // ========== 按钮样式 ==========
     const QString ARROW_BTN_STYLE = R"(
         QPushButton {
             border: none;
@@ -80,6 +79,7 @@ namespace {
         }
     )";
     
+    // ========== 输入框样式 ==========
     const QString INPUT_LEFT_STYLE = R"(
         QLineEdit {
             border-radius: 10px 0 0 10px;
@@ -104,6 +104,7 @@ namespace {
         }
     )";
     
+    // ========== 派生样式 ==========
     const QString SPIN_BTN_STYLE = ARROW_BTN_STYLE;
     const QString DROP_BTN_STYLE = ARROW_BTN_STYLE;
     const QString SPIN_EDIT_STYLE = INPUT_LEFT_STYLE + "QLineEdit:read-only { color: #374151; }";
@@ -111,6 +112,7 @@ namespace {
     const QString SPIN_CONTAINER_STYLE = BTN_CONTAINER_RIGHT_STYLE;
     const QString COMBO_CONTAINER_STYLE = BTN_CONTAINER_RIGHT_STYLE;
     
+    // ========== 菜单样式 ==========
     const QString MENU_STYLE = R"(
         QMenu {
             background: white;
@@ -129,16 +131,14 @@ namespace {
             color: #9333EA;
         }
     )";
-}
-
-namespace {
+    
+    // ========== 标签样式 ==========
     const QString LABEL_STYLE = "QLabel#chapterTitle {"
         "font-size: 16px; font-weight: bold; color: #333333; background: transparent; border: none; }"
         "QLabel#chapterMeta {"
         "font-size: 14px; color: #666666; background: transparent; border: none; }";
     
-    // ========== 编辑器样式常量 ==========
-    // 关闭按钮样式
+    // ========== 编辑器按钮样式 ==========
     const QString EDITOR_CLOSE_BTN_STYLE = R"(
         QPushButton {
             border: none;
@@ -156,7 +156,6 @@ namespace {
         }
     )";
     
-    // 取消按钮样式
     const QString EDITOR_CANCEL_BTN_STYLE = R"(
         QPushButton {
             padding: 0 28px;
@@ -175,7 +174,6 @@ namespace {
         }
     )";
     
-    // 保存按钮样式
     const QString EDITOR_SAVE_BTN_STYLE = R"(
         QPushButton {
             padding: 0 28px;
@@ -195,7 +193,7 @@ namespace {
         }
     )";
     
-    // 编辑输入框样式
+    // ========== 编辑器输入样式 ==========
     const QString EDITOR_INPUT_STYLE = R"(
         QLineEdit {
             padding: 0 14px;
@@ -215,7 +213,6 @@ namespace {
         }
     )";
     
-    // 编辑文本框样式
     const QString EDITOR_TEXT_EDIT_STYLE = R"(
         QTextEdit {
             padding: 12px 14px;
@@ -235,7 +232,6 @@ namespace {
         }
     )";
     
-    // 编辑下拉框样式
     const QString EDITOR_COMBO_STYLE = R"(
         QComboBox {
             padding: 0 12px;
@@ -277,7 +273,6 @@ namespace {
         }
     )";
     
-    // 编辑下拉框箭头按钮样式
     const QString EDITOR_COMBO_ARROW_STYLE = R"(
         QPushButton {
             border: none;
@@ -296,14 +291,62 @@ namespace {
         }
     )";
     
-    // ========== 面板预览示例数据 ==========
+    // ========== 示例数据 ==========
     const QStringList SAMPLE_PANEL_DESCRIPTIONS = {
-        QString::fromUtf8("青柠站在教室门口，阳光透过窗户洒在她的脸上。"),
-        QString::fromUtf8("她微微皱眉，手中的信件被捏得有些皱。"),
-        QString::fromUtf8("教室里传来同学们的欢声笑语，她却心不在焉。"),
-        QString::fromUtf8("窗外的樱花树随风摇曳，花瓣飘落在窗台上。"),
-        QString::fromUtf8("她深吸一口气，推开了教室的门。")
+        QString::fromUtf8("主角站在窗前，凝视远方"),
+        QString::fromUtf8("两人在咖啡厅对话，气氛紧张"),
+        QString::fromUtf8("雨夜街道，霓虹灯闪烁"),
+        QString::fromUtf8("教室场景，阳光透过窗户洒入"),
+        QString::fromUtf8("战斗场景，能量爆发"),
     };
+    
+    // ========== 辅助函数 ==========
+    QWidget* createTransparentWidget()
+    {
+        QWidget *widget = new QWidget();
+        widget->setStyleSheet(TRANSPARENT_BG);
+        return widget;
+    }
+    
+    QLabel* createLabel(const QString &text, const QString &color, int fontSize, bool bold = false)
+    {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(QString("font-size: %1px; color: %2; background: transparent;").arg(fontSize).arg(color));
+        label->setFont(QFont("Microsoft YaHei", fontSize, bold ? QFont::Bold : QFont::Normal));
+        return label;
+    }
+    
+    QPushButton* createButton(const QString &text, const QString &style, int width, int height)
+    {
+        QPushButton *btn = new QPushButton(text);
+        btn->setStyleSheet(style);
+        if (width > 0) btn->setFixedWidth(width);
+        btn->setFixedHeight(height);
+        btn->setCursor(Qt::PointingHandCursor);
+        return btn;
+    }
+    
+    QPushButton* createFeatureButton(const QString &text, int width = -1)
+    {
+        QPushButton *btn = new QPushButton(text);
+        if (width > 0) {
+            btn->setFixedSize(width, EditorStyles::Constants::BTN_HEIGHT);
+        } else {
+            btn->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
+        }
+        btn->setStyleSheet(featureButtonStyle());
+        btn->setCursor(Qt::PointingHandCursor);
+        return btn;
+    }
+    
+    void applyCardShadow(QWidget *card)
+    {
+        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(card);
+        shadow->setBlurRadius(12);
+        shadow->setColor(QColor(0, 0, 0, 20));
+        shadow->setOffset(0, 2);
+        card->setGraphicsEffect(shadow);
+    }
 }
 
 NovelDetailPage::NovelDetailPage(QWidget *parent)
@@ -327,14 +370,6 @@ NovelDetailPage::NovelDetailPage(QWidget *parent)
     , m_generatePanelsBtn(nullptr)
     , m_changeRequestEdit(nullptr)
     , m_submitChangeRequestBtn(nullptr)
-    , m_refreshBibleBtn(nullptr)
-    , m_characterCountLabel(nullptr)
-    , m_sceneCountLabel(nullptr)
-    , m_characterBibleContainer(nullptr)
-    , m_sceneBibleContainer(nullptr)
-    , m_panelPreviewContainer(nullptr)
-    , m_panelPreviewTitleLabel(nullptr)
-    , m_panelPreviewHintLabel(nullptr)
     , m_storyboardContainer(nullptr)
     , m_storyboardCountLabel(nullptr)
     , m_analysisProgress(nullptr)
@@ -346,7 +381,11 @@ NovelDetailPage::NovelDetailPage(QWidget *parent)
 {
     initColorConstants();
     setupUI();
-    
+    setupConnections();
+}
+
+void NovelDetailPage::setupConnections()
+{
     StoryboardViewModel* vm = StoryboardViewModel::instance();
     
     connect(vm, &StoryboardViewModel::analysisCompleted,
@@ -382,10 +421,12 @@ NovelDetailPage::NovelDetailPage(QWidget *parent)
                 }
                 
                 m_generatePanelsBtn->setEnabled(true);
-                m_generatePanelsBtn->setText(TR("开始生成"));
+                m_generatePanelsBtn->setText(tr("生成中..."));
                 
                 QTimer::singleShot(100, this, [this]() {
-                    refreshPanelPreview();
+                    if (m_panelPreviewWidget) {
+                        m_panelPreviewWidget->refresh();
+                    }
                 });
             }, Qt::QueuedConnection);
     
@@ -398,28 +439,19 @@ NovelDetailPage::NovelDetailPage(QWidget *parent)
                 }
                 
                 m_generatePanelsBtn->setEnabled(true);
-                m_generatePanelsBtn->setText(TR("开始生成"));
+                m_generatePanelsBtn->setText(tr("开始生成"));
             }, Qt::QueuedConnection);
     
-    // 连接角色/场景更新信号，刷新圣经 UI
     connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
             this, [this](const QString& characterId, const QString& portraitPath) {
-                Q_UNUSED(characterId);
-                Q_UNUSED(portraitPath);
                 if (m_currentNovel.id().isEmpty()) return;
-                QTimer::singleShot(100, this, [this]() {
-                    refreshBibleUI();
-                });
+                updateBibleItemImage(characterId, portraitPath, BibleType::Character);
             }, Qt::QueuedConnection);
     
     connect(SceneExtractor::instance(), &SceneExtractor::sceneUpdated,
-            this, [this](const QString& sceneId, const QString& sceneName) {
-                Q_UNUSED(sceneId);
-                Q_UNUSED(sceneName);
+            this, [this](const QString& sceneId, const QString& referenceImagePath) {
                 if (m_currentNovel.id().isEmpty()) return;
-                QTimer::singleShot(100, this, [this]() {
-                    refreshBibleUI();
-                });
+                updateBibleItemImage(sceneId, referenceImagePath, BibleType::Scene);
             }, Qt::QueuedConnection);
 }
 
@@ -451,8 +483,14 @@ void NovelDetailPage::initColorConstants()
 
 void NovelDetailPage::setNovel(const Novel &novel)
 {
+    LOG_DEBUG("NovelDetailPage", QString("setNovel: %1, id=%2").arg(novel.title()).arg(novel.id()));
     m_currentNovel = novel;
+    
     updateDisplay();
+    
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->setNovelId(novel.id());
+    }
 }
 
 void NovelDetailPage::setChapterNumber(int chapterNumber)
@@ -461,70 +499,18 @@ void NovelDetailPage::setChapterNumber(int chapterNumber)
     if (m_chapterNumberSpin) {
         m_chapterNumberSpin->setValue(chapterNumber);
     }
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->setChapter(chapterNumber);
+    }
     updateDisplay();
 }
 
-// ========== 辅助方法 ==========
-
-QWidget* NovelDetailPage::createTransparentWidget()
-{
-    QWidget *widget = new QWidget();
-    widget->setStyleSheet(TRANSPARENT_BG);
-    return widget;
-}
-
-QLabel* NovelDetailPage::createLabel(const QString &text, const QString &color, int fontSize, bool bold)
-{
-    QLabel *label = new QLabel(text);
-    label->setStyleSheet(QString("font-size: %1px; color: %2; background: transparent;").arg(fontSize).arg(color));
-    label->setFont(QFont("Microsoft YaHei", fontSize, bold ? QFont::Bold : QFont::Normal));
-    return label;
-}
 
 QLabel* NovelDetailPage::createSectionLabel(const QString &text)
 {
     return createLabel(text, m_colorText, 14);
 }
 
-QPushButton* NovelDetailPage::createButton(const QString &text, const QString &style, int width, int height)
-{
-    QPushButton *btn = new QPushButton(text);
-    btn->setStyleSheet(style);
-    if (width > 0) btn->setFixedWidth(width);
-    btn->setFixedHeight(height);
-    btn->setCursor(Qt::PointingHandCursor);
-    return btn;
-}
-
-QPushButton* NovelDetailPage::createFeatureButton(const QString &text, int width)
-{
-    QPushButton *btn = new QPushButton(text);
-    if (width > 0) {
-        btn->setFixedSize(width, EditorStyles::Constants::BTN_HEIGHT);
-    } else {
-        btn->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
-    }
-    btn->setStyleSheet(featureButtonStyle());
-    btn->setCursor(Qt::PointingHandCursor);
-    return btn;
-}
-
-void NovelDetailPage::setupLayout(QLayout *layout, int left, int top, int right, int bottom, int spacing)
-{
-    layout->setContentsMargins(left, top, right, bottom);
-    layout->setSpacing(spacing);
-}
-
-void NovelDetailPage::applyCardShadow(QWidget *card)
-{
-    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(card);
-    shadow->setBlurRadius(12);
-    shadow->setColor(QColor(0, 0, 0, 20));
-    shadow->setOffset(0, 2);
-    card->setGraphicsEffect(shadow);
-}
-
-// ========== 卡片组件 ==========
 
 QFrame* NovelDetailPage::createFeatureCardFrame()
 {
@@ -556,7 +542,11 @@ QWidget* NovelDetailPage::createButtonStatusRow(QPushButton *btn, const QString 
 {
     QWidget *row = createTransparentWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
-    setupLayout(layout, 0, 0, 0, 0, 0);
+    setupLayout(layout, 0, 0, 0, 0, 12);
+    
+    if (btn) {
+        btn->setMinimumWidth(EditorStyles::Constants::BTN_CREATE_WIDTH);
+    }
     
     layout->addWidget(btn);
     layout->addStretch();
@@ -572,6 +562,7 @@ QWidget* NovelDetailPage::createButtonRow(QPushButton *&btn, const QString &btnT
     setupLayout(btnLayout, 0, 0, 0, 0, 12);
     
     btn = createFeatureButton(btnText);
+    btn->setMinimumWidth(EditorStyles::Constants::BTN_CREATE_WIDTH);
     btnLayout->addWidget(btn);
     btnLayout->addStretch();
     
@@ -613,11 +604,11 @@ void NovelDetailPage::updateChapterHints(const QList<Storyboard>& storyboards)
 void NovelDetailPage::updateChapterUI(int targetChapter)
 {
     if (m_chapterHintLabel) {
-        m_chapterHintLabel->setText(TR("当前已完成 %1 章，将生成第 %2 章")
-            .arg(m_completedChapterCount).arg(targetChapter));
+        m_chapterHintLabel->setText(
+            QStringLiteral("已完成 %1 章，下一章是 %2").arg(m_completedChapterCount).arg(targetChapter));
     }
     if (m_addChapterBtn) {
-        m_addChapterBtn->setText(QString(TR("生成第 %1 章")).arg(targetChapter));
+        m_addChapterBtn->setText(QStringLiteral("添加章节 %1").arg(targetChapter));
     }
 }
 
@@ -689,7 +680,6 @@ QWidget* NovelDetailPage::createBibleCard(const QString &title, QLabel *countLab
     return card;
 }
 
-// ========== UI 初始化 ==========
 
 void NovelDetailPage::setupUI()
 {
@@ -721,7 +711,6 @@ void NovelDetailPage::setupUI()
     m_mainLayout->addWidget(m_mainScrollArea);
 }
 
-// ========== Section 创建 ==========
 
 QWidget* NovelDetailPage::createHeaderSection()
 {
@@ -732,14 +721,14 @@ QWidget* NovelDetailPage::createHeaderSection()
     QHBoxLayout *layout = new QHBoxLayout(header);
     setupLayout(layout, 24, 20, 24, 20, 12);
     
-    m_titleLabel = createLabel(TR("小说标题 1"), m_colorTitle, 28, true);
+    m_titleLabel = createLabel(tr("作品详情"), m_colorTitle, 28, true);
     m_statusLabel = createStatusLabel("completed");
-    m_metaLabel = createLabel(TR("类型：科幻  |  作品 ID：qingning-001  |  分镜: 1  |  当前分镜章节：第 1 章  |  章节: 2"), m_colorHint, 14);
+    m_metaLabel = createLabel(tr("创作信息"), m_colorHint, 14);
     
-    m_analyzeBtn = createButton(TR("重新分析"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
+    m_analyzeBtn = createButton(tr("分析分镜"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
     connect(m_analyzeBtn, &QPushButton::clicked, this, &NovelDetailPage::onAnalyzeClicked);
     
-    m_viewExportsBtn = createButton(TR("查看导出记录"), primaryButtonStyle(), 130, EditorStyles::Constants::BTN_HEIGHT);
+    m_viewExportsBtn = createButton(tr("查看导出"), primaryButtonStyle(), 130, EditorStyles::Constants::BTN_HEIGHT);
     connect(m_viewExportsBtn, &QPushButton::clicked, this, &NovelDetailPage::onViewExportsClicked);
     
     layout->addWidget(m_titleLabel);
@@ -763,20 +752,18 @@ QWidget* NovelDetailPage::createChapterSection()
     QVBoxLayout *layout = new QVBoxLayout(section);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_SPACING);
     
-    // 标题区
     QWidget *headerRow = createTransparentWidget();
     QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
     setupLayout(headerLayout, 0, 0, 0, 0, 0);
     
-    // 标题区
     QWidget *titleContainer = createTransparentWidget();
     QVBoxLayout *titleLayout = new QVBoxLayout(titleContainer);
     setupLayout(titleLayout, 0, 0, 0, 0, 4);
-    titleLayout->addWidget(createLabel(TR("章节分镜"), "#212121", 16, true));
-    m_chapterCountLabel = createLabel(TR("已生成 0 章"), m_colorHint, 14);
+    titleLayout->addWidget(createLabel(tr("章节管理"), "#212121", 16, true));
+    m_chapterCountLabel = createLabel(tr("共 0 章"), m_colorHint, 14);
     titleLayout->addWidget(m_chapterCountLabel);
     
-    QPushButton *refreshBtn = createButton(TR("刷新列表"), refreshButtonStyle(), -1, EditorStyles::Constants::BTN_HEIGHT);
+    QPushButton *refreshBtn = createButton(tr("刷新"), refreshButtonStyle(), -1, EditorStyles::Constants::BTN_HEIGHT);
     refreshBtn->setObjectName("refreshListBtn");
     connect(refreshBtn, &QPushButton::clicked, this, &NovelDetailPage::onRefreshChaptersClicked);
     
@@ -785,7 +772,6 @@ QWidget* NovelDetailPage::createChapterSection()
     headerLayout->addWidget(refreshBtn);
     layout->addWidget(headerRow);
     
-    // 章节卡片区 - 使用滚动区域
     m_chapterScrollArea = new QScrollArea();
     m_chapterScrollArea->setWidgetResizable(true);
     m_chapterScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -823,7 +809,6 @@ QWidget* NovelDetailPage::createFeatureSection()
     return section;
 }
 
-// ========== 卡片创建 ==========
 
 QWidget* NovelDetailPage::createAddChapterCard()
 {
@@ -831,9 +816,9 @@ QWidget* NovelDetailPage::createAddChapterCard()
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(TR("追加新章节"), TR("复用当前圣经，保持角色/场景连续性")));
+    layout->addWidget(createCardHeader(tr("追加新章节"), tr("添加新的章节内容")));
     
-    layout->addWidget(createSectionLabel(TR("目标章节")));
+    layout->addWidget(createSectionLabel(tr("章节编号")));
     
     m_chapterNumberSpin = new ChapterSpinBox();
     m_chapterNumberSpin->setMinimum(1);
@@ -844,20 +829,19 @@ QWidget* NovelDetailPage::createAddChapterCard()
     layout->addWidget(m_chapterNumberSpin);
     
     m_chapterHintLabel = createLabel(
-        TR("当前已完成 %1 章，默认生成第 %2 章").arg(m_completedChapterCount).arg(m_completedChapterCount + 1),
+        QString("已完成 %1 章，下一章是 %2").arg(m_completedChapterCount).arg(m_completedChapterCount + 1),
         m_colorHint, 12);
     layout->addWidget(m_chapterHintLabel);
     
-    // 章节文本
-    layout->addWidget(createSectionLabel(TR("章节文本")));
+    layout->addWidget(createSectionLabel(tr("章节内容")));
     
     m_chapterTextEdit = new QTextEdit();
-    m_chapterTextEdit->setPlaceholderText(TR("请粘贴章节文本，建议 6k 字以内"));
+    m_chapterTextEdit->setPlaceholderText(tr("输入章节正文内容..."));
     m_chapterTextEdit->setMinimumHeight(100);
     m_chapterTextEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_chapterTextEdit);
     
-    QWidget *btnRow = createButtonRow(m_addChapterBtn, TR("生成第 %1 章").arg(m_completedChapterCount + 1), TR("分析任务 就绪"));
+    QWidget *btnRow = createButtonRow(m_addChapterBtn, QString("添加章节 %1").arg(m_completedChapterCount + 1), tr("添加章节"));
     connect(m_addChapterBtn, &QPushButton::clicked, this, &NovelDetailPage::onAddChapterClicked);
     layout->addWidget(btnRow);
     
@@ -867,7 +851,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_analysisResult = new AnalysisResultWidget();
     layout->addWidget(m_analysisResult);
     
-    QLabel *hintLabel = createLabel(TR("系统会沿用当前角色/场景圣经生成新的分镜，生成后可在圣经面板中替换参考图。"), m_colorHint, 12);
+    QLabel *hintLabel = createLabel(tr("在此输入章节正文内容。"), m_colorHint, 12);
     hintLabel->setWordWrap(true);
     layout->addWidget(hintLabel);
     
@@ -878,28 +862,32 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
 {
     QFrame *card = createFeatureCardFrame();
     QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING);
-    layout->setSpacing(12);
+    setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING,
+                EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(TR("面板批量生成"), TR("支持预览/高清双模式")));
+    layout->addWidget(createCardHeader(tr("面板批量生成"), tr("AI一键生成漫画面板")));
     
-    layout->addSpacing(8);
-    layout->addWidget(createSectionLabel(TR("生成模式")));
+    layout->addWidget(createSectionLabel(tr("生成模式")));
     
     m_generateModeCombo = new ModeComboBox();
-    m_generateModeCombo->addItem(TR("预览模式 (512×288)"));
-    m_generateModeCombo->addItem(TR("高清模式 (1920×1080)"));
+    m_generateModeCombo->addItem(tr("1:1（1024×1024）"));
+    m_generateModeCombo->addItem(tr("3:2（1536×1024）"));
+    m_generateModeCombo->addItem(tr("16:9（1280×720）"));
     m_generateModeCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     layout->addWidget(m_generateModeCombo);
-    
-    // 按钮区
-    layout->addSpacing(20);
-    
-    m_generatePanelsBtn = createFeatureButton(TR("开始生成"));
+
+    layout->addSpacing(8);
+
+    m_generatePanelsBtn = nullptr;
+    QWidget *btnRow = createButtonRow(m_generatePanelsBtn, tr("开始生成"), tr("生成中..."));
     connect(m_generatePanelsBtn, &QPushButton::clicked, this, &NovelDetailPage::onGeneratePanelsClicked);
-    
-    QWidget *btnRow = createButtonStatusRow(m_generatePanelsBtn, TR("生成任务 就绪"));
     layout->addWidget(btnRow);
+
+    QLabel *ratioHintLabel = createLabel(
+        tr("提示: 生成过程可能需要较长时间，请耐心等待。"),
+        m_colorHint, 12);
+    ratioHintLabel->setWordWrap(true);
+    layout->addWidget(ratioHintLabel);
     
     m_panelGenerateProgress = new AnalysisProgressWidget();
     layout->addWidget(m_panelGenerateProgress);
@@ -914,24 +902,23 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(TR("自然语言修改请求"), TR("自动解析 CR-DSL 并执行修改闭环")));
+    layout->addWidget(createCardHeader(tr("变更申请"), tr("提交分镜修改建议")));
     
-    layout->addWidget(createSectionLabel(TR("修改指令")));
+    layout->addWidget(createSectionLabel(tr("变更描述")));
     
     m_changeRequestEdit = new QTextEdit();
-    m_changeRequestEdit->setPlaceholderText(TR("例如：把第 1 页第 1 个面板中的主角表情改为微笑"));
+    m_changeRequestEdit->setPlaceholderText(tr("输入变更内容..."));
     m_changeRequestEdit->setFixedHeight(66);
     m_changeRequestEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_changeRequestEdit);
     
     layout->addSpacing(14);
     
-    // 按钮行
-    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, TR("提交修改请求"), TR("任务状态 就绪"));
+    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交申请"), tr("提交中..."));
     connect(m_submitChangeRequestBtn, &QPushButton::clicked, this, &NovelDetailPage::onSubmitChangeRequestClicked);
     layout->addWidget(btnRow);
     
-    layout->addWidget(createLabel(TR("提交后会自动跟踪任务状态"), m_colorHint, 12));
+    layout->addWidget(createLabel(tr("提示: 变更将在下次生成时生效。"), m_colorHint, 12));
     layout->addStretch();
     
     return card;
@@ -943,29 +930,26 @@ QWidget* NovelDetailPage::createExportCard()
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     setupLayout(cardLayout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    cardLayout->addWidget(createCardHeader(TR("导出高清成品"), TR("PDF / Webtoon 长图 / 资源包")));
+    cardLayout->addWidget(createCardHeader(tr("导出中心"), tr("导出漫画成品")));
     
-    // 导出格式
-    cardLayout->addWidget(createSectionLabel(TR("导出格式")));
+    cardLayout->addWidget(createSectionLabel(tr("导出格式")));
     
     m_exportFormatCombo = new ModeComboBox();
     m_exportFormatCombo->addItem("PDF");
-    m_exportFormatCombo->addItem(TR("Webtoon 长图"));
-    m_exportFormatCombo->addItem(TR("资源包"));
+    m_exportFormatCombo->addItem(tr("图片包"));
+    m_exportFormatCombo->addItem(tr("ZIP压缩包"));
     m_exportFormatCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     cardLayout->addWidget(m_exportFormatCombo);
     
-    // 按钮与状态区
-    m_exportBtn = createFeatureButton(TR("开始导出"));
+    m_exportBtn = createFeatureButton(tr("开始导出"));
     connect(m_exportBtn, &QPushButton::clicked, this, &NovelDetailPage::onExportClicked);
     
-    cardLayout->addWidget(createButtonStatusRow(m_exportBtn, TR("导出任务 就绪")));
+    cardLayout->addWidget(createButtonStatusRow(m_exportBtn, tr("导出中...")));
     cardLayout->addStretch();
     
     return card;
 }
 
-// ========== 圣经区块 ==========
 
 QWidget* NovelDetailPage::createBibleSection()
 {
@@ -974,42 +958,37 @@ QWidget* NovelDetailPage::createBibleSection()
     QVBoxLayout *sectionLayout = new QVBoxLayout(section);
     setupLayout(sectionLayout, 0, 0, 0, 0, EditorStyles::Constants::CARD_SPACING);
     
-    // 顶部标题区
-    QWidget *headerRow = createTransparentWidget();
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
-    setupLayout(headerLayout, 0, 0, 0, 0, 0);
+    m_bibleSectionWidget = new BibleSectionWidget();
     
-    // 左侧标题
-    QLabel *sectionTitle = createLabel(TR("圣经总览"), m_colorTitle, 18, true);
-    headerLayout->addWidget(sectionTitle);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::bibleItemEditRequested,
+            this, &NovelDetailPage::onBibleItemEditClicked);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::bibleItemDataChanged,
+            this, &NovelDetailPage::onBibleItemDataChanged);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::bibleItemImageUpdated,
+            this, &NovelDetailPage::onBibleItemUploadClicked);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::bibleItemDeleteRequested,
+            this, &NovelDetailPage::onBibleItemDeleteRequested);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::characterCountChanged,
+            this, &NovelDetailPage::onCharacterCountChanged);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::sceneCountChanged,
+            this, &NovelDetailPage::onSceneCountChanged);
     
-    headerLayout->addStretch();
+    m_bibleSectionWidget->setNovelId(m_currentNovel.id());
     
-    // 右侧刷新按钮
-    m_refreshBibleBtn = createButton(TR("刷新圣经"), refreshButtonStyle(), -1, EditorStyles::Constants::BTN_HEIGHT);
-    connect(m_refreshBibleBtn, &QPushButton::clicked, this, &NovelDetailPage::onRefreshBibleClicked);
+    sectionLayout->addWidget(m_bibleSectionWidget);
     
-    headerLayout->addWidget(m_refreshBibleBtn);
-    sectionLayout->addWidget(headerRow);
+    m_panelPreviewWidget = new PanelPreviewWidget();
+    m_panelPreviewWidget->setChapter(m_currentChapter);
     
-    // 双列布局：角色圣经 + 场景圣经
-    QWidget *bibleGrid = createTransparentWidget();
-    QHBoxLayout *bibleGridLayout = new QHBoxLayout(bibleGrid);
-    setupLayout(bibleGridLayout, 0, 0, 0, 0, 20);
+    connect(m_panelPreviewWidget, &PanelPreviewWidget::panelClicked,
+            this, &NovelDetailPage::onPanelCardClicked);
     
-    bibleGridLayout->addWidget(createCharacterBibleCard(), 1);
-    bibleGridLayout->addWidget(createSceneBibleCard(), 1);
-    
-    sectionLayout->addWidget(bibleGrid);
-    
-    // 面板预览区域
-    sectionLayout->addWidget(createPanelPreviewCard());
+    sectionLayout->addWidget(m_panelPreviewWidget);
     
     return section;
 }
 
 /**
- * @brief 创建分镜文本编辑区域
  */
 QWidget* NovelDetailPage::createStoryboardSection()
 {
@@ -1018,42 +997,37 @@ QWidget* NovelDetailPage::createStoryboardSection()
     QVBoxLayout *sectionLayout = new QVBoxLayout(section);
     setupLayout(sectionLayout, 0, 0, 0, 0, EditorStyles::Constants::CARD_SPACING);
     
-    // 顶部标题区
     QWidget *headerRow = createTransparentWidget();
     QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
     setupLayout(headerLayout, 0, 0, 0, 0, 0);
     
-    // 左侧：主标题 + 副标题
     QWidget *titleGroup = createTransparentWidget();
     QVBoxLayout *titleLayout = new QVBoxLayout(titleGroup);
     titleLayout->setContentsMargins(0, 0, 0, 0);
     titleLayout->setSpacing(4);
     
-    QLabel *sectionTitle = createLabel(TR("分镜文本编辑"), m_colorTitle, 18, true);
+    QLabel *sectionTitle = createLabel(tr("分镜文本编辑"), m_colorTitle, 18, true);
     titleLayout->addWidget(sectionTitle);
     
-    m_storyboardCountLabel = createLabel(TR("共 0 个面板"), m_colorHint, 12);
+    m_storyboardCountLabel = createLabel(tr("共 0 个分镜"), m_colorHint, 12);
     titleLayout->addWidget(m_storyboardCountLabel);
     
     headerLayout->addWidget(titleGroup);
     headerLayout->addStretch();
     
-    // 右侧：提示文字
-    QLabel *hintLabel = createLabel(TR("逐个修订场景描述与 Prompt，保存后即可复用最新文本生成面板"), m_colorHint, 14);
+    QLabel *hintLabel = createLabel(tr("提示: 完成章节分析后自动生成分镜脚本。"), m_colorHint, 14);
     hintLabel->setWordWrap(true);
     hintLabel->setMaximumWidth(300);
     headerLayout->addWidget(hintLabel);
     
     sectionLayout->addWidget(headerRow);
     
-    // 内容区（滚动列表）
     sectionLayout->addWidget(createStoryboardCard());
     
     return section;
 }
 
 /**
- * @brief 创建分镜文本编辑卡片
  */
 QWidget* NovelDetailPage::createStoryboardCard()
 {
@@ -1072,7 +1046,6 @@ QWidget* NovelDetailPage::createStoryboardCard()
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scrollArea->setMinimumHeight(400);
     
-    // 滚动内容容器
     m_storyboardContainer = new QWidget();
     m_storyboardContainer->setStyleSheet(TRANSPARENT_BG);
     m_storyboardContainer->setMinimumWidth(400);
@@ -1081,18 +1054,25 @@ QWidget* NovelDetailPage::createStoryboardCard()
     containerLayout->setContentsMargins(0, 0, 8, 0);
     containerLayout->setSpacing(16);
     
-    // 初始显示示例数据，后续由 refreshStoryboardItems 更新
     QList<QPair<int, QStringList>> storyboardItems = {
-        {1, {"", "青柠站在教室门口，阳光透过窗户洒在她的脸上。", "中景", "平视", "青柠 (站立, 微笑)", "青柠: 这里好安静...", "", ""}},
-        {2, {"", "她微微皱眉，手中的信件被捏得有些皱。", "特写", "俯视", "青柠 (皱眉, 疑惑)", "青柠: 这是怎么回事...", "", ""}},
-        {3, {"", "教室里传来同学们的欢声笑语，她却心不在焉。", "远景", "平视", "青柠 (发呆) | 同学们 (欢笑)", "", "", ""}},
-        {4, {"", "窗外的樱花树随风摇曳，花瓣飘落在窗台上。", "中景", "仰视", "", "", "", ""}}
+        {1, {"第1章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {2, {"第2章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {3, {"第3章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {4, {"第4章", "分镜A", "分镜B", "分镜C", "分镜D"}}
     };
     
     for (const auto &item : storyboardItems) {
+        const QStringList parts = item.second;
         StoryboardItem *storyboardItem = new StoryboardItem(
-            item.first, item.second[0], item.second[1], item.second[2], item.second[3], 
-            item.second[4], item.second[5], item.second.value(6, ""), item.second.value(7, "")
+            item.first,
+            parts.value(0),
+            parts.value(1),
+            parts.value(2),
+            parts.value(3),
+            parts.value(4),
+            parts.value(5),
+            parts.value(6),
+            parts.value(7)
         );
         connect(storyboardItem, &StoryboardItem::dataChanged, this, &NovelDetailPage::onStoryboardDataChanged);
         containerLayout->addWidget(storyboardItem);
@@ -1106,88 +1086,6 @@ QWidget* NovelDetailPage::createStoryboardCard()
     return card;
 }
 
-QWidget* NovelDetailPage::createCharacterBibleCard()
-{
-    return createBibleCardWithItems(QString::fromUtf8("角色圣经"), BibleType::Character);
-}
-
-QWidget* NovelDetailPage::createSceneBibleCard()
-{
-    return createBibleCardWithItems(QString::fromUtf8("场景圣经"), BibleType::Scene);
-}
-
-QWidget* NovelDetailPage::createBibleCardWithItems(const QString& title, BibleType type)
-{
-    QWidget *container = createTransparentWidget();
-    QVBoxLayout *containerLayout = new QVBoxLayout(container);
-    setupLayout(containerLayout, 0, 0, 0, 0, 12);
-    
-    if (type == BibleType::Character) {
-        m_characterBibleContainer = container;
-        QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(m_currentNovel.id());
-        populateCharacterBible(containerLayout, characters);
-        
-        m_characterCountLabel = createLabel(QString::fromUtf8("%1 个角色").arg(characters.size()), m_colorHint, 12);
-        return createBibleCard(title, m_characterCountLabel, container);
-    } else {
-        m_sceneBibleContainer = container;
-        QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(m_currentNovel.id());
-        populateSceneBible(containerLayout, scenes);
-        
-        m_sceneCountLabel = createLabel(QString::fromUtf8("%1 个场景").arg(scenes.size()), m_colorHint, 12);
-        return createBibleCard(title, m_sceneCountLabel, container);
-    }
-}
-
-QWidget* NovelDetailPage::createPanelPreviewCard()
-{
-    QFrame *card = new QFrame();
-    card->setObjectName("panelPreviewCard");
-    card->setStyleSheet(panelPreviewCardStyle());
-    
-    QVBoxLayout *cardLayout = new QVBoxLayout(card);
-    setupLayout(cardLayout, 20, 20, 20, 20, 16);
-    
-    QWidget *headerRow = createTransparentWidget();
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
-    setupLayout(headerLayout, 0, 0, 0, 0, 0);
-    
-    m_panelPreviewTitleLabel = createLabel(QString("面板预览・第 %1 章").arg(m_currentChapter), m_colorTitle, 18, true);
-    headerLayout->addWidget(m_panelPreviewTitleLabel);
-    
-    headerLayout->addStretch();
-    
-    m_panelPreviewHintLabel = createLabel(TR("点击面板可打开编辑工具"), m_colorHint, 14);
-    headerLayout->addWidget(m_panelPreviewHintLabel);
-    
-    cardLayout->addWidget(headerRow);
-    
-    QScrollArea *scrollArea = new QScrollArea();
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet(scrollAreaStyle());
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scrollArea->setMinimumHeight(200);
-    scrollArea->setFixedHeight(220);
-    
-    m_panelPreviewContainer = new QWidget();
-    m_panelPreviewContainer->setStyleSheet(TRANSPARENT_BG);
-    
-    QHBoxLayout *containerLayout = new QHBoxLayout(m_panelPreviewContainer);
-    containerLayout->setContentsMargins(0, 0, 0, 8);
-    containerLayout->setSpacing(16);
-    
-    scrollArea->setWidget(m_panelPreviewContainer);
-    scrollArea->setAlignment(Qt::AlignLeft);
-    cardLayout->addWidget(scrollArea);
-    
-    refreshPanelPreview();
-    
-    return card;
-}
-
-// ========== 其他 ==========
 
 QLabel* NovelDetailPage::createStatusLabel(const QString &status)
 {
@@ -1213,9 +1111,14 @@ ChapterCard* NovelDetailPage::createChapterCard(int chapterNumber, int panelCoun
 
 void NovelDetailPage::updateDisplay()
 {
+    if (!m_titleLabel || !m_metaLabel) {
+        LOG_WARNING("NovelDetailPage", "updateDisplay: UI components not initialized");
+        return;
+    }
+    
     if (m_currentNovel.id().isEmpty()) {
-        m_titleLabel->setText("小说标题 1");
-        m_metaLabel->setText("类型：科幻  |  作品 ID：qingning-001  |  分镜: 1  |  当前分镜章节：第 1 章  |  章节: 2");
+        m_titleLabel->setText(tr("作品详情"));
+        m_metaLabel->setText(tr("请先选择一个作品"));
         return;
     }
     
@@ -1235,14 +1138,13 @@ void NovelDetailPage::updateDisplay()
     }
     int nextChapterNumber = maxChapterNumber > 0 ? maxChapterNumber + 1 : 1;
     
-    m_metaLabel->setText(QString("类型：科幻  |  作品 ID：%1  |  分镜: %2  |  当前分镜章节：第 %3 章  |  章节: %4")
+    m_metaLabel->setText(QString("作品 ID: %1 | 已完成章节: %2 | 当前章节: %3")
         .arg(m_currentNovel.id())
         .arg(m_completedChapterCount)
-        .arg(m_currentChapter)
-        .arg(m_completedChapterCount));
+        .arg(m_currentChapter));
     
     if (m_chapterCountLabel) {
-        m_chapterCountLabel->setText(TR("已生成 %1 章").arg(m_completedChapterCount));
+        m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
     }
     
     if (m_chapterNumberSpin) {
@@ -1268,11 +1170,27 @@ void NovelDetailPage::updateDisplay()
     vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
     refreshStoryboardItems();
     
-    refreshPanelPreview();
-    
     QTimer::singleShot(0, this, [this]() {
-        refreshBibleUI();
+        updateBibleMetaLabel();
     });
+}
+
+void NovelDetailPage::updateBibleMetaLabel()
+{
+    if (m_currentNovel.id().isEmpty()) {
+        return;
+    }
+    
+    LOG_DEBUG("NovelDetailPage", QString("updateBibleMetaLabel: chapters=%1, characters=%2, scenes=%3")
+        .arg(m_completedChapterCount).arg(m_characterCount).arg(m_sceneCount));
+    
+    m_metaLabel->setText(QString("作品 ID: %1 | 已完成章节: %2 | 当前章节: %3 | 角色: %4 | 场景: %5")
+        .arg(m_currentNovel.id())
+        .arg(m_completedChapterCount)
+        .arg(m_currentChapter)
+        .arg(m_characterCount)
+        .arg(m_sceneCount));
+
 }
 
 void NovelDetailPage::refreshChapterCards(const QList<Storyboard>& storyboards)
@@ -1301,7 +1219,7 @@ void NovelDetailPage::clearChapterCards()
     for (ChapterCard *card : m_chapterCards) {
         card->disconnect();
         card->setParent(nullptr);
-        delete card;  // 同步删除，确保布局立即更新
+        delete card;
     }
     m_chapterCards.clear();
     
@@ -1320,7 +1238,7 @@ void NovelDetailPage::refreshChapterCardsOnly()
     refreshChapterCards(storyboards);
     
     if (m_chapterCountLabel) {
-        m_chapterCountLabel->setText(TR("已生成 %1 章").arg(storyboards.size()));
+        m_chapterCountLabel->setText(QString("章节数: %1").arg(storyboards.size()));
     }
     
     int maxChapterNumber = 0;
@@ -1346,8 +1264,8 @@ void NovelDetailPage::onChapterClicked(int chapterNumber)
 
 void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
 {
-    if (!ConfirmDialog::showConfirm(this, TR("确认删除"), 
-            TR("确定要删除第 %1 章吗？\n此操作不可撤销。").arg(chapterNumber))) {
+    if (!ConfirmDialog::showConfirm(this, tr("确认删除"),
+            QString("确定删除第 %1 章吗？此操作不可恢复。").arg(chapterNumber))) {
         return;
     }
     
@@ -1362,7 +1280,7 @@ void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
     }
     
     if (!StoryboardViewModel::instance()->deleteStoryboard(m_currentNovel.id(), chapterNumber)) {
-        SuccessDialog::showError(this, TR("删除失败"), TR("无法删除第 %1 章").arg(chapterNumber));
+        SuccessDialog::showError(this, tr("删除失败"), tr("无法删除章节 %1").arg(chapterNumber));
         return;
     }
     
@@ -1392,10 +1310,10 @@ void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
 QList<QPair<int, QStringList>> NovelDetailPage::getSampleStoryboardItems() const
 {
     return {
-        {1, {"", "青柠站在教室门口，阳光透过窗户洒在她的脸上。", "中景", "平视", "青柠 (站立, 微笑)", "青柠: 这里好安静...", "", ""}},
-        {2, {"", "她微微皱眉，手中的信件被捏得有些皱。", "特写", "俯视", "青柠 (皱眉, 疑惑)", "青柠: 这是怎么回事...", "", ""}},
-        {3, {"", "教室里传来同学们的欢声笑语，她却心不在焉。", "远景", "平视", "青柠 (发呆) | 同学们 (欢笑)", "", "", ""}},
-        {4, {"", "窗外的樱花树随风摇曳，花瓣飘落在窗台上。", "中景", "仰视", "", "", "", ""}}
+        {1, {"第1章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {2, {"第2章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {3, {"第3章", "分镜A", "分镜B", "分镜C", "分镜D"}},
+        {4, {"第4章", "分镜A", "分镜B", "分镜C", "分镜D"}}
     };
 }
 
@@ -1490,10 +1408,6 @@ void NovelDetailPage::refreshStoryboardItems()
         return;
     }
     
-    if (m_panelPreviewTitleLabel) {
-        m_panelPreviewTitleLabel->setText(QString("面板预览・第 %1 章").arg(m_currentChapter));
-    }
-    
     QVBoxLayout *containerLayout = qobject_cast<QVBoxLayout*>(m_storyboardContainer->layout());
     if (!containerLayout) {
         LOG_WARNING("NovelDetailPage", "refreshStoryboardItems: containerLayout is null");
@@ -1510,9 +1424,17 @@ void NovelDetailPage::refreshStoryboardItems()
     
     int createdCount = 0;
     for (const auto &item : storyboardItems) {
+        const QStringList parts = item.second;
         StoryboardItem *storyboardItem = new StoryboardItem(
-            item.first, item.second[0], item.second[1], item.second[2], item.second[3], 
-            item.second[4], item.second[5], item.second.value(6, ""), item.second.value(7, "")
+            item.first,
+            parts.value(0),
+            parts.value(1),
+            parts.value(2),
+            parts.value(3),
+            parts.value(4),
+            parts.value(5),
+            parts.value(6),
+            parts.value(7)
         );
         connect(storyboardItem, &StoryboardItem::dataChanged, this, &NovelDetailPage::onStoryboardDataChanged);
         containerLayout->addWidget(storyboardItem);
@@ -1520,111 +1442,15 @@ void NovelDetailPage::refreshStoryboardItems()
     }
     
     if (m_storyboardCountLabel) {
-        m_storyboardCountLabel->setText(TR("共 %1 个面板").arg(createdCount));
+        m_storyboardCountLabel->setText(QString("分镜数: %1").arg(createdCount));
     }
     
     containerLayout->addStretch();
-}
-
-void NovelDetailPage::refreshPanelPreview()
-{
-    LOG_INFO("NovelDetailPage", "refreshPanelPreview called");
     
-    if (!m_panelPreviewContainer) {
-        LOG_WARNING("NovelDetailPage", "refreshPanelPreview: m_panelPreviewContainer is null");
-        return;
+    if (m_panelPreviewWidget) {
+        QList<Panel> panels = StoryboardViewModel::instance()->currentPanels();
+        m_panelPreviewWidget->setPanels(panels);
     }
-    
-    QHBoxLayout *containerLayout = qobject_cast<QHBoxLayout*>(m_panelPreviewContainer->layout());
-    if (!containerLayout) {
-        LOG_WARNING("NovelDetailPage", "refreshPanelPreview: containerLayout is null");
-        return;
-    }
-    
-    clearLayout(containerLayout);
-    
-    QString novelId = m_currentNovel.id();
-    if (novelId.isEmpty()) {
-        populatePanelPreviewWithSample();
-        return;
-    }
-    
-    try {
-        StoryboardViewModel* vm = StoryboardViewModel::instance();
-        if (!vm) {
-            LOG_WARNING("NovelDetailPage", "refreshPanelPreview: StoryboardViewModel is null");
-            populatePanelPreviewWithSample();
-            return;
-        }
-        
-        vm->loadStoryboard(novelId, m_currentChapter, true);
-        Storyboard storyboard = vm->currentStoryboard();
-        if (storyboard.id().isEmpty()) {
-            populatePanelPreviewWithSample();
-            return;
-        }
-        
-        QList<Panel> panels = vm->currentPanels();
-        
-        LOG_INFO("NovelDetailPage", QString("refreshPanelPreview: loaded %1 panels").arg(panels.size()));
-        
-        if (panels.isEmpty()) {
-            populatePanelPreviewWithSample();
-            return;
-        }
-        
-        for (const Panel& panel : panels) {
-            QString desc = panel.scene();
-            if (desc.isEmpty()) {
-                desc = panel.visualPrompt();
-            }
-            
-            int panelNum = (panel.page() - 1) * 6 + panel.index() + 1;
-            QString previewUrl = panel.previewUrl();
-            LOG_DEBUG("NovelDetailPage", QString("Panel %1 previewUrl: %2").arg(panelNum).arg(previewUrl));
-            PanelCard *panelCard = createPanelCard(panelNum, desc, panel.id(), previewUrl);
-            containerLayout->addWidget(panelCard);
-        }
-        
-        containerLayout->addStretch();
-    } catch (const std::exception& e) {
-        LOG_ERROR("NovelDetailPage", QString("refreshPanelPreview exception: %1").arg(e.what()));
-        populatePanelPreviewWithSample();
-    } catch (...) {
-        LOG_ERROR("NovelDetailPage", "refreshPanelPreview unknown exception");
-        populatePanelPreviewWithSample();
-    }
-}
-
-PanelCard* NovelDetailPage::createPanelCard(int panelNum, const QString& description, const QString& panelId, const QString& previewUrl)
-{
-    PanelCard *panelCard = new PanelCard(m_currentChapter, panelNum, description);
-    if (!panelId.isEmpty()) {
-        panelCard->setPanelId(panelId);
-    }
-    if (!previewUrl.isEmpty()) {
-        panelCard->setPreviewUrl(previewUrl);
-    }
-    connect(panelCard, &PanelCard::clicked, this, &NovelDetailPage::onPanelCardClicked);
-    connect(panelCard, &PanelCard::imageClicked, this, [](const QString &imagePath) {
-        ImageViewerDialog::showImage(nullptr, imagePath);
-    });
-    return panelCard;
-}
-
-void NovelDetailPage::populatePanelPreviewWithSample()
-{
-    QHBoxLayout *containerLayout = qobject_cast<QHBoxLayout*>(m_panelPreviewContainer->layout());
-    if (!containerLayout) {
-        return;
-    }
-    
-    for (int i = 0; i < SAMPLE_PANEL_DESCRIPTIONS.size(); ++i) {
-        PanelCard *panelCard = createPanelCard(i + 1, SAMPLE_PANEL_DESCRIPTIONS[i]);
-        containerLayout->addWidget(panelCard);
-    }
-    
-    containerLayout->addStretch();
 }
 
 QList<QPair<int, QStringList>> NovelDetailPage::loadStoryboardFromDatabase() const
@@ -1658,10 +1484,12 @@ void NovelDetailPage::updateChapterSelection(int chapterNumber)
         card->setActive(card->chapterNumber() == chapterNumber);
     }
     refreshStoryboardItems();
-    refreshPanelPreview();
+    
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->setChapter(chapterNumber);
+    }
 }
 
-// ========== 槽函数 ==========
 
 void NovelDetailPage::onAnalysisStarted(const QString& novelId)
 {
@@ -1688,7 +1516,52 @@ void NovelDetailPage::onBackClicked()
 
 void NovelDetailPage::onAnalyzeClicked()
 {
-    QMessageBox::information(this, TR("提示"), TR("重新分析功能暂未开放，敬请期待"));
+    if (!AnalysisStatusManager::instance()->canStartAnalysis(m_analysisStatus)) {
+        SuccessDialog::showWarning(this, tr("分析进行中"), tr("请等待当前分析完成后再开始新的分析"));
+        return;
+    }
+    
+    QString originalText = m_currentNovel.originalText();
+    if (originalText.isEmpty()) {
+        originalText = NovelService::instance()->loadText(m_currentNovel.id());
+    }
+    
+    if (originalText.isEmpty()) {
+        SuccessDialog::showWarning(this, tr("内容为空"), tr("小说原文为空，无法进行分析"));
+        return;
+    }
+    
+    int targetChapter = m_currentChapter > 0 ? m_currentChapter : 1;
+    
+    ConfirmDialog dialog(this);
+    dialog.setTitle(tr("确认分析"));
+    dialog.setMessage(QString("为第 %1 章生成分镜？").arg(targetChapter));
+    
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    
+    setAnalysisStatus(AnalysisStatusManager::Status::Processing);
+    
+    if (m_analysisProgress) {
+        m_analysisProgress->reset();
+        m_analysisProgress->setState(AnalysisProgressWidget::State::Connecting);
+    }
+    
+    if (m_analysisResult) {
+        m_analysisResult->hide();
+    }
+    
+    QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(m_currentNovel.id());
+    QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(m_currentNovel.id());
+    
+    StoryboardViewModel::instance()->startAnalysisWithBible(
+        m_currentNovel.id(), 
+        originalText, 
+        targetChapter, 
+        existingCharacters, 
+        existingScenes
+    );
 }
 
 void NovelDetailPage::onViewExportsClicked()
@@ -1706,7 +1579,7 @@ void NovelDetailPage::onRefreshChaptersClicked()
     QString originalText;
     if (refreshBtn) {
         originalText = refreshBtn->text();
-        refreshBtn->setText(TR("刷新中..."));
+        refreshBtn->setText(tr("刷新中..."));
     }
     
     QApplication::processEvents();
@@ -1721,7 +1594,7 @@ void NovelDetailPage::onRefreshChaptersClicked()
 void NovelDetailPage::onAddChapterClicked()
 {
     if (!AnalysisStatusManager::instance()->canStartAnalysis(m_analysisStatus)) {
-        SuccessDialog::showWarning(this, TR("提示"), TR("已有任务在执行中，请等待完成"));
+        SuccessDialog::showWarning(this, tr("操作失败"), tr("当前有分析任务正在进行，请稍后再试"));
         return;
     }
     
@@ -1743,10 +1616,12 @@ void NovelDetailPage::onAddChapterClicked()
         m_analysisResult->hide();
     }
     
-    QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(m_currentNovel.id());
-    QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(m_currentNovel.id());
+    QString novelId = m_currentNovel.id();
     
-    StoryboardViewModel::instance()->startAnalysisWithBible(m_currentNovel.id(), text, chapterNumber, existingCharacters, existingScenes);
+    QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(novelId);
+    QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(novelId);
+    
+    StoryboardViewModel::instance()->startAnalysisWithBible(novelId, text, chapterNumber, existingCharacters, existingScenes);
 }
 
 void NovelDetailPage::createRunningJobRecord(int chapterNumber)
@@ -1791,7 +1666,7 @@ QString NovelDetailPage::getChapterText(int chapterNumber) const
 bool NovelDetailPage::validateChapterInput(const QString& text) const
 {
     if (text.isEmpty()) {
-        SuccessDialog::showWarning(const_cast<NovelDetailPage*>(this), TR("提示"), TR("请输入章节文本内容后再分析小说"));
+        SuccessDialog::showWarning(const_cast<NovelDetailPage*>(this), tr("输入为空"), tr("请输入章节内容"));
         return false;
     }
     return true;
@@ -1803,9 +1678,9 @@ void NovelDetailPage::setAnalysisStatus(AnalysisStatusManager::Status status, co
     
     QString buttonText = extraInfo;
     if (status == AnalysisStatusManager::Status::Processing) {
-        buttonText = TR("正在生成...");
+        buttonText = tr("分析中...");
     } else if (status == AnalysisStatusManager::Status::Ready) {
-        buttonText = QString(TR("生成第 %1 章")).arg(m_completedChapterCount + 1);
+        buttonText = QString("添加章节 %1").arg(m_completedChapterCount + 1);
     }
     
     if (m_addChapterBtn && m_statusLabelMap.contains(m_addChapterBtn)) {
@@ -1853,14 +1728,6 @@ void NovelDetailPage::handleAnalysisSuccess(int chapter)
     
     updateDisplay();
     
-    QTimer::singleShot(100, this, [this, chapter]() {
-        refreshStoryboardItems();
-        refreshPanelPreview();
-        
-        QTimer::singleShot(100, this, [this, chapter]() {
-            startAutoImageGeneration(chapter);
-        });
-    });
 }
 
 void NovelDetailPage::handleAnalysisFailure(const QString& errorMessage)
@@ -1872,7 +1739,7 @@ void NovelDetailPage::handleAnalysisFailure(const QString& errorMessage)
         m_analysisProgress->setProgressText(errorMessage);
     }
     
-    SuccessDialog::showError(this, TR("生成失败"), TR("分析小说失败：\n%1").arg(errorMessage));
+    SuccessDialog::showError(this, tr("分析失败"), tr("分析出错: %1").arg(errorMessage));
 }
 
 void NovelDetailPage::onAnalysisFailed(const QString& novelId, const QString& error)
@@ -1884,12 +1751,12 @@ void NovelDetailPage::onAnalysisFailed(const QString& novelId, const QString& er
 void NovelDetailPage::onGeneratePanelsClicked()
 {
     if (m_currentNovel.id().isEmpty()) {
-        QMessageBox::warning(this, TR("错误"), TR("请先选择小说"));
+        QMessageBox::warning(this, tr("提示"), tr("请先选择一个作品"));
         return;
     }
     
     if (ImageService::instance()->isGenerating()) {
-        QMessageBox::warning(this, TR("提示"), TR("已有生成任务在进行中"));
+        QMessageBox::warning(this, tr("生成中"), tr("正在生成面板，请等待完成"));
         return;
     }
     
@@ -1898,7 +1765,7 @@ void NovelDetailPage::onGeneratePanelsClicked()
     
     Storyboard currentStoryboard = vm->currentStoryboard();
     if (currentStoryboard.id().isEmpty()) {
-        QMessageBox::warning(this, TR("错误"), TR("当前章节尚未生成分镜，请先分析小说"));
+        QMessageBox::warning(this, tr("无分镜"), tr("当前章节没有分镜数据，请先分析"));
         return;
     }
     
@@ -1911,41 +1778,41 @@ void NovelDetailPage::onGeneratePanelsClicked()
     }
     
     if (panelIds.isEmpty()) {
-        QMessageBox::warning(this, TR("错误"), TR("没有找到可生成的面板"));
+        QMessageBox::warning(this, tr("无面板"), tr("当前分镜没有面板数据"));
         return;
     }
     
-    ImageService::GenerateMode mode = ImageService::GenerateMode::Preview;
-    if (m_generateModeCombo && m_generateModeCombo->currentIndex() == 1) {
-        mode = ImageService::GenerateMode::HD;
+    ImageService::BatchPresetMode presetMode = ImageService::BatchPresetMode::Square_1x1;
+    if (m_generateModeCombo) {
+        switch (m_generateModeCombo->currentIndex()) {
+            case 1:
+                presetMode = ImageService::BatchPresetMode::Standard_3x2;
+                break;
+            case 2:
+                presetMode = ImageService::BatchPresetMode::Widescreen_16x9;
+                break;
+            case 0:
+            default:
+                presetMode = ImageService::BatchPresetMode::Square_1x1;
+                break;
+        }
     }
     
     m_generatePanelsBtn->setEnabled(false);
-    m_generatePanelsBtn->setText(TR("生成中..."));
+    m_generatePanelsBtn->setText(tr("生成中..."));
     
     if (m_panelGenerateProgress) {
         m_panelGenerateProgress->reset();
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
         m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(TR("正在生成面板图像 0/%1").arg(panelIds.size()));
+        m_panelGenerateProgress->setProgressText(QString("正在生成 %1 个分镜").arg(panelIds.size()));
     }
     
     LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
     
-    QString taskId = ImageService::instance()->enqueueBatchPanelImageGeneration(panelIds, mode);
+    QString taskId = ImageService::instance()->enqueueBatchPanelImageGeneration(panelIds, presetMode);
     
-    if (taskId.isEmpty()) {
-        QMessageBox::warning(this, TR("错误"), TR("创建生成任务失败"));
-        m_generatePanelsBtn->setEnabled(true);
-        m_generatePanelsBtn->setText(TR("开始生成"));
-        if (m_panelGenerateProgress) {
-            m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Failed);
-            m_panelGenerateProgress->setProgressText(TR("创建生成任务失败"));
-        }
-        return;
-    }
 }
-
 void NovelDetailPage::startAutoImageGeneration(int chapter)
 {
     Q_UNUSED(chapter);
@@ -1963,7 +1830,7 @@ void NovelDetailPage::startAutoImageGeneration(int chapter)
         m_analysisProgress->reset();
         m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
         m_analysisProgress->setProgress(0);
-        m_analysisProgress->setProgressText(QString::fromUtf8("正在生成图像 0/%1").arg(totalTasks));
+        m_analysisProgress->setProgressText(QString::fromUtf8("生成参考图中..."));
     }
     
     disconnect(BibleImageService::instance(), &BibleImageService::batchProgress, this, nullptr);
@@ -1988,8 +1855,7 @@ void NovelDetailPage::onBibleImageBatchProgress(int current, int total, const QS
         int completed = m_completedImageTasks + current;
         int progress = m_totalImageTasks > 0 ? (completed * 100 / m_totalImageTasks) : 0;
         m_analysisProgress->setProgress(progress);
-        m_analysisProgress->setProgressText(
-            QString::fromUtf8("正在生成%1 %2/%3").arg(type == "character" ? "角色肖像" : "场景参考图").arg(current).arg(total));
+        m_analysisProgress->setProgressText(QString::fromUtf8("已完成 %1/%2").arg(current).arg(total));
     }
 }
 
@@ -2009,8 +1875,12 @@ void NovelDetailPage::onAllImageGenerationCompleted()
         m_analysisProgress->setResult(progressResult);
     }
     
-    refreshPanelPreview();
-    refreshBibleUI();
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->refresh();
+    }
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
     
     m_pendingCharacters.clear();
     m_pendingScenes.clear();
@@ -2018,9 +1888,67 @@ void NovelDetailPage::onAllImageGenerationCompleted()
     m_completedImageTasks = 0;
 }
 
+
 void NovelDetailPage::onSubmitChangeRequestClicked()
 {
-    QMessageBox::information(this, TR("提示"), TR("自然语言修改请求功能暂未开放，敬请期待"));
+    if (!m_changeRequestEdit) {
+        return;
+    }
+    
+    QString naturalLanguage = m_changeRequestEdit->toPlainText().trimmed();
+    if (naturalLanguage.isEmpty()) {
+        QMessageBox::warning(this, tr("输入为空"), tr("请输入变更内容"));
+        return;
+    }
+    
+    if (m_currentNovel.id().isEmpty()) {
+        QMessageBox::warning(this, tr("无作品"), tr("未选择任何作品"));
+        return;
+    }
+    
+    ChangeRequestService* service = ServiceContainer::instance()->changeRequestService();
+    if (!service) {
+        QMessageBox::warning(this, tr("服务不可用"), tr("变更请求服务不可用"));
+        return;
+    }
+    
+    QJsonObject context;
+    context["storyboardId"] = m_currentNovel.storyboardId();
+    context["chapterNumber"] = m_chapterNumberSpin->value();
+    
+    ChangeRequest cr = service->createChangeRequest(
+        m_currentNovel.id(),
+        naturalLanguage,
+        context
+    );
+    
+    if (cr.isValid()) {
+        m_changeRequestEdit->clear();
+        
+        QMessageBox::information(this, tr("提交成功"),
+            QString("变更请求已提交: %1").arg(cr.id()));
+        
+        disconnect(service, &ChangeRequestService::changeRequestCompleted, this, nullptr);
+        disconnect(service, &ChangeRequestService::changeRequestFailed, this, nullptr);
+        
+        connect(service, &ChangeRequestService::changeRequestCompleted,
+                this, [this](const QString& crId, const QJsonObject& result) {
+            Q_UNUSED(crId);
+            QMessageBox::information(this, tr("执行完成"),
+                QString("变更请求状态: %1").arg(result["status"].toString()));
+            refreshStoryboardItems();
+        });
+        
+        connect(service, &ChangeRequestService::changeRequestFailed,
+                this, [this](const QString& crId, const QString& error) {
+            Q_UNUSED(crId);
+            QMessageBox::warning(this, tr("执行失败"), QString("失败: %1").arg(error));
+        });
+        
+        service->executeChangeRequestAsync(cr.id());
+    } else {
+        QMessageBox::warning(this, tr("服务错误"), QString("服务错误: %1").arg(service->lastError()));
+    }
 }
 
 void NovelDetailPage::onChapterNumberChanged(int value)
@@ -2083,11 +2011,11 @@ QJsonArray NovelDetailPage::parseCharactersToJson(const QString& characters)
             
             if (!notes.isEmpty()) {
                 QStringList noteList = notes.split(",", Qt::SkipEmptyParts);
-                if (noteList.size() >= 1) {
-                    charObj["pose"] = noteList[0].trimmed();
+                if (!noteList.isEmpty()) {
+                    charObj["pose"] = noteList.value(0).trimmed();
                 }
                 if (noteList.size() >= 2) {
-                    charObj["expression"] = noteList[1].trimmed();
+                    charObj["expression"] = noteList.value(1).trimmed();
                 }
             }
         } else {
@@ -2128,271 +2056,112 @@ QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue)
 
 void NovelDetailPage::onRefreshBibleClicked()
 {
-    if (!m_refreshBibleBtn) return;
-    
-    QString originalText = m_refreshBibleBtn->text();
-    m_refreshBibleBtn->setText(TR("刷新中..."));
-    
-    QApplication::processEvents();
-    
-    refreshBibleUI();
-    
-    m_refreshBibleBtn->setText(originalText);
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
 }
 
 void NovelDetailPage::onBibleDataChanged()
 {
-    refreshBibleUI();
-}
-
-void NovelDetailPage::clearBibleContainer(QWidget *container, const QString& logPrefix)
-{
-    Q_UNUSED(logPrefix);
-    
-    if (!container) return;
-    
-    QVBoxLayout *layout = qobject_cast<QVBoxLayout*>(container->layout());
-    if (!layout) return;
-    
-    QLayoutItem *item;
-    while ((item = layout->takeAt(0)) != nullptr) {
-        if (QWidget *widget = item->widget()) {
-            widget->disconnect();
-            widget->setParent(nullptr);
-            widget->deleteLater();
-        }
-        delete item;
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
     }
 }
 
-QStringList NovelDetailPage::buildCharacterDetails(const Character& character) const
+void NovelDetailPage::updateBibleItemImage(const QString& id, const QString& imagePath, BibleType type)
 {
-    QStringList details;
-    
-    QString genderText = character.appearance().gender == "male" ? TR("男") : 
-                         character.appearance().gender == "female" ? TR("女") : character.appearance().gender;
-    if (!genderText.isEmpty() || character.appearance().age > 0) {
-        QString ageStr = character.appearance().age > 0 ? 
-            QString::number(character.appearance().age) + TR("岁") : "";
-        details << TR("外观：%1 · %2 · 发色：%3 · 瞳色：%4")
-            .arg(genderText, ageStr, character.appearance().hairColor, character.appearance().eyeColor);
-    }
-    if (!character.appearance().build.isEmpty()) {
-        details << TR("体型：%1").arg(character.appearance().build);
-    }
-    if (!character.appearance().hairStyle.isEmpty()) {
-        details << TR("发型：%1").arg(character.appearance().hairStyle);
-    }
-    if (!character.appearance().clothing.isEmpty()) {
-        details << TR("服饰：%1").arg(character.appearance().clothing.join(", "));
-    }
-    if (!character.appearance().distinctiveFeatures.isEmpty()) {
-        details << TR("特征：%1").arg(character.appearance().distinctiveFeatures.join(", "));
-    }
-    if (!character.personality().isEmpty()) {
-        details << TR("性格：%1").arg(character.personality().join(", "));
-    }
-    
-    return details;
-}
-
-void NovelDetailPage::addBibleItemToLayout(QVBoxLayout* layout, const QString& name, 
-                                            const QStringList& details, BibleType type)
-{
-    BibleItem *item = new BibleItem(name, details, type);
-    connect(item, &BibleItem::editClicked, this, &NovelDetailPage::onBibleItemEditClicked);
-    connect(item, &BibleItem::dataChanged, this, &NovelDetailPage::onBibleItemDataChanged);
-    layout->addWidget(item);
-}
-
-void NovelDetailPage::populateCharacterBible(QVBoxLayout* layout, const QList<Character>& characters)
-{
-    if (!layout) return;
-    
-    if (characters.isEmpty()) {
-        QLabel *emptyLabel = createLabel(TR("暂无角色数据"), m_colorHint, 14);
-        emptyLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(emptyLabel);
-    } else {
-        for (const Character& character : characters) {
-            QStringList details = buildCharacterDetails(character);
-            BibleItem *item = new BibleItem(character.name(), details, BibleType::Character);
-            item->setItemId(character.id());  // 设置稳定 ID，避免同名角色数据错改
-            
-            QString portraitPath = character.portraitPath();
-            if (!portraitPath.isEmpty()) {
-                QString fullPath = FileStorage::instance()->getFullPath(portraitPath);
-                item->setImage(fullPath);
-            }
-            
-            connect(item, &BibleItem::editClicked, this, &NovelDetailPage::onBibleItemEditClicked);
-            connect(item, &BibleItem::dataChanged, this, &NovelDetailPage::onBibleItemDataChanged);
-            connect(item, &BibleItem::imageClicked, this, [](const QString &imagePath) {
-                ImageViewerDialog::showImage(nullptr, imagePath);
-            });
-            connect(item, &BibleItem::uploadClicked, this, &NovelDetailPage::onBibleItemUploadClicked);
-            connect(item, &BibleItem::deleteImageClicked, this, &NovelDetailPage::onBibleItemDeleteImageClicked);
-            layout->addWidget(item);
-        }
-    }
-    layout->addStretch();
-}
-
-void NovelDetailPage::populateSceneBible(QVBoxLayout* layout, const QList<Scene>& scenes)
-{
-    if (!layout) return;
-    
-    if (scenes.isEmpty()) {
-        QLabel *emptyLabel = createLabel(TR("暂无场景数据"), m_colorHint, 14);
-        emptyLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(emptyLabel);
-    } else {
-        for (const Scene& scene : scenes) {
-            QStringList details = scene.details().toDisplayStrings();
-            BibleItem *item = new BibleItem(scene.name(), details, BibleType::Scene);
-            item->setItemId(scene.sceneId());  // 设置稳定 ID，避免同名场景数据错改
-            
-            QString referencePath = scene.referenceImagePath();
-            if (!referencePath.isEmpty()) {
-                QString fullPath = FileStorage::instance()->getFullPath(referencePath);
-                item->setImage(fullPath);
-            }
-            
-            connect(item, &BibleItem::editClicked, this, &NovelDetailPage::onBibleItemEditClicked);
-            connect(item, &BibleItem::dataChanged, this, &NovelDetailPage::onBibleItemDataChanged);
-            connect(item, &BibleItem::imageClicked, this, [](const QString &imagePath) {
-                ImageViewerDialog::showImage(nullptr, imagePath);
-            });
-            connect(item, &BibleItem::uploadClicked, this, &NovelDetailPage::onBibleItemUploadClicked);
-            connect(item, &BibleItem::deleteImageClicked, this, &NovelDetailPage::onBibleItemDeleteImageClicked);
-            layout->addWidget(item);
-        }
-    }
-    layout->addStretch();
-}
-
-void NovelDetailPage::populateBibleContainer(QVBoxLayout *layout, const QList<BibleEntry>& entries, 
-                                              BibleType type, const QString& emptyText)
-{
-    if (!layout) return;
-    
-    if (entries.isEmpty()) {
-        QLabel *emptyLabel = createLabel(emptyText, m_colorHint, 14);
-        emptyLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(emptyLabel);
-    } else {
-        for (const BibleEntry &entry : entries) {
-            BibleItem *item = new BibleItem(entry.name(), entry.toDisplayDetails(), type);
-            connect(item, &BibleItem::editClicked, this, &NovelDetailPage::onBibleItemEditClicked);
-            layout->addWidget(item);
-        }
-    }
-    layout->addStretch();
-}
-
-void NovelDetailPage::refreshBibleUI()
-{
-    // 保存滚动条位置
-    int hScrollValue = 0;
-    int vScrollValue = 0;
-    if (m_mainScrollArea) {
-        hScrollValue = m_mainScrollArea->horizontalScrollBar()->value();
-        vScrollValue = m_mainScrollArea->verticalScrollBar()->value();
-    }
-    
-    clearBibleContainer(m_characterBibleContainer, "refreshBibleUI: Character");
-    clearBibleContainer(m_sceneBibleContainer, "refreshBibleUI: Scene");
-    
-    QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(m_currentNovel.id());
-    QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(m_currentNovel.id());
-    
-    if (m_characterBibleContainer) {
-        populateCharacterBible(qobject_cast<QVBoxLayout*>(m_characterBibleContainer->layout()), characters);
-    }
-    
-    if (m_sceneBibleContainer) {
-        populateSceneBible(qobject_cast<QVBoxLayout*>(m_sceneBibleContainer->layout()), scenes);
-    }
-    
-    if (m_characterCountLabel) {
-        m_characterCountLabel->setText(QString::fromUtf8("%1 个角色").arg(characters.size()));
-    }
-    if (m_sceneCountLabel) {
-        m_sceneCountLabel->setText(QString::fromUtf8("%1 个场景").arg(scenes.size()));
-    }
-    
-    // 恢复滚动条位置
-    if (m_mainScrollArea) {
-        m_mainScrollArea->horizontalScrollBar()->setValue(hScrollValue);
-        m_mainScrollArea->verticalScrollBar()->setValue(vScrollValue);
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->updateItemImage(id, imagePath, type);
     }
 }
 
 void NovelDetailPage::onCharacterCountChanged(int count)
 {
-    Q_UNUSED(count);
+    LOG_DEBUG("NovelDetailPage", QString("onCharacterCountChanged: %1 -> %2").arg(m_characterCount).arg(count));
+    m_characterCount = count;
+    updateBibleMetaLabel();
 }
 
 void NovelDetailPage::onSceneCountChanged(int count)
 {
-    Q_UNUSED(count);
+    LOG_DEBUG("NovelDetailPage", QString("onSceneCountChanged: %1 -> %2").arg(m_sceneCount).arg(count));
+    m_sceneCount = count;
+    updateBibleMetaLabel();
 }
 
 void NovelDetailPage::onBibleItemEditClicked(const QString &id, BibleType type)
 {
-    Q_UNUSED(id);
-    Q_UNUSED(type);
+    if (id.isEmpty()) {
+        return;
+    }
+    
+    LOG_INFO("NovelDetailPage", QString("Bible item edit clicked: id=%1, type=%2").arg(id).arg(static_cast<int>(type)));
+    
+    if (type == BibleType::Character) {
+        Character character = CharacterExtractor::instance()->getCharacterById(id);
+        if (!character.id().isEmpty()) {
+            LOG_INFO("NovelDetailPage", QString("Editing character: %1").arg(character.name()));
+        }
+    } else {
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
+        if (!scene.id().isEmpty()) {
+            LOG_INFO("NovelDetailPage", QString("Editing scene: %1").arg(scene.name()));
+        }
+    }
 }
 
 void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringList &details)
 {
-    // 优先使用 ID 查询角色，避免同名角色数据错改
     Character character = CharacterExtractor::instance()->getCharacterById(id);
     if (!character.id().isEmpty()) {
         CharacterAppearance app = character.appearance();
         
         for (const QString &detail : details) {
-            if (detail.contains(QString::fromUtf8("\u5916\u89c2"))) {
-                QRegularExpression genderRe(QString::fromUtf8("\u5916\u89c2\uff1a(\u7537|\u5973)"));
+            if (detail.contains(QString::fromUtf8("gender"))) {
+                QRegularExpression genderRe(QStringLiteral(R"(gender\s*[:：]\s*([^,;\n]+))"));
                 QRegularExpressionMatch match = genderRe.match(detail);
                 if (match.hasMatch()) {
                     app.gender = match.captured(1);
                 }
                 
-                QRegularExpression ageRe(QString::fromUtf8("(\\d+)\u5c81"));
+                QRegularExpression ageRe(QStringLiteral(R"(age\s*[:：]\s*(\d+))"));
                 match = ageRe.match(detail);
                 if (match.hasMatch()) {
                     app.age = match.captured(1).toInt();
                 }
                 
-                QRegularExpression hairColorRe(QString::fromUtf8("\u53d1\u8272\uff1a(\\S+)"));
+                QRegularExpression hairColorRe(QStringLiteral(R"(hairColor\s*[:：]\s*([^,;\n]+))"));
                 match = hairColorRe.match(detail);
                 if (match.hasMatch()) {
                     app.hairColor = match.captured(1);
                 }
                 
-                QRegularExpression eyeColorRe(QString::fromUtf8("\u77b3\u8272\uff1a(\\S+)"));
+                QRegularExpression eyeColorRe(QStringLiteral(R"(eyeColor\s*[:：]\s*([^,;\n]+))"));
                 match = eyeColorRe.match(detail);
                 if (match.hasMatch()) {
                     app.eyeColor = match.captured(1);
                 }
             }
-            else if (detail.contains(QString::fromUtf8("\u4f53\u578b"))) {
-                app.build = extractBibleValue(detail, QString::fromUtf8("\u4f53\u578b"));
+            else if (detail.contains(QString::fromUtf8("bodyType"))) {
+                app.build = extractBibleValue(detail, QString::fromUtf8("bodyType: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u53d1\u578b"))) {
-                app.hairStyle = extractBibleValue(detail, QString::fromUtf8("\u53d1\u578b"));
+            else if (detail.contains(QString::fromUtf8("hairStyle"))) {
+                app.hairStyle = extractBibleValue(detail, QString::fromUtf8("hairStyle: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u670d\u9970"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("\u670d\u9970"));
+            else if (detail.contains(QString::fromUtf8("clothing"))) {
+                QString value = extractBibleValue(detail, QString::fromUtf8("clothing: "));
                 app.clothing = value.split(", ");
             }
-            else if (detail.contains(QString::fromUtf8("\u7279\u5f81"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("\u7279\u5f81"));
+            else if (detail.contains(QString::fromUtf8("accessories"))) {
+                QString value = extractBibleValue(detail, QString::fromUtf8("accessories: "));
+                app.accessories = value.split(", ");
+            }
+            else if (detail.contains(QString::fromUtf8("distinctiveFeatures"))) {
+                QString value = extractBibleValue(detail, QString::fromUtf8("features: "));
                 app.distinctiveFeatures = value.split(", ");
             }
-            else if (detail.contains(QString::fromUtf8("\u6027\u683c"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("\u6027\u683c"));
+            else if (detail.contains(QString::fromUtf8("personality"))) {
+                QString value = extractBibleValue(detail, QString::fromUtf8("personality: "));
                 character.setPersonality(value.split(", "));
             }
         }
@@ -2402,29 +2171,28 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
         return;
     }
     
-    // 使用 sceneId 查询场景
     Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
     if (!scene.id().isEmpty()) {
         SceneDetails det = scene.details();
         
         for (const QString &detail : details) {
-            if (detail.contains(QString::fromUtf8("\u573a\u666f\u63cf\u8ff0"))) {
-                det.description = extractBibleValue(detail, QString::fromUtf8("\u573a\u666f\u63cf\u8ff0"));
+            if (detail.contains(QString::fromUtf8("description"))) {
+                det.description = extractBibleValue(detail, QString::fromUtf8("description: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u5efa\u7b51"))) {
-                det.building = extractBibleValue(detail, QString::fromUtf8("\u5efa\u7b51"));
+            else if (detail.contains(QString::fromUtf8("building"))) {
+                det.building = extractBibleValue(detail, QString::fromUtf8("building: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u8272\u8c03"))) {
-                det.color = extractBibleValue(detail, QString::fromUtf8("\u8272\u8c03"));
+            else if (detail.contains(QString::fromUtf8("color"))) {
+                det.color = extractBibleValue(detail, QString::fromUtf8("color: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u5730\u6807"))) {
-                det.landmark = extractBibleValue(detail, QString::fromUtf8("\u5730\u6807"));
+            else if (detail.contains(QString::fromUtf8("landmark"))) {
+                det.landmark = extractBibleValue(detail, QString::fromUtf8("landmark: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u5e03\u5c40"))) {
-                det.layout = extractBibleValue(detail, QString::fromUtf8("\u5e03\u5c40"));
+            else if (detail.contains(QString::fromUtf8("layout"))) {
+                det.layout = extractBibleValue(detail, QString::fromUtf8("layout: "));
             }
-            else if (detail.contains(QString::fromUtf8("\u6c1b\u56f4"))) {
-                det.atmosphere = extractBibleValue(detail, QString::fromUtf8("\u6c1b\u56f4"));
+            else if (detail.contains(QString::fromUtf8("atmosphere"))) {
+                det.atmosphere = extractBibleValue(detail, QString::fromUtf8("atmosphere: "));
             }
         }
         
@@ -2433,30 +2201,26 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
     }
 }
 
-void NovelDetailPage::onBibleItemUploadClicked(const QString &id, BibleType type)
+void NovelDetailPage::onBibleItemUploadClicked(const QString &id, const QString &imagePath, BibleType type)
 {
-    QString filter = TR("图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)");
-    QString filePath = QFileDialog::getOpenFileName(this, TR("选择参考图片"), 
-                                                     QString(), filter);
-    if (filePath.isEmpty()) {
+    if (imagePath.isEmpty()) {
+        onBibleItemDeleteImageClicked(id, type);
         return;
     }
     
-    QString relativePath = FileStorage::instance()->saveReferenceImage(filePath, m_currentNovel.id());
+    QString relativePath = FileStorage::instance()->saveReferenceImage(imagePath, m_currentNovel.id());
     if (relativePath.isEmpty()) {
-        QMessageBox::warning(this, TR("错误"), TR("保存图片失败"));
+        QMessageBox::warning(this, tr("保存失败"), tr("无法保存图片"));
         return;
     }
     
     if (type == BibleType::Character) {
-        // 使用 ID 查询角色，避免同名角色数据错改
         Character character = CharacterExtractor::instance()->getCharacterById(id);
         if (!character.id().isEmpty()) {
             character.setPortraitPath(relativePath);
             CharacterExtractor::instance()->updateCharacter(character);
         }
     } else {
-        // 使用 sceneId 查询场景
         Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
         if (!scene.id().isEmpty()) {
             scene.setReferenceImagePath(relativePath);
@@ -2464,18 +2228,19 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &id, BibleType type
         }
     }
     
-    refreshBibleUI();
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
 }
 
 void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
 {
-    bool confirmed = ConfirmDialog::showConfirm(this, TR("确认"), TR("确定要删除该参考图片吗？"));
+    bool confirmed = ConfirmDialog::showConfirm(this, tr("确认删除"), tr("确定删除此图片？"));
     if (!confirmed) {
         return;
     }
     
     if (type == BibleType::Character) {
-        // 使用 ID 查询角色，避免同名角色数据错改
         Character character = CharacterExtractor::instance()->getCharacterById(id);
         if (!character.id().isEmpty()) {
             QString oldPath = character.portraitPath();
@@ -2486,7 +2251,6 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType
             CharacterExtractor::instance()->updateCharacter(character);
         }
     } else {
-        // 使用 sceneId 查询场景
         Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
         if (!scene.id().isEmpty()) {
             QString oldPath = scene.referenceImagePath();
@@ -2497,13 +2261,51 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType
             SceneExtractor::instance()->updateScene(scene);
         }
     }
-    
-    refreshBibleUI();
+}
+
+void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType type)
+{
+    QString title = (type == BibleType::Character) ? tr("删除角色") : tr("删除场景");
+    QString message = (type == BibleType::Character)
+        ? tr("确定删除此角色？关联数据将被清除。")
+        : tr("确定删除此场景？关联数据将被清除。");
+
+    if (!ConfirmDialog::showConfirm(this, title, message)) {
+        return;
+    }
+
+    int savedMainVScrollPos = 0;
+    if (m_mainScrollArea) {
+        savedMainVScrollPos = m_mainScrollArea->verticalScrollBar()->value();
+    }
+
+    bool success = false;
+    if (type == BibleType::Character) {
+        success = CharacterExtractor::instance()->deleteCharacter(id);
+    } else {
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
+        success = !scene.id().isEmpty() && SceneExtractor::instance()->deleteScene(scene.id());
+    }
+
+    if (!success) {
+        QMessageBox::warning(this, tr("删除失败"), tr("无法删除，请重试"));
+        return;
+    }
+
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
+
+    QTimer::singleShot(0, this, [this, savedMainVScrollPos]() {
+        if (m_mainScrollArea) {
+            m_mainScrollArea->verticalScrollBar()->setValue(savedMainVScrollPos);
+        }
+    });
 }
 
 QString NovelDetailPage::extractBibleValue(const QString &detail, const QString &key) const
 {
-    QString prefix = key + QString::fromUtf8("\uff1a");
+    QString prefix = key;
     if (detail.startsWith(prefix)) {
         return detail.mid(prefix.length()).trimmed();
     }
@@ -2512,10 +2314,38 @@ QString NovelDetailPage::extractBibleValue(const QString &detail, const QString 
 
 void NovelDetailPage::onExportClicked()
 {
-    QMessageBox::information(this, TR("提示"), TR("导出功能暂未开放，敬请期待"));
+    QMessageBox::information(this, tr("导出功能"), tr("导出功能开发中..."));
 }
 
 void NovelDetailPage::onPanelCardClicked(int panelNumber)
 {
-    Q_UNUSED(panelNumber);
+    if (!m_storyboardContainer) {
+        return;
+    }
+    
+    QVBoxLayout *containerLayout = qobject_cast<QVBoxLayout*>(m_storyboardContainer->layout());
+    if (!containerLayout) {
+        return;
+    }
+    
+    for (int i = 0; i < containerLayout->count(); ++i) {
+        QLayoutItem *item = containerLayout->itemAt(i);
+        if (QWidget *widget = item->widget()) {
+            StoryboardItem *storyboardItem = qobject_cast<StoryboardItem*>(widget);
+            if (storyboardItem && storyboardItem->panelNumber() == panelNumber) {
+                QScrollArea *scrollArea = qobject_cast<QScrollArea*>(m_storyboardContainer->parentWidget()->parentWidget());
+                if (scrollArea) {
+                    scrollArea->ensureWidgetVisible(storyboardItem);
+                }
+                storyboardItem->setStyleSheet(storyboardItem->styleSheet() + 
+                    " QFrame { border: 2px solid #9333EA; }");
+                QTimer::singleShot(2000, [storyboardItem]() {
+                    storyboardItem->setStyleSheet(storyboardItem->styleSheet().replace(
+                        " border: 2px solid #9333EA;", ""));
+                });
+                break;
+            }
+        }
+    }
 }
+

@@ -1,11 +1,13 @@
 #include "DatabaseManager.h"
 #include "ServiceContainer.h"
 #include "utils/SingletonUtils.h"
+#include "utils/DatabaseUtils.h"
 #include "SqlBuilder.h"
 #include "Logger.h"
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QJsonDocument>
+#include <QSet>
 
 DEFINE_SINGLETON_INSTANCE_SIMPLE(DatabaseManager)
 
@@ -38,7 +40,7 @@ bool DatabaseManager::connectInternal(const QString& host, int port, const QStri
     m_database.setDatabaseName(database);
     m_database.setUserName(username);
     m_database.setPassword(password);
-    m_database.setConnectOptions("MYSQL_OPT_RECONNECT=1");
+    m_database.setConnectOptions(DatabaseUtils::defaultConnectionOptions());
     
     if (!m_database.open()) {
         setLastError(m_database.lastError().text());
@@ -46,13 +48,9 @@ bool DatabaseManager::connectInternal(const QString& host, int port, const QStri
         return false;
     }
     
-    QSqlQuery query(m_database);
-    query.exec("SET NAMES utf8mb4");
-    query.exec("SET CHARACTER SET utf8mb4");
-    query.exec("SET character_set_connection=utf8mb4");
-    query.exec("SET character_set_results=utf8mb4");
-    query.exec("SET character_set_client=utf8mb4");
-    query.exec("SET autocommit = 0");
+    if (!DatabaseUtils::initConnectionCharsetNoAutoCommit(m_database)) {
+        LOG_WARNING("Database", "Failed to set charset, continuing anyway");
+    }
     
     LOG_INFO("Database", QString("Connected to %1 (utf8mb4)").arg(database));
     return true;
@@ -112,19 +110,12 @@ const QSqlDatabase& DatabaseManager::database() const
 
 void DatabaseManager::bindValues(QSqlQuery& query, const QVariantList& values)
 {
-    for (const QVariant& value : values) {
-        query.addBindValue(value);
-    }
+    DatabaseUtils::bindValues(query, values);
 }
 
 QVariantMap DatabaseManager::recordToMap(const QSqlQuery& query) const
 {
-    QVariantMap result;
-    QSqlRecord record = query.record();
-    for (int i = 0; i < record.count(); ++i) {
-        result[record.fieldName(i)] = query.value(i);
-    }
-    return result;
+    return DatabaseUtils::recordToMap(query);
 }
 
 QSqlQuery DatabaseManager::createQuery()
@@ -341,30 +332,6 @@ int DatabaseManager::count(const QString& table, const QString& whereClause, con
     }, 0);
 }
 
-QString DatabaseManager::buildDirectSql(const QString& sql, const QVariantList& values) const
-{
-    QString result = sql;
-    int pos = 0;
-    for (const QVariant& value : values) {
-        int questionPos = result.indexOf("?", pos);
-        if (questionPos == -1) break;
-        
-        QString valueStr;
-        if (value.type() == QVariant::String) {
-            valueStr = QString("'%1'").arg(value.toString().replace("'", "''"));
-        } else if (value.isNull()) {
-            valueStr = "NULL";
-        } else {
-            valueStr = value.toString();
-        }
-        
-        result = result.replace(questionPos, 1, valueStr);
-        pos = questionPos + valueStr.length();
-    }
-    
-    return result;
-}
-
 bool DatabaseManager::beginTransaction()
 {
     QMutexLocker locker(&m_mutex);
@@ -494,11 +461,7 @@ bool DatabaseManager::ensureConnection(const QString& operation)
         }
         
         QString errorMsg = testQuery.lastError().text();
-        bool isConnectionLost = errorMsg.contains("gone away", Qt::CaseInsensitive) ||
-                                 errorMsg.contains("Lost connection", Qt::CaseInsensitive) ||
-                                 errorMsg.contains("server has gone away", Qt::CaseInsensitive);
-        
-        if (isConnectionLost) {
+        if (DatabaseUtils::isConnectionLostError(errorMsg)) {
             LOG_WARNING("Database", QString("Connection lost during: %1, reconnecting...").arg(operation));
             if (reconnectIfNeeded()) {
                 return true;
@@ -522,22 +485,16 @@ bool DatabaseManager::checkConnection(const QString& operation)
             return false;
         }
         
-        // 测试连接是否有效
         bool connectionValid = false;
         QString errorMsg;
         {
-            // 使用作用域确保 testQuery 在重连前被销毁
             QSqlQuery testQuery(m_database);
             connectionValid = testQuery.exec("SELECT 1");
             errorMsg = testQuery.lastError().text();
-        }  // testQuery 在此处销毁
+        }
         
         if (!connectionValid) {
-            bool isConnectionLost = errorMsg.contains("gone away", Qt::CaseInsensitive) ||
-                                     errorMsg.contains("Lost connection", Qt::CaseInsensitive) ||
-                                     errorMsg.contains("server has gone away", Qt::CaseInsensitive);
-            
-            if (isConnectionLost) {
+            if (DatabaseUtils::isConnectionLostError(errorMsg)) {
                 LOG_WARNING("Database", QString("Connection lost during: %1, reconnecting...").arg(operation));
                 if (reconnectIfNeeded()) {
                     return true;
@@ -554,7 +511,6 @@ bool DatabaseManager::checkConnection(const QString& operation)
         setLastError(errorMsg);
         LOG_ERROR("Database", QString("checkConnection exception for %1: %2").arg(operation, errorMsg));
         
-        // 尝试重新连接
         LOG_WARNING("Database", QString("Attempting reconnect after exception in: %1").arg(operation));
         if (reconnectIfNeeded()) {
             return true;
@@ -677,4 +633,41 @@ void DatabaseManager::unlock()
 bool DatabaseManager::tryLock(int timeoutMs)
 {
     return m_mutex.tryLock(timeoutMs);
+}
+
+bool DatabaseManager::ensureSoftDeleteColumns(const QString& tableName)
+{
+    static QSet<QString> s_ensuredTables;
+    
+    if (s_ensuredTables.contains(tableName)) {
+        return true;
+    }
+    
+    auto hasColumn = [this, &tableName](const QString& columnName) -> bool {
+        const QString sql = QString(
+            "SELECT COUNT(*) AS cnt FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = '%1' AND column_name = '%2'")
+            .arg(tableName, columnName);
+        QList<QVariantMap> rows = executeQuery(sql);
+        return !rows.isEmpty() && rows.first().value("cnt").toInt() > 0;
+    };
+
+    QStringList alters;
+    if (!hasColumn("is_deleted")) {
+        alters << "ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0";
+    }
+    if (!hasColumn("deleted_at")) {
+        alters << "ADD COLUMN deleted_at TIMESTAMP NULL";
+    }
+
+    if (alters.isEmpty()) {
+        s_ensuredTables.insert(tableName);
+        return true;
+    }
+
+    bool success = executeSql(QString("ALTER TABLE %1 %2").arg(tableName, alters.join(", ")));
+    if (success) {
+        s_ensuredTables.insert(tableName);
+    }
+    return success;
 }

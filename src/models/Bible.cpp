@@ -24,38 +24,38 @@ QStringList BibleEntry::toDisplayDetails() const
     
     if (m_type == BibleType::Character) {
         if (!m_characterAppearance.gender.isEmpty()) {
-            details << QString::fromUtf8("性别: %1").arg(m_characterAppearance.gender);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.gender);
         }
         if (m_characterAppearance.age > 0) {
-            details << QString::fromUtf8("年龄: %1").arg(m_characterAppearance.age);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.age);
         }
         if (!m_characterAppearance.hairColor.isEmpty()) {
-            details << QString::fromUtf8("发色: %1").arg(m_characterAppearance.hairColor);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.hairColor);
         }
         if (!m_characterAppearance.hairStyle.isEmpty()) {
-            details << QString::fromUtf8("发型: %1").arg(m_characterAppearance.hairStyle);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.hairStyle);
         }
         if (!m_characterAppearance.eyeColor.isEmpty()) {
-            details << QString::fromUtf8("瞳色: %1").arg(m_characterAppearance.eyeColor);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.eyeColor);
         }
         if (!m_characterAppearance.build.isEmpty()) {
-            details << QString::fromUtf8("体型: %1").arg(m_characterAppearance.build);
+            details << QString::fromUtf8("Text").arg(m_characterAppearance.build);
         }
         if (!m_personality.isEmpty()) {
-            details << QString::fromUtf8("性格: %1").arg(m_personality.join(", "));
+            details << QString::fromUtf8("Text").arg(m_personality.join(", "));
         }
     } else {
         if (!m_sceneDetails.description.isEmpty()) {
-            details << QString::fromUtf8("描述: %1").arg(m_sceneDetails.description);
+            details << QString::fromUtf8("Text").arg(m_sceneDetails.description);
         }
         if (!m_sceneDetails.type.isEmpty()) {
-            details << QString::fromUtf8("类型: %1").arg(m_sceneDetails.type);
+            details << QString::fromUtf8("Text").arg(m_sceneDetails.type);
         }
         if (!m_sceneDetails.atmosphere.isEmpty()) {
-            details << QString::fromUtf8("氛围: %1").arg(m_sceneDetails.atmosphere);
+            details << QString::fromUtf8("Text").arg(m_sceneDetails.atmosphere);
         }
         if (!m_sceneDetails.building.isEmpty()) {
-            details << QString::fromUtf8("建筑: %1").arg(m_sceneDetails.building);
+            details << QString::fromUtf8("Text").arg(m_sceneDetails.building);
         }
     }
     
@@ -91,6 +91,10 @@ QJsonObject BibleEntry::toJson() const
         json["sceneDetails"] = m_sceneDetails.toJson();
     }
     
+    if (!m_updatedBy.isEmpty()) {
+        json["updatedBy"] = m_updatedBy;
+    }
+    
     return json;
 }
 
@@ -116,6 +120,7 @@ BibleEntry BibleEntry::fromJson(const QJsonObject& json)
     
     entry.m_createdAt = QDateTime::fromString(json["createdAt"].toString(), Qt::ISODate);
     entry.m_updatedAt = QDateTime::fromString(json["updatedAt"].toString(), Qt::ISODate);
+    entry.m_updatedBy = json["updatedBy"].toString();
     
     if (entry.m_type == BibleType::Character) {
         QJsonObject appJson = json["appearance"].toObject();
@@ -159,6 +164,7 @@ QVariantMap BibleEntry::toVariantMap() const
     map["referenceImages"] = m_referenceImages;
     map["createdAt"] = m_createdAt;
     map["updatedAt"] = m_updatedAt;
+    map["updatedBy"] = m_updatedBy;
     
     if (m_type == BibleType::Character) {
         QVariantMap appMap;
@@ -202,6 +208,7 @@ BibleEntry BibleEntry::fromVariantMap(const QVariantMap& map)
     entry.m_referenceImages = map["referenceImages"].toStringList();
     entry.m_createdAt = map["createdAt"].toDateTime();
     entry.m_updatedAt = map["updatedAt"].toDateTime();
+    entry.m_updatedBy = map["updatedBy"].toString();
     
     if (entry.m_type == BibleType::Character) {
         QVariantMap appMap = map["appearance"].toMap();

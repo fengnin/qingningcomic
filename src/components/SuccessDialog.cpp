@@ -14,9 +14,9 @@ namespace {
     constexpr int FADE_OUT_DURATION = 100;
     
     const QMap<SuccessDialog::Type, QString> ICON_TEXTS = {
-        {SuccessDialog::Success, QString::fromUtf8("\u2713")},
+        {SuccessDialog::Success, QString::fromUtf8("✓")},
         {SuccessDialog::Warning, "!"},
-        {SuccessDialog::Error, QString::fromUtf8("\u2717")},
+        {SuccessDialog::Error, QString::fromUtf8("×")},
         {SuccessDialog::Info, "i"}
     };
     
@@ -151,7 +151,7 @@ void SuccessDialog::createFooter(QVBoxLayout *parentLayout)
     footerLayout->setContentsMargins(24, 0, 24, 16);
     footerLayout->addStretch();
     
-    m_closeBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
+    m_closeBtn = new QPushButton(QString::fromUtf8("关闭"));
     m_closeBtn->setObjectName("closeBtn");
     m_closeBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
     m_closeBtn->setCursor(Qt::PointingHandCursor);
@@ -207,7 +207,7 @@ void SuccessDialog::applyStyle()
 
 QString SuccessDialog::getIconText() const
 {
-    return ICON_TEXTS.value(m_type, QString::fromUtf8("\u2713"));
+    return ICON_TEXTS.value(m_type, QString::fromUtf8("?"));
 }
 
 SuccessDialog::ColorScheme SuccessDialog::getColorScheme() const

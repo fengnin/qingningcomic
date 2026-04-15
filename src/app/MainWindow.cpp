@@ -8,13 +8,14 @@
 #include "Novel.h"
 #include "viewmodels/NovelViewModel.h"
 #include "StyleManager.h"
+#include "Logger.h"
 #include <QApplication>
 #include <QStyle>
 #include <QPainter>
 #include <QFont>
 
 namespace {
-    constexpr int SIDEBAR_MIN_WIDTH = 260;
+    constexpr int SIDEBAR_MIN_WIDTH = 280;
     constexpr int WINDOW_MIN_WIDTH = 1400;
     constexpr int WINDOW_MIN_HEIGHT = 900;
     constexpr int WINDOW_DEFAULT_WIDTH = 1600;
@@ -33,6 +34,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_breadcrumbLabel(nullptr)
     , m_pageStack(nullptr)
+    , m_sidebar(nullptr)
     , m_dashboardPage(nullptr)
     , m_uploadPage(nullptr)
     , m_novelPage(nullptr)
@@ -58,10 +60,10 @@ void MainWindow::setupUI()
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
     setupLayoutMargins(mainLayout, 0, 0, 0, 0, 0);
     
-    SidebarWidget *sidebar = new SidebarWidget(this);
-    sidebar->setFixedWidth(SIDEBAR_MIN_WIDTH);
+    m_sidebar = new SidebarWidget(this);
+    m_sidebar->setFixedWidth(SIDEBAR_MIN_WIDTH);
     
-    connect(sidebar, &SidebarWidget::navItemClicked,
+    connect(m_sidebar, &SidebarWidget::navItemClicked,
             this, &MainWindow::onNavItemSelected);
     
     QWidget *rightArea = createTransparentWidget();
@@ -76,7 +78,7 @@ void MainWindow::setupUI()
     rightLayout->addStretch();
     rightLayout->addWidget(m_pageStack ? m_pageStack : new QWidget(), 1);
     
-    mainLayout->addWidget(sidebar);
+    mainLayout->addWidget(m_sidebar);
     mainLayout->addWidget(rightArea, 1);
     
     setCentralWidget(centralWidget);
@@ -92,14 +94,14 @@ void MainWindow::createTopBar()
     QHBoxLayout *topBarLayout = new QHBoxLayout(topBar);
     setupLayoutMargins(topBarLayout, 16, 8, 16, 8, 10);
     
-    m_backBtn = new QPushButton(QString::fromUtf8("\u2190 ") + QString::fromUtf8("返回"));
+    m_backBtn = new QPushButton(QString::fromUtf8("返回"));
     m_backBtn->setStyleSheet(STYLE_BACK_BTN);
     m_backBtn->setCursor(Qt::PointingHandCursor);
     m_backBtn->setVisible(false);
     
     connect(m_backBtn, &QPushButton::clicked, this, &MainWindow::onBackToNovelPage);
     
-    QString breadcrumbText = QString::fromUtf8("\u603b\u89c8");
+    QString breadcrumbText = QString::fromUtf8("总览");
     m_breadcrumbLabel = createStyledLabel(breadcrumbText,
         "font-size: 16px; font-weight: bold; color: #451a03; background: transparent;", 16, true);
     
@@ -145,6 +147,10 @@ void MainWindow::connectPageSignals()
     if (novelPage) {
         connect(novelPage, &NovelPage::showNovelDetail,
                 this, &MainWindow::onShowNovelDetail);
+        connect(novelPage, &NovelPage::editNovelRequested,
+                this, &MainWindow::onEditNovelRequested);
+        connect(novelPage, &NovelPage::createNovelRequested,
+                this, [this]() { switchToPage(1, QString::fromUtf8("新建作品")); });
     }
     
     auto *detailPage = qobject_cast<NovelDetailPage*>(m_novelDetailPage);
@@ -159,6 +165,11 @@ void MainWindow::refreshPage(int pageIndex)
     if (!m_pageStack) return;
     
     switch (pageIndex) {
+        case 1: {
+            auto *page = qobject_cast<NovelUploadPage*>(m_uploadPage);
+            if (page) page->resetToCreateMode();
+            break;
+        }
         case 2: {
             auto *page = qobject_cast<NovelPage*>(m_novelPage);
             if (page) page->refresh();
@@ -185,6 +196,11 @@ void MainWindow::switchToPage(int pageIndex, const QString &breadcrumb)
     bool showBack = (pageIndex == 4);
     m_backBtn->setVisible(showBack);
     
+    if (m_sidebar) {
+        int navIndex = (pageIndex == 4) ? 2 : pageIndex;
+        m_sidebar->setActiveNav(navIndex);
+    }
+    
     QFontMetrics fm(m_breadcrumbLabel->font());
     int textWidth = fm.horizontalAdvance(breadcrumb);
     m_breadcrumbLabel->setMinimumWidth(textWidth + 20);
@@ -192,22 +208,44 @@ void MainWindow::switchToPage(int pageIndex, const QString &breadcrumb)
 
 void MainWindow::onShowNovelDetail(const QString &novelId)
 {
-    if (novelId.isEmpty()) return;
+    if (novelId.isEmpty()) {
+        LOG_WARNING("MainWindow", "onShowNovelDetail: novelId is empty");
+        return;
+    }
     
-    NovelViewModel::instance()->loadNovel(novelId);
-    Novel novel = NovelViewModel::instance()->currentNovel();
+    if (!m_novelDetailPage) {
+        LOG_ERROR("MainWindow", "onShowNovelDetail: m_novelDetailPage is null");
+        return;
+    }
     
-    if (novel.id().isEmpty()) return;
+    NovelViewModel* vm = NovelViewModel::instance();
+    if (!vm) {
+        LOG_ERROR("MainWindow", "onShowNovelDetail: NovelViewModel is null");
+        return;
+    }
+    
+    vm->loadNovel(novelId);
+    Novel novel = vm->currentNovel();
+    
+    if (novel.id().isEmpty()) {
+        LOG_WARNING("MainWindow", QString("onShowNovelDetail: Novel not found: %1").arg(novelId));
+        return;
+    }
     
     auto *detailPage = qobject_cast<NovelDetailPage*>(m_novelDetailPage);
-    if (detailPage) detailPage->setNovel(novel);
+    if (!detailPage) {
+        LOG_ERROR("MainWindow", "onShowNovelDetail: Failed to cast to NovelDetailPage");
+        return;
+    }
+    
+    detailPage->setNovel(novel);
     
     switchToPage(4, novel.title());
 }
 
 void MainWindow::onBackToNovelPage()
 {
-    switchToPage(2, QString::fromUtf8("\u9879\u76ee\u7a7a\u95f4"));
+    switchToPage(2, QString::fromUtf8("作品列表"));
 }
 
 void MainWindow::onNovelUploaded(const QString &novelId, int chapterNumber)
@@ -223,6 +261,38 @@ void MainWindow::onNovelUploaded(const QString &novelId, int chapterNumber)
         Novel novel = NovelViewModel::instance()->currentNovel();
         if (!novel.id().isEmpty()) detailPageWidget->setNovel(novel);
     }
+}
+
+void MainWindow::onEditNovelRequested(const QString &novelId)
+{
+    if (novelId.isEmpty()) {
+        LOG_WARNING("MainWindow", "onEditNovelRequested: novelId is empty");
+        return;
+    }
+    
+    NovelViewModel* vm = NovelViewModel::instance();
+    if (!vm) {
+        LOG_ERROR("MainWindow", "onEditNovelRequested: NovelViewModel is null");
+        return;
+    }
+    
+    vm->loadNovel(novelId);
+    Novel novel = vm->currentNovel();
+    
+    if (novel.id().isEmpty()) {
+        LOG_WARNING("MainWindow", QString("onEditNovelRequested: Novel not found: %1").arg(novelId));
+        return;
+    }
+    
+    auto *uploadPage = qobject_cast<NovelUploadPage*>(m_uploadPage);
+    if (!uploadPage) {
+        LOG_ERROR("MainWindow", "onEditNovelRequested: Failed to cast to NovelUploadPage");
+        return;
+    }
+    
+    switchToPage(1, QString::fromUtf8("编辑作品"));
+    
+    uploadPage->setNovelForEdit(novel);
 }
 
 QLabel* MainWindow::createStyledLabel(const QString &text, const QString &style, int fontSize, bool bold)

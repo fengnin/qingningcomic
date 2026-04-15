@@ -12,6 +12,19 @@ TEMPLATE = app
 # C++11 标准
 CONFIG += c++11
 
+# 编码设置：解决中文乱码问题
+# MSVC 编译器使用 UTF-8 源文件编码
+msvc {
+    QMAKE_CXXFLAGS += /utf-8
+    QMAKE_CFLAGS += /utf-8
+}
+
+# MinGW 编译器使用 UTF-8 编码
+mingw {
+    QMAKE_CXXFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8
+    QMAKE_CFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8
+}
+
 # 启用 Qt 模块
 QT += core network sql widgets concurrent
 
@@ -30,6 +43,7 @@ SOURCES += \
     src/pages/NovelPage.cpp \
     src/pages/NovelDetailPage.cpp \
     src/data/DatabaseManager.cpp \
+    src/data/DatabaseWorker.cpp \
     src/data/FileStorage.cpp \
     src/data/SqlBuilder.cpp \
     src/utils/BibleCache.cpp \
@@ -95,7 +109,11 @@ SOURCES += \
     src/services/ServiceContainer.cpp \
     src/api/SharedNetworkManager.cpp \
     src/widgets/FortuneCookieWidget.cpp \
-    src/widgets/SidebarWidget.cpp
+    src/widgets/SidebarWidget.cpp \
+    src/models/ChangeRequest.cpp \
+    src/services/ChangeRequestService.cpp \
+    src/components/BibleSectionWidget.cpp \
+    src/components/PanelPreviewWidget.cpp
 
 HEADERS += \
     include/AppInitializer.h \
@@ -107,6 +125,7 @@ HEADERS += \
     include/NovelDetailPage.h \
     include/CharacterDetailPage.h \
     include/DatabaseManager.h \
+    include/DatabaseWorker.h \
     include/FileStorage.h \
     include/SqlBuilder.h \
     include/Novel.h \
@@ -179,7 +198,11 @@ HEADERS += \
     include/BatchImageProcessor.h \
     include/SharedNetworkManager.h \
     include/FortuneCookieWidget.h \
-    include/SidebarWidget.h
+    include/SidebarWidget.h \
+    include/ChangeRequest.h \
+    include/ChangeRequestService.h \
+    include/components/BibleSectionWidget.h \
+    include/components/PanelPreviewWidget.h
 
 # 包含目录
 INCLUDEPATH += \

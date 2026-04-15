@@ -33,7 +33,7 @@ DEFINE_SINGLETON_INSTANCE(StorageClient, storageClient)
 bool StorageClient::init(const Config& config)
 {
     if (config.endpoint.isEmpty()) {
-        m_lastError = TR("存储服务端点不能为空");
+        m_lastError = TR("存储服务地址不能为空");
         LOG_ERROR("StorageClient", m_lastError);
         return false;
     }
@@ -43,7 +43,7 @@ bool StorageClient::init(const Config& config)
         return false;
     }
     if (config.accessKey.isEmpty() || config.secretKey.isEmpty()) {
-        m_lastError = TR("Access Key 或 Secret Key 不能为空");
+        m_lastError = TR("存储访问密钥不能为空");
         LOG_ERROR("StorageClient", m_lastError);
         return false;
     }
@@ -59,7 +59,7 @@ bool StorageClient::init(const Config& config)
     return true;
 }
 
-// ==================== 核心操作 ====================
+    // ==================== 存储相关 ====================
 
 StorageClient::UploadResult StorageClient::upload(const QString& key, const QByteArray& data,
                                                    const QString& contentType,
@@ -75,7 +75,7 @@ StorageClient::UploadResult StorageClient::upload(const QString& key, const QByt
     }
     
     if (key.isEmpty()) {
-        result.errorMessage = TR("对象键不能为空");
+        result.errorMessage = TR("上传路径不能为空");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -91,16 +91,16 @@ StorageClient::UploadResult StorageClient::upload(const QString& key, const QByt
     request.setRawHeader("Host", url.host().toUtf8());
     request.setRawHeader("Date", date.toUtf8());
     request.setRawHeader("Content-Length", QByteArray::number(data.size()));
-    
     // 添加自定义元数据
+    
     QMap<QString, QString> headers;
     for (auto it = metadata.begin(); it != metadata.end(); ++it) {
         QString headerName = QString("x-amz-meta-%1").arg(it.key().toLower());
         request.setRawHeader(headerName.toUtf8(), it.value().toUtf8());
         headers[headerName] = it.value();
     }
-    
     // 生成签名
+    
     QByteArray authHeader = buildAuthorizationHeader("PUT", key, contentType, headers, date);
     request.setRawHeader("Authorization", authHeader);
     
@@ -118,7 +118,7 @@ StorageClient::UploadResult StorageClient::upload(const QString& key, const QByt
     if (!timer.isActive()) {
         reply->abort();
         reply->deleteLater();
-        result.errorMessage = TR("上传请求超时");
+        result.errorMessage = TR("上传超时");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -137,7 +137,6 @@ StorageClient::UploadResult StorageClient::upload(const QString& key, const QByt
     result.uri = getS3Uri(key);
     result.url = url.toString();
     
-    LOG_DEBUG("StorageClient", QString("Uploaded: %1 (%2 bytes)").arg(key).arg(data.size()));
     return result;
 }
 
@@ -146,14 +145,14 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
     DownloadResult result;
     
     if (!m_initialized) {
-        result.errorMessage = TR("存储客户端未初始化");
+        result.errorMessage = TR("下载客户端未初始化");
         m_lastError = result.errorMessage;
         emit errorOccurred("download", result.errorMessage);
         return result;
     }
     
     if (key.isEmpty()) {
-        result.errorMessage = TR("对象键不能为空");
+        result.errorMessage = TR("下载路径不能为空");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -171,7 +170,6 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
     QByteArray authHeader = buildAuthorizationHeader("GET", key, "", QMap<QString, QString>(), date);
     request.setRawHeader("Authorization", authHeader);
     
-    // 发送请求
     QNetworkReply* reply = m_networkManager->get(request);
     
     QEventLoop loop;
@@ -185,7 +183,7 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
     if (!timer.isActive()) {
         reply->abort();
         reply->deleteLater();
-        result.errorMessage = TR("下载请求超时");
+        result.errorMessage = TR("下载超时");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -204,7 +202,6 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
     
     reply->deleteLater();
     
-    LOG_DEBUG("StorageClient", QString("Downloaded: %1 (%2 bytes)").arg(key).arg(result.data.size()));
     return result;
 }
 
@@ -217,7 +214,7 @@ bool StorageClient::remove(const QString& key)
     }
     
     if (key.isEmpty()) {
-        m_lastError = TR("对象键不能为空");
+        m_lastError = TR("删除路径不能为空");
         return false;
     }
     
@@ -245,7 +242,6 @@ bool StorageClient::remove(const QString& key)
     
     reply->deleteLater();
     
-    LOG_DEBUG("StorageClient", QString("Deleted: %1, success: %2").arg(key).arg(success));
     return success;
 }
 
@@ -359,7 +355,7 @@ StorageClient::PresignedUrlResponse StorageClient::fetchPresignedUrlFromApi(
     PresignedUrlResponse response;
     
     if (m_config.presignApiEndpoint.isEmpty()) {
-        response.errorMessage = TR("预签名 API 端点未配置");
+        response.errorMessage = TR("预签名接口地址不能为空");
         m_lastError = response.errorMessage;
         LOG_ERROR("StorageClient", response.errorMessage);
         return response;
@@ -402,7 +398,7 @@ StorageClient::PresignedUrlResponse StorageClient::fetchPresignedUrlFromApi(
     
     QJsonDocument doc = QJsonDocument::fromJson(responseData);
     if (doc.isNull() || !doc.isObject()) {
-        response.errorMessage = TR("无效的 JSON 响应");
+        response.errorMessage = TR("预签名接口返回无效");
         m_lastError = response.errorMessage;
         return response;
     }
@@ -414,7 +410,6 @@ StorageClient::PresignedUrlResponse StorageClient::fetchPresignedUrlFromApi(
     response.expiresIn = obj["expiresIn"].toInt();
     response.success = true;
     
-    LOG_DEBUG("StorageClient", QString("Fetched presigned URL for key: %1").arg(key));
     return response;
 }
 
@@ -426,7 +421,7 @@ StorageClient::UploadResult StorageClient::uploadWithPresignedUrl(
     UploadResult result;
     
     if (presignedUrl.isEmpty()) {
-        result.errorMessage = TR("预签名 URL 不能为空");
+        result.errorMessage = TR("获取预签名地址失败");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -449,7 +444,6 @@ StorageClient::UploadResult StorageClient::uploadWithPresignedUrl(
     } else {
         result.success = true;
         result.url = presignedUrl.left(presignedUrl.indexOf("?"));
-        LOG_DEBUG("StorageClient", QString("Uploaded successfully via presigned URL"));
     }
     
     reply->deleteLater();
@@ -461,7 +455,7 @@ StorageClient::DownloadResult StorageClient::downloadWithPresignedUrl(const QStr
     DownloadResult result;
     
     if (presignedUrl.isEmpty()) {
-        result.errorMessage = TR("预签名 URL 不能为空");
+        result.errorMessage = TR("获取预签名地址失败");
         m_lastError = result.errorMessage;
         return result;
     }
@@ -483,7 +477,6 @@ StorageClient::DownloadResult StorageClient::downloadWithPresignedUrl(const QStr
         result.success = true;
         result.data = reply->readAll();
         result.contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
-        LOG_DEBUG("StorageClient", QString("Downloaded %1 bytes via presigned URL").arg(result.data.size()));
     }
     
     reply->deleteLater();
@@ -516,7 +509,7 @@ QByteArray StorageClient::buildAuthorizationHeader(const QString& method, const 
     canonicalHeaders << QString("x-amz-date:%1").arg(date);
     signedHeadersList << "x-amz-date";
     
-    // 添加 content-type (对于 PUT 请求)
+    // 添加 content-type (用于 PUT 请求)
     if (!contentType.isEmpty() && method == "PUT") {
         canonicalHeaders << QString("content-type:%1").arg(contentType);
         signedHeadersList << "content-type";

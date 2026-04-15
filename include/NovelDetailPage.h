@@ -33,13 +33,9 @@
 #include "components/PanelCard.h"
 #include "components/AnalysisProgressWidget.h"
 #include "components/AnalysisResultWidget.h"
+#include "components/BibleSectionWidget.h"
+#include "components/PanelPreviewWidget.h"
 #include "AnalysisStatusManager.h"
-
-struct BibleEntryData {
-    QString name;
-    QStringList details;
-    BibleType type = BibleType::Character;
-};
 
 class NovelDetailPage : public QWidget
 {
@@ -78,8 +74,9 @@ private slots:
     void onSceneCountChanged(int count);
     void onBibleItemEditClicked(const QString &id, BibleType type);
     void onBibleItemDataChanged(const QString &id, const QStringList &details);
-    void onBibleItemUploadClicked(const QString &id, BibleType type);
+    void onBibleItemUploadClicked(const QString &id, const QString &imagePath, BibleType type);
     void onBibleItemDeleteImageClicked(const QString &id, BibleType type);
+    void onBibleItemDeleteRequested(const QString &id, BibleType type);
     QString extractBibleValue(const QString &detail, const QString &key) const;
     void onPanelCardClicked(int panelNumber);
     void onStoryboardDataChanged(const QString &panelId, int panelNumber, const QString &scene,
@@ -93,14 +90,9 @@ private slots:
 private:
     void initColorConstants();
     void setupUI();
+    void setupConnections();
     
-    QWidget* createTransparentWidget();
-    QLabel* createLabel(const QString &text, const QString &color, int fontSize, bool bold = false);
     QLabel* createSectionLabel(const QString &text);
-    QPushButton* createButton(const QString &text, const QString &style, int width, int height);
-    QPushButton* createFeatureButton(const QString &text, int width = -1);
-    void setupLayout(QLayout *layout, int left, int top, int right, int bottom, int spacing = 0);
-    void applyCardShadow(QWidget *card);
     
     QFrame* createFeatureCardFrame();
     QWidget* createCardHeader(const QString &title, const QString &subtitle);
@@ -111,8 +103,9 @@ private:
     void updateChapterUI(int targetChapter);
     QLabel* createCompactTag(const QString &text, int fontSize = 12);
     QWidget* createHBoxLayoutRow(const std::initializer_list<QWidget*> &widgets, int spacing = 8);
-    void refreshBibleUI();
+    void updateBibleItemImage(const QString& id, const QString& imagePath, BibleType type);
     void startAutoImageGeneration(int chapter);
+    void updateBibleMetaLabel();
     
     QScrollArea* createScrollArea(Qt::ScrollBarPolicy vPolicy = Qt::ScrollBarAsNeeded, 
                                    Qt::ScrollBarPolicy hPolicy = Qt::ScrollBarAsNeeded);
@@ -146,9 +139,6 @@ private:
     void refreshChapterCardsOnly();
     void clearChapterCards();
     void refreshStoryboardItems();
-    void refreshPanelPreview();
-    PanelCard* createPanelCard(int panelNum, const QString& description, const QString& panelId = QString(), const QString& previewUrl = QString());
-    void populatePanelPreviewWithSample();
     QList<QPair<int, QStringList>> loadStoryboardFromDatabase() const;
     QList<QPair<int, QStringList>> getSampleStoryboardItems() const;
     QPair<int, QStringList> parsePanelToItem(const Panel& panel) const;
@@ -162,16 +152,6 @@ private:
     void handleAnalysisFailure(const QString& errorMessage);
     bool isCurrentNovel(const QString& novelId) const;
     void createRunningJobRecord(int chapterNumber);
-    
-    void clearBibleContainer(QWidget *container, const QString& logPrefix);
-    void populateBibleContainer(QVBoxLayout *layout, const QList<BibleEntry>& entries, 
-                                 BibleType type, const QString& emptyText);
-    
-    QStringList buildCharacterDetails(const Character& character) const;
-    void addBibleItemToLayout(QVBoxLayout* layout, const QString& name, 
-                              const QStringList& details, BibleType type);
-    void populateCharacterBible(QVBoxLayout* layout, const QList<Character>& characters);
-    void populateSceneBible(QVBoxLayout* layout, const QList<Scene>& scenes);
     
     QJsonArray parseCharactersToJson(const QString& characters);
     QJsonArray parseDialogueToJson(const QString& dialogue);
@@ -206,19 +186,13 @@ private:
     QLabel *m_addChapterStatusLabel;
     
     ModeComboBox *m_generateModeCombo;
+    QLabel *m_generateModeHintLabel;
     QPushButton *m_generatePanelsBtn;
     QTextEdit *m_changeRequestEdit;
     QPushButton *m_submitChangeRequestBtn;
     
-    QPushButton *m_refreshBibleBtn;
-    QLabel *m_characterCountLabel;
-    QLabel *m_sceneCountLabel;
-    QWidget *m_characterBibleContainer;
-    QWidget *m_sceneBibleContainer;
-    
-    QWidget *m_panelPreviewContainer;
-    QLabel *m_panelPreviewTitleLabel;
-    QLabel *m_panelPreviewHintLabel;
+    BibleSectionWidget *m_bibleSectionWidget = nullptr;
+    PanelPreviewWidget *m_panelPreviewWidget = nullptr;
     
     QWidget *m_storyboardContainer;
     QLabel *m_storyboardCountLabel;
@@ -234,11 +208,13 @@ private:
     QString m_currentJobId;
     QMap<QPushButton*, QLabel*> m_statusLabelMap;
     
-    // 图片生成状态
     QList<Character> m_pendingCharacters;
     QList<Scene> m_pendingScenes;
     int m_totalImageTasks;
     int m_completedImageTasks;
+    
+    int m_characterCount = 0;
+    int m_sceneCount = 0;
 };
 
 #endif // NOVELDETAILPAGE_H

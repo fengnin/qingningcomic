@@ -7,6 +7,7 @@
 #include "QwenImageClient.h"
 #include "VolcEngineImageClient.h"
 #include "PromptBuilder.h"
+#include <mutex>
 
 class BibleImageService : public BatchImageProcessor
 {
@@ -45,8 +46,15 @@ private:
     
     PromptBuilder::PromptResult buildCharacterPortraitPrompt(const Character& character);
     PromptBuilder::PromptResult buildSceneReferencePrompt(const Scene& scene);
+    
+    void handleImageGenerated(const QByteArray& imageData, bool success, const QString& errorMessage);
+    bool validateAndHandleResult(const QString& requestId, const QByteArray& imageData, bool success, const QString& errorMessage);
+    void startImageGeneration(const QString& requestId, const QString& prompt, const QString& negativePrompt = QString());
+    void saveAndEmitResult(const QByteArray& imageData);
+    void retryCurrentItem();
 
     static BibleImageService* m_instance;
+    static std::once_flag m_instanceOnceFlag;
     
     QList<Character> m_pendingCharacters;
     QList<Scene> m_pendingScenes;
@@ -57,6 +65,12 @@ private:
     Character m_currentCharacter;
     Scene m_currentScene;
     bool m_combinedMode = false;
+    
+    int m_currentRetryCount = 0;
+    QString m_currentPrompt;
+    QString m_currentNegativePrompt;
+    QString m_currentRequestId;
+    static constexpr int MAX_RETRY_COUNT = 3;
 };
 
 #endif // BIBLEIMAGESERVICE_H

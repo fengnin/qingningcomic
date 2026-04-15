@@ -58,13 +58,6 @@ private:
     QWidget* createFilterBar();
     QWidget* createGridSection();
     
-    // ========== 辅助方法 ==========
-    QWidget* createTransparentWidget();
-    QLabel* createLabel(const QString &text, const QString &style, int fontSize = -1, bool bold = false);
-    void setupLayout(QLayout *layout, int left, int top, int right, int bottom, int spacing = 0);
-    QLineEdit* createStyledLineEdit(const QString &placeholder, int width = -1, int height = -1);
-    QPushButton* createStyledButton(const QString &text, const QString &style);
-    
     // ========== 卡片组件 ==========
     QWidget* createNovelCard(const Novel &novel);
     QWidget* createCardHeader(const Novel &novel);
@@ -75,7 +68,6 @@ private:
     QWidget* createDetailRow(const QString &labelText, const QString &valueText);
     QWidget* createEmptyState();
     QPushButton* createFilterChip(const QString &label, const QString &status, bool isActive);
-    QPushButton* createActionButton(const QString &text, const QString &style);
     
     // ========== 业务逻辑 ==========
     void loadNovelsFromDatabase();
@@ -84,20 +76,13 @@ private:
     void clearGridLayout();
     void renderNovelCards(const QList<Novel> &novels);
     void updateFilterStats();
-    Novel* findNovelById(const QString &novelId);  // 查找小说
-    void removeNovelFromList(const QString &novelId);  // 从列表移除小说
+    Novel* findNovelById(const QString &novelId);
+    void removeNovelFromList(const QString &novelId);
+    void deleteNovel(const QString &novelId);
     
     // ========== 对话框辅助方法 ==========
     enum class MessageType { Success, Error };
     void showMessageDialog(const QString &title, const QString &message, MessageType type);
-    QPushButton* createDialogButton(const QString &text, const QString &bgColor, const QString &hoverColor);
-    QPushButton* createSecondaryButton(const QString &text);
-    QLabel* createDialogLabel(const QString &text, const QString &style);
-    QLabel* createWarningLabel(const QString &text);
-    QLabel* createMessageIcon(const QString &bgColor, const QString &iconColor, const QString &iconText);
-    QHBoxLayout* createDialogButtonRow(QDialog &dialog, QPushButton *cancelBtn, QPushButton *confirmBtn);
-    
-    void deleteNovel(const QString &novelId);
     void showDeleteConfirmDialog(const QString &novelId, const QString &title);
     void showSuccessMessage(const QString &title, const QString &message);
     void showErrorMessage(const QString &title, const QString &message);

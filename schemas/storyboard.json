@@ -347,7 +347,7 @@
             "type": "string",
             "minLength": 10,
             "maxLength": 500,
-            "description": "Detailed description of the scene/location"
+            "description": "Detailed description of the scene/location ONLY. Must NOT include any characters, people, or human activities. Focus purely on the physical environment: architecture, landscape, furniture, decorations, lighting, atmosphere. Example: '一条古老的石板街道，两旁是低矮的砖木结构房屋，青瓦屋顶，木质门窗，墙面斑驳，街边有老槐树和石拱桥' - NOT: '李明走在街道上' or '人们在街上走动'"
           },
           "visualCharacteristics": {
             "type": "object",
@@ -487,21 +487,6 @@
           "narrativeRole": {
             "type": "string",
             "description": "This scene's role in the narrative. Examples: primary-setting, secondary-setting, transitional, symbolic, flashback-location, dream-sequence"
-          },
-          "firstAppearance": {
-            "type": "object",
-            "description": "When this scene first appears in the story",
-            "properties": {
-              "chapter": {
-                "description": "Chapter number"
-              },
-              "page": {
-                "description": "Page number"
-              },
-              "panelIndex": {
-                "description": "Panel index"
-              }
-            }
           },
           "referenceImages": {
             "type": "array",

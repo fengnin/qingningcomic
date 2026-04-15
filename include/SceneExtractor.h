@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QString>
 #include <QVariantMap>
+#include <mutex>
 #include "Scene.h"
 
 struct ExtractedScene {
@@ -70,6 +71,7 @@ private:
     static bool containsChinese(const QString& text);
     
     static SceneExtractor* m_instance;
+    static std::once_flag m_instanceOnceFlag;
 };
 
 #endif // SCENEEXTRACTOR_H

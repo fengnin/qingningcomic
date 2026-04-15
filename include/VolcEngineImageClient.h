@@ -12,6 +12,7 @@
 #include <QMap>
 #include <QMutex>
 #include <QMessageAuthenticationCode>
+#include <functional>
 #include "api/VolcEngineRequest.h"
 #include "api/VolcEngineResponse.h"
 #include "api/VolcEngineSignature.h"
@@ -123,6 +124,7 @@ private:
     // 图生图 API
     GenerateResult generateWithReference(const GenerateOptions& options);
     GenerateResult pollTaskResult(const QString& taskId, const GenerateOptions& options);
+    GenerateResult handleTaskDone(const QJsonObject& data, const GenerateOptions& options);
     
     // 网络请求
     QNetworkRequest createNetworkRequest(const QString& url, const QString& body);
@@ -139,6 +141,9 @@ private:
     QJsonObject parseJsonResponse(const QByteArray& data);
     GenerateResult createErrorResult(const QString& requestId, const QString& message) const;
     void setError(const QString& message);
+    
+    template<typename T>
+    T executeSyncRequest(std::function<T(QNetworkAccessManager*)> operation, int timeoutMs);
 
     static VolcEngineImageClient* m_instance;
     static QMutex m_instanceMutex;

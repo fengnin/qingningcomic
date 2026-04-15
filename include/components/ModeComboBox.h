@@ -19,6 +19,7 @@ public:
     void setCurrentIndex(int index);
     int currentIndex() const { return m_currentIndex; }
     QString currentText() const;
+    int findText(const QString &text) const;
     void setFixedHeight(int height);
 
 signals:

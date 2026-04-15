@@ -3,9 +3,12 @@
 #include "DatabaseManager.h"
 #include "Logger.h"
 #include "utils/JsonUtils.h"
+#include "utils/BibleUtils.h"
+#include <QDateTime>
 #include <QUuid>
 
 CharacterExtractor* CharacterExtractor::m_instance = nullptr;
+std::once_flag CharacterExtractor::m_instanceOnceFlag;
 
 QJsonObject ExtractedCharacter::toJson() const
 {
@@ -17,8 +20,9 @@ QJsonObject ExtractedCharacter::toJson() const
     json["hairStyle"] = hairStyle;
     json["eyeColor"] = eyeColor;
     json["bodyType"] = bodyType;
-    json["clothing"] = clothing;
-    json["features"] = features;
+    json["clothing"] = JsonUtils::stringListToJsonArray(clothing);
+    json["accessories"] = JsonUtils::stringListToJsonArray(accessories);
+    json["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(distinctiveFeatures);
     json["personality"] = JsonUtils::stringListToJsonArray(personality);
     json["tags"] = JsonUtils::stringListToJsonArray(tags);
     return json;
@@ -34,8 +38,9 @@ ExtractedCharacter ExtractedCharacter::fromJson(const QJsonObject& json)
     c.hairStyle = json["hairStyle"].toString();
     c.eyeColor = json["eyeColor"].toString();
     c.bodyType = json["bodyType"].toString();
-    c.clothing = json["clothing"].toString();
-    c.features = json["features"].toString();
+    c.clothing = JsonUtils::jsonArrayToStringList(json["clothing"].toArray());
+    c.accessories = JsonUtils::jsonArrayToStringList(json["accessories"].toArray());
+    c.distinctiveFeatures = JsonUtils::jsonArrayToStringList(json["distinctiveFeatures"].toArray());
     c.personality = JsonUtils::jsonArrayToStringList(json["personality"].toArray());
     c.tags = JsonUtils::jsonArrayToStringList(json["tags"].toArray());
     return c;
@@ -48,9 +53,9 @@ CharacterExtractor::CharacterExtractor(QObject* parent)
 
 CharacterExtractor* CharacterExtractor::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new CharacterExtractor();
-    }
+    });
     return m_instance;
 }
 
@@ -92,7 +97,10 @@ ExtractedCharacter CharacterExtractor::parsePanelCharacter(const QJsonValue& cha
             extracted.name = charStr.left(parenPos).trimmed();
             int endParen = charStr.indexOf(')', parenPos);
             if (endParen > parenPos) {
-                extracted.features = charStr.mid(parenPos + 1, endParen - parenPos - 1);
+                QString featureStr = charStr.mid(parenPos + 1, endParen - parenPos - 1);
+                if (!featureStr.isEmpty()) {
+                    extracted.distinctiveFeatures << featureStr;
+                }
             }
         } else {
             extracted.name = charStr.trimmed();
@@ -100,13 +108,20 @@ ExtractedCharacter CharacterExtractor::parsePanelCharacter(const QJsonValue& cha
     } else if (charVal.isObject()) {
         QJsonObject charObj = charVal.toObject();
         extracted.name = charObj["name"].toString();
-        extracted.features = charObj["expression"].toString();
+        QString expression = charObj["expression"].toString();
         QString pose = charObj["pose"].toString();
+        QString featureStr;
+        if (!expression.isEmpty()) {
+            featureStr = expression;
+        }
         if (!pose.isEmpty()) {
-            if (!extracted.features.isEmpty()) {
-                extracted.features += " ";
+            if (!featureStr.isEmpty()) {
+                featureStr += " ";
             }
-            extracted.features += pose;
+            featureStr += pose;
+        }
+        if (!featureStr.isEmpty()) {
+            extracted.distinctiveFeatures << featureStr;
         }
     }
     
@@ -152,8 +167,9 @@ ExtractedCharacter CharacterExtractor::parseAICharacter(const QJsonObject& charO
     extracted.hairStyle = appObj["hairStyle"].toString();
     extracted.eyeColor = appObj["eyeColor"].toString();
     extracted.bodyType = appObj["build"].toString();
-    extracted.clothing = JsonUtils::jsonArrayToStringList(appObj["clothing"].toArray()).join(", ");
-    extracted.features = JsonUtils::jsonArrayToStringList(appObj["distinctiveFeatures"].toArray()).join(", ");
+    extracted.clothing = JsonUtils::jsonArrayToStringList(appObj["clothing"].toArray());
+    extracted.accessories = JsonUtils::jsonArrayToStringList(appObj["accessories"].toArray());
+    extracted.distinctiveFeatures = JsonUtils::jsonArrayToStringList(appObj["distinctiveFeatures"].toArray());
     extracted.personality = JsonUtils::jsonArrayToStringList(charObj["personality"].toArray());
     extracted.tags = JsonUtils::jsonArrayToStringList(charObj["tags"].toArray());
     
@@ -175,8 +191,9 @@ Character CharacterExtractor::toCharacter(const ExtractedCharacter& extracted, c
     app.eyeColor = extracted.eyeColor;
     app.build = extracted.bodyType;
     app.height = "";
-    app.clothing = extracted.clothing.isEmpty() ? QStringList() : extracted.clothing.split(", ");
-    app.distinctiveFeatures = extracted.features.isEmpty() ? QStringList() : extracted.features.split(", ");
+    app.clothing = extracted.clothing;
+    app.accessories = extracted.accessories;
+    app.distinctiveFeatures = extracted.distinctiveFeatures;
     
     character.setAppearance(app);
     character.setPersonality(extracted.personality);
@@ -189,6 +206,40 @@ bool CharacterExtractor::containsChinese(const QString& text)
     return text.contains(QRegularExpression("\\p{Han}"));
 }
 
+QString CharacterExtractor::normalizeCharacterName(const QString& name)
+{
+    if (name.isEmpty()) return name;
+    
+    QString normalized = name.trimmed();
+    
+    // 清理 AI 常见的角色后缀，避免同一角色被拆成多个名字
+    static const QStringList suffixes = {
+        "(true form)",
+        "(clone)",
+        "(past)",
+        "(future)",
+        "(young)",
+        "(old)",
+        "（真身）",
+        "（分身）",
+        "（少年）",
+        "（老年）"
+    };
+    
+    for (const QString& suffix : suffixes) {
+        if (normalized.endsWith(suffix, Qt::CaseInsensitive)) {
+            normalized.chop(suffix.length());
+            normalized = normalized.trimmed();
+            
+            LOG_DEBUG("CharacterExtractor", QString("Normalized character name: '%1' -> '%2'")
+                .arg(name).arg(normalized));
+            break;
+        }
+    }
+    
+    return normalized;
+}
+
 QString CharacterExtractor::generateId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -198,21 +249,40 @@ bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCh
 {
     Character character = toCharacter(extracted, novelId);
     
-    // 只检查精确匹配（和原仓库保持一致）
-    Character existing = getCharacterByName(novelId, character.name());
+    // 优先按常见角色标签合并，避免重复保存同一人物
+    QString normalizedName = normalizeCharacterName(character.name());
+    Character existing = getCharacterByName(novelId, normalizedName);
+    
     if (!existing.id().isEmpty()) {
-        LOG_DEBUG("CharacterExtractor", QString("Character '%1' already exists, merging...").arg(character.name()));
+        LOG_INFO("CharacterExtractor", QString("Character '%1' (normalized from '%2') already exists, merging...")
+            .arg(normalizedName).arg(character.name()));
         Character merged = mergeCharacters(existing, extracted);
         return updateCharacter(merged);
     }
     
-    // 新角色，直接插入
+    // 再尝试按原始名称匹配一次
+    existing = getCharacterByName(novelId, character.name());
+    if (!existing.id().isEmpty()) {
+        LOG_DEBUG("CharacterExtractor", QString("Character '%1' already exists (exact match), merging...")
+            .arg(character.name()));
+        Character merged = mergeCharacters(existing, extracted);
+        return updateCharacter(merged);
+    }
+    
+    // Normalize the character name before saving.
+    if (!normalizedName.isEmpty() && normalizedName != character.name()) {
+        LOG_INFO("CharacterExtractor", QString("Saving new character with normalized name: '%1' -> '%2'")
+            .arg(character.name()).arg(normalizedName));
+        character.setName(normalizedName);
+    }
+    
     QVariantMap data = characterToData(character);
     
     qint64 result = DatabaseManager::instance()->insert("characters", data);
     
     if (result > 0) {
         LOG_INFO("CharacterExtractor", QString("Saved new character: %1").arg(character.name()));
+        BibleCache::instance()->invalidateCharacters(novelId);
         emit characterSaved(character.id());
     } else {
         LOG_ERROR("CharacterExtractor", QString("Failed to save character: %1").arg(character.name()));
@@ -220,28 +290,34 @@ bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCh
     
     return result > 0;
 }
-
-// 合并两个角色的属性（完全按照原仓库 bible-manager.js 的 mergeCharacters 逻辑）
+// Merge extracted character data with an existing character record.
 Character CharacterExtractor::mergeCharacters(const Character& existing, const ExtractedCharacter& incoming) const
 {
     Character merged = existing;
-    
-    // 1. role: 只填充空值
+    CharacterAppearance app = merged.appearance();
+
     if (merged.role().isEmpty() && !incoming.tags.isEmpty()) {
-        // 从 tags 中推断 role
-        if (incoming.tags.contains("protagonist") || incoming.tags.contains("主角")) {
-            merged.setRole("protagonist");
-        } else if (incoming.tags.contains("antagonist") || incoming.tags.contains("反派")) {
-            merged.setRole("antagonist");
-        } else if (!incoming.tags.isEmpty()) {
+        static const QStringList roleOrder = {
+            "protagonist",
+            "antagonist",
+            "supporting",
+            "background",
+            "mentor",
+            "love-interest"
+        };
+
+        for (const QString& role : roleOrder) {
+            if (incoming.tags.contains(role, Qt::CaseInsensitive)) {
+                merged.setRole(role);
+                break;
+            }
+        }
+
+        if (merged.role().isEmpty()) {
             merged.setRole(incoming.tags.first());
         }
     }
-    
-    // 2. appearance: 对象深度合并（只填充空值，数组合并去重）
-    CharacterAppearance app = merged.appearance();
-    
-    // 只填充空值
+
     if (app.gender.isEmpty() && !incoming.gender.isEmpty()) {
         app.gender = incoming.gender;
     }
@@ -260,70 +336,29 @@ Character CharacterExtractor::mergeCharacters(const Character& existing, const E
     if (app.build.isEmpty() && !incoming.bodyType.isEmpty()) {
         app.build = incoming.bodyType;
     }
-    
-    // 数组字段：合并去重
-    if (!incoming.clothing.isEmpty()) {
-        QStringList clothingList = incoming.clothing.split(", ");
-        app.clothing = mergeStringLists(app.clothing, clothingList);
-    }
-    if (!incoming.features.isEmpty()) {
-        QStringList featureList = incoming.features.split(", ");
-        app.distinctiveFeatures = mergeStringLists(app.distinctiveFeatures, featureList);
-    }
-    
-    merged.setAppearance(app);
-    
-    // 3. personality: 数组合并去重
-    QStringList mergedPersonality = mergeStringLists(merged.personality(), incoming.personality);
-    merged.setPersonality(mergedPersonality);
-    
-    return merged;
-}
 
-// 合并两个字符串列表并去重
-QStringList CharacterExtractor::mergeStringLists(const QStringList& a, const QStringList& b) const
-{
-    QStringList result = a;
-    for (const QString& item : b) {
-        if (!result.contains(item)) {
-            result.append(item);
-        }
+    if (!incoming.clothing.isEmpty()) {
+        app.clothing = BibleUtils::mergeStringLists(app.clothing, incoming.clothing);
     }
-    return result;
+    if (!incoming.accessories.isEmpty()) {
+        app.accessories = BibleUtils::mergeStringLists(app.accessories, incoming.accessories);
+    }
+    if (!incoming.distinctiveFeatures.isEmpty()) {
+        app.distinctiveFeatures = BibleUtils::mergeStringLists(app.distinctiveFeatures, incoming.distinctiveFeatures);
+    }
+
+    merged.setAppearance(app);
+
+    if (!incoming.personality.isEmpty()) {
+        merged.setPersonality(BibleUtils::mergeStringLists(merged.personality(), incoming.personality));
+    }
+
+    return merged;
 }
 
 QVariantMap CharacterExtractor::characterToData(const Character& character) const
 {
-    QVariantMap data;
-    data["id"] = character.id();
-    data["novel_id"] = character.novelId();
-    data["name"] = character.name();
-    data["role"] = character.role();
-    
-    CharacterAppearance app = character.appearance();
-    data["gender"] = app.gender;
-    data["age"] = app.age;
-    
-    QJsonObject appearanceJson;
-    appearanceJson["gender"] = app.gender;
-    appearanceJson["age"] = app.age;
-    appearanceJson["hairColor"] = app.hairColor;
-    appearanceJson["hairStyle"] = app.hairStyle;
-    appearanceJson["eyeColor"] = app.eyeColor;
-    appearanceJson["height"] = app.height;
-    appearanceJson["build"] = app.build;
-    appearanceJson["clothing"] = JsonUtils::stringListToJsonArray(app.clothing);
-    appearanceJson["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(app.distinctiveFeatures);
-    data["appearance"] = JsonUtils::jsonToString(appearanceJson);
-    
-    data["personalities"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(character.personality()));
-    
-    // 添加肖像图片路径
-    if (!character.portraitPath().isEmpty()) {
-        data["portrait_path"] = character.portraitPath();
-    }
-    
-    return data;
+    return character.toVariantMap();
 }
 
 int CharacterExtractor::saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters)
@@ -344,45 +379,22 @@ int CharacterExtractor::saveCharacters(const QString& novelId, const QList<Extra
 
 Character CharacterExtractor::characterFromRow(const QVariantMap& row)
 {
-    Character character;
-    character.setId(row["id"].toString());
-    character.setNovelId(row["novel_id"].toString());
-    character.setName(row["name"].toString());
-    character.setRole(row["role"].toString());
-    
-    CharacterAppearance app;
-    app.gender = row["gender"].toString();
-    app.age = row["age"].toInt();
-    
-    QJsonObject appearanceJson = JsonUtils::variantToJson(row["appearance"]);
-    if (!appearanceJson.isEmpty()) {
-        app.hairColor = appearanceJson["hairColor"].toString();
-        app.hairStyle = appearanceJson["hairStyle"].toString();
-        app.eyeColor = appearanceJson["eyeColor"].toString();
-        app.height = appearanceJson["height"].toString();
-        app.build = appearanceJson["build"].toString();
-        app.clothing = JsonUtils::jsonArrayToStringList(appearanceJson["clothing"].toArray());
-        app.distinctiveFeatures = JsonUtils::jsonArrayToStringList(appearanceJson["distinctiveFeatures"].toArray());
-    }
-    character.setAppearance(app);
-    
-    character.setPersonality(JsonUtils::variantToStringList(row["personalities"]));
-    
-    // 读取肖像图片路径
-    character.setPortraitPath(row["portrait_path"].toString());
-    
-    return character;
+    return Character::fromVariantMap(row);
 }
 
 QList<Character> CharacterExtractor::getCharactersByNovel(const QString& novelId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("characters")) {
+        LOG_WARNING("CharacterExtractor", "Failed to ensure character soft-delete columns");
+    }
+
     if (BibleCache::instance()->hasCharacters(novelId)) {
         return BibleCache::instance()->getCharacters(novelId);
     }
     
     QList<Character> characters;
     QList<QVariantMap> results = DatabaseManager::instance()->selectAll(
-        "characters", "novel_id = ?", QVariantList() << novelId);
+        "characters", "novel_id = ? AND is_deleted = 0", QVariantList() << novelId);
     
     for (const QVariantMap& row : results) {
         characters.append(characterFromRow(row));
@@ -395,57 +407,40 @@ QList<Character> CharacterExtractor::getCharactersByNovel(const QString& novelId
 
 Character CharacterExtractor::getCharacterById(const QString& characterId)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("characters")) {
+        LOG_WARNING("CharacterExtractor", "Failed to ensure character soft-delete columns");
+    }
+    
     QVariantMap row = DatabaseManager::instance()->selectOne(
-        "characters", "id = ?", QVariantList() << characterId);
+        "characters", "id = ? AND is_deleted = 0", QVariantList() << characterId);
     
     return row.isEmpty() ? Character() : characterFromRow(row);
 }
 
 Character CharacterExtractor::getCharacterByName(const QString& novelId, const QString& name)
 {
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("characters")) {
+        LOG_WARNING("CharacterExtractor", "Failed to ensure character soft-delete columns");
+    }
+    
     QVariantMap row = DatabaseManager::instance()->selectOne(
-        "characters", "novel_id = ? AND name = ?", QVariantList() << novelId << name);
+        "characters", "novel_id = ? AND name = ? AND is_deleted = 0", QVariantList() << novelId << name);
     
     return row.isEmpty() ? Character() : characterFromRow(row);
 }
 
 bool CharacterExtractor::updateCharacter(const Character& character)
 {
-    QVariantMap data;
-    data["name"] = character.name();
-    data["role"] = character.role();
-    
-    CharacterAppearance app = character.appearance();
-    data["gender"] = app.gender;
-    data["age"] = app.age;
-    
-    QJsonObject appearanceJson;
-    appearanceJson["gender"] = app.gender;
-    appearanceJson["age"] = app.age;
-    appearanceJson["hairColor"] = app.hairColor;
-    appearanceJson["hairStyle"] = app.hairStyle;
-    appearanceJson["eyeColor"] = app.eyeColor;
-    appearanceJson["height"] = app.height;
-    appearanceJson["build"] = app.build;
-    appearanceJson["clothing"] = JsonUtils::stringListToJsonArray(app.clothing);
-    appearanceJson["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(app.distinctiveFeatures);
-    data["appearance"] = JsonUtils::jsonToString(appearanceJson);
-    
-    data["personalities"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(character.personality()));
-    
-    // 保存肖像图片路径（包括清空的情况）
-    data["portrait_path"] = character.portraitPath();
+    QVariantMap data = character.toVariantMap();
+    data.remove("id");
+    data.remove("novel_id");
     
     bool success = DatabaseManager::instance()->update(
         "characters", data, "id = ?", QVariantList() << character.id());
     
     if (success) {
         LOG_INFO("CharacterExtractor", QString("Updated character: %1").arg(character.name()));
-        
-        // 更新缓存
         BibleCache::instance()->invalidateCharacters(character.novelId());
-        
-        // 发出信号通知 UI 更新
         emit characterUpdated(character.id(), character.portraitPath());
     }
     
@@ -454,11 +449,26 @@ bool CharacterExtractor::updateCharacter(const Character& character)
 
 bool CharacterExtractor::deleteCharacter(const QString& characterId)
 {
-    bool success = DatabaseManager::instance()->remove(
+    if (!DatabaseManager::instance()->ensureSoftDeleteColumns("characters")) {
+        LOG_WARNING("CharacterExtractor", "Failed to ensure character soft-delete columns");
+    }
+    
+    QVariantMap row = DatabaseManager::instance()->selectOne(
         "characters", "id = ?", QVariantList() << characterId);
+    if (row.isEmpty()) {
+        return false;
+    }
+    
+    QVariantMap data;
+    data["is_deleted"] = 1;
+    data["deleted_at"] = QDateTime::currentDateTimeUtc().toString("yyyy-MM-dd HH:mm:ss");
+    
+    bool success = DatabaseManager::instance()->update(
+        "characters", data, "id = ?", QVariantList() << characterId);
     
     if (success) {
-        LOG_INFO("CharacterExtractor", QString("Deleted character: %1").arg(characterId));
+        LOG_INFO("CharacterExtractor", QString("Soft-deleted character: %1").arg(characterId));
+        BibleCache::instance()->invalidateCharacters(row["novel_id"].toString());
     }
     
     return success;

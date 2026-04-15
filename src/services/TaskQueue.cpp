@@ -35,6 +35,7 @@ void TaskQueue::start()
     m_running = true;
     loadTasksFromDatabase();
     
+    disconnect(this, &TaskQueue::taskProgress, this, &TaskQueue::onTaskProgress);
     connect(this, &TaskQueue::taskProgress, this, &TaskQueue::onTaskProgress, Qt::QueuedConnection);
     
     for (int i = 0; i < m_maxConcurrent; ++i) {

@@ -41,13 +41,13 @@
 ├─────────────────────────────────────────────────────────────────┤
 │  DatabaseManager     MySQL 数据库管理                            │
 │  FileStorage         本地文件存储                                │
-│  StorageClient       S3 云存储客户端                             │
+│  StorageClient       HTTP 远程文件存储客户端                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                        外部服务层                                │
 ├─────────────────────────────────────────────────────────────────┤
 │  QwenClient          通义千问 API 客户端                         │
 │  QwenImageClient     Qwen 图像生成 API 客户端                    │
-│  StorageClient       S3 云存储客户端                             │
+│  StorageClient       HTTP 远程文件存储客户端                     │
 │  JsonRepair          JSON 修复库                                 │
 │  SchemaToPrompt      Schema 转 Prompt 工具                       │
 └─────────────────────────────────────────────────────────────────┘
@@ -462,9 +462,177 @@ static const QHash<StoryboardStatus, QSet<StoryboardStatus>> validTransitions = 
 
 ---
 
-## 六、性能优化
+## 六、HTTP 远程文件存储服务设计
 
-### 6.1 数据库查询优化
+### 6.1 问题背景
+
+**需求**: 将图片等文件存储到云服务器磁盘，而非本地或云对象存储（如腾讯云 COS）。
+
+**挑战**:
+- 程序在本地运行，文件需要通过网络传输到云服务器
+- 不想额外购买云对象存储服务
+- 需要简单、低成本的解决方案
+
+### 6.2 技术选型对比
+
+| 方案 | 优点 | 缺点 | 选择 |
+|------|------|------|------|
+| **腾讯云 COS** | 成熟稳定、CDN 加速 | 额外付费 | ❌ |
+| **MinIO (自建)** | 兼容 S3、功能完整 | 需要部署 Docker | ❌ |
+| **HTTP 文件服务** | 简单、轻量、免费 | 功能相对简单 | ✅ 选择 |
+| **Samba (SMB)** | Windows 原生支持 | 配置复杂、端口问题 | ❌ |
+| **SFTP** | 安全、成熟 | 需要额外库支持 | ❌ |
+
+### 6.3 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      文件存储架构                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   本地 Qt 客户端                                                 │
+│        │                                                        │
+│        │ HTTP POST / GET                                        │
+│        ▼                                                        │
+│   ┌─────────────────────────────────────────┐                  │
+│   │  云服务器 (腾讯云轻量应用服务器)          │                  │
+│   │                                         │                  │
+│   │  ┌─────────────────────────────────┐   │                  │
+│   │  │  Flask 文件上传服务 (端口 8080)  │   │                  │
+│   │  │  - /upload: 上传文件            │   │                  │
+│   │  │  - /download/<path>: 下载文件   │   │                  │
+│   │  └─────────────────────────────────┘   │                  │
+│   │                  │                      │                  │
+│   │                  ▼                      │                  │
+│   │  ┌─────────────────────────────────┐   │                  │
+│   │  │  /data/comic/                   │   │                  │
+│   │  │  ├── panels/    (面板图片)      │   │                  │
+│   │  │  ├── characters/(角色肖像)      │   │                  │
+│   │  │  ├── scenes/    (场景参考图)    │   │                  │
+│   │  │  └── exports/   (导出文件)      │   │                  │
+│   │  └─────────────────────────────────┘   │                  │
+│   │                                         │                  │
+│   │  ┌─────────────────────────────────┐   │                  │
+│   │  │  MySQL 8.0 (端口 3306)          │   │                  │
+│   │  │  - 存储文件路径引用             │   │                  │
+│   │  └─────────────────────────────────┘   │                  │
+│   └─────────────────────────────────────────┘                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.4 服务端实现
+
+```python
+# /data/upload_server.py
+from flask import Flask, request, jsonify, send_from_directory
+import os
+
+app = Flask(__name__)
+UPLOAD_DIR = "/data/comic"
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    file = request.files['file']
+    path = request.form.get('path', '')
+    
+    full_path = os.path.join(UPLOAD_DIR, path)
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    file.save(full_path)
+    
+    return jsonify({"success": True, "path": path})
+
+@app.route('/download/<path:path>', methods=['GET'])
+def download(path):
+    return send_from_directory(UPLOAD_DIR, path)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
+```
+
+### 6.5 客户端实现
+
+```cpp
+// StorageClient.cpp
+bool StorageClient::upload(const QString& path, const QByteArray& data, const QString& contentType)
+{
+    QNetworkRequest request(QUrl(m_endpoint + "/upload"));
+    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    
+    // 添加文件数据
+    QHttpPart filePart;
+    filePart.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
+    filePart.setHeader(QNetworkRequest::ContentDispositionHeader, 
+                       QVariant("form-data; name=\"file\"; filename=\"file\""));
+    filePart.setBody(data);
+    multiPart->append(filePart);
+    
+    // 添加路径参数
+    QHttpPart pathPart;
+    pathPart.setHeader(QNetworkRequest::ContentDispositionHeader, 
+                       QVariant("form-data; name=\"path\""));
+    pathPart.setBody(path.toUtf8());
+    multiPart->append(pathPart);
+    
+    QNetworkReply *reply = m_manager->post(request, multiPart);
+    // ... 等待响应
+}
+```
+
+### 6.6 配置说明
+
+```ini
+# config.ini
+[storage]
+type = http
+endpoint = http://101.33.201.174:8080
+dataDir = /data/comic
+```
+
+### 6.7 部署步骤
+
+```bash
+# 1. 安装 Python 和 Flask
+yum install -y python3
+pip3 install flask
+
+# 2. 创建存储目录
+mkdir -p /data/comic/{panels,characters,scenes,exports}
+
+# 3. 启动文件服务
+nohup python3 /data/upload_server.py &
+
+# 4. 开放防火墙端口
+firewall-cmd --add-port=8080/tcp --permanent
+firewall-cmd --reload
+
+# 5. 腾讯云控制台开放 8080 端口
+```
+
+### 6.8 与对象存储对比
+
+| 对比项 | 腾讯云 COS | HTTP 文件服务 |
+|--------|-----------|---------------|
+| 成本 | 按量付费 | 免费（使用服务器磁盘） |
+| 部署 | 无需部署 | 需要部署 Flask |
+| 扩展性 | 自动扩展 | 受服务器磁盘限制 |
+| CDN | 支持 | 不支持 |
+| 适用场景 | 大规模生产 | 个人项目/演示 |
+
+### 6.9 设计要点
+
+| 要点 | 说明 |
+|------|------|
+| **简单优先** | Flask 服务仅 20 行代码 |
+| **利用现有资源** | 复用云服务器磁盘空间 |
+| **统一接口** | StorageClient 抽象层，可随时切换实现 |
+| **安全考虑** | 可添加 Token 认证 |
+
+---
+
+## 七、性能优化
+
+### 7.1 数据库查询优化
 
 | 优化项 | 实现方式 |
 |--------|----------|
@@ -487,7 +655,7 @@ class NovelPage : public QWidget {
 QScopedPointer<QNetworkReply> reply(manager->get(request));
 ```
 
-### 6.3 图片缓存键优化
+### 7.3 图片缓存键优化
 
 #### 问题背景
 
@@ -551,9 +719,9 @@ void PanelCard::setPreviewUrl(const QString &url)
 
 ---
 
-## 七、错误处理策略
+## 八、错误处理策略
 
-### 7.1 分层错误处理
+### 8.1 分层错误处理
 
 ```
 ┌─────────────────────────────────┐
@@ -596,7 +764,7 @@ StoryboardResult QwenClient::generateStoryboard(...) {
 
 ---
 
-## 八、任务队列系统设计
+## 九、任务队列系统设计
 
 ### 8.1 问题分析
 
@@ -626,7 +794,7 @@ StoryboardResult QwenClient::generateStoryboard(...) {
 | QThreadPool | 灵活 | 复杂度高 | ❌ |
 | 外部队列 (Redis) | 功能强大 | 依赖外部服务 | ❌ |
 
-### 8.3 架构设计
+### 9.3 架构设计
 
 #### 生产者-消费者模式
 
@@ -654,7 +822,7 @@ StoryboardResult QwenClient::generateStoryboard(...) {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.4 核心代码实现
+### 9.4 核心代码实现
 
 ```cpp
 // 任务数据结构
@@ -695,7 +863,7 @@ class TaskWorker : public QThread {
 };
 ```
 
-### 8.5 与原仓库 AWS SQS 对比
+### 9.5 与原仓库 AWS SQS 对比
 
 | 特性 | AWS SQS (原仓库) | TaskQueue (当前) |
 |------|------------------|------------------|
@@ -707,13 +875,13 @@ class TaskWorker : public QThread {
 
 ---
 
-## 九、多线程崩溃问题排查与修复
+## 十、多线程崩溃问题排查与修复
 
-### 9.1 问题描述
+### 10.1 问题描述
 
 **现象**: 点击"面板批量生成"按钮后，程序在生成第一张面板图片后立即崩溃。
 
-### 9.2 问题分析
+### 10.2 问题分析
 
 #### 崩溃流程追踪
 
@@ -744,7 +912,7 @@ class TaskWorker : public QThread {
 | 单例创建非线程安全 | 多线程可能创建多个实例 |
 | 在持有锁时发射信号 | 可能导致死锁 |
 
-### 9.4 解决方案
+### 10.4 解决方案
 
 #### 修复一：DatabaseManager 添加递归互斥锁
 
@@ -801,7 +969,7 @@ void TaskWorker::finalizeTask(const QString& taskId, const TaskResult& result)
 }
 ```
 
-### 9.5 关键技术要点
+### 10.5 关键技术要点
 
 | 要点 | 说明 |
 |------|------|
@@ -815,7 +983,7 @@ void TaskWorker::finalizeTask(const QString& taskId, const TaskResult& result)
 
 ## 十、ViewModel 层设计
 
-### 10.1 问题背景
+### 11.1 问题背景
 
 **原有架构问题**：UI 层直接调用 Service 单例获取数据，导致耦合过紧。
 
@@ -864,7 +1032,7 @@ void TaskWorker::finalizeTask(const QString& taskId, const TaskResult& result)
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 10.4 核心代码实现
+### 11.4 核心代码实现
 
 ```cpp
 // BaseViewModel - 基类
@@ -972,23 +1140,23 @@ signals:
 
 ---
 
-## 十二、技术栈总结
+## 十三、技术栈总结
 
 | 类别 | 技术 |
 |------|------|
 | 语言 | C++11 |
 | 框架 | Qt 5.15.2 |
-| 数据库 | MySQL 8.0 |
+| 数据库 | MySQL 8.0 (云服务器) |
 | AI API | 通义千问 (Qwen) + Qwen-Image (图像生成) |
-| 存储 | 本地文件 + S3 兼容云存储 |
+| 存储 | 本地文件 / HTTP 远程文件服务 |
 | 构建 | qmake |
 | 版本控制 | Git |
 
 ---
 
-## 十三、在线演示方案设计
+## 十四、在线演示方案设计
 
-### 13.1 问题背景
+### 14.1 问题背景
 
 **需求**: 在简历上放置链接，让面试官点击即可体验 Qt 桌面应用。
 
@@ -1022,7 +1190,7 @@ signals:
 └─────────────────────────────────────────────────────┘
 ```
 
-### 13.4 架构设计
+### 14.4 架构设计
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1063,7 +1231,7 @@ signals:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.5 为什么 RDP 画质优于 VNC
+### 14.5 为什么 RDP 画质优于 VNC
 
 | 对比项 | VNC | RDP |
 |--------|-----|-----|
@@ -1075,7 +1243,7 @@ signals:
 
 **核心差异**: RDP 传输的是"画一个矩形"这类图形指令，而非原始像素，因此更高效、画质更好。
 
-### 13.6 部署方案 (CentOS)
+### 14.6 部署方案 (CentOS)
 
 ```bash
 # 1. 安装 Docker
@@ -1105,7 +1273,7 @@ docker run -d --name guacamole \
   oznu/guacamole
 ```
 
-### 13.7 服务器资源配置
+### 14.7 服务器资源配置
 
 ```
 服务器配置: 4核 CPU / 4GB 内存
@@ -1123,7 +1291,7 @@ docker run -d --name guacamole \
 ✅ 完全够用，支持 2-3 人同时访问
 ```
 
-### 13.8 简历展示方式
+### 14.8 简历展示方式
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -1141,7 +1309,7 @@ docker run -d --name guacamole \
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 13.9 方案局限性
+### 14.9 方案局限性
 
 | 局限 | 说明 | 应对 |
 |------|------|------|
@@ -1149,7 +1317,7 @@ docker run -d --name guacamole \
 | 依赖网络 | 需要稳定网络 | 提供视频备选 |
 | 资源占用 | 服务器需要图形界面 | 4核4G 足够 |
 
-### 13.10 后续规划
+### 14.10 后续规划
 
 | 阶段 | 内容 |
 |------|------|
@@ -1160,9 +1328,9 @@ docker run -d --name guacamole \
 
 ---
 
-## 十四、开发问题与解决方案（2025年更新）
+## 十五、开发问题与解决方案（2025年更新）
 
-### 14.1 BibleItem 稳定 ID 修复
+### 15.1 BibleItem 稳定 ID 修复
 
 #### 问题描述
 
@@ -1252,7 +1420,7 @@ Character character = CharacterExtractor::instance()->getCharacterById(id);
 | 同名场景上传图片 | 图片可能关联错误场景 | 图片正确关联目标场景 |
 | 数据一致性 | 存在数据错改风险 | ID 唯一标识，无风险 |
 
-### 14.2 批量取消功能修复
+### 15.2 批量取消功能修复
 
 #### 问题描述
 
@@ -1327,7 +1495,7 @@ void ImageService::cancelCurrentBatch()
 | **状态一致性** | 取消时必须重置所有相关状态标志 |
 | **信号通知** | 发出 batchGenerationCancelled 通知 UI 更新 |
 
-### 14.3 单例模式的坑点与修复
+### 15.3 单例模式的坑点与修复
 
 #### 问题描述
 
@@ -1428,7 +1596,7 @@ void BibleItem::populateSceneEditorData()
 | 构造函数中访问未初始化成员 | 编辑器控件延迟创建 | 添加空指针检查 |
 | 调用顺序错误 | `setDetails` 在控件创建前被调用 | 使用惰性初始化或空指针保护 |
 
-### 14.5 角色一致性问题
+### 15.5 角色一致性问题
 
 #### 问题描述
 
@@ -1489,7 +1657,7 @@ if (!ctx.referenceImages.isEmpty()) {
 }
 ```
 
-### 14.3 场景圣经不出现人物
+### 15.6 场景圣经不出现人物
 
 #### 问题描述
 
@@ -1509,7 +1677,7 @@ QString sceneNegative = DEFAULT_NEGATIVE_PROMPT + ", "
     "empty scene, uninhabited, no faces, no bodies";
 ```
 
-### 14.4 缓存一致性问题
+### 15.7 缓存一致性问题
 
 #### 问题描述
 
@@ -1535,7 +1703,7 @@ connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
         this, [this]() { refreshBibleUI(); });
 ```
 
-### 14.5 技术选型对比
+### 15.8 技术选型对比
 
 | 方面 | 原仓库 (Google Imagen 3) | 我们的方案 (阿里云通义万相) |
 |------|-------------------------|---------------------------|
@@ -1544,7 +1712,7 @@ connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
 | API 复杂度 | 简单 | 稍复杂（需要判断是否有参考图） |
 | 效果 | 更精确 | 依赖 prompt 质量 |
 
-### 14.6 代码质量改进
+### 15.9 代码质量改进
 
 #### PromptBuilder 统一
 
@@ -1564,7 +1732,7 @@ include/utils/SingletonUtils.h  // 保护符: SINGLETONUTILS_H (冲突!)
 
 所有弹窗的滚动条样式统一使用 `EditorStyles::scrollBarStyle()`。
 
-### 14.7 图像服务层重构
+### 15.10 图像服务层重构
 
 #### 重构前的问题
 
@@ -1658,7 +1826,234 @@ bool executeImageGeneration(GenerationContext& ctx, const QByteArray& refImageDa
 3. **函数提取**：将复杂逻辑拆分为小函数
 4. **命名清晰**：`buildCharacterRef`、`fetchCharacterRefs`、`executeImageGeneration`
 
+### 15.11 删除照片界面跳动问题修复
+
+#### 问题描述
+
+点击圣经里的删除照片选项时，界面会跳动/闪烁。
+
+#### 问题分析
+
+**第一层原因**：原代码在删除图片后调用 `refreshBibleUI()`
+
+```cpp
+void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
+{
+    // 删除图片文件并更新数据库
+    // ...
+    
+    refreshBibleUI();  // 问题所在！
+}
+```
+
+`refreshBibleUI()` 会清空并重建所有 Bible 控件，导致界面跳动。
+
+**第二层原因（根本原因）**：信号触发二次刷新
+
+```cpp
+// NovelDetailPage 初始化时连接的信号
+connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
+        this, [this](const QString& characterId, const QString& portraitPath) {
+            QTimer::singleShot(100, this, [this]() {
+                refreshBibleUI();  // 100ms 后再次重建 UI！
+            });
+        }, Qt::QueuedConnection);
+```
+
+当调用 `updateCharacter()` 时：
+1. 数据库更新成功
+2. 发出 `characterUpdated` 信号
+3. 信号触发 `refreshBibleUI()`
+4. 界面跳动
+
+**问题链路**：
+```
+删除图片 → updateCharacter() → emit characterUpdated → refreshBibleUI() → 界面跳动
+```
+
+#### 解决方案
+
+**方案一**：直接更新 BibleItem（已实现）
+
+```cpp
+void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
+{
+    // 找到对应的 BibleItem
+    BibleItem *targetItem = findBibleItemById(id, type);
+    
+    // 删除图片并更新数据库
+    // ...
+    
+    // 直接更新图片显示，不重建 UI
+    targetItem->setImage(QString());
+}
+```
+
+**方案二**：修改信号处理逻辑（根本解决）
+
+```cpp
+// 新增方法：直接更新特定 BibleItem 的图片
+void NovelDetailPage::updateBibleItemImage(const QString& id, const QString& imagePath, BibleType type)
+{
+    QWidget *container = (type == BibleType::Character) ? m_characterBibleContainer : m_sceneBibleContainer;
+    if (!container) return;
+    
+    QList<BibleItem*> bibleItems = container->findChildren<BibleItem*>();
+    for (BibleItem *item : bibleItems) {
+        if (item->getItemId() == id) {
+            item->setImage(imagePath);
+            break;
+        }
+    }
+}
+
+// 修改信号连接，直接更新而非重建
+connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
+        this, [this](const QString& characterId, const QString& portraitPath) {
+            updateBibleItemImage(characterId, portraitPath, BibleType::Character);
+        }, Qt::QueuedConnection);
+
+connect(SceneExtractor::instance(), &SceneExtractor::sceneUpdated,
+        this, [this](const QString& sceneId, const QString& referenceImagePath) {
+            updateBibleItemImage(sceneId, referenceImagePath, BibleType::Scene);
+        }, Qt::QueuedConnection);
+```
+
+**同时修改 SceneExtractor**：让信号传递正确的参数
+
+```cpp
+// SceneExtractor.cpp
+if (success) {
+    // 传递 sceneId 和 referenceImagePath，而非 id 和 name
+    emit sceneUpdated(scene.sceneId(), scene.referenceImagePath());
+}
+```
+
+#### 技术要点
+
+| 要点 | 说明 |
+|------|------|
+| **信号参数选择** | 信号应传递 UI 需要的数据（如图片路径），而非无关数据（如名称） |
+| **局部更新 vs 全局刷新** | 只更新受影响的控件，避免重建整个 UI |
+| **findChildren 遍历** | Qt 提供的控件查找方法，可按类型遍历子控件 |
+| **稳定 ID 匹配** | 使用 `getItemId()` 精确匹配目标控件 |
+| **消除冗余刷新** | 同一操作不应触发多次 UI 刷新 |
+
+#### 修复效果
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 删除照片 | 界面跳动/闪烁 | 平滑更新，无跳动 |
+| 上传照片 | 界面跳动 | 平滑更新 |
+| 编辑角色/场景 | 界面跳动 | 平滑更新 |
+| 滚动位置 | 可能丢失 | 保持不变 |
+| 其他条目 | 被重建（视觉跳动） | 不受影响 |
+
+#### 设计原则
+
+1. **最小化更新范围**：只更新必要的 UI 元素
+2. **信号参数设计**：传递接收方真正需要的数据
+3. **避免链式刷新**：一个操作不应触发多次 UI 重建
+4. **利用现有 API**：BibleItem 已有 `setImage()` 方法，直接复用
+
+### 15.12 面板幅面比例验证功能
+
+#### 问题背景
+
+图像生成 API 对不同幅面比例（1:1、3:2、16:9 等）的支持程度不同，需要验证生成的图片实际尺寸是否符合预期的宽高比。例如：
+- 火山引擎 API 设置 `width=1584, height=1056`（3:2），但返回的图片是否真的是 1584x1056？
+- 不同预设模式下，图片幅面比例是否正确？
+
+#### 设计思路
+
+**核心问题**：如何在面板预览界面直观地展示生成图片的实际尺寸和宽高比？
+
+**技术选型考虑**：
+1. **方案一：纯日志验证** — 只在控制台输出尺寸信息，不够直观
+2. **方案二：独立测试窗口** — 需要额外 UI，操作繁琐
+3. **方案三：嵌入 PanelCard** — 在面板卡片上直接显示尺寸标签，最直观
+
+选择方案三，在 PanelCard 预览图下方添加尺寸标签，图片生成后自动显示 `宽x高 (比例)` 信息。
+
+#### 实现方案
+
+**1. 宽高比简化算法**
+
+使用辗转相除法（欧几里得算法）求最大公约数，将尺寸化简为最简比：
+
+```cpp
+QString simplifyRatio(int w, int h)
+{
+    if (w <= 0 || h <= 0) return "?";
+    int a = w, b = h;
+    while (b != 0) {
+        int t = b;
+        b = a % b;
+        a = t;
+    }
+    return QString("%1:%2").arg(w / a).arg(h / a);
+}
+```
+
+例如：`1584x1056` → GCD=528 → `3:2`，`1664x936` → GCD=104 → `16:9`
+
+**2. PanelCard 尺寸标签**
+
+在预览图下方添加 `m_sizeLabel`，默认隐藏，图片生成后显示：
+
+```cpp
+m_sizeLabel = new QLabel();
+m_sizeLabel->setAlignment(Qt::AlignCenter);
+m_sizeLabel->setStyleSheet("font-size: 10px; color: #9CA3AF;");
+m_sizeLabel->hide();
+
+void PanelCard::setImageSize(int width, int height)
+{
+    QString ratio = simplifyRatio(width, height);
+    m_sizeLabel->setText(QString("%1x%2 (%3)").arg(width).arg(height).arg(ratio));
+    m_sizeLabel->show();
+}
+```
+
+**3. 数据流**
+
+```
+ImageService::finalizeResult()
+  → 从 imageData 解析 QImage 获取 width/height
+  → GenerateResult { width, height }
+  → emit panelGenerated(result)
+  → PanelPreviewWidget::onPanelGenerated()
+    → card->setImageSize(result.width, result.height)
+    → PanelCard 显示 "1584x1056 (3:2)"
+```
+
+#### 尺寸配置体系
+
+| 预设模式 | 火山引擎 | 通义万相 | 宽高比 |
+|----------|---------|---------|--------|
+| Square_1x1 | 1328x1328 | 1024x1024 | 1:1 |
+| Standard_3x2 | 1584x1056 | 1536x1024 | 3:2 |
+| Widescreen_16x9 | 1664x936 | 1280x720 | 16:9 |
+| Preview（默认） | 1056x1584 | 720x1280 | 2:3 |
+
+#### 验证效果
+
+| 场景 | 显示效果 |
+|------|---------|
+| 3:2 预设 | `1584x1056 (3:2)` |
+| 1:1 预设 | `1328x1328 (1:1)` |
+| 16:9 预设 | `1664x936 (16:9)` |
+| API 返回异常尺寸 | 立即可见，如 `1024x1024 (1:1)` 而非预期的 `1584x1056 (3:2)` |
+
+#### 后续规划
+
+| 阶段 | 内容 |
+|------|------|
+| 短期 | 添加尺寸与预期不符时的警告高亮（红色标签） |
+| 中期 | 在批量生成完成后输出尺寸统计报告 |
+| 长期 | 支持自定义幅面比例输入，API 不支持时自动选择最接近的预设 |
+
 ---
 
-*文档版本: 4.3*  
+*文档版本: 4.6*  
 *最后更新: 2025年*

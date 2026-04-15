@@ -61,7 +61,7 @@ void NovelViewModel::loadNovel(const QString& novelId)
     });
     
     if (m_currentNovel.id().isEmpty()) {
-        setLastError(TR_FMT("小说不存在: %1", novelId));
+        setLastError(QString::fromUtf8(u8"\u5c0f\u8bf4\u4e0d\u5b58\u5728\uff1a%1").arg(novelId));
     } else {
         emit novelLoaded(m_currentNovel);
         emit currentNovelChanged(m_currentNovel);
@@ -78,7 +78,7 @@ void NovelViewModel::createNovel(const QString& userId, const QString& title, co
     });
     
     if (novel.id().isEmpty()) {
-        setLastError(TR("创建小说失败"));
+        setLastError(tr("Create novel failed"));
     } else {
         m_currentNovel = novel;
         emit novelCreated(novel);

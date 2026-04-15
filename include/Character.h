@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 #include <QMetaType>
+#include <QVariantMap>
+#include <QJsonObject>
 
 /**
  * @brief 角色外观描述
@@ -12,14 +14,18 @@
 struct CharacterAppearance
 {
     QString gender;          // 性别：male, female, other
-    int age;                // 年龄
+    int age = 0;             // 年龄
     QString hairColor;       // 发色
     QString hairStyle;       // 发型
     QString eyeColor;        // 瞳色
-    QString height;         // 身高描述
-    QString build;          // 体型描述
+    QString height;          // 身高描述
+    QString build;           // 体型描述
     QStringList clothing;    // 服装列表
+    QStringList accessories; // 配饰列表
     QStringList distinctiveFeatures;  // 显著特征
+    
+    QJsonObject toJson() const;
+    static CharacterAppearance fromJson(const QJsonObject& json);
 };
 
 /**
@@ -70,6 +76,12 @@ public:
 
     QString portraitPath() const { return m_portraitPath; }
     void setPortraitPath(const QString& path) { m_portraitPath = path; }
+    
+    // 序列化方法
+    QVariantMap toVariantMap() const;
+    static Character fromVariantMap(const QVariantMap& map);
+    QJsonObject toJson() const;
+    static Character fromJson(const QJsonObject& json);
 
 private:
     QString m_id;              // 角色唯一ID，对应 SK: CHAR#{id}

@@ -25,6 +25,7 @@ public slots:
 private:
     // ========== 初始化 ==========
     void setupUI();
+    void setupConnections();
     void loadStatsFromDatabase();
     void startPolling();
     void stopPolling();
@@ -51,6 +52,14 @@ private:
     QWidget* createStandardCard(const QString &title, const QString &subtitle);
     
     // ========== 任务卡片 ==========
+    struct JobItemData {
+        QString type;
+        QString status;
+        QString time;
+        int progress = 0;
+        bool showProgress = false;
+    };
+    
     QWidget* createJobOverviewCard();
     void populateJobOverviewList();
     
@@ -60,6 +69,7 @@ private:
                           const QVariantList &whereValues, const QString &emptyText,
                           const QString &orderBy, int limit, bool showProgress);
     
+    QWidget* createJobItem(const JobItemData &data);
     QWidget* createTimelineJobItem(const QString &type, const QString &status,
                                     const QString &time, int progress);
     QWidget* createStandardJobItem(const QString &type, const QString &status, const QString &time);
@@ -73,10 +83,19 @@ private:
     QWidget* createStepContent(const QString &title, const QString &description);
 
 private:
-    QLabel *m_totalValueLabel = nullptr;
-    QLabel *m_runningValueLabel = nullptr;
-    QLabel *m_completedValueLabel = nullptr;
-    QLabel *m_failedValueLabel = nullptr;
+    struct StatLabels {
+        QLabel *total = nullptr;
+        QLabel *running = nullptr;
+        QLabel *completed = nullptr;
+        QLabel *failed = nullptr;
+        
+        void setValues(int t, int r, int c, int f) {
+            if (total) total->setText(QString::number(t));
+            if (running) running->setText(QString::number(r));
+            if (completed) completed->setText(QString::number(c));
+            if (failed) failed->setText(QString::number(f));
+        }
+    } m_statLabels;
     
     QVBoxLayout *m_jobOverviewLayout = nullptr;
     QVBoxLayout *m_activeJobsLayout = nullptr;

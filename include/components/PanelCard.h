@@ -18,6 +18,7 @@ public:
     void setDescription(const QString &description);
     void setPreviewUrl(const QString &url);
     void setPanelId(const QString &panelId) { m_panelId = panelId; }
+    void setImageSize(int width, int height);
     QString panelId() const { return m_panelId; }
     int panelNumber() const { return m_panelNumber; }
     int chapterNumber() const { return m_chapterNumber; }
@@ -66,9 +67,13 @@ private:
     QLabel *m_previewLabel = nullptr;
     QLabel *m_numberLabel = nullptr;
     QLabel *m_descLabel = nullptr;
+    QLabel *m_sizeLabel = nullptr;
     int m_chapterNumber;
     int m_panelNumber;
     QString m_description;
+    int m_lastEditMode = -1;
+    QString m_lastEditInstruction;
+    QString m_lastEditMaskPath;
     
     PanelEditorWidget *m_editorWidget = nullptr;
     

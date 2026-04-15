@@ -10,7 +10,11 @@
 #include <QFuture>
 #include <QtConcurrent>
 #include <QMutex>
+#include <QByteArray>
 #include "utils/SingletonUtils.h"
+
+class QNetworkReply;
+class QTimer;
 
 class QwenClient : public QObject
 {
@@ -87,12 +91,6 @@ private:
     bool checkInitialized(const QString& operation);
     
     QJsonArray buildMessages(const QString& systemPrompt, const QString& userPrompt);
-    QString buildUserMessageWithBible(
-        const QString& text,
-        const QJsonArray& existingCharacters,
-        const QJsonArray& existingScenes,
-        int chapterNumber
-    );
 
     QStringList splitTextIntelligently(const QString& text, int maxLength);
     QStringList extractSentences(const QString& text);
@@ -114,7 +112,6 @@ private:
     
     QNetworkRequest createApiRequest() const;
     QString parseBadRequestError(const QByteArray& errorData);
-    QString parseSseContent(const QString& data);
     void handleStreamFinished(QNetworkReply* reply, QNetworkAccessManager* manager, QTimer* timer);
     void handleStreamTimeout(QNetworkReply* reply, QNetworkAccessManager* manager);
     QJsonObject buildJsonSchemaPayload(
@@ -132,17 +129,7 @@ private:
     );
     QJsonObject extractApiResponse(const QJsonObject& response);
 
-    QJsonObject parseJsonWithRepair(const QString& rawContent);
     QJsonObject ensureStoryboardShape(const QJsonObject& storyboard);
-    QString stripMarkdownCodeBlock(const QString& content);
-    QString repairJsonContent(const QString& content);
-    QString tryRepairTruncatedJson(const QString& content);
-    QString tryFixMissingColon(const QString& content, int errorOffset);
-    
-    int findLastCompleteBrace(const QString& json);
-    int findLastCompleteObject(const QString& json, int errorOffset);
-    QString closeOpenBrackets(const QString& json);
-    QJsonArray extractCompleteArray(const QString& json, const QString& arrayKey, int errorOffset, const QString& logName);
     
     QString getStringField(const QJsonObject& obj, const QString& key, const QString& defaultValue = QString());
     QString getStringFieldAny(const QJsonObject& obj, const QStringList& keys, const QString& defaultValue = QString());
@@ -150,7 +137,7 @@ private:
     QJsonArray getArrayField(const QJsonObject& obj, const QString& key, const QJsonArray& defaultValue = QJsonArray());
     int getIntField(const QJsonObject& obj, const QString& key, int defaultValue = 0);
     
-    QJsonObject normalizePanel(const QJsonObject& panel, int index, QMap<QString, QJsonObject>& extractedChars, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter);
+    QJsonObject normalizePanel(const QJsonObject& panel, int index, QMap<QString, QJsonObject>& extractedChars, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter, const QMap<QString, QString>& existingSceneLookup);
     QJsonObject buildBackground(const QJsonObject& panel);
     QJsonObject buildAtmosphere(const QJsonObject& panel);
     QJsonArray normalizeCharacters(const QJsonArray& chars, QMap<QString, QJsonObject>& extractedChars);
@@ -163,7 +150,7 @@ private:
     
     void setPanelPageAndIndex(QJsonObject& panel, int index);
     void setPanelShotInfo(QJsonObject& panel, const QJsonObject& source);
-    void extractSceneInfo(const QJsonObject& panel, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter);
+    void extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter, const QMap<QString, QString>& existingSceneLookup);
     
     QJsonArray mergeJsonArrays(const QJsonArray& existing, const QJsonArray& extracted, 
                                 const QString& keyField, QSet<QString>& seenKeys);
@@ -171,15 +158,6 @@ private:
     
     QJsonObject convertScenesToPanelsIfNeeded(const QJsonObject& storyboard);
 
-    QString buildSystemPrompt();
-    QString buildChangeRequestPrompt();
-    QString buildDialogueRewritePrompt();
-    
-    QJsonObject buildExamplePanel();
-    QJsonObject buildExampleCharacter();
-    QJsonObject buildExampleScene();
-    QJsonObject buildCustomExample();
-    
     QList<QJsonObject> processChunksParallel(
         const QStringList& chunks,
         const QJsonObject& jsonSchema,
@@ -200,7 +178,9 @@ private:
     QString m_logFilePath;
     bool m_initialized;
     QString m_streamAccumulatedContent;
+    QByteArray m_streamBuffer;
     bool m_streamInProgress = false;
+    bool m_streamAborted = false;
 };
 
 #endif // QWENCLIENT_H

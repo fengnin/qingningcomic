@@ -20,7 +20,7 @@ struct NavItemData {
 };
 
 namespace SidebarStyle {
-    constexpr int MIN_WIDTH = 260;
+    constexpr int MIN_WIDTH = 280;
     constexpr int NAV_ITEM_HEIGHT = 56;
     constexpr int NAV_ICON_SIZE = 24;
     
@@ -39,6 +39,7 @@ class SidebarWidget : public QWidget
 
 public:
     explicit SidebarWidget(QWidget *parent = nullptr);
+    void setActiveNav(int index);
     
 signals:
     void navItemClicked(int pageIndex, const QString &breadcrumb);
@@ -60,7 +61,6 @@ private:
     void addNavItem(const NavItemData &itemData);
     void updateNavItemStyle(QWidget *itemWidget, bool isActive);
     void applyLabelStyles(QWidget *itemWidget, bool isActive);
-    void setActiveNav(int index);
     
     QListWidget *m_navList;
     QVector<NavItemData> m_navItems;

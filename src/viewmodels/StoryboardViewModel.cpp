@@ -79,7 +79,7 @@ void StoryboardViewModel::resetAnalysisState()
 {
     m_analyzing = true;
     m_currentJobId.clear();
-    m_analysisStage = TR("分析中");
+    m_analysisStage = tr("分析中");
     setBusy(true);
 }
 
@@ -133,7 +133,8 @@ void StoryboardViewModel::loadStoryboard(const QString& novelId, int chapterNumb
     
     m_currentStoryboard = m_storyboardService->getStoryboardByChapter(novelId, chapterNumber);
     
-    if (!m_currentStoryboard.id().isEmpty()) {
+    
+        if (!m_currentStoryboard.id().isEmpty()) {
         QString cacheKey = m_currentStoryboard.id();
         if (forceReload) {
             m_panelsCache.remove(cacheKey);
@@ -166,6 +167,11 @@ void StoryboardViewModel::loadPanels(const QString& storyboardId)
     emit panelsLoaded(m_currentPanels);
 }
 
+void StoryboardViewModel::invalidatePanelsCache(const QString& storyboardId)
+{
+    m_panelsCache.remove(storyboardId);
+}
+
 void StoryboardViewModel::startAnalysis(const QString& novelId, const QString& text, int chapterNumber)
 {
     if (!m_analysisService) { return; }
@@ -188,33 +194,56 @@ void StoryboardViewModel::startAnalysisWithBible(const QString& novelId, const Q
 void StoryboardViewModel::generatePanelImages(const QStringList& panelIds, const QString& mode)
 {
     if (!m_imageService || panelIds.isEmpty()) { return; }
-    
-    ImageService::GenerateMode genMode = (mode == QLatin1String("hd")) 
-        ? ImageService::GenerateMode::HD 
-        : ImageService::GenerateMode::Preview;
-    
-    m_imageService->generatePanelImages(panelIds, genMode);
+
+    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
+        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Square_1x1);
+    } else if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
+        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Standard_3x2);
+    } else if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
+        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Widescreen_16x9);
+    } else {
+        ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
+            ? ImageService::GenerateMode::HD
+            : ImageService::GenerateMode::Preview;
+        m_imageService->generatePanelImages(panelIds, genMode);
+    }
 }
 
 void StoryboardViewModel::generateAllPanelImages(const QString& storyboardId, const QString& mode)
 {
     if (!m_imageService || !m_storyboardService) { return; }
-    
-    ImageService::GenerateMode genMode = (mode == QLatin1String("hd")) 
-        ? ImageService::GenerateMode::HD 
-        : ImageService::GenerateMode::Preview;
-    
-    m_imageService->generateStoryboardImages(storyboardId, genMode);
+
+    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
+        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Square_1x1);
+    } else if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
+        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Standard_3x2);
+    } else if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
+        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Widescreen_16x9);
+    } else {
+        ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
+            ? ImageService::GenerateMode::HD
+            : ImageService::GenerateMode::Preview;
+        m_imageService->generateStoryboardImages(storyboardId, genMode);
+    }
 }
 
 QString StoryboardViewModel::enqueueBatchPanelImageGeneration(const QStringList& panelIds, const QString& mode)
 {
     if (!m_imageService || panelIds.isEmpty()) { return QString(); }
-    
-    ImageService::GenerateMode genMode = (mode == QLatin1String("hd")) 
-        ? ImageService::GenerateMode::HD 
+
+    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
+        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Square_1x1);
+    }
+    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
+        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Standard_3x2);
+    }
+    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
+        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Widescreen_16x9);
+    }
+
+    ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
+        ? ImageService::GenerateMode::HD
         : ImageService::GenerateMode::Preview;
-    
     return m_imageService->enqueueBatchPanelImageGeneration(panelIds, genMode);
 }
 
@@ -262,12 +291,12 @@ bool StoryboardViewModel::updatePanel(const QString& panelId, const QJsonObject&
     bool success = m_storyboardService->updatePanel(panelId, content);
     
     if (success) {
-        // 清除缓存，确保下次加载时从数据库获取最新数据
+        // 清除当前分镜缓存
         if (!m_currentStoryboard.id().isEmpty()) {
             m_panelsCache.remove(m_currentStoryboard.id());
         }
         
-        // 发送信号通知 UI 刷新
+        // 通知 UI 刷新
         emit panelUpdated(panelId, content);
     }
     

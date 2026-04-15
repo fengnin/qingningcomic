@@ -37,6 +37,7 @@ public:
     void loadStoryboards(const QString& novelId, bool forceReload = false);
     void loadStoryboard(const QString& novelId, int chapterNumber, bool forceReload = false);
     void loadPanels(const QString& storyboardId);
+    void invalidatePanelsCache(const QString& storyboardId);
     
     void startAnalysis(const QString& novelId, const QString& text, int chapterNumber);
     void startAnalysisWithBible(const QString& novelId, const QString& text, int chapterNumber,

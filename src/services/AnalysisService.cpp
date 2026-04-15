@@ -65,6 +65,10 @@ QString AnalysisService::currentJobId() const
 
 QJsonObject AnalysisService::loadJsonSchema()
 {
+    if (!m_cachedSchema.isEmpty()) {
+        return m_cachedSchema;
+    }
+    
     QString appDir = QCoreApplication::applicationDirPath();
     
     QStringList schemaPaths = {
@@ -80,7 +84,8 @@ QJsonObject AnalysisService::loadJsonSchema()
             
             if (!doc.isNull() && doc.isObject()) {
                 LOG_INFO("AnalysisService", QString("Loaded schema from %1").arg(path));
-                return doc.object();
+                m_cachedSchema = doc.object();
+                return m_cachedSchema;
             }
         }
     }
@@ -91,20 +96,15 @@ QJsonObject AnalysisService::loadJsonSchema()
 
 bool AnalysisService::isTaskMatch(const QString& taskId, const TaskData& task) const
 {
-    // 严格匹配：taskId 必须相等，防止并发任务串线
-    if (!taskId.isEmpty() && taskId == m_currentTaskId) {
-        return true;
+    if (taskId.isEmpty()) {
+        return false;
     }
     
-    // 兼容旧逻辑：如果没有 taskId，则检查 novelId 和类型
-    // 但必须确保 novelId 与当前处理的 novelId 一致
-    if (taskId.isEmpty() && !task.novelId.isEmpty() && 
-        task.type == TaskType::GenerateStoryboard &&
-        task.novelId == m_currentNovelId) {
-        return true;
+    if (task.id.isEmpty()) {
+        return taskId == m_currentTaskId;
     }
     
-    return false;
+    return task.id == taskId;
 }
 
 void AnalysisService::analyzeNovel(const QString& novelId, const QString& text, int chapterNumber)
@@ -133,7 +133,7 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
     
     QJsonObject schema = loadJsonSchema();
     if (schema.isEmpty()) {
-        handleAnalysisFailure(novelId, TR("无法加载 JSON Schema"));
+        handleAnalysisFailure(novelId, tr("JSON Schema 加载失败"));
         return;
     }
     
@@ -147,7 +147,7 @@ void AnalysisService::processTask(TaskData& task)
     
     QJsonObject schema = loadJsonSchema();
     if (schema.isEmpty()) {
-        task.errorMessage = TR("无法加载 JSON Schema");
+        task.errorMessage = tr("JSON Schema 加载失败");
         throw std::runtime_error(task.errorMessage.toStdString());
     }
     
@@ -214,13 +214,13 @@ void AnalysisService::saveResults(const QString& novelId, int chapterNumber, con
             panel["characters"] = updatedCharacters;
         }
         
-        // 从 background.setting 获取场景名称，用于匹配场景圣经
+        // Background scene mapping
         if (panel.contains("background")) {
             QJsonObject background = panel["background"].toObject();
             QString sceneName = background["setting"].toString();
             if (!sceneName.isEmpty() && sceneNameToId.contains(sceneName)) {
                 panel["sceneId"] = sceneNameToId[sceneName];
-                // 同时更新 background.sceneId
+                // 同步更新 background.sceneId
                 background["sceneId"] = sceneNameToId[sceneName];
                 panel["background"] = background;
             }
@@ -358,7 +358,7 @@ void AnalysisService::onQwenStreamProgress(const QString& partialContent)
     int charCount = partialContent.length();
     int streamProgress = qMin(40, charCount / 500);
     
-    updateProgress(streamProgress, TR("正在生成内容..."));
+    updateProgress(streamProgress, tr("正在分析文本"));
 }
 
 void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
@@ -366,11 +366,11 @@ void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
     LOG_INFO("AnalysisService", QString("Stream completed, processing result..."));
     
     if (result.isEmpty()) {
-        handleAnalysisFailure(m_currentNovelId, TR("流式输出结果为空"));
+        handleAnalysisFailure(m_currentNovelId, tr("分镜生成失败"));
         return;
     }
     
-    updateProgress(45, TR("正在解析分镜数据..."));
+    updateProgress(45, tr("正在处理分析结果"));
     
     QwenClient::StoryboardResult storyboardResult;
     storyboardResult.panels = result["panels"].toArray();
@@ -379,10 +379,10 @@ void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
     storyboardResult.totalPages = result["totalPages"].toInt();
     storyboardResult.success = true;
     
-    updateProgress(47, TR("正在保存分镜数据..."));
+    updateProgress(47, tr("正在保存分镜数据"));
     saveResults(m_currentNovelId, m_currentChapterNumber, storyboardResult);
     
-    updateProgress(50, TR("正在生成角色和场景图片..."));
+    updateProgress(50, tr("正在生成角色和场景图片"));
     
     setResultSuccess(m_currentChapterNumber,
                      storyboardResult.panels.size(),
@@ -492,7 +492,7 @@ void AnalysisService::generateImagesAfterAnalysis(const QString& novelId, int ch
         return;
     }
     
-    emit imageGenerationProgress(0, totalImages, QString::fromUtf8("正在生成角色和场景图片..."));
+    emit imageGenerationProgress(0, totalImages, QString::fromUtf8("正在生成角色和场景图片"));
     
     connect(BibleImageService::instance(), &BibleImageService::batchProgress,
             this, &AnalysisService::onBibleImageProgress, Qt::UniqueConnection);
@@ -513,30 +513,25 @@ void AnalysisService::onBibleImageProgress(int current, int total, const QString
 
 void AnalysisService::onBibleImageCompleted(int successCount, int failedCount)
 {
-    LOG_INFO("AnalysisService", QString("=== onBibleImageCompleted called: success=%1, failed=%2 ===")
-        .arg(successCount).arg(failedCount));
-    
+    Q_UNUSED(successCount)
+    Q_UNUSED(failedCount)
     m_bibleImagesCompleted = true;
     finalizeAnalysis();
 }
 
 void AnalysisService::finalizeAnalysis()
 {
-    LOG_INFO("AnalysisService", QString("=== finalizeAnalysis called: novelId=%1 ===").arg(m_currentNovelId));
-    
     disconnect(BibleImageService::instance(), &BibleImageService::batchProgress,
                this, &AnalysisService::onBibleImageProgress);
     disconnect(BibleImageService::instance(), &BibleImageService::allBibleImagesCompleted,
                this, &AnalysisService::onBibleImageCompleted);
     
-    updateProgress(100, TR("分析完成"));
+    updateProgress(100, tr("分析完成"));
     updateJobStatus(m_currentJobId, "completed");
     
     finishProcessing();
     
-    LOG_INFO("AnalysisService", QString("=== Emitting analysisCompleted signal: novelId=%1 ===").arg(m_currentNovelId));
     emit analysisCompleted(m_currentNovelId, m_lastResult);
     
-    LOG_INFO("AnalysisService", QString("Analysis fully completed (including bible images): novelId=%1")
-        .arg(m_currentNovelId));
+    LOG_INFO("AnalysisService", QString("Analysis completed: novelId=%1").arg(m_currentNovelId));
 }

@@ -22,29 +22,29 @@ AnalysisStatusManager* AnalysisStatusManager::instance()
 void AnalysisStatusManager::initStyles()
 {
     m_styles[Status::Ready] = {
-        TR("开始分析"),
-        TR("分析任务 就绪"),
+        tr("开始分析"),
+        tr("待分析"),
         "#374151",
         true
     };
     
     m_styles[Status::Processing] = {
-        TR("正在生成..."),
-        TR("分析任务 进行中"),
+        tr("分析中"),
+        tr("处理中"),
         "#3B82F6",
         false
     };
     
     m_styles[Status::Success] = {
-        TR("生成完成"),
-        TR("分析任务 已完成"),
+        tr("重新分析"),
+        tr("已完成"),
         "#10B981",
         true
     };
     
     m_styles[Status::Failed] = {
-        TR("生成失败"),
-        TR("分析任务 失败"),
+        tr("重试分析"),
+        tr("分析失败"),
         "#EF4444",
         true
     };

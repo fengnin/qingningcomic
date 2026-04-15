@@ -23,6 +23,7 @@ private slots:
     void onShowNovelDetail(const QString &novelId);
     void onBackToNovelPage();
     void onNovelUploaded(const QString &novelId, int chapterNumber);
+    void onEditNovelRequested(const QString &novelId);
 
 private:
     void setupUI();
@@ -43,6 +44,7 @@ private:
 
     QLabel *m_breadcrumbLabel;
     QStackedWidget *m_pageStack;
+    SidebarWidget *m_sidebar;
     
     QWidget *m_dashboardPage;
     QWidget *m_uploadPage;

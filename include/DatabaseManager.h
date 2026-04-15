@@ -63,6 +63,8 @@ public:
     int count(const QString& table, const QString& whereClause = QString(),
               const QVariantList& whereValues = QVariantList());
     
+    bool ensureSoftDeleteColumns(const QString& tableName);
+    
     bool beginTransaction();
     bool commit();
     bool rollback();
@@ -81,7 +83,6 @@ private:
                          const QString& username, const QString& password);
     
     void bindValues(QSqlQuery& query, const QVariantList& values);
-    QString buildDirectSql(const QString& sql, const QVariantList& values) const;
     QVariantMap recordToMap(const QSqlQuery& query) const;
     
     void setLastError(const QString& error);

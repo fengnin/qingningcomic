@@ -19,11 +19,25 @@
 
 namespace {
     using namespace EditorStyles;
+    using EditorStyles::UI::createTransparentWidget;
+    using EditorStyles::UI::createLabel;
+    using EditorStyles::UI::setupLayout;
     
+    // ========== 对话框样式 ==========
     const QString DIALOG_BASE_STYLE = "QDialog { background: #FFFFFF; }";
     const QString DIALOG_TITLE_STYLE = "font-size: 18px; font-weight: bold; color: #1F2937; background: transparent;";
     const QString DIALOG_SUBTITLE_STYLE = "font-size: 14px; color: #6B7280; background: transparent;";
     
+    const QString WARNING_LABEL_STYLE = R"(
+        font-size: 13px;
+        color: #991B1B;
+        background: #0def4444;
+        border: 1px solid #26ef4444;
+        border-radius: 8px;
+        padding: 12px 14px;
+    )";
+    
+    // ========== 空状态样式 ==========
     const QString EMPTY_CARD_STYLE = R"(
         QWidget {
             background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -68,12 +82,122 @@ namespace {
         padding: 8px 16px;
     )";
     
+    // ========== 按钮样式模板 ==========
+    const QString BTN_STYLE_TEMPLATE = R"(
+        QPushButton {
+            background: %1;
+            color: %2;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background: %3;
+        }
+    )";
+    
+    // ========== 筛选项 ==========
     const QVector<FilterItem> FILTER_ITEMS = {
-        {"all", QString::fromUtf8("\u5168\u90e8")},
-        {"completed", QString::fromUtf8("\u5df2\u5b8c\u6210")},
-        {"analyzing", QString::fromUtf8("\u5206\u6790\u4e2d")},
-        {"created", QString::fromUtf8("\u5df2\u521b\u5efa")}
+        {"all", QString::fromUtf8("全部")},
+        {"completed", QString::fromUtf8("已完成")},
+        {"analyzing", QString::fromUtf8("分析中")},
+        {"created", QString::fromUtf8("已创建")}
     };
+    
+    // ========== 文本常量 ==========
+    namespace Text {
+        const QString HERO_TITLE = QString::fromUtf8("作品管理");
+        const QString HERO_DESC = QString::fromUtf8("管理和查看您的小说作品");
+        const QString JUMP_LABEL = QString::fromUtf8("跳转ID:");
+        const QString JUMP_PLACEHOLDER = QString::fromUtf8("输入作品ID");
+        const QString CREATE_BTN = QString::fromUtf8("创建新作品");
+        const QString TOTAL_RECORD = QString::fromUtf8("共 %1 条记录");
+        const QString EMPTY_TITLE = QString::fromUtf8("暂无作品");
+        const QString EMPTY_DESC = QString::fromUtf8("还没有上传任何小说作品");
+        const QString EMPTY_TIP = QString::fromUtf8("点击右上角「创建新作品」按钮开始创作");
+        const QString DELETE_DIALOG_TITLE = QString::fromUtf8("确认删除作品？");
+        const QString DELETE_SUCCESS_TITLE = QString::fromUtf8("删除成功");
+        const QString DELETE_SUCCESS_MSG = QString::fromUtf8("作品已成功删除");
+        const QString WARNING_DELETE = QString::fromUtf8("⚠️ 删除后所有关联数据（分镜、面板、导出任务）将被永久清除！");
+        const QString BTN_CANCEL = QString::fromUtf8("取消");
+        const QString BTN_CONFIRM_DELETE = QString::fromUtf8("确认删除");
+        const QString BTN_OK = QString::fromUtf8("确定");
+        const QString BTN_JUMP = QString::fromUtf8("跳转");
+    }
+    
+    // ========== 辅助函数 ==========
+    QLabel* createDialogLabel(const QString &text, const QString &style)
+    {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(style);
+        label->setWordWrap(true);
+        return label;
+    }
+    
+    QLabel* createWarningLabel(const QString &text)
+    {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(WARNING_LABEL_STYLE);
+        label->setWordWrap(true);
+        return label;
+    }
+    
+    QLabel* createMessageIcon(const QString &bgColor, const QString &iconColor, const QString &iconText)
+    {
+        QLabel *iconLabel = new QLabel();
+        iconLabel->setFixedSize(48, 48);
+        iconLabel->setAlignment(Qt::AlignCenter);
+        iconLabel->setStyleSheet(QString("QLabel { background: %1; border-radius: 24px; font-size: 24px; color: %2; }")
+            .arg(bgColor, iconColor));
+        iconLabel->setText(iconText);
+        iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
+        return iconLabel;
+    }
+    
+    QPushButton* createButton(const QString &text, const QString &bgColor, 
+                               const QString &textColor, const QString &hoverColor)
+    {
+        QPushButton *btn = new QPushButton(text);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(BTN_STYLE_TEMPLATE.arg(bgColor, textColor, hoverColor));
+        return btn;
+    }
+    
+    QPushButton* createDialogButton(const QString &text, const QString &bgColor, const QString &hoverColor)
+    {
+        return createButton(text, bgColor, "white", hoverColor);
+    }
+    
+    QPushButton* createSecondaryButton(const QString &text)
+    {
+        return createButton(text, Colors::COLOR_CANCEL_BG, "#374151", Colors::COLOR_CANCEL_HOVER);
+    }
+    
+    QPushButton* createActionButton(const QString &text, const QString &style)
+    {
+        QPushButton *btn = new QPushButton(text);
+        btn->setStyleSheet(style);
+        btn->setCursor(Qt::PointingHandCursor);
+        return btn;
+    }
+    
+    QLineEdit* createStyledLineEdit(const QString &placeholder, int width, int height)
+    {
+        QLineEdit *edit = new QLineEdit();
+        edit->setPlaceholderText(placeholder);
+        edit->setStyleSheet(lineEditStyle());
+        if (width > 0 && height > 0) {
+            edit->setFixedSize(width, height);
+        }
+        return edit;
+    }
+    
+    QPushButton* createStyledButton(const QString &text, const QString &style)
+    {
+        QPushButton *btn = new QPushButton(text);
+        btn->setStyleSheet(style);
+        return btn;
+    }
 }
 
 NovelPage::NovelPage(QWidget *parent)
@@ -98,48 +222,10 @@ NovelPage::~NovelPage()
 {
 }
 
-// 刷新小说列表
 void NovelPage::refresh()
 {
     loadNovelsFromDatabase();
 }
-
-// ========== 辅助方法 ==========
-
-QWidget* NovelPage::createTransparentWidget()
-{
-    return EditorStyles::UI::createTransparentWidget();
-}
-
-QLabel* NovelPage::createLabel(const QString &text, const QString &style, int fontSize, bool bold)
-{
-    return EditorStyles::UI::createLabel(text, style, fontSize, bold);
-}
-
-void NovelPage::setupLayout(QLayout *layout, int left, int top, int right, int bottom, int spacing)
-{
-    EditorStyles::UI::setupLayout(layout, left, top, right, bottom, spacing);
-}
-
-QLineEdit* NovelPage::createStyledLineEdit(const QString &placeholder, int width, int height)
-{
-    QLineEdit *edit = new QLineEdit();
-    edit->setPlaceholderText(placeholder);
-    edit->setStyleSheet(lineEditStyle());
-    if (width > 0 && height > 0) {
-        edit->setFixedSize(width, height);
-    }
-    return edit;
-}
-
-QPushButton* NovelPage::createStyledButton(const QString &text, const QString &style)
-{
-    QPushButton *btn = new QPushButton(text);
-    btn->setStyleSheet(style);
-    return btn;
-}
-
-// ========== UI 初始化 ==========
 
 void NovelPage::setupUI()
 {
@@ -175,7 +261,6 @@ QScrollArea* NovelPage::createScrollArea()
     return scrollArea;
 }
 
-// ========== 头部区域 ==========
 
 QWidget* NovelPage::createHeroSection()
 {
@@ -213,7 +298,8 @@ QWidget* NovelPage::createHeroIcon()
         color: white;
         font-size: 24px;
     )");
-    iconLabel->setText("📚");
+    iconLabel->setText(QString::fromUtf8("📚"));
+    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
     iconLabel->setAlignment(Qt::AlignCenter);
     return iconLabel;
 }
@@ -224,8 +310,8 @@ QWidget* NovelPage::createHeroText()
     QVBoxLayout *textLayout = new QVBoxLayout(textContainer);
     setupLayout(textLayout, 0, 0, 0, 0, 4);
     
-    QLabel *titleLabel = createLabel(QString::fromUtf8("\u4f5c\u54c1\u7a7a\u95f4"), "font-size: 24px; font-weight: bold; color: #1e293b; background: transparent;");
-    QLabel *descLabel = createLabel(QString::fromUtf8("\u6d4f\u89c8\u5e76\u7ba1\u7406\u4f60\u521b\u5efa\u7684\u6f2b\u753b\u4f5c\u54c1\uff0c\u652f\u6301\u5feb\u901f\u8df3\u8f6c\u4e0e\u72b6\u6001\u7b5b\u9009\u3002"), "font-size: 14px; color: #333333; background: transparent;");
+    QLabel *titleLabel = createLabel(Text::HERO_TITLE, "font-size: 24px; font-weight: bold; color: #1e293b; background: transparent;");
+    QLabel *descLabel = createLabel(Text::HERO_DESC, "font-size: 14px; color: #333333; background: transparent;");
     
     textLayout->addWidget(titleLabel);
     textLayout->addWidget(descLabel);
@@ -239,9 +325,9 @@ QWidget* NovelPage::createJumpSection()
     QHBoxLayout *jumpLayout = new QHBoxLayout(jumpWidget);
     setupLayout(jumpLayout, 0, 0, 0, 0, 8);
     
-    QLabel *jumpLabel = createLabel(QString::fromUtf8("\u4f5c\u54c1 ID"), "font-size: 12px; color: #4d7c0f; background: transparent;");
-    m_jumpInput = createStyledLineEdit(QString::fromUtf8("\u8f93\u5165\u4f5c\u54c1 ID\uff0c\u5feb\u901f\u8df3\u8f6c"), 200, EditorStyles::Constants::INPUT_HEIGHT);
-    m_jumpBtn = createStyledButton(QString::fromUtf8("\u8df3\u8f6c"), secondaryButtonStyle());
+    QLabel *jumpLabel = createLabel(Text::JUMP_LABEL, "font-size: 12px; color: #4d7c0f; background: transparent;");
+    m_jumpInput = createStyledLineEdit(Text::JUMP_PLACEHOLDER, 200, EditorStyles::Constants::INPUT_HEIGHT);
+    m_jumpBtn = createStyledButton(Text::BTN_JUMP, secondaryButtonStyle());
     m_jumpBtn->setFixedSize(EditorStyles::Constants::BTN_JUMP_WIDTH, EditorStyles::Constants::INPUT_HEIGHT);
     
     jumpLayout->addWidget(jumpLabel);
@@ -255,7 +341,7 @@ QWidget* NovelPage::createJumpSection()
 
 QWidget* NovelPage::createCreateButton()
 {
-    m_createBtn = createStyledButton(QString::fromUtf8("\u4e0a\u4f20\u5c0f\u8bf4"), primaryButtonStyle());
+    m_createBtn = createStyledButton(Text::CREATE_BTN, primaryButtonStyle());
     m_createBtn->setFixedSize(EditorStyles::Constants::BTN_CREATE_WIDTH, EditorStyles::Constants::INPUT_HEIGHT);
     
     connect(m_createBtn, &QPushButton::clicked, this, &NovelPage::onCreateNovelClicked);
@@ -263,7 +349,6 @@ QWidget* NovelPage::createCreateButton()
     return m_createBtn;
 }
 
-// ========== 筛选栏 ==========
 
 QWidget* NovelPage::createFilterBar()
 {
@@ -287,8 +372,7 @@ QWidget* NovelPage::createFilterBar()
     
     chipsLayout->addStretch();
     
-    QString totalText = QString::fromUtf8("\u5171 0 \u6761\u8bb0\u5f55");
-    m_totalCountLabel = createLabel(totalText, "font-size: 13px; color: #991e293b;");
+    m_totalCountLabel = createLabel(Text::TOTAL_RECORD, "font-size: 13px; color: #991e293b;");
     
     filterBarLayout->addWidget(m_filterContainer, 1);
     filterBarLayout->addWidget(m_totalCountLabel);
@@ -331,7 +415,6 @@ QPushButton* NovelPage::createFilterChip(const QString &label, const QString &st
     return chip;
 }
 
-// ========== 网格区域 ==========
 
 QWidget* NovelPage::createGridSection()
 {
@@ -358,7 +441,6 @@ QWidget* NovelPage::createGridSection()
     return gridSectionWidget;
 }
 
-// ========== 卡片组件 ==========
 
 QWidget* NovelPage::createNovelCard(const Novel &novel)
 {
@@ -376,7 +458,6 @@ QWidget* NovelPage::createNovelCard(const Novel &novel)
     cardLayout->addWidget(createCardActions(novel));
     cardLayout->addWidget(createCardFooter(novel));
     
-    // 使用 mousePressEvent 替代 eventFilter
     cardWidget->installEventFilter(this);
     
     return cardWidget;
@@ -408,7 +489,7 @@ QWidget* NovelPage::createCardDetails(const Novel &novel)
     detailsLayout->setSpacing(12);
     
     QString createTime = novel.createdAt().toString("yyyy-MM-dd hh:mm");
-    detailsLayout->addWidget(createDetailRow(QString::fromUtf8("\u521b\u5efa\u65f6\u95f4"), createTime), 0, 0);
+    detailsLayout->addWidget(createDetailRow(QString::fromUtf8("创建时间"), createTime), 0, 0);
     
     return detailsWidget;
 }
@@ -420,7 +501,7 @@ QWidget* NovelPage::createCardFooter(const Novel &novel)
     footerLayout->setContentsMargins(0, 0, 0, 0);
     footerLayout->setSpacing(8);
     
-    QLabel *idLabel = createLabel(QString::fromUtf8("\u4f5c\u54c1 ID"), "font-size: 12px; color: #8c1e293b;");
+    QLabel *idLabel = createLabel(QString::fromUtf8("ID: "), "font-size: 12px; color: #8c1e293b;");
     
     QLabel *idValue = createLabel(novel.id(), "background: #40a3e635; padding: 4px 6px; border-radius: 6px; color: #4d7c0f; font-size: 12px;");
     
@@ -440,8 +521,8 @@ QWidget* NovelPage::createCardActions(const Novel &novel)
     actionsLayout->setContentsMargins(0, 12, 0, 0);
     actionsLayout->setSpacing(8);
     
-    QPushButton *editBtn = createActionButton(QString::fromUtf8("\u7f16\u8f91"), novelCardEditButtonStyle());
-    QPushButton *deleteBtn = createActionButton(QString::fromUtf8("\u5220\u9664"), novelCardDeleteButtonStyle());
+    QPushButton *editBtn = createActionButton(QString::fromUtf8("编辑"), novelCardEditButtonStyle());
+    QPushButton *deleteBtn = createActionButton(QString::fromUtf8("删除"), novelCardDeleteButtonStyle());
     
     actionsLayout->addStretch();
     actionsLayout->addWidget(editBtn);
@@ -459,14 +540,6 @@ QWidget* NovelPage::createCardActions(const Novel &novel)
     });
     
     return actionsWidget;
-}
-
-QPushButton* NovelPage::createActionButton(const QString &text, const QString &style)
-{
-    QPushButton *btn = new QPushButton(text);
-    btn->setStyleSheet(style);
-    btn->setCursor(Qt::PointingHandCursor);
-    return btn;
 }
 
 QWidget* NovelPage::createDetailRow(const QString &labelText, const QString &valueText)
@@ -528,16 +601,16 @@ QWidget* NovelPage::createEmptyState()
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLayout->addWidget(iconLabel);
     
-    QLabel *titleLabel = new QLabel(QString::fromUtf8("\u8fd8\u6ca1\u6709\u4f5c\u54c1"));
+    QLabel *titleLabel = new QLabel(Text::EMPTY_TITLE);
     titleLabel->setStyleSheet(EMPTY_TITLE_STYLE);
     titleLabel->setAlignment(Qt::AlignCenter);
     
-    QLabel *descLabel = new QLabel(QString::fromUtf8("\u70b9\u51fb\u4e0a\u65b9\u7684\u300c\u4e0a\u4f20\u5c0f\u8bf4\u300d\u6309\u94ae\n\u5f00\u542f\u4f60\u7684\u6f2b\u753b\u521b\u4f5c\u4e4b\u65c5"));
+    QLabel *descLabel = new QLabel(Text::EMPTY_DESC);
     descLabel->setStyleSheet(EMPTY_DESC_STYLE);
     descLabel->setAlignment(Qt::AlignCenter);
     descLabel->setWordWrap(true);
     
-    QLabel *tipLabel = new QLabel(QString::fromUtf8("\u63d0\u793a\uff1a\u652f\u6301\u5bfc\u5165 TXT \u683c\u5f0f\u7684\u5c0f\u8bf4\u6587\u672c"));
+    QLabel *tipLabel = new QLabel(Text::EMPTY_TIP);
     tipLabel->setStyleSheet(EMPTY_TIP_STYLE);
     tipLabel->setAlignment(Qt::AlignCenter);
     
@@ -552,7 +625,6 @@ QWidget* NovelPage::createEmptyState()
     return emptyWidget;
 }
 
-// ========== 业务逻辑 ==========
 
 void NovelPage::loadNovelsFromDatabase()
 {
@@ -583,7 +655,7 @@ void NovelPage::renderNovelGrid()
     clearGridLayout();
     
     QList<Novel> filteredNovels = filterNovels();
-    m_totalCountLabel->setText(QString("共 %1 条记录").arg(filteredNovels.size()));
+    m_totalCountLabel->setText(QString("Total %1 records").arg(filteredNovels.size()));
     
     if (filteredNovels.isEmpty()) {
         m_gridLayout->addWidget(createEmptyState(), 0, 0, 1, EditorStyles::Constants::GRID_COLUMNS);
@@ -635,7 +707,7 @@ void NovelPage::updateFilterStats()
     for (int i = 0; i < buttons.size() && i < items.size(); ++i) {
         QString label = items[i].label;
         if (items[i].status != "all" && m_filterStats.contains(items[i].status)) {
-            label += QString(" · %1").arg(m_filterStats[items[i].status]);
+            label += QString(" (%1)").arg(m_filterStats[items[i].status]);
         }
         buttons[i]->setText(label);
     }
@@ -646,7 +718,6 @@ const QVector<FilterItem>& NovelPage::getFilterItems() const
     return FILTER_ITEMS;
 }
 
-// ========== 公共业务方法 ==========
 
 Novel* NovelPage::findNovelById(const QString &novelId)
 {
@@ -668,11 +739,9 @@ void NovelPage::removeNovelFromList(const QString &novelId)
     }
 }
 
-// ========== 事件处理 ==========
 
 void NovelPage::onCreateNovelClicked()
 {
-    // 发出信号，请求跳转到上传作品页面
     emit createNovelRequested();
 }
 
@@ -680,10 +749,10 @@ void NovelPage::onJumpClicked()
 {
     QString novelId = m_jumpInput->text().trimmed();
     if (novelId.isEmpty()) {
-        QMessageBox::warning(this, tr("提示"), tr("请输入作品 ID！"));
+        QMessageBox::warning(this, tr("提示"), tr("请输入要跳转的作品ID"));
         return;
     }
-    QMessageBox::information(this, tr("提示"), tr("跳转到作品: %1").arg(novelId));
+    QMessageBox::information(this, tr("跳转成功"), tr("正在跳转到作品: %1").arg(novelId));
 }
 
 void NovelPage::onFilterClicked(const QString &status)
@@ -723,7 +792,7 @@ void NovelPage::deleteNovel(const QString &novelId)
     removeNovelFromList(novelId);
     updateFilterStats();
     renderNovelGrid();
-    showSuccessMessage(QString::fromUtf8("\u5220\u9664\u6210\u529f"), QString::fromUtf8("\u4f5c\u54c1\u5df2\u6210\u529f\u5220\u9664"));
+    showSuccessMessage(Text::DELETE_SUCCESS_TITLE, Text::DELETE_SUCCESS_MSG);
 }
 
 void NovelPage::showDeleteConfirmDialog(const QString &novelId, const QString &title)
@@ -738,56 +807,28 @@ void NovelPage::showDeleteConfirmDialog(const QString &novelId, const QString &t
     mainLayout->setContentsMargins(32, 28, 32, 24);
     mainLayout->setSpacing(20);
     
-    mainLayout->addWidget(createDialogLabel(QString::fromUtf8("删除作品"), DIALOG_TITLE_STYLE));
-    mainLayout->addWidget(createDialogLabel(QString::fromUtf8("确定要删除「%1」吗？").arg(title), DIALOG_SUBTITLE_STYLE));
-    mainLayout->addWidget(createWarningLabel(QString::fromUtf8("删除后将无法恢复，关联的角色和分镜数据也将被删除")));
-    mainLayout->addLayout(createDialogButtonRow(dialog, 
-        createSecondaryButton(QString::fromUtf8("取消")),
-        createDialogButton(QString::fromUtf8("确认删除"), Colors::COLOR_ERROR, Colors::COLOR_ERROR_HOVER)));
+    mainLayout->addWidget(createDialogLabel(Text::DELETE_DIALOG_TITLE, DIALOG_TITLE_STYLE));
+    mainLayout->addWidget(createDialogLabel(QString::fromUtf8("您即将删除作品「%1」，此操作不可恢复。").arg(title), DIALOG_SUBTITLE_STYLE));
+    mainLayout->addWidget(createWarningLabel(Text::WARNING_DELETE));
     
-    if (dialog.exec() == QDialog::Accepted) {
-        deleteNovel(novelId);
-    }
-}
-
-QLabel* NovelPage::createDialogLabel(const QString &text, const QString &style)
-{
-    QLabel *label = new QLabel(text);
-    label->setStyleSheet(style);
-    label->setWordWrap(true);
-    return label;
-}
-
-QLabel* NovelPage::createWarningLabel(const QString &text)
-{
-    QLabel *label = new QLabel(text);
-    label->setStyleSheet(R"(
-        font-size: 13px;
-        color: #991B1B;
-        background: #0def4444;
-        border: 1px solid #26ef4444;
-        border-radius: 8px;
-        padding: 12px 14px;
-    )");
-    label->setWordWrap(true);
-    return label;
-}
-
-QHBoxLayout* NovelPage::createDialogButtonRow(QDialog &dialog, QPushButton *cancelBtn, QPushButton *confirmBtn)
-{
+    QPushButton *cancelBtn = createSecondaryButton(Text::BTN_CANCEL);
+    QPushButton *confirmBtn = createDialogButton(Text::BTN_CONFIRM_DELETE, Colors::COLOR_ERROR, Colors::COLOR_ERROR_HOVER);
     cancelBtn->setFixedSize(80, 36);
     confirmBtn->setFixedSize(100, 36);
     
     connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(confirmBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     
-    QHBoxLayout *layout = new QHBoxLayout();
-    layout->setSpacing(12);
-    layout->addStretch();
-    layout->addWidget(cancelBtn);
-    layout->addWidget(confirmBtn);
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    btnLayout->setSpacing(12);
+    btnLayout->addStretch();
+    btnLayout->addWidget(cancelBtn);
+    btnLayout->addWidget(confirmBtn);
+    mainLayout->addLayout(btnLayout);
     
-    return layout;
+    if (dialog.exec() == QDialog::Accepted) {
+        deleteNovel(novelId);
+    }
 }
 
 void NovelPage::showSuccessMessage(const QString &title, const QString &message)
@@ -800,7 +841,6 @@ void NovelPage::showErrorMessage(const QString &title, const QString &message)
     showMessageDialog(title, message, MessageType::Error);
 }
 
-// 公共消息对话框方法，消除重复代码
 void NovelPage::showMessageDialog(const QString &title, const QString &message, MessageType type)
 {
     QDialog dialog(this);
@@ -816,7 +856,7 @@ void NovelPage::showMessageDialog(const QString &title, const QString &message, 
     bool isSuccess = (type == MessageType::Success);
     QString bgColor = isSuccess ? "#1a22c55e" : "#1aef4444";
     QString iconColor = isSuccess ? Colors::COLOR_SUCCESS : Colors::COLOR_ERROR;
-    QString iconText = isSuccess ? QString::fromUtf8("\u2713") : QString::fromUtf8("\u2717");
+    QString iconText = isSuccess ? QString::fromUtf8("✅") : QString::fromUtf8("❌");
     QString btnBgColor = isSuccess ? Colors::COLOR_SUCCESS : Colors::COLOR_ERROR;
     QString btnHoverColor = isSuccess ? Colors::COLOR_SUCCESS_HOVER : Colors::COLOR_ERROR_HOVER;
     
@@ -825,63 +865,12 @@ void NovelPage::showMessageDialog(const QString &title, const QString &message, 
     mainLayout->addWidget(createDialogLabel(message, DIALOG_SUBTITLE_STYLE), 0, Qt::AlignCenter);
     mainLayout->addSpacing(8);
     
-    QPushButton *okBtn = createDialogButton(QString::fromUtf8("确定"), btnBgColor, btnHoverColor);
+    QPushButton *okBtn = createDialogButton(Text::BTN_OK, btnBgColor, btnHoverColor);
     okBtn->setFixedSize(100, 36);
     connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     mainLayout->addWidget(okBtn, 0, Qt::AlignCenter);
     
     dialog.exec();
-}
-
-QLabel* NovelPage::createMessageIcon(const QString &bgColor, const QString &iconColor, const QString &iconText)
-{
-    QLabel *iconLabel = new QLabel();
-    iconLabel->setFixedSize(48, 48);
-    iconLabel->setAlignment(Qt::AlignCenter);
-    iconLabel->setStyleSheet(QString("QLabel { background: %1; border-radius: 24px; font-size: 24px; color: %2; }")
-        .arg(bgColor, iconColor));
-    iconLabel->setText(iconText);
-    return iconLabel;
-}
-
-// 创建对话框按钮的公共方法
-QPushButton* NovelPage::createDialogButton(const QString &text, const QString &bgColor, const QString &hoverColor)
-{
-    QPushButton *btn = new QPushButton(text);
-    btn->setCursor(Qt::PointingHandCursor);
-    btn->setStyleSheet(QString(R"(
-        QPushButton {
-            background: %1;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        QPushButton:hover {
-            background: %2;
-        }
-    )").arg(bgColor, hoverColor));
-    return btn;
-}
-
-// 创建次要按钮（灰色背景+深色文字）
-QPushButton* NovelPage::createSecondaryButton(const QString &text)
-{
-    QPushButton *btn = new QPushButton(text);
-    btn->setCursor(Qt::PointingHandCursor);
-    btn->setStyleSheet(QString(R"(
-        QPushButton {
-            background: %1;
-            color: #374151;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        QPushButton:hover {
-            background: %2;
-        }
-    )").arg(Colors::COLOR_CANCEL_BG, Colors::COLOR_CANCEL_HOVER));
-    return btn;
 }
 
 bool NovelPage::eventFilter(QObject *watched, QEvent *event)
@@ -917,3 +906,4 @@ QString NovelPage::findNovelIdFromWidget(QWidget *widget) const
     }
     return QString();
 }
+

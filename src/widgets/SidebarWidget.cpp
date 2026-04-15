@@ -37,8 +37,9 @@ void SidebarWidget::createBrandSection(QVBoxLayout *parentLayout)
     QHBoxLayout *brandLayout = new QHBoxLayout(brandContainer);
     setupMargins(brandLayout, 16, 8, 12, 4, 6);
     
-    QLabel *logoIcon = createLabel(QStringLiteral("\U0001F34B"),
+    QLabel *logoIcon = createLabel(QStringLiteral("🍋"),
         "font-size: 28px; background: transparent; border: none; outline: none; min-width: 48px; max-width: 48px; min-height: 48px; max-height: 48px;");
+    logoIcon->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 28));
     
     QWidget *textContainer = createTransparentWidget();
     QVBoxLayout *textLayout = new QVBoxLayout(textContainer);
@@ -47,7 +48,7 @@ void SidebarWidget::createBrandSection(QVBoxLayout *parentLayout)
     QLabel *brandName = createLabel(QString::fromUtf8("青柠漫画"),
         "font-size: 18px; font-weight: bold; color: #451a03; background: transparent;", 18, true);
     
-    QLabel *brandSubtitle = createLabel(QString::fromUtf8("全流程创作工作台"),
+    QLabel *brandSubtitle = createLabel(QString::fromUtf8("Comic Creator"),
         "font-size: 12px; color: #5c3d1e; background: transparent;", 12);
     
     textLayout->addWidget(brandName);
@@ -84,10 +85,10 @@ void SidebarWidget::createNavSection(QVBoxLayout *parentLayout)
         }
     });
     
-    addNavItem({QStringLiteral("\U0001F3E0"), QString::fromUtf8("总览"), QString::fromUtf8("总览"), 0});
-    addNavItem({QString::fromUtf8("\U0001F4C4"), QString::fromUtf8("上传作品"), QString::fromUtf8("上传作品"), 1});
-    addNavItem({QString::fromUtf8("\U0001F4DA"), QString::fromUtf8("项目空间"), QString::fromUtf8("项目空间"), 2});
-    addNavItem({QStringLiteral("\U0001F4E6"), QString::fromUtf8("导出中心"), QString::fromUtf8("导出中心"), 3});
+    addNavItem({QStringLiteral("🏠"), QString::fromUtf8("总览"), QString::fromUtf8("Dashboard"), 0});
+    addNavItem({QStringLiteral("📁"), QString::fromUtf8("作品空间"), QString::fromUtf8("Works"), 1});
+    addNavItem({QStringLiteral("✏"), QString::fromUtf8("分镜编辑"), QString::fromUtf8("Storyboard"), 2});
+    addNavItem({QStringLiteral("📦"), QString::fromUtf8("导出中心"), QString::fromUtf8("Export"), 3});
     
     parentLayout->addWidget(m_navList, 1);
 }
@@ -106,7 +107,7 @@ void SidebarWidget::createFooterSection(QVBoxLayout *parentLayout)
     setupMargins(footerLayout, 16, 10, 12, 10, 5);
     
     QLabel *footerLabel = createLabel(
-        QString::fromUtf8("连接故事、角色、分镜的统一控制中心"),
+        QString::fromUtf8("v1.0.0"),
         "background: transparent; color: " + SidebarStyle::Color::FOOTER_LABEL + "; font-size: 13px;", 13);
     footerLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     
@@ -134,6 +135,7 @@ void SidebarWidget::addNavItem(const NavItemData &itemData)
     iconLabel->setObjectName("navIcon");
     iconLabel->setFixedWidth(32);
     iconLabel->setAlignment(Qt::AlignCenter);
+    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 22));
     
     QLabel *textLabel = createLabel(itemData.text,
         "font-size: 14px; background: transparent; color: #78350f; border: none;", 14);
@@ -177,13 +179,17 @@ void SidebarWidget::applyLabelStyles(QWidget *itemWidget, bool isActive)
 
 void SidebarWidget::setActiveNav(int index)
 {
+    m_activeIndex = index;
+    
     for (int i = 0; i < m_navList->count(); ++i) {
         QListWidgetItem *listItem = m_navList->item(i);
         QWidget *widget = m_navList->itemWidget(listItem);
         updateNavItemStyle(widget, (i == index));
     }
     
-    m_activeIndex = index;
+    if (index >= 0 && index < m_navList->count()) {
+        m_navList->setCurrentRow(index);
+    }
 }
 
 void SidebarWidget::paintEvent(QPaintEvent *event)
@@ -219,3 +225,5 @@ void SidebarWidget::setupMargins(QBoxLayout *layout, int left, int top, int righ
     layout->setContentsMargins(left, top, right, bottom);
     if (spacing > 0) layout->setSpacing(spacing);
 }
+
+

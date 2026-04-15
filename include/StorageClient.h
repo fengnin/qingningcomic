@@ -11,7 +11,7 @@
 /**
  * @brief S3 兼容存储客户端
  * 
- * 支持滨纷云、Backblaze B2、AWS S3 等 S3 兼容存储服务。
+ * 支持 Backblaze B2、AWS S3 等 S3 兼容存储服务。
  * 
  * 两种模式：
  * 1. 直接模式：客户端持有 AccessKey/SecretKey（不推荐用于 WebAssembly）
@@ -26,7 +26,7 @@ public:
      * @brief 存储配置
      */
     struct Config {
-        QString endpoint;           // 服务端点，如 https://s3.bfenyun.com
+        QString endpoint;           // 服务端点，如 https://s3.example.com
         QString bucket;             // 存储桶名称
         QString accessKey;          // Access Key ID（可选，预签名模式不需要）
         QString secretKey;          // Secret Access Key（可选，预签名模式不需要）
