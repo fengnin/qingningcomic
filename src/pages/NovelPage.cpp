@@ -1,9 +1,9 @@
-#include "NovelPage.h"
-#include "NovelUploadPage.h"
+#include "pages/NovelPage.h"
+#include "pages/NovelUploadPage.h"
 #include "viewmodels/NovelViewModel.h"
 #include "components/EditorStyles.h"
 #include "utils/StatusHelper.h"
-#include "UserSession.h"
+#include "utils/UserSession.h"
 #include <QMessageBox>
 #include <QDateTime>
 #include <QScrollArea>
@@ -106,8 +106,8 @@ namespace {
     
     // ========== 文本常量 ==========
     namespace Text {
-        const QString HERO_TITLE = QString::fromUtf8("作品管理");
-        const QString HERO_DESC = QString::fromUtf8("管理和查看您的小说作品");
+        const QString HERO_TITLE = QString::fromUtf8("作品空间");
+        const QString HERO_DESC = QString::fromUtf8("浏览并管理你创建的小说作品，支持快速跳转、状态筛选与分页加载。");
         const QString JUMP_LABEL = QString::fromUtf8("跳转ID:");
         const QString JUMP_PLACEHOLDER = QString::fromUtf8("输入作品ID");
         const QString CREATE_BTN = QString::fromUtf8("创建新作品");
@@ -116,9 +116,10 @@ namespace {
         const QString EMPTY_DESC = QString::fromUtf8("还没有上传任何小说作品");
         const QString EMPTY_TIP = QString::fromUtf8("点击右上角「创建新作品」按钮开始创作");
         const QString DELETE_DIALOG_TITLE = QString::fromUtf8("确认删除作品？");
+        const QString DELETE_ERROR_TITLE = QString::fromUtf8("删除失败");
         const QString DELETE_SUCCESS_TITLE = QString::fromUtf8("删除成功");
         const QString DELETE_SUCCESS_MSG = QString::fromUtf8("作品已成功删除");
-        const QString WARNING_DELETE = QString::fromUtf8("⚠️ 删除后所有关联数据（分镜、面板、导出任务）将被永久清除！");
+        const QString WARNING_DELETE = QString::fromUtf8("⚠️ 删除后所有关联数据将被永久清除！");
         const QString BTN_CANCEL = QString::fromUtf8("取消");
         const QString BTN_CONFIRM_DELETE = QString::fromUtf8("确认删除");
         const QString BTN_OK = QString::fromUtf8("确定");
@@ -788,7 +789,11 @@ void NovelPage::onEditNovelClicked(const QString &novelId)
 
 void NovelPage::deleteNovel(const QString &novelId)
 {
-    NovelViewModel::instance()->deleteNovel(novelId);
+    if (!NovelViewModel::instance()->deleteNovel(novelId)) {
+        showErrorMessage(Text::DELETE_ERROR_TITLE, QString::fromUtf8("作品删除失败，请稍后重试"));
+        return;
+    }
+
     removeNovelFromList(novelId);
     updateFilterStats();
     renderNovelGrid();
@@ -906,4 +911,3 @@ QString NovelPage::findNovelIdFromWidget(QWidget *widget) const
     }
     return QString();
 }
-

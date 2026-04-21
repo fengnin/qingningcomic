@@ -1,6 +1,6 @@
 #include "utils/AsyncImageLoader.h"
-#include "SharedNetworkManager.h"
-#include "Logger.h"
+#include "api/SharedNetworkManager.h"
+#include "utils/Logger.h"
 #include <QtConcurrent>
 #include <QFileInfo>
 #include <QPixmapCache>

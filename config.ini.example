@@ -21,7 +21,7 @@ maxRetries = 3
 # 每块最大字符数
 maxChunkLength = 8000
 # 请求超时（毫秒）
-requestTimeout = 120000
+requestTimeout = 300000
 
 [qwenImage]
 # 通义万相图像生成 API 配置
@@ -34,7 +34,7 @@ requestTimeout = 120000
 #   wan2.7-image-pro  - 功能最强，支持组图生成
 generateModel = wanx2.1-t2i-turbo
 # 图像编辑模型（局部修改）
-editModel = qwen-image-edit
+editModel = qwen-image-2.0-2026-03-03
 # 请求超时（毫秒）
 requestTimeout = 120000
 # 最大重试次数

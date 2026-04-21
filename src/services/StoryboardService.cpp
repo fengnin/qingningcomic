@@ -1,12 +1,12 @@
-#include "StoryboardService.h"
-#include "ServiceContainer.h"
-#include "DatabaseManager.h"
+#include "services/StoryboardService.h"
+#include "services/ServiceContainer.h"
+#include "data/DatabaseManager.h"
 #include "utils/SingletonUtils.h"
-#include "FileStorage.h"
-#include "StorageClient.h"
-#include "TransactionScope.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
+#include "data/FileStorage.h"
+#include "api/StorageClient.h"
+#include "data/TransactionScope.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
 #include <QUuid>
 #include <QJsonDocument>
 #include <QMutexLocker>
@@ -199,7 +199,8 @@ bool StoryboardService::insertPanel(const QString& storyboardId, const QJsonObje
     return true;
 }
 
-bool StoryboardService::saveStoryboard(const QString& novelId, const QJsonObject& data, int chapterNumber)
+bool StoryboardService::saveStoryboard(const QString& novelId, const QJsonObject& data, int chapterNumber,
+                                       bool updateNovelStatus)
 {
     if (!checkConnection("saveStoryboard")) {
         return false;
@@ -239,9 +240,11 @@ bool StoryboardService::saveStoryboard(const QString& novelId, const QJsonObject
         return false;
     }
     
-    if (!updateNovelStoryboard(novelId, storyboardId)) {
-        LOG_ERROR("StoryboardService", "updateNovelStoryboard failed, rolling back");
-        return false;
+    if (updateNovelStatus) {
+        if (!updateNovelStoryboard(novelId, storyboardId)) {
+            LOG_ERROR("StoryboardService", "updateNovelStoryboard failed, rolling back");
+            return false;
+        }
     }
     
     if (!transaction.commit()) {

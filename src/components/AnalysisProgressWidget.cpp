@@ -1,7 +1,7 @@
 #include "components/AnalysisProgressWidget.h"
 #include "EditorStyles.h"
-#include "EncodingUtils.h"
-#include "Logger.h"
+#include "utils/EncodingUtils.h"
+#include "utils/Logger.h"
 
 namespace {
     const QString STATUS_LABEL_STYLE = "font-size: 13px; color: %1; background: transparent;";
@@ -98,17 +98,17 @@ void AnalysisProgressWidget::setResult(const QJsonObject &result)
         QStringList resultParts;
         
         if (result.contains("panelCount")) {
-            resultParts << QString::fromUtf8(u8"\u5206\u955c: %1").arg(result["panelCount"].toInt());
+            resultParts << TR("面板：%1").arg(result["panelCount"].toInt());
         }
         if (result.contains("characterCount")) {
-            resultParts << QString::fromUtf8(u8"\u89d2\u8272: %1").arg(result["characterCount"].toInt());
+            resultParts << TR("角色：%1").arg(result["characterCount"].toInt());
         }
         if (result.contains("sceneCount")) {
-            resultParts << QString::fromUtf8(u8"\u573a\u666f: %1").arg(result["sceneCount"].toInt());
+            resultParts << TR("场景：%1").arg(result["sceneCount"].toInt());
         }
         
         if (!resultParts.isEmpty()) {
-            m_resultLabel->setText(resultParts.join(" / "));
+            m_resultLabel->setText(resultParts.join(" · "));
             m_resultLabel->setVisible(true);
         }
     } else {
@@ -175,17 +175,17 @@ QString AnalysisProgressWidget::stateToText(State state) const
 {
     switch (state) {
         case State::Idle:
-            return QString::fromUtf8(u8"\u672a\u5f00\u59cb");
+            return TR("就绪");
         case State::Connecting:
-            return QString::fromUtf8(u8"\u8fde\u63a5\u4e2d");
+            return TR("正在连接 AI 服务...");
         case State::Streaming:
-            return QString::fromUtf8(u8"\u5206\u6790\u4e2d");
+            return TR("正在生成内容...");
         case State::Processing:
-            return QString::fromUtf8(u8"\u5904\u7406\u4e2d");
+            return TR("正在处理结果...");
         case State::Completed:
-            return QString::fromUtf8(u8"\u5df2\u5b8c\u6210");
+            return TR("分析完成");
         case State::Failed:
-            return QString::fromUtf8(u8"\u5931\u8d25");
+            return TR("分析失败");
         default:
             return QString();
     }
@@ -208,4 +208,3 @@ QString AnalysisProgressWidget::stateToColor(State state) const
             return "#6B7280";
     }
 }
-

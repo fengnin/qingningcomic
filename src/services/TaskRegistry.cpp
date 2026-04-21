@@ -1,9 +1,9 @@
-#include "TaskRegistry.h"
-#include "ServiceContainer.h"
-#include "ImageService.h"
-#include "StoryboardService.h"
-#include "AnalysisService.h"
-#include "Logger.h"
+#include "services/TaskRegistry.h"
+#include "services/ServiceContainer.h"
+#include "services/ImageService.h"
+#include "services/StoryboardService.h"
+#include "services/AnalysisService.h"
+#include "utils/Logger.h"
 #include <QThread>
 #include <QEventLoop>
 #include <QJsonDocument>
@@ -54,6 +54,7 @@ namespace {
 }
 
 TaskRegistry* TaskRegistry::m_instance = nullptr;
+std::once_flag TaskRegistry::m_instanceOnceFlag;
 
 TaskRegistry::TaskRegistry()
     : QObject(nullptr)
@@ -66,9 +67,9 @@ TaskRegistry::~TaskRegistry()
 
 TaskRegistry* TaskRegistry::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new TaskRegistry();
-    }
+    });
     return m_instance;
 }
 

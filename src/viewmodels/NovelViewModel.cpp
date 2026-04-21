@@ -1,9 +1,9 @@
 #include "viewmodels/NovelViewModel.h"
-#include "ServiceContainer.h"
-#include "NovelService.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
-#include "UserSession.h"
+#include "services/ServiceContainer.h"
+#include "services/NovelService.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
+#include "utils/UserSession.h"
 
 IMPLEMENT_SINGLETON(NovelViewModel)
 
@@ -68,13 +68,14 @@ void NovelViewModel::loadNovel(const QString& novelId)
     }
 }
 
-void NovelViewModel::createNovel(const QString& userId, const QString& title, const QString& text)
+void NovelViewModel::createNovel(const QString& userId, const QString& title, const QString& text,
+                                 const QVariantMap& metadata)
 {
     if (!m_novelService) { return; }
     
     Novel novel;
-    withBusy([this, &novel, &userId, &title, &text]() {
-        novel = m_novelService->createNovel(userId, title, text);
+    withBusy([this, &novel, &userId, &title, &text, &metadata]() {
+        novel = m_novelService->createNovel(userId, title, text, metadata);
     });
     
     if (novel.id().isEmpty()) {
@@ -100,11 +101,11 @@ void NovelViewModel::updateNovelStatus(const QString& novelId, NovelStatus statu
     m_novelService->updateStatus(novelId, status);
 }
 
-void NovelViewModel::deleteNovel(const QString& novelId)
+bool NovelViewModel::deleteNovel(const QString& novelId)
 {
-    if (!m_novelService) { return; }
+    if (!m_novelService) { return false; }
     
-    m_novelService->deleteNovel(novelId);
+    return m_novelService->deleteNovel(novelId);
 }
 
 void NovelViewModel::setCurrentNovel(const Novel& novel)
@@ -149,5 +150,9 @@ void NovelViewModel::onNovelUpdated(const QString& novelId)
 void NovelViewModel::onNovelDeleted(const QString& novelId)
 {
     removeNovelFromList(novelId);
+    if (m_currentNovel.id() == novelId) {
+        m_currentNovel = Novel();
+        emit currentNovelChanged(m_currentNovel);
+    }
     emit novelDeleted(novelId);
 }

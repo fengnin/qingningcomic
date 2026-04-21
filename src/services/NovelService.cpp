@@ -1,11 +1,13 @@
-#include "NovelService.h"
-#include "TransactionScope.h"
-#include "ServiceContainer.h"
-#include "DatabaseManager.h"
-#include "Logger.h"
+#include "services/NovelService.h"
+#include "data/TransactionScope.h"
+#include "services/ServiceContainer.h"
+#include "data/DatabaseManager.h"
+#include "utils/DatabaseUtils.h"
+#include "utils/Logger.h"
 #include <QUuid>
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QStringList>
 
 const QString NovelService::TABLE_NOVELS = "novels";
 const QString NovelService::TABLE_STORYBOARDS = "storyboards";
@@ -158,30 +160,94 @@ bool NovelService::deleteNovel(const QString& novelId)
     if (!checkConnection("deleteNovel")) {
         return false;
     }
-    
-    TransactionScope transaction(m_db);
-    if (!transaction.isActive()) {
-        emitError("deleteNovel", "Failed to begin transaction: " + m_db->lastError());
-        return false;
+
+    auto tryDelete = [this, &novelId](QString* errorOut) -> bool {
+        return m_db->transaction([&]() -> bool {
+            QStringList storyboardIds;
+            {
+                QSqlQuery query(m_db->database());
+                query.prepare("SELECT id FROM storyboards WHERE novel_id = ?");
+                query.addBindValue(novelId);
+
+                if (!query.exec()) {
+                    const QString error = query.lastError().text();
+                    emitError("deleteNovel", error);
+                    if (errorOut) {
+                        *errorOut = error;
+                    }
+                    return false;
+                }
+
+                while (query.next()) {
+                    storyboardIds.append(query.value(0).toString());
+                }
+            }
+
+            for (const QString& storyboardId : storyboardIds) {
+                QSqlQuery deletePanels(m_db->database());
+                deletePanels.prepare("DELETE FROM panels WHERE storyboard_id = ?");
+                deletePanels.addBindValue(storyboardId);
+
+                if (!deletePanels.exec()) {
+                    const QString error = deletePanels.lastError().text();
+                    emitError("deleteNovel", error);
+                    if (errorOut) {
+                        *errorOut = error;
+                    }
+                    return false;
+                }
+            }
+
+            {
+                QSqlQuery deleteStoryboards(m_db->database());
+                deleteStoryboards.prepare("DELETE FROM storyboards WHERE novel_id = ?");
+                deleteStoryboards.addBindValue(novelId);
+
+                if (!deleteStoryboards.exec()) {
+                    const QString error = deleteStoryboards.lastError().text();
+                    emitError("deleteNovel", error);
+                    if (errorOut) {
+                        *errorOut = error;
+                    }
+                    return false;
+                }
+            }
+
+            {
+                QSqlQuery deleteNovelQuery(m_db->database());
+                deleteNovelQuery.prepare("DELETE FROM novels WHERE id = ?");
+                deleteNovelQuery.addBindValue(novelId);
+
+                if (!deleteNovelQuery.exec()) {
+                    const QString error = deleteNovelQuery.lastError().text();
+                    emitError("deleteNovel", error);
+                    if (errorOut) {
+                        *errorOut = error;
+                    }
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    };
+
+    QString error;
+    if (tryDelete(&error)) {
+        emit novelDeleted(novelId);
+        LOG_INFO("NovelService", QString("Deleted novel: %1").arg(novelId));
+        return true;
     }
-    
-    QSqlQuery query(m_db->database());
-    query.prepare("DELETE FROM novels WHERE id = ?");
-    query.addBindValue(novelId);
-    
-    if (!query.exec()) {
-        emitError("deleteNovel", query.lastError().text());
-        return false;
+
+    if (DatabaseUtils::isConnectionLostError(error) && m_db->reconnectIfNeeded()) {
+        if (tryDelete(nullptr)) {
+            emit novelDeleted(novelId);
+            LOG_INFO("NovelService", QString("Deleted novel after reconnect: %1").arg(novelId));
+            return true;
+        }
     }
-    
-    if (!transaction.commit()) {
-        emitError("deleteNovel", "Failed to commit transaction");
-        return false;
-    }
-    
-    emit novelDeleted(novelId);
-    LOG_INFO("NovelService", QString("Deleted novel: %1 (cascade by FK)").arg(novelId));
-    return true;
+
+    return false;
 }
 
 bool NovelService::updateStatus(const QString& novelId, NovelStatus status)

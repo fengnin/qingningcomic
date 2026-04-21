@@ -1,7 +1,7 @@
-#include "FileStorage.h"
-#include "DatabaseManager.h"
-#include "FileManager.h"
-#include "Logger.h"
+#include "data/FileStorage.h"
+#include "data/DatabaseManager.h"
+#include "utils/FileManager.h"
+#include "utils/Logger.h"
 #include <QFileInfo>
 #include <QFile>
 #include <QDir>
@@ -12,6 +12,7 @@ namespace {
 }
 
 FileStorage* FileStorage::m_instance = nullptr;
+std::once_flag FileStorage::m_instanceOnceFlag;
 
 FileStorage::FileStorage()
     : m_basePath("/data/comic")
@@ -24,9 +25,9 @@ FileStorage::~FileStorage()
 
 FileStorage* FileStorage::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new FileStorage();
-    }
+    });
     return m_instance;
 }
 

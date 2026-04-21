@@ -2,9 +2,9 @@
 #define STORYBOARDVIEWMODEL_H
 
 #include "viewmodels/BaseViewModel.h"
-#include "Storyboard.h"
-#include "Panel.h"
-#include "AnalysisService.h"
+#include "models/Storyboard.h"
+#include "models/Panel.h"
+#include "services/AnalysisService.h"
 #include "utils/SingletonUtils.h"
 #include <QList>
 #include <QMap>
@@ -47,7 +47,7 @@ public:
     void generateAllPanelImages(const QString& storyboardId, const QString& mode);
     QString enqueueBatchPanelImageGeneration(const QStringList& panelIds, const QString& mode);
     
-    void createEmptyStoryboard(const QString& novelId, int chapterNumber);
+    bool createEmptyStoryboard(const QString& novelId, int chapterNumber);
     
     bool deleteStoryboard(const QString& novelId, int chapterNumber);
     
@@ -60,9 +60,9 @@ public:
     void clearCache();
 
 signals:
-    void storyboardsLoaded(const QList<Storyboard>& storyboards);
-    void storyboardLoaded(const Storyboard& storyboard);
-    void panelsLoaded(const QList<Panel>& panels);
+    void storyboardsLoaded(const QString& novelId, const QList<Storyboard>& storyboards);
+    void storyboardLoaded(const QString& novelId, int chapterNumber, const Storyboard& storyboard);
+    void panelsLoaded(const QString& novelId, int chapterNumber, const QList<Panel>& panels);
     void panelUpdated(const QString& panelId, const QJsonObject& content);
     
     void analysisStarted(const QString& novelId);
@@ -81,6 +81,11 @@ private slots:
     void onAnalysisCompleted(const QString& novelId, const AnalysisResult& result);
     void onAnalysisFailed(const QString& novelId, const QString& error);
     void onStoryboardSaved(const QString& novelId);
+    void applyStoryboardsLoaded(int token, const QString& novelId, const QList<Storyboard>& storyboards,
+                                bool success, const QString& error);
+    void applyStoryboardLoaded(int token, const QString& novelId, int chapterNumber,
+                               const Storyboard& storyboard, const QList<Panel>& panels,
+                               bool success, const QString& error);
 
 private:
     void connectServiceSignals();
@@ -97,6 +102,10 @@ private:
     QString m_cachedNovelId;
     int m_cachedChapterNumber = 0;
     QMap<QString, QList<Panel>> m_panelsCache;
+    int m_storyboardsLoadToken = 0;
+    int m_storyboardLoadToken = 0;
+    bool m_storyboardsLoading = false;
+    bool m_storyboardLoading = false;
     
     bool m_analyzing = false;
     QString m_currentJobId;

@@ -1,4 +1,4 @@
-#include "FortuneCookieWidget.h"
+#include "widgets/FortuneCookieWidget.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QFont>
@@ -12,7 +12,7 @@ namespace FortuneCookieStyle {
     constexpr int COOKIE_WIDTH = 128;
     constexpr int COOKIE_HEIGHT = 80;
     constexpr int WIDGET_MIN_HEIGHT = 380;
-    constexpr int ANIMATION_INTERVAL = 16;
+    constexpr int ANIMATION_INTERVAL = 33;
     constexpr int CRACK_DURATION = 2000;
     constexpr qreal SPARKLE_ROTATION_SPEED = 90.0;
     constexpr qreal SPARKLE_INTERNAL_SPEED = 30.0;
@@ -37,6 +37,51 @@ namespace FortuneCookieStyle {
         const QColor NUMBER_BG_START(254, 240, 138);
         const QColor NUMBER_BG_END(250, 204, 21);
     }
+
+    namespace FortuneList {
+        const QVector<QPair<QString, QVector<int>>> ALL = {
+            {QStringLiteral("大吉大利，万事如意"), {7, 14, 23, 31, 42, 56}},
+            {QStringLiteral("心想事成，好运当头"), {3, 18, 27, 35, 49, 63}},
+            {QStringLiteral("贵人相助，前程似锦"), {9, 16, 24, 38, 47, 55}},
+            {QStringLiteral("勤劳致富，勤俭持家"), {2, 11, 29, 33, 44, 51}},
+            {QStringLiteral("学业有成，金榜题名"), {5, 12, 21, 36, 43, 58}},
+            {QStringLiteral("事业有成，财源广进"), {1, 19, 26, 34, 41, 62}},
+            {QStringLiteral("爱情美满，幸福美满"), {8, 15, 22, 37, 46, 59}},
+            {QStringLiteral("家庭和睦，其乐融融"), {4, 13, 25, 32, 48, 57}},
+            {QStringLiteral("身体健康，心情愉快"), {6, 17, 28, 39, 45, 61}},
+            {QStringLiteral("朋友相助，贵人相扶"), {10, 20, 30, 40, 50, 60}},
+            {QStringLiteral("创业有成，前途无量"), {12, 24, 36, 41, 53, 65}},
+            {QStringLiteral("财运亨通，好运连连"), {14, 28, 35, 49, 56, 63}},
+            {QStringLiteral("工作顺利，升职加薪"), {1, 8, 15, 22, 29, 36}},
+            {QStringLiteral("感情稳定，白头偕老"), {3, 9, 18, 27, 45, 54}},
+            {QStringLiteral("财源滚滚，日进斗金"), {7, 21, 28, 42, 49, 56}},
+            {QStringLiteral("幸运临门，好事成双"), {11, 22, 33, 44, 55, 66}},
+            {QStringLiteral("心想事成，万事如意"), {2, 13, 24, 35, 46, 57}},
+            {QStringLiteral("平安吉祥，一生顺遂"), {16, 32, 48, 64, 17, 33}},
+            {QStringLiteral("好运当头，好事连连"), {5, 10, 25, 40, 55, 65}},
+            {QStringLiteral("贵人相助，财运亨通"), {9, 18, 36, 45, 54, 63}},
+            {QStringLiteral("家和万事兴，幸福美满"), {4, 8, 16, 32, 48, 52}},
+            {QStringLiteral("事业有成，前程似锦"), {6, 12, 24, 30, 42, 60}},
+            {QStringLiteral("学业进步，考试顺利"), {15, 30, 45, 52, 67, 3}},
+            {QStringLiteral("爱情甜蜜，情感升温"), {19, 38, 57, 4, 23, 68}},
+            {QStringLiteral("财源广进，富贵双全"), {23, 46, 69, 8, 17, 54}},
+            {QStringLiteral("身体健康，精神饱满"), {27, 54, 12, 41, 65, 29}},
+            {QStringLiteral("工作顺利，事业有成"), {31, 62, 18, 47, 6, 35}},
+            {QStringLiteral("家庭幸福，其乐融融"), {35, 70, 14, 53, 9, 26}},
+            {QStringLiteral("朋友广结，贵人相助"), {39, 7, 28, 56, 11, 64}},
+            {QStringLiteral("心想事成，好运连连"), {43, 16, 32, 59, 5, 48}},
+            {QStringLiteral("创业有成，财源滚滚"), {47, 24, 61, 13, 37, 52}},
+            {QStringLiteral("好运当头，万事如意"), {51, 2, 39, 66, 21, 44}},
+            {QStringLiteral("贵人相助，工作顺利"), {55, 10, 43, 69, 25, 38}},
+            {QStringLiteral("学业有成，前程似锦"), {59, 18, 47, 3, 29, 65}},
+            {QStringLiteral("爱情美满，幸福美满"), {63, 26, 51, 7, 33, 58}},
+            {QStringLiteral("家和万事兴，平安吉祥"), {67, 34, 55, 11, 37, 62}},
+            {QStringLiteral("财运亨通，好事成双"), {4, 42, 59, 15, 68, 27}},
+            {QStringLiteral("身体健康，心情愉快"), {8, 46, 63, 19, 35, 52}},
+            {QStringLiteral("事业有成，贵人相助"), {12, 50, 67, 23, 39, 56}},
+            {QStringLiteral("幸运临门，心想事成"), {16, 54, 2, 27, 43, 60}}
+        };
+    }
 }
 
 using namespace FortuneCookieStyle;
@@ -54,9 +99,7 @@ FortuneCookieWidget::FortuneCookieWidget(QWidget *parent)
     , m_animationTimer(nullptr)
     , m_crackTimer(nullptr)
     , m_scaleAnimation(nullptr)
-    , m_glowAnimation(nullptr)
     , m_isHovered(false)
-    , m_sparkleDirection(true)
     , m_isButtonHovered(false)
     , m_isCookieHovered(false)
 {
@@ -74,64 +117,14 @@ FortuneCookieWidget::~FortuneCookieWidget()
 {
     if (m_animationTimer) {
         m_animationTimer->stop();
-        delete m_animationTimer;
     }
     if (m_crackTimer) {
         m_crackTimer->stop();
-        delete m_crackTimer;
-    }
-    if (m_scaleAnimation) {
-        delete m_scaleAnimation;
-    }
-    if (m_glowAnimation) {
-        delete m_glowAnimation;
     }
 }
 
 void FortuneCookieWidget::initFortunes()
 {
-    m_fortunes = {
-        {QString::fromUtf8("\u5927\u5409\u5927\u5229\uff0c\u4e07\u4e8b\u5982\u610f"), {7, 14, 23, 31, 42, 56}},
-        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u597d\u8fd0\u5f53\u5934"), {3, 18, 27, 35, 49, 63}},
-        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u524d\u7a0b\u4f3c\u9526"), {9, 16, 24, 38, 47, 55}},
-        {QString::fromUtf8("\u52e4\u52b3\u81f4\u5bcc\uff0c\u52e4\u4fa6\u6301\u5bb6"), {2, 11, 29, 33, 44, 51}},
-        {QString::fromUtf8("\u5b66\u4e1a\u6709\u6210\uff0c\u91d1\u699c\u9898\u540d"), {5, 12, 21, 36, 43, 58}},
-        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u8d22\u6e90\u5e7f\u8fdb"), {1, 19, 26, 34, 41, 62}},
-        {QString::fromUtf8("\u7231\u60c5\u7f8e\u6ee1\uff0c\u5e78\u798f\u7f8e\u6ee1"), {8, 15, 22, 37, 46, 59}},
-        {QString::fromUtf8("\u5bb6\u5ead\u548c\u7766\uff0c\u5176\u4e50\u878d\u878d"), {4, 13, 25, 32, 48, 57}},
-        {QString::fromUtf8("\u8eab\u4f53\u5065\u5eb7\uff0c\u5fc3\u60c5\u6109\u5feb"), {6, 17, 28, 39, 45, 61}},
-        {QString::fromUtf8("\u670b\u53cb\u76f8\u52a9\uff0c\u8d35\u4eba\u76f8\u6276"), {10, 20, 30, 40, 50, 60}},
-        {QString::fromUtf8("\u521b\u4e1a\u6709\u6210\uff0c\u524d\u9014\u65e0\u91cf"), {12, 24, 36, 41, 53, 65}},
-        {QString::fromUtf8("\u8d22\u8fd0\u4ea8\u901a\uff0c\u597d\u8fd0\u8fde\u8fde"), {14, 28, 35, 49, 56, 63}},
-        {QString::fromUtf8("\u5de5\u4f5c\u987a\u5229\uff0c\u5347\u804c\u52a0\u85aa"), {1, 8, 15, 22, 29, 36}},
-        {QString::fromUtf8("\u611f\u60c5\u7a33\u5b9a\uff0c\u767d\u5934\u5055\u8001"), {3, 9, 18, 27, 45, 54}},
-        {QString::fromUtf8("\u8d22\u6e90\u6eda\u6eda\uff0c\u65e5\u8fdb\u6597\u91d1"), {7, 21, 28, 42, 49, 56}},
-        {QString::fromUtf8("\u5e78\u8fd0\u4e34\u95e8\uff0c\u597d\u4e8b\u6210\u53cc"), {11, 22, 33, 44, 55, 66}},
-        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u4e07\u4e8b\u5982\u610f"), {2, 13, 24, 35, 46, 57}},
-        {QString::fromUtf8("\u5e73\u5b89\u5409\u7965\uff0c\u4e00\u751f\u987a\u9042"), {16, 32, 48, 64, 17, 33}},
-        {QString::fromUtf8("\u597d\u8fd0\u5f53\u5934\uff0c\u597d\u4e8b\u8fde\u8fde"), {5, 10, 25, 40, 55, 65}},
-        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u8d22\u8fd0\u4ea8\u901a"), {9, 18, 36, 45, 54, 63}},
-        {QString::fromUtf8("\u5bb6\u548c\u4e07\u4e8b\u5174\uff0c\u5e78\u798f\u7f8e\u6ee1"), {4, 8, 16, 32, 48, 52}},
-        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u524d\u7a0b\u4f3c\u9526"), {6, 12, 24, 30, 42, 60}},
-        {QString::fromUtf8("\u5b66\u4e1a\u8fdb\u6b65\uff0c\u8003\u8bd5\u987a\u5229"), {15, 30, 45, 52, 67, 3}},
-        {QString::fromUtf8("\u7231\u60c5\u751c\u871c\uff0c\u60c5\u611f\u5347\u6e29"), {19, 38, 57, 4, 23, 68}},
-        {QString::fromUtf8("\u8d22\u6e90\u5e7f\u8fdb\uff0c\u5bcc\u8d35\u53cc\u5168"), {23, 46, 69, 8, 17, 54}},
-        {QString::fromUtf8("\u8eab\u4f53\u5eb7\u5065\uff0c\u7cbe\u795e\u9971\u6ee1"), {27, 54, 12, 41, 65, 29}},
-        {QString::fromUtf8("\u5de5\u4f5c\u987a\u5229\uff0c\u4e8b\u4e1a\u6709\u6210"), {31, 62, 18, 47, 6, 35}},
-        {QString::fromUtf8("\u5bb6\u5ead\u5e78\u798f\uff0c\u5176\u4e50\u878d\u878d"), {35, 70, 14, 53, 9, 26}},
-        {QString::fromUtf8("\u670b\u53cb\u5e7f\u7ed3\uff0c\u8d35\u4eba\u76f8\u52a9"), {39, 7, 28, 56, 11, 64}},
-        {QString::fromUtf8("\u5fc3\u60f3\u4e8b\u6210\uff0c\u597d\u8fd0\u8fde\u8fde"), {43, 16, 32, 59, 5, 48}},
-        {QString::fromUtf8("\u521b\u4e1a\u6709\u6210\uff0c\u8d22\u6e90\u6eda\u6eda"), {47, 24, 61, 13, 37, 52}},
-        {QString::fromUtf8("\u597d\u8fd0\u5f53\u5934\uff0c\u4e07\u4e8b\u5982\u610f"), {51, 2, 39, 66, 21, 44}},
-        {QString::fromUtf8("\u8d35\u4eba\u76f8\u52a9\uff0c\u5de5\u4f5c\u987a\u5229"), {55, 10, 43, 69, 25, 38}},
-        {QString::fromUtf8("\u5b66\u4e1a\u6709\u6210\uff0c\u524d\u7a0b\u4f3c\u9526"), {59, 18, 47, 3, 29, 65}},
-        {QString::fromUtf8("\u7231\u60c5\u7f8e\u6ee1\uff0c\u5e78\u798f\u7f8e\u6ee1"), {63, 26, 51, 7, 33, 58}},
-        {QString::fromUtf8("\u5bb6\u548c\u4e07\u4e8b\u5174\uff0c\u5e73\u5b89\u5409\u7965"), {67, 34, 55, 11, 37, 62}},
-        {QString::fromUtf8("\u8d22\u8fd0\u4ea8\u901a\uff0c\u597d\u4e8b\u6210\u53cc"), {4, 42, 59, 15, 68, 27}},
-        {QString::fromUtf8("\u8eab\u4f53\u5065\u5eb7\uff0c\u5fc3\u60c5\u6109\u5feb"), {8, 46, 63, 19, 35, 52}},
-        {QString::fromUtf8("\u4e8b\u4e1a\u6709\u6210\uff0c\u8d35\u4eba\u76f8\u52a9"), {12, 50, 67, 23, 39, 56}},
-        {QString::fromUtf8("\u5e78\u8fd0\u4e34\u95e8\uff0c\u5fc3\u60f3\u4e8b\u6210"), {16, 54, 2, 27, 43, 60}}
-    };
 }
 
 void FortuneCookieWidget::initAnimations()
@@ -147,9 +140,16 @@ void FortuneCookieWidget::initAnimations()
             m_hoverScale = 1.05 + 0.03 * qSin(m_sparklePhase * 2);
         }
         
+        // 在 Cracking 状态下更新进度
+        if (m_state == CookieState::Cracking && m_crackProgress < 1.0) {
+            m_crackProgress += 0.04;
+            if (m_crackProgress > 1.0) {
+                m_crackProgress = 1.0;
+            }
+        }
+        
         update();
     });
-    m_animationTimer->start(ANIMATION_INTERVAL);
     
     m_crackTimer = new QTimer(this);
     m_crackTimer->setSingleShot(true);
@@ -157,18 +157,23 @@ void FortuneCookieWidget::initAnimations()
         m_state = CookieState::Opened;
         emit stateChanged(m_state);
         emit fortuneRevealed(m_currentFortune);
+        updateAnimationTimer();
         update();
     });
+
+    updateAnimationTimer();
 }
 
 FortuneData FortuneCookieWidget::getRandomFortune()
 {
-    if (m_fortunes.isEmpty()) {
-        return {QString::fromUtf8("\u5927\u5409\u5927\u5229\uff0c\u4e07\u4e8b\u5982\u610f"), {1, 2, 3, 4, 5, 6}};
+    const auto& fortunes = FortuneCookieStyle::FortuneList::ALL;
+    if (fortunes.isEmpty()) {
+        return {QStringLiteral("大吉大利，万事如意"), {1, 2, 3, 4, 5, 6}};
     }
     
-    int index = QRandomGenerator::global()->bounded(m_fortunes.size());
-    return m_fortunes[index];
+    int index = QRandomGenerator::global()->bounded(fortunes.size());
+    const auto& f = fortunes[index];
+    return {f.first, f.second};
 }
 
 void FortuneCookieWidget::crackCookie()
@@ -179,6 +184,13 @@ void FortuneCookieWidget::crackCookie()
     m_currentFortune = getRandomFortune();
     m_crackProgress = 0.0;
     
+    // 预计算粒子位置，避免每帧生成随机数
+    m_particlePositions.clear();
+    for (int i = 0; i < 8; ++i) {
+        qreal angle = (i * 2 * M_PI) / 8 + M_PI / 4;
+        m_particlePositions.append(QPointF(qCos(angle), qSin(angle) * 0.5));
+    }
+    
     emit stateChanged(m_state);
     
     m_scaleAnimation = new QPropertyAnimation(this, "cookieScale");
@@ -187,21 +199,15 @@ void FortuneCookieWidget::crackCookie()
     m_scaleAnimation->setKeyValueAt(0.3, 1.1);
     m_scaleAnimation->setKeyValueAt(0.6, 0.9);
     m_scaleAnimation->setEndValue(1.0);
+    connect(m_scaleAnimation, &QObject::destroyed, this, [this](QObject *) {
+        m_scaleAnimation = nullptr;
+    });
     m_scaleAnimation->start(QPropertyAnimation::DeleteWhenStopped);
     
-    QTimer *progressTimer = new QTimer(this);
-    connect(progressTimer, &QTimer::timeout, this, [this, progressTimer]() {
-        m_crackProgress += 0.02;
-        if (m_crackProgress >= 1.0) {
-            m_crackProgress = 1.0;
-            progressTimer->stop();
-            progressTimer->deleteLater();
-        }
-        update();
-    });
-    progressTimer->start(20);
-    
+    // 使用单一动画定时器，合并 m_animationTimer 和 progressTimer
+    // m_animationTimer 已经在运行，只需要设置 m_crackTimer 来结束动画
     m_crackTimer->start(CRACK_DURATION);
+    updateAnimationTimer();
 }
 
 void FortuneCookieWidget::resetCookie()
@@ -213,6 +219,7 @@ void FortuneCookieWidget::resetCookie()
     m_currentFortune = FortuneData();
     
     emit stateChanged(m_state);
+    updateAnimationTimer();
     update();
 }
 
@@ -283,6 +290,7 @@ void FortuneCookieWidget::enterEvent(QEvent *event)
     Q_UNUSED(event);
     m_isHovered = true;
     updateCursor();
+    updateAnimationTimer();
 }
 
 void FortuneCookieWidget::leaveEvent(QEvent *event)
@@ -293,6 +301,7 @@ void FortuneCookieWidget::leaveEvent(QEvent *event)
     m_isButtonHovered = false;
     m_isCookieHovered = false;
     setCursor(Qt::ArrowCursor);
+    updateAnimationTimer();
     update();
 }
 
@@ -336,6 +345,20 @@ void FortuneCookieWidget::updateCursor()
         setCursor(Qt::ArrowCursor);
     } else if (m_state == CookieState::Opened) {
         setCursor(Qt::ArrowCursor);
+    }
+}
+
+void FortuneCookieWidget::updateAnimationTimer()
+{
+    // 始终运行动画，不只是 hover 时
+    const bool shouldAnimate = true;
+
+    if (shouldAnimate) {
+        if (!m_animationTimer->isActive()) {
+            m_animationTimer->start(ANIMATION_INTERVAL);
+        }
+    } else if (m_animationTimer->isActive()) {
+        m_animationTimer->stop();
     }
 }
 
@@ -593,14 +616,14 @@ void FortuneCookieWidget::drawCrackingCookie(QPainter &painter)
     drawCookieHalf(painter, -halfWidth / 2 - splitOffset, leftRotate, true, shakeScale);
     drawCookieHalf(painter, halfWidth / 2 + splitOffset, rightRotate, false, shakeScale);
     
-    int particleCount = static_cast<int>(8 * m_crackProgress);
+    // 使用预计算的粒子位置，避免每帧生成随机数
+    int particleCount = qMin(static_cast<int>(8 * m_crackProgress), m_particlePositions.size());
     for (int i = 0; i < particleCount; ++i) {
-        qreal angle = (i * 2 * M_PI) / particleCount + M_PI / 4;
         qreal distance = 10 + m_crackProgress * 35;
-        qreal x = qCos(angle) * distance;
-        qreal y = qSin(angle) * distance * 0.5;
+        qreal x = m_particlePositions[i].x() * distance;
+        qreal y = m_particlePositions[i].y() * distance;
         
-        qreal size = 2 + QRandomGenerator::global()->bounded(3) * (1 - m_crackProgress * 0.5);
+        qreal size = 2 + 2 * (1 - m_crackProgress * 0.5);
         QColor particleColor = SPARKLE_YELLOW;
         particleColor.setAlpha(static_cast<int>(200 * (1 - m_crackProgress * 0.7)));
         
@@ -830,4 +853,3 @@ bool FortuneCookieWidget::isPointInCookie(const QPointF &point) const
     
     return (dx * dx + dy * dy) <= 1.0;
 }
-

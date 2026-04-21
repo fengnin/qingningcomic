@@ -1,9 +1,10 @@
-#include "Logger.h"
+#include "utils/Logger.h"
 #include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
 
 Logger* Logger::m_instance = nullptr;
+std::once_flag Logger::m_instanceOnceFlag;
 
 Logger::Logger()
     : m_initialized(false)
@@ -21,10 +22,18 @@ Logger::~Logger()
 
 Logger* Logger::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new Logger();
-    }
+    });
     return m_instance;
+}
+
+void Logger::cleanup()
+{
+    if (m_instance) {
+        delete m_instance;
+        m_instance = nullptr;
+    }
 }
 
 QString Logger::levelToString(Level level)

@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QSet>
+#include <QSignalBlocker>
 
 // 自定义数字输入框，带三角形上下箭头
 class ChapterSpinBox : public QWidget

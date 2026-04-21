@@ -1,0 +1,213 @@
+[2026-04-21 10:23:00.176] [DEBUG] [CharacterExtractor] Loaded character row: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感, gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/8fde7ce7-828d-423e-8412-841a9ad059b7/reference.png
+[Character] name: "陈伶" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 16, \"build\": \"\", \"gender\": \"\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":16,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:23:00.176] [DEBUG] [CharacterExtractor] Loaded character row: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/9e30f003-5726-40ec-9bbb-3426997b58f6/reference.png
+[2026-04-21 10:23:00.176] [INFO] [BibleGenerator] Collected 3 existing characters for novel abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:23:00.199] [INFO] [BibleGenerator] Collected 5 existing scenes for novel abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:23:00.199] [INFO] [AnalysisService] Starting streaming analysis for novel: abba8099-bd68-466d-b720-74f325ed7c91, chapter: 2
+[2026-04-21 10:23:00.298] [INFO] [AnalysisJobUtils] Created job: 849b8a98-e762-4cfd-9f71-b8162353a16d for novel abba8099-bd68-466d-b720-74f325ed7c91, chapter 2
+[2026-04-21 10:23:00.299] [DEBUG] [BibleContextInjector] Matched scene context '厨房' by key '厨房'
+[2026-04-21 10:23:00.300] [DEBUG] [BibleContextInjector] Matched scene context '陈家老宅' by key '客厅'
+[2026-04-21 10:23:00.301] [DEBUG] [BibleContextInjector] Matched scene context '客厅' by key '客厅'
+[2026-04-21 10:23:00.301] [INFO] [BibleContextInjector] Filtered bible context: characters 1/3, scenes 3/5
+[2026-04-21 10:23:00.308] [DEBUG] [QwenClient] 发送流式请求
+[2026-04-21 10:23:00.308] [DEBUG] [QwenClient] 请求地址: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+[2026-04-21 10:23:00.308] [DEBUG] [QwenClient] 请求体大小: 57847 bytes
+[2026-04-21 10:25:58.638] [INFO] [QwenClient] 流式响应已累计 20505 字符
+[2026-04-21 10:25:58.639] [DEBUG] [QwenClient] Storyboard shape: panels=12, characters=3, scenes=5
+[2026-04-21 10:25:58.640] [DEBUG] [QwenClient] Extracted chars=3 scenes=1 existingScenes=5
+[2026-04-21 10:25:58.640] [DEBUG] [QwenClient] 规范化结果 - 面板:12 角色:3 场景:6
+[2026-04-21 10:25:58.640] [INFO] [AnalysisService] Stream completed, processing result...
+[2026-04-21 10:25:58.752] [INFO] [AnalysisService] saveResults called: novelId=abba8099-bd68-466d-b720-74f325ed7c91, chapter=2, panels=12, characters=3, scenes=6
+[2026-04-21 10:25:58.780] [DEBUG] [CharacterExtractor] Parsing character '陈伶', role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, appearance: {"name":"陈伶","role":"主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）"}
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Resolved character fields for '陈伶': gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, personality=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Parsed character '陈伶': role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, gender=, age=16, hairColor=, eyeColor=, build=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Enriched from text for '陈伶': hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, accessories=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Parsing character '陈父', role=陈伶父亲，中年男性，隐含秘密参与者, appearance: {"name":"陈父","role":"陈伶父亲，中年男性，隐含秘密参与者"}
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Resolved character fields for '陈父': gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, personality=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Parsed character '陈父': role=陈伶父亲，中年男性，隐含秘密参与者, gender=男, age=45, hairColor=, eyeColor=, build=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Parsing character '陈母', role=陈伶母亲，中年女性，恐惧而克制的知情者, appearance: {"name":"陈母","role":"陈伶母亲，中年女性，恐惧而克制的知情者"}
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Resolved character fields for '陈母': gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, personality=
+[2026-04-21 10:25:58.781] [DEBUG] [CharacterExtractor] Parsed character '陈母': role=陈伶母亲，中年女性，恐惧而克制的知情者, gender=女, age=45, hairColor=, eyeColor=, build=
+[2026-04-21 10:25:58.781] [INFO] [CharacterExtractor] Extracted 3 characters from AI response
+[2026-04-21 10:25:58.802] [DEBUG] [CharacterExtractor] Character '陈伶' matched existing '陈伶', merging...
+[2026-04-21 10:25:58.858] [INFO] [CharacterExtractor] Updated character: 陈伶, gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, portraitPath=characters/9e30f003-5726-40ec-9bbb-3426997b58f6/reference.png
+[Character] name: "父亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"男\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"男","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.880] [DEBUG] [CharacterExtractor] Loaded character row: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑, gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/2ec4b985-9238-4955-acb4-c543b5c8f912/reference.png
+[Character] name: "母亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"女\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"女","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.880] [DEBUG] [CharacterExtractor] Loaded character row: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感, gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/8fde7ce7-828d-423e-8412-841a9ad059b7/reference.png
+[Character] name: "陈伶" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 16, \"build\": \"\", \"gender\": \"\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":16,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.881] [DEBUG] [CharacterExtractor] Loaded character row: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/9e30f003-5726-40ec-9bbb-3426997b58f6/reference.png
+[2026-04-21 10:25:58.925] [INFO] [CharacterExtractor] Saved new character: 陈父
+[Character] name: "父亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"男\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"男","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.950] [DEBUG] [CharacterExtractor] Loaded character row: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑, gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/2ec4b985-9238-4955-acb4-c543b5c8f912/reference.png
+[Character] name: "陈父" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"男\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"男","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.951] [DEBUG] [CharacterExtractor] Loaded character row: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者, gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=
+[Character] name: "母亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"女\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"女","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.951] [DEBUG] [CharacterExtractor] Loaded character row: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感, gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/8fde7ce7-828d-423e-8412-841a9ad059b7/reference.png
+[Character] name: "陈伶" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 16, \"build\": \"\", \"gender\": \"\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":16,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:58.952] [DEBUG] [CharacterExtractor] Loaded character row: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/9e30f003-5726-40ec-9bbb-3426997b58f6/reference.png
+[2026-04-21 10:25:58.995] [INFO] [CharacterExtractor] Saved new character: 陈母
+[2026-04-21 10:25:59.008] [DEBUG] [Database] Transaction completed successfully
+[2026-04-21 10:25:59.008] [INFO] [CharacterExtractor] Saved 3/3 characters for novel abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:25:59.008] [INFO] [AnalysisService] Saved 3 characters to database
+[2026-04-21 10:25:59.052] [INFO] [SceneExtractor] Merging similar scene '陈家老宅厨房' into '厨房' (similarity detected)
+[2026-04-21 10:25:59.107] [INFO] [SceneExtractor] Updated scene: 厨房
+[2026-04-21 10:25:59.156] [INFO] [SceneExtractor] Merging similar scene '陈家老宅客厅' into '客厅' (similarity detected)
+[2026-04-21 10:25:59.210] [INFO] [SceneExtractor] Updated scene: 客厅
+[2026-04-21 10:25:59.301] [INFO] [SceneExtractor] Saved scene: 陈伶卧室
+[2026-04-21 10:25:59.395] [INFO] [SceneExtractor] Saved scene: 异界舞台
+[2026-04-21 10:25:59.497] [INFO] [SceneExtractor] Saved scene: 异界观众席
+[2026-04-21 10:25:59.590] [INFO] [SceneExtractor] Saved scene: 玄关
+[2026-04-21 10:25:59.590] [INFO] [AnalysisService] Saved 6 scenes to database
+[Character] name: "父亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"男\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"男","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:59.612] [DEBUG] [CharacterExtractor] Loaded character row: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑, gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/2ec4b985-9238-4955-acb4-c543b5c8f912/reference.png
+[Character] name: "陈父" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"男\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"男","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:59.613] [DEBUG] [CharacterExtractor] Loaded character row: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者, gender=男, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=
+[Character] name: "陈母" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"女\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"女","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:59.613] [DEBUG] [CharacterExtractor] Loaded character row: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者, gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=
+[Character] name: "母亲" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 45, \"build\": \"\", \"gender\": \"女\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"女","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:59.613] [DEBUG] [CharacterExtractor] Loaded character row: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感, gender=女, age=45, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/8fde7ce7-828d-423e-8412-841a9ad059b7/reference.png
+[Character] name: "陈伶" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
+[Character] appearance is String: "{\"age\": 16, \"build\": \"\", \"gender\": \"\", \"height\": \"\", \"clothing\": [], \"eyeColor\": \"\", \"hairColor\": \"\", \"hairStyle\": \"\", \"accessories\": [], \"distinctiveFeatures\": []}"
+[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":16,"build":"","clothing":[],"distinctiveFeatures":[],"eyeColor":"","gender":"","hairColor":"","hairStyle":"","height":""})
+[Character] personalities type: QString , isNull: false , isValid: true
+[Character] Parsed personalities: ()
+[2026-04-21 10:25:59.613] [DEBUG] [CharacterExtractor] Loaded character row: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）, gender=, age=16, hairColor=, hairStyle=, eyeColor=, build=, clothing=, features=, personality=, portraitPath=characters/9e30f003-5726-40ec-9bbb-3426997b58f6/reference.png
+[2026-04-21 10:26:00.149] [DEBUG] [Database] Transaction committed successfully
+[2026-04-21 10:26:00.149] [INFO] [AnalysisService] Storyboard saved successfully
+[2026-04-21 10:26:00.149] [INFO] [BibleGenerator] Updated 0 characters for novel abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:26:00.413] [INFO] [BibleGenerator] Updated 0 scenes for novel abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:26:00.467] [INFO] [AnalysisService] Generating images after analysis: novelId=abba8099-bd68-466d-b720-74f325ed7c91, chapter=2
+[2026-04-21 10:26:00.495] [INFO] [AnalysisService] Generating bible images: 5 characters, 9 scenes
+[2026-04-21 10:26:00.495] [INFO] [BibleImageService] Starting combined generation: 5 characters + 9 scenes = 14 total
+[2026-04-21 10:26:00.548] [INFO] [BibleImageService] Skipping character 父亲, already has portrait
+[2026-04-21 10:26:00.656] [INFO] [AnalysisJobUtils] Updated job 849b8a98-e762-4cfd-9f71-b8162353a16d status to: completed, progress: 100
+[2026-04-21 10:26:00.711] [INFO] [AnalysisService] Analysis completed: novelId=abba8099-bd68-466d-b720-74f325ed7c91
+[2026-04-21 10:26:00.712] [INFO] [BibleImageService] All Bible images completed: success=1, failed=0
+[2026-04-21 10:26:00.712] [INFO] [AnalysisService] Stream analysis completed: novelId=abba8099-bd68-466d-b720-74f325ed7c91, panels=12, chars=3, scenes=6
+[2026-04-21 10:26:00.770] [INFO] [BibleSectionWidget] Rendering character bible: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑
+[2026-04-21 10:26:00.770] [INFO] [BibleSectionWidget] Character bible details lines=1, name=父亲
+[2026-04-21 10:26:00.773] [INFO] [BibleSectionWidget] Rendering character bible: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者
+[2026-04-21 10:26:00.773] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈父
+[2026-04-21 10:26:00.775] [INFO] [BibleSectionWidget] Rendering character bible: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者
+[2026-04-21 10:26:00.775] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈母
+[2026-04-21 10:26:00.778] [INFO] [BibleSectionWidget] Rendering character bible: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感
+[2026-04-21 10:26:00.778] [INFO] [BibleSectionWidget] Character bible details lines=1, name=母亲
+[2026-04-21 10:26:00.780] [INFO] [BibleSectionWidget] Rendering character bible: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）
+[2026-04-21 10:26:00.781] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈伶
+[2026-04-21 10:26:00.806] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 5
+[2026-04-21 10:26:00.807] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=5
+[2026-04-21 10:26:00.807] [DEBUG] [NovelDetailPage] onSceneCountChanged: 5 -> 9
+[2026-04-21 10:26:00.807] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:00.807] [INFO] [BibleSectionWidget] Refreshed bible: 5 characters, 9 scenes
+[2026-04-21 10:26:00.842] [INFO] [BibleSectionWidget] Rendering character bible: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑
+[2026-04-21 10:26:00.842] [INFO] [BibleSectionWidget] Character bible details lines=1, name=父亲
+[2026-04-21 10:26:00.844] [INFO] [BibleSectionWidget] Rendering character bible: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者
+[2026-04-21 10:26:00.844] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈父
+[2026-04-21 10:26:00.846] [INFO] [BibleSectionWidget] Rendering character bible: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者
+[2026-04-21 10:26:00.846] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈母
+[2026-04-21 10:26:00.848] [INFO] [BibleSectionWidget] Rendering character bible: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感
+[2026-04-21 10:26:00.848] [INFO] [BibleSectionWidget] Character bible details lines=1, name=母亲
+[2026-04-21 10:26:00.850] [INFO] [BibleSectionWidget] Rendering character bible: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）
+[2026-04-21 10:26:00.850] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈伶
+[2026-04-21 10:26:00.875] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 5 -> 5
+[2026-04-21 10:26:00.876] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:00.876] [DEBUG] [NovelDetailPage] onSceneCountChanged: 9 -> 9
+[2026-04-21 10:26:00.876] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:00.876] [INFO] [BibleSectionWidget] Refreshed bible: 5 characters, 9 scenes
+[2026-04-21 10:26:00.914] [INFO] [BibleSectionWidget] Rendering character bible: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑
+[2026-04-21 10:26:00.915] [INFO] [BibleSectionWidget] Character bible details lines=1, name=父亲
+[2026-04-21 10:26:00.917] [INFO] [BibleSectionWidget] Rendering character bible: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者
+[2026-04-21 10:26:00.917] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈父
+[2026-04-21 10:26:00.919] [INFO] [BibleSectionWidget] Rendering character bible: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者
+[2026-04-21 10:26:00.919] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈母
+[2026-04-21 10:26:00.922] [INFO] [BibleSectionWidget] Rendering character bible: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感
+[2026-04-21 10:26:00.922] [INFO] [BibleSectionWidget] Character bible details lines=1, name=母亲
+[2026-04-21 10:26:00.924] [INFO] [BibleSectionWidget] Rendering character bible: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）
+[2026-04-21 10:26:00.924] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈伶
+[2026-04-21 10:26:00.950] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 5 -> 5
+[2026-04-21 10:26:00.950] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:00.950] [DEBUG] [NovelDetailPage] onSceneCountChanged: 9 -> 9
+[2026-04-21 10:26:00.950] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:00.950] [INFO] [BibleSectionWidget] Refreshed bible: 5 characters, 9 scenes
+[2026-04-21 10:26:01.248] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-21 10:26:01.284] [INFO] [BibleSectionWidget] Rendering character bible: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑
+[2026-04-21 10:26:01.284] [INFO] [BibleSectionWidget] Character bible details lines=1, name=父亲
+[2026-04-21 10:26:01.287] [INFO] [BibleSectionWidget] Rendering character bible: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者
+[2026-04-21 10:26:01.287] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈父
+[2026-04-21 10:26:01.290] [INFO] [BibleSectionWidget] Rendering character bible: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者
+[2026-04-21 10:26:01.290] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈母
+[2026-04-21 10:26:01.292] [INFO] [BibleSectionWidget] Rendering character bible: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感
+[2026-04-21 10:26:01.292] [INFO] [BibleSectionWidget] Character bible details lines=1, name=母亲
+[2026-04-21 10:26:01.294] [INFO] [BibleSectionWidget] Rendering character bible: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）
+[2026-04-21 10:26:01.294] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈伶
+[2026-04-21 10:26:01.319] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 5 -> 5
+[2026-04-21 10:26:01.319] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:01.319] [DEBUG] [NovelDetailPage] onSceneCountChanged: 9 -> 9
+[2026-04-21 10:26:01.319] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=5, scenes=9
+[2026-04-21 10:26:01.319] [INFO] [BibleSectionWidget] Refreshed bible: 5 characters, 9 scenes
+[2026-04-21 10:26:01.806] [INFO] [BibleSectionWidget] Rendering character bible: id=2ec4b985-9238-4955-acb4-c543b5c8f912, name=父亲, role=陈伶养父，中年男性，诊所从业者，性格隐忍压抑
+[2026-04-21 10:26:01.806] [INFO] [BibleSectionWidget] Character bible details lines=1, name=父亲
+[2026-04-21 10:26:01.809] [INFO] [BibleSectionWidget] Rendering character bible: id=7c050c51-4e63-4e93-9326-8da2cd84ecdc, name=陈父, role=陈伶父亲，中年男性，隐含秘密参与者
+[2026-04-21 10:26:01.809] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈父
+[2026-04-21 10:26:01.811] [INFO] [BibleSectionWidget] Rendering character bible: id=7ed05c88-d16b-4e84-bd13-72e3c2ba4c04, name=陈母, role=陈伶母亲，中年女性，恐惧而克制的知情者
+[2026-04-21 10:26:01.812] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈母
+[2026-04-21 10:26:01.813] [INFO] [BibleSectionWidget] Rendering character bible: id=8fde7ce7-828d-423e-8412-841a9ad059b7, name=母亲, role=陈伶养母，温婉却濒临崩溃的女性，情绪高度敏感
+[2026-04-21 10:26:01.813] [INFO] [BibleSectionWidget] Character bible details lines=1, name=母亲
+[2026-04-21 10:26:01.816] [INFO] [BibleSectionWidget] Rendering character bible: id=9e30f003-5726-40ec-9bbb-3426997b58f6, name=陈伶, role=主角，双重身份者：现代剧团编导 / 古风戏袍少年（疑似异界载体）
+[2026-04-21 10:26:01.816] [INFO] [BibleSectionWidget] Character bible details lines=1, name=陈伶
+[2026-04-21 10:26:01.844] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 5 -> 5
+[2026-04-21 10:26:01.844] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=5, scenes=9
+[2026-04-21 10:26:01.844] [DEBUG] [NovelDetailPage] onSceneCountChanged: 9 -> 9
+[2026-04-21 10:26:01.844] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=5, scenes=9
+[2026-04-21 10:26:01.844] [INFO] [BibleSectionWidget] Refreshed bible: 5 characters, 9 scenes
+[2026-04-21 10:26:02.250] [INFO] [PanelPreviewWidget] Populated 12 panels for chapter 1
+[2026-04-21 10:26:02.667] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=5, scenes=9

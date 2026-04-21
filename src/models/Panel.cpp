@@ -1,6 +1,6 @@
 
-#include "Panel.h"
-#include "Logger.h"
+#include "models/Panel.h"
+#include "utils/Logger.h"
 
 namespace {
     template<typename T>

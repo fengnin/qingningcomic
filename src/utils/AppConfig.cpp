@@ -1,9 +1,10 @@
-#include "AppConfig.h"
-#include "EncodingUtils.h"
+#include "utils/AppConfig.h"
+#include "utils/EncodingUtils.h"
 #include <QCoreApplication>
 #include <QFile>
 
 AppConfig* AppConfig::m_instance = nullptr;
+std::once_flag AppConfig::m_instanceOnceFlag;
 const QString AppConfig::DEFAULT_USER_ID = "qingning";
 
 AppConfig::AppConfig()
@@ -17,9 +18,9 @@ AppConfig::~AppConfig()
 
 AppConfig* AppConfig::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new AppConfig();
-    }
+    });
     return m_instance;
 }
 

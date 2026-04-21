@@ -8,31 +8,33 @@
  * - PanelCard: components/PanelCard.cpp
  */
 
-#include "NovelDetailPage.h"
-#include "StyleManager.h"
+#include "pages/NovelDetailPage.h"
+#include "utils/StyleManager.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
-#include "NovelService.h"
-#include "CharacterExtractor.h"
-#include "SceneExtractor.h"
-#include "BibleGenerator.h"
-#include "BibleImageService.h"
-#include "ImageService.h"
-#include "FileStorage.h"
-#include "Bible.h"
-#include "Panel.h"
-#include "EncodingUtils.h"
-#include "Logger.h"
-#include "SuccessDialog.h"
-#include "ConfirmDialog.h"
-#include "DatabaseManager.h"
+#include "services/NovelService.h"
+#include "services/CharacterExtractor.h"
+#include "services/SceneExtractor.h"
+#include "services/BibleGenerator.h"
+#include "services/BibleImageService.h"
+#include "services/ImageService.h"
+#include "data/FileStorage.h"
+#include "models/Bible.h"
+#include "models/Panel.h"
+#include "utils/EncodingUtils.h"
+#include "utils/Logger.h"
+#include "components/SuccessDialog.h"
+#include "components/ConfirmDialog.h"
+#include "data/DatabaseManager.h"
 #include "components/EditorStyles.h"
 #include "components/AnalysisProgressWidget.h"
 #include "components/AnalysisResultWidget.h"
 #include "components/ImageViewerDialog.h"
-#include "AnalysisStatusManager.h"
+#include "services/AnalysisStatusManager.h"
+#include "services/ServiceContainer.h"
 #include "utils/StatusHelper.h"
-#include "ChangeRequestService.h"
+#include "services/ChangeRequestService.h"
+#include "utils/BibleUtils.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -291,7 +293,7 @@ namespace {
         }
     )";
     
-    // ========== 示例数据 ==========
+    // ========== 初始化数据 ==========
     const QStringList SAMPLE_PANEL_DESCRIPTIONS = {
         QString::fromUtf8("主角站在窗前，凝视远方"),
         QString::fromUtf8("两人在咖啡厅对话，气氛紧张"),
@@ -300,6 +302,63 @@ namespace {
         QString::fromUtf8("战斗场景，能量爆发"),
     };
     
+    // ========== 圣经图片辅助函数 ==========
+    void saveCharacterBibleImage(const QString& characterId, const QString& imagePath)
+    {
+        Character character = CharacterExtractor::instance()->getCharacterById(characterId);
+        if (character.id().isEmpty()) {
+            return;
+        }
+
+        character.setPortraitPath(imagePath);
+        CharacterExtractor::instance()->updateCharacter(character);
+    }
+
+    void saveSceneBibleImage(const QString& novelId, const QString& sceneId, const QString& imagePath)
+    {
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(novelId, sceneId);
+        if (scene.id().isEmpty()) {
+            return;
+        }
+
+        scene.setReferenceImagePath(imagePath);
+        SceneExtractor::instance()->updateScene(scene);
+    }
+
+    void deleteCharacterBibleImage(const QString& characterId)
+    {
+        Character character = CharacterExtractor::instance()->getCharacterById(characterId);
+        if (character.id().isEmpty()) {
+            return;
+        }
+
+        const QString targetPath = character.portraitPath();
+        if (targetPath.isEmpty()) {
+            return;
+        }
+
+        FileStorage::instance()->deleteReferenceImage(targetPath);
+        character.setPortraitPath(QString());
+        CharacterExtractor::instance()->updateCharacter(character);
+    }
+
+    void deleteSceneBibleImage(const QString& novelId, const QString& sceneId)
+    {
+        Scene scene = SceneExtractor::instance()->getSceneBySceneId(novelId, sceneId);
+        if (scene.id().isEmpty()) {
+            return;
+        }
+
+        const QString targetPath = scene.referenceImagePath();
+        if (targetPath.isEmpty()) {
+            return;
+        }
+
+        FileStorage::instance()->deleteReferenceImage(targetPath);
+        scene.setReferenceImagePath(QString());
+        SceneExtractor::instance()->updateScene(scene);
+    }
+
     // ========== 辅助函数 ==========
     QWidget* createTransparentWidget()
     {
@@ -387,6 +446,13 @@ NovelDetailPage::NovelDetailPage(QWidget *parent)
 void NovelDetailPage::setupConnections()
 {
     StoryboardViewModel* vm = StoryboardViewModel::instance();
+
+    connect(vm, &StoryboardViewModel::storyboardsLoaded,
+            this, &NovelDetailPage::onStoryboardsLoaded, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::storyboardLoaded,
+            this, &NovelDetailPage::onStoryboardLoaded, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::panelsLoaded,
+            this, &NovelDetailPage::onPanelsLoaded, Qt::QueuedConnection);
     
     connect(vm, &StoryboardViewModel::analysisCompleted,
             this, &NovelDetailPage::onAnalysisCompleted, Qt::QueuedConnection);
@@ -421,7 +487,7 @@ void NovelDetailPage::setupConnections()
                 }
                 
                 m_generatePanelsBtn->setEnabled(true);
-                m_generatePanelsBtn->setText(tr("生成中..."));
+                m_generatePanelsBtn->setText(tr("开始生成"));
                 
                 QTimer::singleShot(100, this, [this]() {
                     if (m_panelPreviewWidget) {
@@ -443,16 +509,19 @@ void NovelDetailPage::setupConnections()
             }, Qt::QueuedConnection);
     
     connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
-            this, [this](const QString& characterId, const QString& portraitPath) {
+            this, [this](const QString&, const QString&) {
                 if (m_currentNovel.id().isEmpty()) return;
-                updateBibleItemImage(characterId, portraitPath, BibleType::Character);
+                onBibleDataChanged();
             }, Qt::QueuedConnection);
     
     connect(SceneExtractor::instance(), &SceneExtractor::sceneUpdated,
-            this, [this](const QString& sceneId, const QString& referenceImagePath) {
+            this, [this](const QString&, const QString&) {
                 if (m_currentNovel.id().isEmpty()) return;
-                updateBibleItemImage(sceneId, referenceImagePath, BibleType::Scene);
+                onBibleDataChanged();
             }, Qt::QueuedConnection);
+
+    connect(BibleImageService::instance(), &BibleImageService::allBibleImagesCompleted,
+            this, &NovelDetailPage::onAllBibleImagesCompleted, Qt::QueuedConnection);
 }
 
 NovelDetailPage::~NovelDetailPage()
@@ -485,6 +554,7 @@ void NovelDetailPage::setNovel(const Novel &novel)
 {
     LOG_DEBUG("NovelDetailPage", QString("setNovel: %1, id=%2").arg(novel.title()).arg(novel.id()));
     m_currentNovel = novel;
+    m_deferredBibleRefresh = false;
     
     updateDisplay();
     
@@ -495,6 +565,9 @@ void NovelDetailPage::setNovel(const Novel &novel)
 
 void NovelDetailPage::setChapterNumber(int chapterNumber)
 {
+    if (m_currentChapter == chapterNumber) {
+        return;
+    }
     m_currentChapter = chapterNumber;
     if (m_chapterNumberSpin) {
         m_chapterNumberSpin->setValue(chapterNumber);
@@ -816,7 +889,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(tr("追加新章节"), tr("添加新的章节内容")));
+    layout->addWidget(createCardHeader(tr("追加新章节"), tr("复用当前圣经，保持角色/场景连续性")));
     
     layout->addWidget(createSectionLabel(tr("章节编号")));
     
@@ -829,7 +902,9 @@ QWidget* NovelDetailPage::createAddChapterCard()
     layout->addWidget(m_chapterNumberSpin);
     
     m_chapterHintLabel = createLabel(
-        QString("已完成 %1 章，下一章是 %2").arg(m_completedChapterCount).arg(m_completedChapterCount + 1),
+        QString("当前已完成 %1 章，默认生成第 %2 章")
+            .arg(m_completedChapterCount)
+            .arg(m_completedChapterCount + 1),
         m_colorHint, 12);
     layout->addWidget(m_chapterHintLabel);
     
@@ -841,7 +916,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_chapterTextEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_chapterTextEdit);
     
-    QWidget *btnRow = createButtonRow(m_addChapterBtn, QString("添加章节 %1").arg(m_completedChapterCount + 1), tr("添加章节"));
+    QWidget *btnRow = createButtonRow(m_addChapterBtn, QString("添加章节 %1").arg(m_completedChapterCount + 1), tr("就绪"));
     connect(m_addChapterBtn, &QPushButton::clicked, this, &NovelDetailPage::onAddChapterClicked);
     layout->addWidget(btnRow);
     
@@ -851,7 +926,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_analysisResult = new AnalysisResultWidget();
     layout->addWidget(m_analysisResult);
     
-    QLabel *hintLabel = createLabel(tr("在此输入章节正文内容。"), m_colorHint, 12);
+    QLabel *hintLabel = createLabel(tr("逐个修订场景描述与 Prompt，保存后即可复用最新文本生成面板"), m_colorHint, 12);
     hintLabel->setWordWrap(true);
     layout->addWidget(hintLabel);
     
@@ -879,7 +954,7 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
     layout->addSpacing(8);
 
     m_generatePanelsBtn = nullptr;
-    QWidget *btnRow = createButtonRow(m_generatePanelsBtn, tr("开始生成"), tr("生成中..."));
+    QWidget *btnRow = createButtonRow(m_generatePanelsBtn, tr("开始生成"), tr("就绪"));
     connect(m_generatePanelsBtn, &QPushButton::clicked, this, &NovelDetailPage::onGeneratePanelsClicked);
     layout->addWidget(btnRow);
 
@@ -888,7 +963,7 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
         m_colorHint, 12);
     ratioHintLabel->setWordWrap(true);
     layout->addWidget(ratioHintLabel);
-    
+
     m_panelGenerateProgress = new AnalysisProgressWidget();
     layout->addWidget(m_panelGenerateProgress);
     
@@ -902,23 +977,23 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(tr("变更申请"), tr("提交分镜修改建议")));
+    layout->addWidget(createCardHeader(tr("自然语言修改请求"), tr("自动解析 CR-DSL 并执行修改闭环")));
     
-    layout->addWidget(createSectionLabel(tr("变更描述")));
+    layout->addWidget(createSectionLabel(tr("修改指令")));
     
     m_changeRequestEdit = new QTextEdit();
-    m_changeRequestEdit->setPlaceholderText(tr("输入变更内容..."));
+    m_changeRequestEdit->setPlaceholderText(tr("输入自然语言修改需求，说明要改的页码、面板和内容。"));
     m_changeRequestEdit->setFixedHeight(66);
     m_changeRequestEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_changeRequestEdit);
     
     layout->addSpacing(14);
     
-    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交申请"), tr("提交中..."));
+    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交修改请求"), tr("任务状态 就绪"));
     connect(m_submitChangeRequestBtn, &QPushButton::clicked, this, &NovelDetailPage::onSubmitChangeRequestClicked);
     layout->addWidget(btnRow);
     
-    layout->addWidget(createLabel(tr("提示: 变更将在下次生成时生效。"), m_colorHint, 12));
+    layout->addWidget(createLabel(tr("系统会解析修改请求并生成对应的 CR-DSL 变更。"), m_colorHint, 12));
     layout->addStretch();
     
     return card;
@@ -930,7 +1005,7 @@ QWidget* NovelDetailPage::createExportCard()
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     setupLayout(cardLayout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    cardLayout->addWidget(createCardHeader(tr("导出中心"), tr("导出漫画成品")));
+    cardLayout->addWidget(createCardHeader(tr("导出高清成品"), tr("PDF / Webtoon 长图 / 资源包")));
     
     cardLayout->addWidget(createSectionLabel(tr("导出格式")));
     
@@ -944,7 +1019,7 @@ QWidget* NovelDetailPage::createExportCard()
     m_exportBtn = createFeatureButton(tr("开始导出"));
     connect(m_exportBtn, &QPushButton::clicked, this, &NovelDetailPage::onExportClicked);
     
-    cardLayout->addWidget(createButtonStatusRow(m_exportBtn, tr("导出中...")));
+    cardLayout->addWidget(createButtonStatusRow(m_exportBtn, tr("就绪")));
     cardLayout->addStretch();
     
     return card;
@@ -972,6 +1047,10 @@ QWidget* NovelDetailPage::createBibleSection()
             this, &NovelDetailPage::onCharacterCountChanged);
     connect(m_bibleSectionWidget, &BibleSectionWidget::sceneCountChanged,
             this, &NovelDetailPage::onSceneCountChanged);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::characterDataChanged,
+            this, &NovelDetailPage::onCharacterDataChanged);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::sceneDataChanged,
+            this, &NovelDetailPage::onSceneDataChanged);
     
     m_bibleSectionWidget->setNovelId(m_currentNovel.id());
     
@@ -1126,7 +1205,12 @@ void NovelDetailPage::updateDisplay()
     
     StoryboardViewModel* vm = StoryboardViewModel::instance();
     vm->loadStoryboards(m_currentNovel.id());
-    QList<Storyboard> storyboards = vm->storyboards();
+    vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
+
+    QList<Storyboard> storyboards;
+    if (vm->hasCachedStoryboards(m_currentNovel.id())) {
+        storyboards = vm->storyboards();
+    }
     
     m_completedChapterCount = storyboards.size();
     
@@ -1148,7 +1232,9 @@ void NovelDetailPage::updateDisplay()
     }
     
     if (m_chapterNumberSpin) {
-        m_chapterNumberSpin->setValue(nextChapterNumber);
+        if (m_chapterNumberSpin->value() != nextChapterNumber) {
+            m_chapterNumberSpin->setValue(nextChapterNumber);
+        }
     }
     
     updateChapterHints(storyboards);
@@ -1166,8 +1252,6 @@ void NovelDetailPage::updateDisplay()
     }
     
     refreshChapterCards(storyboards);
-    
-    vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
     refreshStoryboardItems();
     
     QTimer::singleShot(0, this, [this]() {
@@ -1417,11 +1501,7 @@ void NovelDetailPage::refreshStoryboardItems()
     clearLayout(containerLayout);
     
     QList<QPair<int, QStringList>> storyboardItems = loadStoryboardFromDatabase();
-    
-    if (storyboardItems.isEmpty()) {
-        storyboardItems = getSampleStoryboardItems();
-    }
-    
+
     int createdCount = 0;
     for (const auto &item : storyboardItems) {
         const QStringList parts = item.second;
@@ -1442,7 +1522,7 @@ void NovelDetailPage::refreshStoryboardItems()
     }
     
     if (m_storyboardCountLabel) {
-        m_storyboardCountLabel->setText(QString("分镜数: %1").arg(createdCount));
+        m_storyboardCountLabel->setText(QString(tr("共 %1 个分镜")).arg(createdCount));
     }
     
     containerLayout->addStretch();
@@ -1461,14 +1541,13 @@ QList<QPair<int, QStringList>> NovelDetailPage::loadStoryboardFromDatabase() con
     if (novelId.isEmpty()) {
         return items;
     }
-    
-    Storyboard storyboard = StoryboardViewModel::instance()->currentStoryboard();
-    
-    if (storyboard.id().isEmpty()) {
+
+    StoryboardViewModel* vm = StoryboardViewModel::instance();
+    if (!vm->hasCachedPanels(novelId, m_currentChapter)) {
         return items;
     }
     
-    QList<Panel> panels = StoryboardViewModel::instance()->currentPanels();
+    QList<Panel> panels = vm->currentPanels();
     
     for (const Panel& panel : panels) {
         items.append(parsePanelToItem(panel));
@@ -1488,6 +1567,57 @@ void NovelDetailPage::updateChapterSelection(int chapterNumber)
     if (m_panelPreviewWidget) {
         m_panelPreviewWidget->setChapter(chapterNumber);
     }
+}
+
+void NovelDetailPage::onStoryboardsLoaded(const QString& novelId, const QList<Storyboard>& storyboards)
+{
+    if (novelId != m_currentNovel.id()) {
+        return;
+    }
+
+    m_completedChapterCount = storyboards.size();
+
+    int maxChapterNumber = 0;
+    for (const Storyboard& storyboard : storyboards) {
+        if (storyboard.chapterNumber() > maxChapterNumber) {
+            maxChapterNumber = storyboard.chapterNumber();
+        }
+    }
+
+    const int nextChapterNumber = maxChapterNumber > 0 ? maxChapterNumber + 1 : 1;
+    refreshChapterCards(storyboards);
+    updateChapterHints(storyboards);
+
+    if (m_chapterCountLabel) {
+        m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
+    }
+    if (m_chapterNumberSpin && m_chapterNumberSpin->value() != nextChapterNumber) {
+        m_chapterNumberSpin->setValue(nextChapterNumber);
+    }
+
+    updateBibleMetaLabel();
+}
+
+void NovelDetailPage::onStoryboardLoaded(const QString& novelId, int chapterNumber, const Storyboard& storyboard)
+{
+    if (novelId != m_currentNovel.id() || chapterNumber != m_currentChapter) {
+        return;
+    }
+
+    Q_UNUSED(storyboard)
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->setChapter(chapterNumber);
+    }
+}
+
+void NovelDetailPage::onPanelsLoaded(const QString& novelId, int chapterNumber, const QList<Panel>& panels)
+{
+    if (novelId != m_currentNovel.id() || chapterNumber != m_currentChapter) {
+        return;
+    }
+
+    Q_UNUSED(panels)
+    refreshStoryboardItems();
 }
 
 
@@ -1707,10 +1837,10 @@ void NovelDetailPage::onAnalysisCompleted(const QString& novelId, int chapterNum
 
 void NovelDetailPage::handleAnalysisSuccess(int chapter)
 {
-    setAnalysisStatus(AnalysisStatusManager::Status::Success);
+    setAnalysisStatus(AnalysisStatusManager::Status::Processing, tr("图片生成中..."));
     
     if (m_analysisProgress) {
-        m_analysisProgress->setState(AnalysisProgressWidget::State::Completed);
+        m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
     }
     
     if (m_analysisResult) {
@@ -1718,13 +1848,14 @@ void NovelDetailPage::handleAnalysisSuccess(int chapter)
         m_analysisResult->showAnimated();
     }
     
-    NovelViewModel::instance()->updateNovelStatus(m_currentNovel.id(), NovelStatus::Completed);
-    
     m_completedChapterCount++;
     m_currentChapter = chapter;
     m_chapterTextEdit->clear();
     
     StoryboardViewModel::instance()->clearCache();
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
     
     updateDisplay();
     
@@ -1761,15 +1892,18 @@ void NovelDetailPage::onGeneratePanelsClicked()
     }
     
     StoryboardViewModel* vm = StoryboardViewModel::instance();
-    vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
-    
+    if (!vm->hasCachedPanels(m_currentNovel.id(), m_currentChapter)) {
+        vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
+        QMessageBox::information(this, tr("数据加载中"), tr("分镜数据还在加载，请稍后再试"));
+        return;
+    }
+
     Storyboard currentStoryboard = vm->currentStoryboard();
     if (currentStoryboard.id().isEmpty()) {
         QMessageBox::warning(this, tr("无分镜"), tr("当前章节没有分镜数据，请先分析"));
         return;
     }
     
-    vm->loadPanels(currentStoryboard.id());
     QList<Panel> panels = vm->currentPanels();
     
     QStringList panelIds;
@@ -1805,7 +1939,7 @@ void NovelDetailPage::onGeneratePanelsClicked()
         m_panelGenerateProgress->reset();
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
         m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(QString("正在生成 %1 个分镜").arg(panelIds.size()));
+        m_panelGenerateProgress->setProgressText(TR("正在生成面板图像 0/%1").arg(panelIds.size()));
     }
     
     LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
@@ -1823,23 +1957,24 @@ void NovelDetailPage::startAutoImageGeneration(int chapter)
     int totalTasks = characters.size() + scenes.size();
     
     if (totalTasks == 0) {
+        onAllImageGenerationCompleted();
         return;
     }
+
+    m_isBibleImageGenerationRunning = true;
+    m_deferredBibleRefresh = false;
     
     if (m_analysisProgress) {
         m_analysisProgress->reset();
         m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
         m_analysisProgress->setProgress(0);
-        m_analysisProgress->setProgressText(QString::fromUtf8("生成参考图中..."));
+        m_analysisProgress->setProgressText(QString::fromUtf8("正在生成图像 0/%1").arg(totalTasks));
     }
     
     disconnect(BibleImageService::instance(), &BibleImageService::batchProgress, this, nullptr);
-    disconnect(BibleImageService::instance(), &BibleImageService::allBibleImagesCompleted, this, nullptr);
     
     connect(BibleImageService::instance(), &BibleImageService::batchProgress,
             this, &NovelDetailPage::onBibleImageBatchProgress, Qt::QueuedConnection);
-    connect(BibleImageService::instance(), &BibleImageService::allBibleImagesCompleted,
-            this, &NovelDetailPage::onAllBibleImagesCompleted, Qt::QueuedConnection);
     
     m_pendingCharacters = characters;
     m_pendingScenes = scenes;
@@ -1855,18 +1990,24 @@ void NovelDetailPage::onBibleImageBatchProgress(int current, int total, const QS
         int completed = m_completedImageTasks + current;
         int progress = m_totalImageTasks > 0 ? (completed * 100 / m_totalImageTasks) : 0;
         m_analysisProgress->setProgress(progress);
-        m_analysisProgress->setProgressText(QString::fromUtf8("已完成 %1/%2").arg(current).arg(total));
+        m_analysisProgress->setProgressText(
+            QString::fromUtf8("正在生成%1 %2/%3")
+                .arg(type == "character" ? "角色肖像" : "场景参考图")
+                .arg(current)
+                .arg(total));
     }
 }
 
 void NovelDetailPage::onAllBibleImagesCompleted(int successCount, int failedCount)
 {
+    m_isBibleImageGenerationRunning = false;
     m_completedImageTasks = successCount + failedCount;
     onAllImageGenerationCompleted();
 }
 
 void NovelDetailPage::onAllImageGenerationCompleted()
 {
+    m_isBibleImageGenerationRunning = false;
     
     if (m_analysisProgress) {
         m_analysisProgress->setState(AnalysisProgressWidget::State::Completed);
@@ -1874,14 +2015,14 @@ void NovelDetailPage::onAllImageGenerationCompleted()
         progressResult["imageCount"] = m_completedImageTasks;
         m_analysisProgress->setResult(progressResult);
     }
-    
     if (m_panelPreviewWidget) {
         m_panelPreviewWidget->refresh();
     }
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->refreshBible();
-    }
-    
+    applyDeferredBibleRefresh();
+
+    setAnalysisStatus(AnalysisStatusManager::Status::Success);
+    NovelViewModel::instance()->updateNovelStatus(m_currentNovel.id(), NovelStatus::Completed);
+
     m_pendingCharacters.clear();
     m_pendingScenes.clear();
     m_totalImageTasks = 0;
@@ -1953,6 +2094,9 @@ void NovelDetailPage::onSubmitChangeRequestClicked()
 
 void NovelDetailPage::onChapterNumberChanged(int value)
 {
+    if (m_currentChapter == value) {
+        return;
+    }
     updateChapterUI(value);
 }
 
@@ -2061,18 +2205,42 @@ void NovelDetailPage::onRefreshBibleClicked()
     }
 }
 
-void NovelDetailPage::onBibleDataChanged()
+bool NovelDetailPage::isBibleGenerating() const
 {
+    return m_isBibleImageGenerationRunning || BibleImageService::instance()->isGenerating();
+}
+
+void NovelDetailPage::requestBibleRefresh()
+{
+    if (isBibleGenerating()) {
+        if (!m_deferredBibleRefresh) {
+            m_deferredBibleRefresh = true;
+            LOG_DEBUG("NovelDetailPage", "Defer bible refresh until batch image generation completes");
+        }
+        return;
+    }
+
+    m_deferredBibleRefresh = false;
     if (m_bibleSectionWidget) {
         m_bibleSectionWidget->refreshBible();
     }
 }
 
-void NovelDetailPage::updateBibleItemImage(const QString& id, const QString& imagePath, BibleType type)
+void NovelDetailPage::applyDeferredBibleRefresh()
 {
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->updateItemImage(id, imagePath, type);
+    if (m_deferredBibleRefresh) {
+        LOG_DEBUG("NovelDetailPage", "Applying deferred bible refresh after batch image generation");
     }
+    m_deferredBibleRefresh = false;
+
+    if (m_bibleSectionWidget) {
+        m_bibleSectionWidget->refreshBible();
+    }
+}
+
+void NovelDetailPage::onBibleDataChanged()
+{
+    requestBibleRefresh();
 }
 
 void NovelDetailPage::onCharacterCountChanged(int count)
@@ -2117,52 +2285,54 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
         CharacterAppearance app = character.appearance();
         
         for (const QString &detail : details) {
-            if (detail.contains(QString::fromUtf8("gender"))) {
-                QRegularExpression genderRe(QStringLiteral(R"(gender\s*[:：]\s*([^,;\n]+))"));
-                QRegularExpressionMatch match = genderRe.match(detail);
-                if (match.hasMatch()) {
-                    app.gender = match.captured(1);
-                }
-                
-                QRegularExpression ageRe(QStringLiteral(R"(age\s*[:：]\s*(\d+))"));
-                match = ageRe.match(detail);
-                if (match.hasMatch()) {
-                    app.age = match.captured(1).toInt();
-                }
-                
-                QRegularExpression hairColorRe(QStringLiteral(R"(hairColor\s*[:：]\s*([^,;\n]+))"));
-                match = hairColorRe.match(detail);
-                if (match.hasMatch()) {
-                    app.hairColor = match.captured(1);
-                }
-                
-                QRegularExpression eyeColorRe(QStringLiteral(R"(eyeColor\s*[:：]\s*([^,;\n]+))"));
-                match = eyeColorRe.match(detail);
-                if (match.hasMatch()) {
-                    app.eyeColor = match.captured(1);
-                }
+            const QString gender = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("gender"), QString::fromUtf8("性别")});
+            if (!gender.isEmpty()) {
+                app.gender = gender;
             }
-            else if (detail.contains(QString::fromUtf8("bodyType"))) {
-                app.build = extractBibleValue(detail, QString::fromUtf8("bodyType: "));
+
+            const int age = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("age"), QString::fromUtf8("年龄")}).toInt();
+            if (age > 0) {
+                app.age = age;
             }
-            else if (detail.contains(QString::fromUtf8("hairStyle"))) {
-                app.hairStyle = extractBibleValue(detail, QString::fromUtf8("hairStyle: "));
+
+            const QString hairColor = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("hairColor"), QString::fromUtf8("发色")});
+            if (!hairColor.isEmpty()) {
+                app.hairColor = hairColor;
             }
-            else if (detail.contains(QString::fromUtf8("clothing"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("clothing: "));
-                app.clothing = value.split(", ");
+
+            const QString eyeColor = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("eyeColor"), QString::fromUtf8("瞳色"), QString::fromUtf8("眼睛")});
+            if (!eyeColor.isEmpty()) {
+                app.eyeColor = eyeColor;
             }
-            else if (detail.contains(QString::fromUtf8("accessories"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("accessories: "));
-                app.accessories = value.split(", ");
+
+            const QString bodyType = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("bodyType"), QString::fromUtf8("体型")});
+            if (!bodyType.isEmpty()) {
+                app.build = bodyType;
             }
-            else if (detail.contains(QString::fromUtf8("distinctiveFeatures"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("features: "));
-                app.distinctiveFeatures = value.split(", ");
+
+            const QString hairStyle = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("hairStyle"), QString::fromUtf8("发型")});
+            if (!hairStyle.isEmpty()) {
+                app.hairStyle = hairStyle;
             }
-            else if (detail.contains(QString::fromUtf8("personality"))) {
-                QString value = extractBibleValue(detail, QString::fromUtf8("personality: "));
-                character.setPersonality(value.split(", "));
+
+            const QString clothing = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("clothing"), QString::fromUtf8("服饰")});
+            if (!clothing.isEmpty()) {
+                app.clothing = BibleUtils::splitCommaSeparatedList(clothing);
+            }
+
+            const QString accessories = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("accessories"), QString::fromUtf8("配饰")});
+            if (!accessories.isEmpty()) {
+                app.accessories = BibleUtils::splitCommaSeparatedList(accessories);
+            }
+
+            const QString features = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("features"), QStringLiteral("distinctiveFeatures"), QString::fromUtf8("明显特征"), QString::fromUtf8("特征")});
+            if (!features.isEmpty()) {
+                app.distinctiveFeatures = BibleUtils::splitCommaSeparatedList(features);
+            }
+
+            const QString personality = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("personality"), QString::fromUtf8("个性"), QString::fromUtf8("性格")});
+            if (!personality.isEmpty()) {
+                character.setPersonality(BibleUtils::splitCommaSeparatedList(personality));
             }
         }
         
@@ -2174,31 +2344,54 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
     Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
     if (!scene.id().isEmpty()) {
         SceneDetails det = scene.details();
-        
+
         for (const QString &detail : details) {
-            if (detail.contains(QString::fromUtf8("description"))) {
-                det.description = extractBibleValue(detail, QString::fromUtf8("description: "));
+            const QString description = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("description"), QString::fromUtf8("描述")});
+            if (!description.isEmpty()) {
+                det.description = description;
             }
-            else if (detail.contains(QString::fromUtf8("building"))) {
-                det.building = extractBibleValue(detail, QString::fromUtf8("building: "));
+
+            const QString building = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("building"), QString::fromUtf8("建筑")});
+            if (!building.isEmpty()) {
+                det.building = building;
             }
-            else if (detail.contains(QString::fromUtf8("color"))) {
-                det.color = extractBibleValue(detail, QString::fromUtf8("color: "));
+
+            const QString color = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("color"), QString::fromUtf8("色调")});
+            if (!color.isEmpty()) {
+                det.color = color;
             }
-            else if (detail.contains(QString::fromUtf8("landmark"))) {
-                det.landmark = extractBibleValue(detail, QString::fromUtf8("landmark: "));
+
+            const QString landmark = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("landmark"), QString::fromUtf8("地标")});
+            if (!landmark.isEmpty()) {
+                det.landmark = landmark;
             }
-            else if (detail.contains(QString::fromUtf8("layout"))) {
-                det.layout = extractBibleValue(detail, QString::fromUtf8("layout: "));
+
+            const QString layout = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("layout"), QString::fromUtf8("布局")});
+            if (!layout.isEmpty()) {
+                det.layout = layout;
             }
-            else if (detail.contains(QString::fromUtf8("atmosphere"))) {
-                det.atmosphere = extractBibleValue(detail, QString::fromUtf8("atmosphere: "));
+
+            const QString atmosphere = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("atmosphere"), QString::fromUtf8("氛围")});
+            if (!atmosphere.isEmpty()) {
+                det.atmosphere = atmosphere;
             }
         }
-        
+
         scene.setDetails(det);
         SceneExtractor::instance()->updateScene(scene);
     }
+}
+
+void NovelDetailPage::onCharacterDataChanged(const QString &id, const Character &character)
+{
+    Q_UNUSED(id)
+    CharacterExtractor::instance()->updateCharacterSilent(character);
+}
+
+void NovelDetailPage::onSceneDataChanged(const QString &id, const Scene &scene)
+{
+    Q_UNUSED(id)
+    SceneExtractor::instance()->updateSceneSilent(scene);
 }
 
 void NovelDetailPage::onBibleItemUploadClicked(const QString &id, const QString &imagePath, BibleType type)
@@ -2215,22 +2408,12 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &id, const QString 
     }
     
     if (type == BibleType::Character) {
-        Character character = CharacterExtractor::instance()->getCharacterById(id);
-        if (!character.id().isEmpty()) {
-            character.setPortraitPath(relativePath);
-            CharacterExtractor::instance()->updateCharacter(character);
-        }
+        saveCharacterBibleImage(id, relativePath);
     } else {
-        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
-        if (!scene.id().isEmpty()) {
-            scene.setReferenceImagePath(relativePath);
-            SceneExtractor::instance()->updateScene(scene);
-        }
+        saveSceneBibleImage(m_currentNovel.id(), id, relativePath);
     }
-    
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->refreshBible();
-    }
+
+    requestBibleRefresh();
 }
 
 void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
@@ -2241,26 +2424,12 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType
     }
     
     if (type == BibleType::Character) {
-        Character character = CharacterExtractor::instance()->getCharacterById(id);
-        if (!character.id().isEmpty()) {
-            QString oldPath = character.portraitPath();
-            if (!oldPath.isEmpty()) {
-                FileStorage::instance()->deleteReferenceImage(oldPath);
-            }
-            character.setPortraitPath(QString());
-            CharacterExtractor::instance()->updateCharacter(character);
-        }
+        deleteCharacterBibleImage(id);
     } else {
-        Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
-        if (!scene.id().isEmpty()) {
-            QString oldPath = scene.referenceImagePath();
-            if (!oldPath.isEmpty()) {
-                FileStorage::instance()->deleteReferenceImage(oldPath);
-            }
-            scene.setReferenceImagePath(QString());
-            SceneExtractor::instance()->updateScene(scene);
-        }
+        deleteSceneBibleImage(m_currentNovel.id(), id);
     }
+
+    requestBibleRefresh();
 }
 
 void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType type)
@@ -2303,15 +2472,6 @@ void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType ty
     });
 }
 
-QString NovelDetailPage::extractBibleValue(const QString &detail, const QString &key) const
-{
-    QString prefix = key;
-    if (detail.startsWith(prefix)) {
-        return detail.mid(prefix.length()).trimmed();
-    }
-    return QString();
-}
-
 void NovelDetailPage::onExportClicked()
 {
     QMessageBox::information(this, tr("导出功能"), tr("导出功能开发中..."));
@@ -2349,3 +2509,4 @@ void NovelDetailPage::onPanelCardClicked(int panelNumber)
     }
 }
 
+#include "moc_NovelDetailPage.cpp"

@@ -1,5 +1,5 @@
 #include "components/AnalysisResultWidget.h"
-#include "EncodingUtils.h"
+#include "utils/EncodingUtils.h"
 #include <QGraphicsOpacityEffect>
 #include <QPushButton>
 

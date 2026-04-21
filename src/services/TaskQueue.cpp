@@ -1,6 +1,6 @@
-#include "TaskQueue.h"
-#include "DatabaseManager.h"
-#include "Logger.h"
+#include "services/TaskQueue.h"
+#include "data/DatabaseManager.h"
+#include "utils/Logger.h"
 #include <QUuid>
 
 TaskQueue* TaskQueue::m_instance = nullptr;

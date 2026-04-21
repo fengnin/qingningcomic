@@ -1,13 +1,16 @@
-#include "AnalysisService.h"
-#include "CharacterExtractor.h"
-#include "SceneExtractor.h"
-#include "BibleGenerator.h"
-#include "BibleImageService.h"
-#include "ImageService.h"
-#include "NovelService.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
-#include "DatabaseManager.h"
+#include "services/AnalysisService.h"
+#include "services/CharacterExtractor.h"
+#include "services/SceneExtractor.h"
+#include "services/BibleGenerator.h"
+#include "services/BibleImageService.h"
+#include "services/ImageService.h"
+#include "services/NovelService.h"
+#include "services/BibleContextInjector.h"
+#include "api/QwenPromptBuilder.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
+#include "utils/AnalysisJobUtils.h"
+#include "data/DatabaseManager.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
@@ -15,6 +18,7 @@
 #include <QUuid>
 
 AnalysisService* AnalysisService::m_instance = nullptr;
+std::once_flag AnalysisService::m_instanceOnceFlag;
 
 AnalysisService::AnalysisService(QObject* parent)
     : QObject(parent)
@@ -42,9 +46,9 @@ AnalysisService::~AnalysisService()
 
 AnalysisService* AnalysisService::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new AnalysisService();
-    }
+    });
     return m_instance;
 }
 
@@ -127,17 +131,46 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
     
     NovelService::instance()->updateStatus(novelId, NovelStatus::Analyzing);
     
-    m_currentJobId = createJob(novelId, chapterNumber);
+    m_currentJobId = AnalysisJobUtils::createJob(novelId, chapterNumber);
     
     emit analysisStarted(novelId);
     
     QJsonObject schema = loadJsonSchema();
     if (schema.isEmpty()) {
-        handleAnalysisFailure(novelId, tr("JSON Schema 加载失败"));
+        handleAnalysisFailure(novelId, TR("无法加载 JSON Schema"));
         return;
     }
+
+    BibleContextInjector::FilteredContext context = 
+        BibleContextInjector::instance()->filterRelevantContext(text, existingCharacters, existingScenes);
     
-    m_qwen->generateStoryboardStream(text, schema, true, existingCharacters, existingScenes, chapterNumber);
+    const QString userMessage = QwenPromptBuilder::buildUserMessageWithBible(
+        text, context.characters, context.scenes, chapterNumber);
+    const int estimatedBytes = userMessage.toUtf8().size();
+    const bool shouldUseTaskQueue =
+        text.length() > m_qwen->maxChunkLength() || estimatedBytes > 30000;
+    
+    if (shouldUseTaskQueue) {
+        TaskData task;
+        task.type = TaskType::GenerateStoryboard;
+        task.novelId = novelId;
+        task.chapterNumber = chapterNumber;
+        task.text = text;
+        task.params["existingCharacters"] = context.characters;
+        task.params["existingScenes"] = context.scenes;
+        task.total = 100;
+        
+        m_currentTaskId = TaskQueue::instance()->enqueue(task);
+        LOG_INFO("AnalysisService", QString("Switched to queued storyboard analysis: taskId=%1, textLength=%2, estimatedPromptBytes=%3")
+            .arg(m_currentTaskId)
+            .arg(text.length())
+            .arg(estimatedBytes));
+        updateProgress(1, tr("章节较长，正在使用分块分析..."));
+        return;
+    }
+
+    m_currentTaskId.clear();
+    m_qwen->generateStoryboardStream(text, schema, true, context.characters, context.scenes, chapterNumber);
 }
 
 void AnalysisService::processTask(TaskData& task)
@@ -174,7 +207,7 @@ void AnalysisService::saveResults(const QString& novelId, int chapterNumber, con
     LOG_INFO("AnalysisService", QString("saveResults called: novelId=%1, chapter=%2, panels=%3, characters=%4, scenes=%5")
         .arg(novelId).arg(chapterNumber).arg(result.panels.size()).arg(result.characters.size()).arg(result.scenes.size()));
     
-    QList<ExtractedCharacter> extractedChars = CharacterExtractor::instance()->extractFromCharacters(result.characters);
+    QList<ExtractedCharacter> extractedChars = CharacterExtractor::instance()->extractFromCharacters(result.characters, NovelService::instance()->loadText(novelId));
     int savedCharCount = CharacterExtractor::instance()->saveCharacters(novelId, extractedChars);
     LOG_INFO("AnalysisService", QString("Saved %1 characters to database").arg(savedCharCount));
     
@@ -235,7 +268,7 @@ void AnalysisService::saveResults(const QString& novelId, int chapterNumber, con
     storyboardData["scenes"] = result.scenes;
     storyboardData["totalPages"] = result.totalPages;
     
-    if (!m_storyboardService->saveStoryboard(novelId, storyboardData, chapterNumber)) {
+    if (!m_storyboardService->saveStoryboard(novelId, storyboardData, chapterNumber, false)) {
         LOG_ERROR("AnalysisService", "Failed to save storyboard");
         return;
     }
@@ -273,7 +306,7 @@ void AnalysisService::handleAnalysisFailure(const QString& novelId, const QStrin
     setResultFailure(errorMessage);
     
     if (!m_currentJobId.isEmpty()) {
-        updateJobStatus(m_currentJobId, "failed", errorMessage);
+        AnalysisJobUtils::updateJobStatus(m_currentJobId, "failed", errorMessage);
     }
     
     if (!novelId.isEmpty()) {
@@ -323,15 +356,16 @@ void AnalysisService::onTaskCompleted(const QString& taskId, const QJsonObject& 
         return;
     }
     
-    finishProcessing();
     setResultSuccess(task.chapterNumber, 
                      result["panelCount"].toInt(),
                      result["characterCount"].toInt(),
                      result["sceneCount"].toInt());
     
     QString novelId = (taskId == m_currentTaskId) ? m_currentNovelId : task.novelId;
-    
-    emit analysisCompleted(novelId, m_lastResult);
+
+    updateProgress(50, tr("正在生成角色和场景图片..."));
+    generateImagesAfterAnalysis(novelId, task.chapterNumber);
+
     LOG_INFO("AnalysisService", QString("Task completed: novelId=%1, chapter=%2, panels=%3")
         .arg(novelId).arg(task.chapterNumber).arg(m_lastResult.panelCount));
 }
@@ -358,7 +392,7 @@ void AnalysisService::onQwenStreamProgress(const QString& partialContent)
     int charCount = partialContent.length();
     int streamProgress = qMin(40, charCount / 500);
     
-    updateProgress(streamProgress, tr("正在分析文本"));
+    updateProgress(streamProgress, tr("正在生成内容..."));
 }
 
 void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
@@ -366,11 +400,11 @@ void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
     LOG_INFO("AnalysisService", QString("Stream completed, processing result..."));
     
     if (result.isEmpty()) {
-        handleAnalysisFailure(m_currentNovelId, tr("分镜生成失败"));
+        handleAnalysisFailure(m_currentNovelId, tr("流式输出结果为空"));
         return;
     }
     
-    updateProgress(45, tr("正在处理分析结果"));
+    updateProgress(45, tr("正在解析分镜数据..."));
     
     QwenClient::StoryboardResult storyboardResult;
     storyboardResult.panels = result["panels"].toArray();
@@ -379,10 +413,10 @@ void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
     storyboardResult.totalPages = result["totalPages"].toInt();
     storyboardResult.success = true;
     
-    updateProgress(47, tr("正在保存分镜数据"));
+    updateProgress(47, tr("正在保存分镜数据..."));
     saveResults(m_currentNovelId, m_currentChapterNumber, storyboardResult);
     
-    updateProgress(50, tr("正在生成角色和场景图片"));
+    updateProgress(50, tr("正在生成角色和场景图片..."));
     
     setResultSuccess(m_currentChapterNumber,
                      storyboardResult.panels.size(),
@@ -400,74 +434,40 @@ void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
         .arg(storyboardResult.scenes.size()));
 }
 
-QString AnalysisService::createJob(const QString& novelId, int chapterNumber)
-{
-    QString jobId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    
-    QJsonObject params;
-    params["chapterNumber"] = chapterNumber;
-    QString paramsJson = QString::fromUtf8(QJsonDocument(params).toJson(QJsonDocument::Compact));
-    
-    QVariantMap data;
-    data["id"] = jobId;
-    data["type"] = "generate_storyboard";
-    data["status"] = "running";
-    data["novel_id"] = novelId;
-    data["params"] = paramsJson;
-    data["created_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    data["updated_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    
-    if (DatabaseManager::instance()->insert("jobs", data) < 0) {
-        LOG_ERROR("AnalysisService", "Failed to create job");
-        return QString();
-    }
-    
-    LOG_INFO("AnalysisService", QString("Created job: %1 for novel %2, chapter %3")
-        .arg(jobId, novelId).arg(chapterNumber));
-    
-    return jobId;
-}
-
-void AnalysisService::updateJobStatus(const QString& jobId, const QString& status, const QString& errorMessage)
-{
-    if (jobId.isEmpty()) {
-        LOG_WARNING("AnalysisService", "updateJobStatus: jobId is empty");
-        return;
-    }
-    
-    QVariantMap data;
-    data["status"] = status;
-    data["updated_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    
-    if (status == "completed") {
-        data["progress"] = 100;
-    } else if (status == "failed") {
-        data["progress"] = 0;
-    }
-    
-    if (!errorMessage.isEmpty()) {
-        data["error_message"] = errorMessage;
-    }
-    
-    QString where = "id = ?";
-    QVariantList values;
-    values << jobId;
-    
-    DatabaseManager::instance()->update("jobs", data, where, values);
-    
-    LOG_INFO("AnalysisService", QString("Updated job %1 status to: %2, progress: %3")
-        .arg(jobId, status).arg(data.value("progress", -1).toInt()));
-}
-
 void AnalysisService::updateProgress(int progress, const QString& message)
 {
     emit analysisProgress(progress, 100, message);
     
     if (!m_currentJobId.isEmpty()) {
-        QVariantMap data;
-        data["progress"] = progress;
-        DatabaseManager::instance()->update("jobs", data, "id = ?", QVariantList{m_currentJobId});
+        AnalysisJobUtils::updateJobProgress(m_currentJobId, progress);
     }
+}
+
+void AnalysisService::handleGeneratedStoryboard(const QString& novelId, int chapterNumber,
+                                                const QwenClient::StoryboardResult& storyboardResult,
+                                                const QJsonObject& rawResult)
+{
+    updateProgress(45, tr("正在解析分镜数据..."));
+    updateProgress(47, tr("正在保存分镜数据..."));
+    saveResults(novelId, chapterNumber, storyboardResult);
+    updateProgress(50, tr("正在生成角色和场景图片..."));
+
+    setResultSuccess(chapterNumber,
+                     storyboardResult.panels.size(),
+                     storyboardResult.characters.size(),
+                     storyboardResult.scenes.size());
+
+    generateImagesAfterAnalysis(novelId, chapterNumber);
+
+    if (!rawResult.isEmpty()) {
+        emit streamCompleted(novelId, rawResult);
+    }
+
+    LOG_INFO("AnalysisService", QString("Analysis completed: novelId=%1, panels=%2, chars=%3, scenes=%4")
+        .arg(novelId)
+        .arg(storyboardResult.panels.size())
+        .arg(storyboardResult.characters.size())
+        .arg(storyboardResult.scenes.size()));
 }
 
 void AnalysisService::generateImagesAfterAnalysis(const QString& novelId, int chapterNumber)
@@ -492,7 +492,7 @@ void AnalysisService::generateImagesAfterAnalysis(const QString& novelId, int ch
         return;
     }
     
-    emit imageGenerationProgress(0, totalImages, QString::fromUtf8("正在生成角色和场景图片"));
+    emit imageGenerationProgress(0, totalImages, QString::fromUtf8("正在生成角色和场景图片..."));
     
     connect(BibleImageService::instance(), &BibleImageService::batchProgress,
             this, &AnalysisService::onBibleImageProgress, Qt::UniqueConnection);
@@ -527,7 +527,11 @@ void AnalysisService::finalizeAnalysis()
                this, &AnalysisService::onBibleImageCompleted);
     
     updateProgress(100, tr("分析完成"));
-    updateJobStatus(m_currentJobId, "completed");
+    AnalysisJobUtils::updateJobStatus(m_currentJobId, "completed");
+    
+    if (!m_currentNovelId.isEmpty()) {
+        NovelService::instance()->updateStatus(m_currentNovelId, NovelStatus::Completed);
+    }
     
     finishProcessing();
     

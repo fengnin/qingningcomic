@@ -1,9 +1,9 @@
-#include "CharacterDetailPage.h"
+#include "pages/CharacterDetailPage.h"
 #include "components/EditorStyles.h"
-#include "EncodingUtils.h"
-#include "ServiceContainer.h"
-#include "QwenImageClient.h"
-#include "Logger.h"
+#include "utils/EncodingUtils.h"
+#include "services/ServiceContainer.h"
+#include "api/QwenImageClient.h"
+#include "utils/Logger.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QUuid>
@@ -368,7 +368,7 @@ QWidget* CharacterDetailPage::createCreateConfigArea()
 
     QLabel *descLabel = createLabel(tr("角色配置说明"), "font-size: 14px; color: #374151; background: transparent;");
     m_configDescEdit = new QTextEdit();
-    m_configDescEdit->setPlaceholderText(tr("输入角色配置说明，例如外观、性格、服装和参考设定。"));
+    m_configDescEdit->setPlaceholderText(tr("输入角色配置说明，尽量写清外观、性格、服装和参考设定。"));
     m_configDescEdit->setStyleSheet(TEXTEDIT_STYLE);
     m_configDescEdit->setMaximumHeight(80);
 
@@ -886,5 +886,4 @@ void ConfigurationCard::onEditClicked()
 {
     emit editRequested(m_configId);
 }
-
 

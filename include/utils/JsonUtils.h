@@ -9,10 +9,12 @@
 #include <QVariantMap>
 #include <QDateTime>
 #include <QDebug>
-#include "Character.h"
-#include "Storyboard.h"
-#include "Panel.h"
-#include "Job.h"
+
+struct CharacterAppearance;
+class Character;
+class Storyboard;
+class Panel;
+class Job;
 
 namespace JsonUtils {
 
@@ -33,10 +35,15 @@ inline QJsonDocument variantToJsonDocument(const QVariant& var)
     if (var.isNull() || !var.isValid()) {
         return QJsonDocument();
     }
+    if (var.type() == QVariant::String) {
+        return parseJsonDocument(var.toString().toUtf8());
+    }
     return parseJsonDocument(var.toByteArray());
 }
 
 }
+
+// ========== 核心模板函数 ==========
 
 template<typename T>
 inline T get(const QJsonObject& obj, const QString& key, const T& defaultValue = T())
@@ -71,6 +78,8 @@ inline bool get<bool>(const QJsonObject& obj, const QString& key, const bool& de
     return obj.contains(key) ? obj.value(key).toBool() : defaultValue;
 }
 
+// ========== JSON 字段获取 ==========
+
 inline QJsonObject getObject(const QJsonObject& obj, const QString& key)
 {
     return obj.contains(key) && obj[key].isObject() ? obj[key].toObject() : QJsonObject();
@@ -80,6 +89,28 @@ inline QJsonArray getArray(const QJsonObject& obj, const QString& key)
 {
     return obj.contains(key) && obj[key].isArray() ? obj[key].toArray() : QJsonArray();
 }
+
+inline QDateTime getDateTime(const QJsonObject& obj, const QString& key)
+{
+    QString str = get<QString>(obj, key);
+    if (str.isEmpty()) {
+        return QDateTime();
+    }
+    QDateTime dt = QDateTime::fromString(str, Qt::ISODate);
+    if (!dt.isValid()) {
+        qWarning() << "Invalid datetime format:" << str;
+    }
+    return dt;
+}
+
+inline void set(QJsonObject& obj, const QString& key, const QDateTime& dt)
+{
+    if (dt.isValid()) {
+        obj[key] = dt.toString(Qt::ISODate);
+    }
+}
+
+// ========== 类型转换 ==========
 
 inline QStringList toStringList(const QJsonArray& arr)
 {
@@ -111,9 +142,20 @@ inline QString toString(const QJsonArray& arr)
     return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
+inline QString toString(const QVariantMap& map)
+{
+    return QString::fromUtf8(QJsonDocument::fromVariant(map).toJson(QJsonDocument::Compact));
+}
+
 inline QJsonObject toObject(const QString& str)
 {
     QJsonDocument doc = detail::parseJsonDocument(str.toUtf8());
+    return doc.isObject() ? doc.object() : QJsonObject();
+}
+
+inline QJsonObject toObject(const QVariant& var)
+{
+    QJsonDocument doc = detail::variantToJsonDocument(var);
     return doc.isObject() ? doc.object() : QJsonObject();
 }
 
@@ -121,12 +163,6 @@ inline QJsonArray toArray(const QString& str)
 {
     QJsonDocument doc = detail::parseJsonDocument(str.toUtf8());
     return doc.isArray() ? doc.array() : QJsonArray();
-}
-
-inline QJsonObject toObject(const QVariant& var)
-{
-    QJsonDocument doc = detail::variantToJsonDocument(var);
-    return doc.isObject() ? doc.object() : QJsonObject();
 }
 
 inline QJsonArray toArray(const QVariant& var)
@@ -138,6 +174,17 @@ inline QJsonArray toArray(const QVariant& var)
 inline QStringList toStringList(const QVariant& var)
 {
     return toStringList(toArray(var));
+}
+
+inline QVariantMap toVariantMap(const QString& str)
+{
+    QJsonDocument doc = detail::parseJsonDocument(str.toUtf8());
+    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap();
+}
+
+inline QVariantMap toVariantMap(const QVariant& var)
+{
+    return toObject(var).toVariantMap();
 }
 
 inline QString dateTimeToString(const QDateTime& dt)
@@ -157,33 +204,7 @@ inline QDateTime toDateTime(const QString& str)
     return dt;
 }
 
-inline QDateTime getDateTime(const QJsonObject& obj, const QString& key)
-{
-    return toDateTime(get<QString>(obj, key));
-}
-
-inline void set(QJsonObject& obj, const QString& key, const QDateTime& dt)
-{
-    if (dt.isValid()) {
-        obj[key] = dt.toString(Qt::ISODate);
-    }
-}
-
-inline QVariantMap toVariantMap(const QString& str)
-{
-    QJsonDocument doc = detail::parseJsonDocument(str.toUtf8());
-    return doc.isObject() ? doc.object().toVariantMap() : QVariantMap();
-}
-
-inline QString toString(const QVariantMap& map)
-{
-    return QString::fromUtf8(QJsonDocument::fromVariant(map).toJson(QJsonDocument::Compact));
-}
-
-inline QVariantMap toVariantMap(const QVariant& var)
-{
-    return toObject(var).toVariantMap();
-}
+// ========== 模型转换 ==========
 
 QJsonObject toJson(const Character& character);
 Character toCharacter(const QJsonObject& obj);
@@ -200,131 +221,18 @@ Panel toPanel(const QJsonObject& obj);
 QJsonObject toJson(const Job& job);
 Job toJob(const QJsonObject& obj);
 
-inline QString getString(const QJsonObject& obj, const QString& key, const QString& defaultValue = QString())
-{
-    return get<QString>(obj, key, defaultValue);
-}
+// ========== 别名函数（向后兼容） ==========
 
-inline int getInt(const QJsonObject& obj, const QString& key, int defaultValue = 0)
-{
-    return get<int>(obj, key, defaultValue);
-}
-
-inline bool getBool(const QJsonObject& obj, const QString& key, bool defaultValue = false)
-{
-    return get<bool>(obj, key, defaultValue);
-}
-
-inline double getDouble(const QJsonObject& obj, const QString& key, double defaultValue = 0.0)
-{
-    return get<double>(obj, key, defaultValue);
-}
-
-inline QJsonObject variantToJson(const QVariant& var)
-{
-    return toObject(var);
-}
-
-inline QJsonArray variantToJsonArray(const QVariant& var)
-{
-    return toArray(var);
-}
-
-inline QStringList variantToStringList(const QVariant& var)
-{
-    return toStringList(var);
-}
-
-inline QString variantMapToJsonString(const QVariantMap& map)
-{
-    return toString(map);
-}
-
-inline QVariantMap jsonStringToVariantMap(const QString& str)
-{
-    return toVariantMap(str);
-}
-
-inline QVariantMap parseJsonField(const QVariant& variant)
-{
-    return toVariantMap(variant);
-}
-
-inline QString jsonToString(const QJsonObject& obj)
-{
-    return toString(obj);
-}
-
-inline QString jsonToString(const QJsonArray& arr)
-{
-    return toString(arr);
-}
-
-inline QJsonObject stringToJson(const QString& str)
-{
-    return toObject(str);
-}
-
-inline QJsonArray stringToJsonArray(const QString& str)
-{
-    return toArray(str);
-}
-
-inline QString getStringField(const QJsonObject& obj, const QString& key, const QString& defaultValue = QString())
-{
-    return get<QString>(obj, key, defaultValue);
-}
-
-inline int getIntField(const QJsonObject& obj, const QString& key, int defaultValue = 0)
-{
-    return get<int>(obj, key, defaultValue);
-}
-
-inline bool getBoolField(const QJsonObject& obj, const QString& key, bool defaultValue = false)
-{
-    return get<bool>(obj, key, defaultValue);
-}
-
-inline double getDoubleField(const QJsonObject& obj, const QString& key, double defaultValue = 0.0)
-{
-    return get<double>(obj, key, defaultValue);
-}
-
-inline QJsonObject getObjectField(const QJsonObject& obj, const QString& key)
-{
-    return getObject(obj, key);
-}
-
-inline QJsonArray getArrayField(const QJsonObject& obj, const QString& key)
-{
-    return getArray(obj, key);
-}
-
-inline QDateTime getDateTimeField(const QJsonObject& obj, const QString& key)
-{
-    return getDateTime(obj, key);
-}
-
-template<typename T>
-inline T getValue(const QJsonObject& obj, const QString& key, const T& defaultValue = T())
-{
-    return get<T>(obj, key, defaultValue);
-}
-
-inline void setDateTimeField(QJsonObject& obj, const QString& key, const QDateTime& dt)
-{
-    set(obj, key, dt);
-}
-
-inline QStringList jsonArrayToStringList(const QJsonArray& arr)
-{
-    return toStringList(arr);
-}
-
-inline QJsonArray stringListToJsonArray(const QStringList& list)
-{
-    return toJsonArray(list);
-}
+inline QStringList jsonArrayToStringList(const QJsonArray& arr) { return toStringList(arr); }
+inline QJsonArray stringListToJsonArray(const QStringList& list) { return toJsonArray(list); }
+inline QString jsonToString(const QJsonObject& obj) { return toString(obj); }
+inline QString jsonToString(const QJsonArray& arr) { return toString(arr); }
+inline QString variantMapToJsonString(const QVariantMap& map) { return toString(map); }
+inline QVariantMap jsonStringToVariantMap(const QString& str) { return toVariantMap(str); }
+inline QVariantMap parseJsonField(const QVariant& var) { return toVariantMap(var); }
+inline QJsonObject variantToJson(const QVariant& var) { return toObject(var); }
+inline QJsonArray variantToJsonArray(const QVariant& var) { return toArray(var); }
+inline QStringList variantToStringList(const QVariant& var) { return toStringList(var); }
 
 }
 

@@ -60,20 +60,12 @@ private:
     void setupUI();
     void setupConnections();
     
-    QWidget* createHeader();
-    QWidget* createHeaderPreview();
-    QWidget* createHeaderInfo();
-    QPushButton* createCloseButton();
     QWidget* createSceneDescSection();
     QWidget* createEditModeSection();
     QWidget* createInstructionSection();
     QWidget* createMaskFileRow();
     QWidget* createFooter();
-    
-    QWidget* createSection(const QString& title);
-    QLabel* createInfoLabel(const QString& text);
     QPushButton* createModeButton(const QString& text, int mode);
-    QPushButton* createActionButton(const QString& text);
     
     void updateModeButtons(EditMode activeMode);
     void loadPreviewFromUrl(const QString &url);

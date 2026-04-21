@@ -1,7 +1,7 @@
 #include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
-#include "ImageService.h"
-#include "Logger.h"
+#include "services/ImageService.h"
+#include "utils/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -10,239 +10,15 @@
 #include <QFileDialog>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QSizePolicy>
 #include <QtConcurrent>
 
 namespace {
-    using EditorStyles::TRANSPARENT_BG;
-    
-    namespace Text {
-        const QString PREVIEW = QString::fromUtf8("预览");
-        const QString LOADING = QString::fromUtf8("加载中...");
-        const QString LOAD_FAILED = QString::fromUtf8("加载失败");
-        const QString WAIT_GENERATE = QString::fromUtf8("待生成");
-        const QString SCENE = QString::fromUtf8("场景");
-        const QString POSITION = QString::fromUtf8("位置");
-        const QString SCENE_DESC = QString::fromUtf8("场景描述");
-        const QString EDIT_MODE = QString::fromUtf8("编辑模式");
-        const QString EDIT_INSTRUCTION = QString::fromUtf8("编辑指令");
-        const QString INPAINT = QString::fromUtf8("局部重绘");
-        const QString OUTPAINT = QString::fromUtf8("扩展绘制");
-        const QString BG_SWAP = QString::fromUtf8("背景替换");
-        const QString SAVE_SCENE = QString::fromUtf8("保存场景");
-        const QString SUBMIT_EDIT = QString::fromUtf8("提交编辑");
-        const QString SELECT_FILE = QString::fromUtf8("选择文件");
-        const QString MASK_FILE = QString::fromUtf8("遮罩文件");
-        const QString NOT_SELECTED = QString::fromUtf8("未选择");
-        const QString SELECTED = QString::fromUtf8("已选择");
-        const QString TASK_STATUS = QString::fromUtf8("任务状态");
-        const QString PENDING = QString::fromUtf8("等待中");
-        const QString PROCESSING = QString::fromUtf8("处理中");
-        const QString SUCCESS = QString::fromUtf8("成功");
-        const QString FAILED = QString::fromUtf8("失败");
-        const QString SCENE_HINT = QString::fromUtf8("用于生成当前分镜画面");
-        const QString EDIT_HINT = QString::fromUtf8("输入修改要求，例如局部重绘、扩展画面或背景替换...");
-    }
-    
-    namespace Size {
-        constexpr int DIALOG_WIDTH = 860;
-        constexpr int DIALOG_HEIGHT = 660;
-        constexpr int PREVIEW_WIDTH = 240;
-        constexpr int PREVIEW_HEIGHT = 320;
-        constexpr int SCENE_DESC_HEIGHT = 120;
-        constexpr int INSTRUCTION_HEIGHT = 104;
-    }
-    
-    namespace Style {
-        const QString SECTION_TITLE = "font-size: 13px; font-weight: 600; color: #374151; background: transparent;";
-        const QString INFO_TEXT = "font-size: 12px; color: #6B7280; background: transparent;";
-        const QString HERO_CARD = R"(
-            QWidget#heroCard {
-                background: rgba(255, 255, 255, 0.82);
-                border-radius: 18px;
-                border: 1px solid #E5E7EB;
-            }
-        )";
-        const QString CARD_BG = R"(
-            QWidget#sectionCard {
-                background: #F9FAFB;
-                border-radius: 12px;
-                border: 1px solid #E5E7EB;
-            }
-        )";
-        
-        const QString PREVIEW_PLACEHOLDER = R"(
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #F3F4F6, stop:1 #E5E7EB);
-            border-radius: 12px;
-            border: 2px dashed #D1D5DB;
-            color: #9CA3AF;
-            font-size: 13px;
-            font-weight: 500;
-        )";
-        
-        const QString PANEL_ID_STYLE = "font-size: 16px; font-weight: bold; color: #1F2937; background: transparent;";
-        const QString PANEL_META_STYLE = "font-size: 13px; color: #6B7280; background: transparent;";
-        const QString SCENE_SUMMARY_STYLE = "font-size: 13px; color: #4B5563; background: transparent; line-height: 1.5;";
-        
-        const QString SCENE_EDIT_STYLE = R"(
-            QTextEdit {
-                padding: 14px 16px;
-                font-size: 13px;
-                font-family: 'Microsoft YaHei', sans-serif;
-                border: 1.5px solid #E5E7EB;
-                border-radius: 10px;
-                background: #ffffff;
-                color: #374151;
-                line-height: 1.5;
-            }
-            QTextEdit:focus {
-                border-color: #84cc16;
-                background: #FEFCE8;
-            }
-            QScrollBar:vertical {
-                background: #F3F4F6;
-                width: 6px;
-                margin: 4px 2px 4px 0;
-                border-radius: 3px;
-            }
-            QScrollBar::handle:vertical {
-                background: #D1D5DB;
-                border-radius: 3px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #9CA3AF;
-            }
-            QScrollBar::handle:vertical:pressed {
-                background: #84cc16;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-                background: transparent;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-        )";
-        
-        const QString HINT_LABEL_STYLE = "font-size: 11px; color: #9CA3AF; background: transparent; padding-left: 4px;";
-        
-        const QString MODE_GROUP_CONTAINER = R"(
-            QWidget#modeGroup {
-                background: #F3F4F6;
-                border-radius: 10px;
-                padding: 4px;
-            }
-        )";
-        
-        const QString MODE_BTN_NORMAL = R"(
-            QPushButton {
-                background: transparent;
-                color: #6B7280;
-                font-size: 13px;
-                font-weight: 500;
-                border: none;
-                border-radius: 7px;
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background: #b3ffffff;
-                color: #374151;
-            }
-        )";
-        
-        const QString MODE_BTN_ACTIVE = R"(
-            QPushButton {
-                background: #ffffff;
-                color: #4d7c0f;
-                font-size: 13px;
-                font-weight: 600;
-                border: none;
-                border-radius: 7px;
-                padding: 8px 16px;
-            }
-        )";
-        
-        const QString MASK_ROW_STYLE = R"(
-            QPushButton {
-                padding: 6px 14px;
-                font-size: 12px;
-                border: 1.5px solid #E5E7EB;
-                border-radius: 8px;
-                background: white;
-                color: #4B5563;
-            }
-            QPushButton:hover {
-                border-color: #84cc16;
-                background: #F7FEE7;
-                color: #4d7c0f;
-            }
-        )";
-        
-        const QString SUBMIT_BTN_STYLE = R"(
-            QPushButton {
-                padding: 14px 32px;
-                font-size: 15px;
-                font-weight: bold;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #84cc16, stop:1 #65a30d);
-                color: white;
-                border: none;
-                border-radius: 12px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #a3e635, stop:1 #84cc16);
-            }
-            QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #65a30d, stop:1 #4d7c0f);
-            }
-            QPushButton:disabled {
-                background: #D1D5DB;
-                color: #9CA3AF;
-            }
-        )";
-        
-        const QString SAVE_BTN_STYLE = R"(
-            QPushButton {
-                padding: 10px 24px;
-                font-size: 13px;
-                font-weight: 600;
-                background: white;
-                color: #4d7c0f;
-                border: 1.5px solid #84cc16;
-                border-radius: 10px;
-            }
-            QPushButton:hover {
-                background: #F7FEE7;
-            }
-            QPushButton:pressed {
-                background: #ECFCCB;
-            }
-        )";
-        
-        const QString STATUS_READY = "font-size: 12px; color: #9CA3AF; background: transparent; font-weight: 500;";
-        const QString STATUS_PROCESSING = "font-size: 12px; color: #F59E0B; background: transparent; font-weight: 600;";
-        const QString STATUS_SUCCESS = "font-size: 12px; color: #10B981; background: transparent; font-weight: 600;";
-        const QString STATUS_ERROR = "font-size: 12px; color: #EF4444; background: transparent; font-weight: 600;";
-        
-        const QString CLOSE_BTN_STYLE = R"(
-            QPushButton {
-                background: #F3F4F6;
-                color: #6B7280;
-                border: none;
-                border-radius: 8px;
-                font-size: 18px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background: #E5E7EB;
-                color: #374151;
-            }
-        )";
-    }
+    constexpr int DIALOG_WIDTH = 860;
+    constexpr int DIALOG_HEIGHT = 660;
+    constexpr int PREVIEW_WIDTH = 240;
+    constexpr int PREVIEW_HEIGHT = 320;
+    constexpr int SCENE_DESC_HEIGHT = 120;
+    constexpr int INSTRUCTION_HEIGHT = 100;
 }
 
 PanelEditorWidget::PanelEditorWidget(QWidget *parent)
@@ -262,64 +38,107 @@ void PanelEditorWidget::setupUI()
 {
     setObjectName("panelEditorWidget");
     setFrameShape(QFrame::NoFrame);
+    setFixedSize(DIALOG_WIDTH, DIALOG_HEIGHT);
     setStyleSheet(R"(
         #panelEditorWidget {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #FAFBFF, stop:1 #F5F3FF);
-            border-radius: 20px;
-            border: 1px solid #266366f1;
-        }
-        #panelEditorWidget QLabel {
-            background: transparent;
-            border: none;
-        }
-        #panelEditorWidget QWidget {
-            background: transparent;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #E8E8F0;
         }
     )");
-    setMinimumWidth(Size::DIALOG_WIDTH);
-    setMaximumWidth(Size::DIALOG_WIDTH);
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(24, 20, 24, 24);
     mainLayout->setSpacing(14);
 
-    QWidget *heroCard = new QWidget();
-    heroCard->setObjectName("heroCard");
-    heroCard->setStyleSheet(Style::HERO_CARD);
-    QHBoxLayout *heroLayout = new QHBoxLayout(heroCard);
-    heroLayout->setContentsMargins(20, 20, 20, 20);
-    heroLayout->setSpacing(14);
-    heroLayout->addWidget(createHeaderPreview());
-    heroLayout->addWidget(createHeaderInfo(), 1);
-    heroLayout->addWidget(createCloseButton(), 0, Qt::AlignTop);
-    mainLayout->addWidget(heroCard);
+    QWidget *topRow = new QWidget();
+    topRow->setStyleSheet("background: transparent;");
+    QHBoxLayout *topLayout = new QHBoxLayout(topRow);
+    topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->setSpacing(16);
+    
+    m_previewLabel = new QLabel();
+    m_previewLabel->setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT);
+    m_previewLabel->setStyleSheet(R"(
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F3F4F6, stop:1 #E5E7EB);
+        border-radius: 12px;
+        border: 2px dashed #D1D5DB;
+        color: #9CA3AF;
+        font-size: 13px;
+    )");
+    m_previewLabel->setAlignment(Qt::AlignCenter);
+    m_previewLabel->setText(QString::fromUtf8("预览"));
+    topLayout->addWidget(m_previewLabel);
+    
+    QWidget *infoWidget = new QWidget();
+    infoWidget->setStyleSheet("background: transparent;");
+    QVBoxLayout *infoLayout = new QVBoxLayout(infoWidget);
+    infoLayout->setContentsMargins(0, 4, 0, 0);
+    infoLayout->setSpacing(6);
+    
+    m_idLabel = new QLabel(QString::fromUtf8("面板 0-0"));
+    m_idLabel->setStyleSheet("font-size: 16px; font-weight: bold; color: #1F2937; background: transparent;");
+    infoLayout->addWidget(m_idLabel);
+    
+    m_posLabel = new QLabel(QString::fromUtf8("位置: P0-0"));
+    m_posLabel->setStyleSheet("font-size: 13px; color: #6B7280; background: transparent;");
+    infoLayout->addWidget(m_posLabel);
+    
+    QLabel *sceneLabel = new QLabel(QString::fromUtf8("场景: 待生成"));
+    sceneLabel->setStyleSheet("font-size: 13px; color: #6B7280; background: transparent;");
+    infoLayout->addWidget(sceneLabel);
+    infoLayout->addStretch();
+    
+    topLayout->addWidget(infoWidget, 1);
+    
+    QPushButton *closeBtn = new QPushButton(QString::fromUtf8("关闭"));
+    closeBtn->setFixedSize(60, 32);
+    closeBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #F3F4F6;
+            color: #6B7280;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        QPushButton:hover {
+            background: #E5E7EB;
+            color: #374151;
+        }
+    )");
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    connect(closeBtn, &QPushButton::clicked, this, &PanelEditorWidget::closed);
+    topLayout->addWidget(closeBtn, 0, Qt::AlignTop);
+    
+    mainLayout->addWidget(topRow);
 
     QWidget *bodyRow = new QWidget();
+    bodyRow->setStyleSheet("background: transparent;");
     QHBoxLayout *bodyLayout = new QHBoxLayout(bodyRow);
     bodyLayout->setContentsMargins(0, 0, 0, 0);
     bodyLayout->setSpacing(14);
-
+    
     QWidget *leftColumn = new QWidget();
+    leftColumn->setStyleSheet("background: transparent;");
     QVBoxLayout *leftLayout = new QVBoxLayout(leftColumn);
     leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(14);
+    leftLayout->setSpacing(10);
     leftLayout->addWidget(createSceneDescSection());
-
+    leftLayout->addStretch();
+    bodyLayout->addWidget(leftColumn, 1);
+    
     QWidget *rightColumn = new QWidget();
+    rightColumn->setStyleSheet("background: transparent;");
     QVBoxLayout *rightLayout = new QVBoxLayout(rightColumn);
     rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(14);
+    rightLayout->setSpacing(10);
     rightLayout->addWidget(createEditModeSection());
     rightLayout->addWidget(createInstructionSection());
     rightLayout->addWidget(createFooter());
     rightLayout->addStretch();
-
-    bodyLayout->addWidget(leftColumn, 1);
     bodyLayout->addWidget(rightColumn, 1);
-    mainLayout->addWidget(bodyRow);
-    adjustSize();
+    
+    mainLayout->addWidget(bodyRow, 1);
 }
 
 void PanelEditorWidget::setupConnections()
@@ -350,7 +169,7 @@ void PanelEditorWidget::setPanelInfo(int chapterNumber, int panelNumber, const Q
         m_idLabel->setText(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     }
     if (m_posLabel) {
-        m_posLabel->setText(Text::POSITION + QString("P%1-%2").arg(m_chapterNumber).arg(m_panelNumber));
+        m_posLabel->setText(QString::fromUtf8("位置: P%1-%2").arg(m_chapterNumber).arg(m_panelNumber));
     }
 }
 
@@ -365,7 +184,7 @@ void PanelEditorWidget::setPreviewPixmap(const QPixmap &pixmap)
 {
     if (m_previewLabel && !pixmap.isNull()) {
         m_previewLabel->setPixmap(pixmap.scaled(
-            Size::PREVIEW_WIDTH, Size::PREVIEW_HEIGHT,
+            PREVIEW_WIDTH, PREVIEW_HEIGHT,
             Qt::KeepAspectRatio, Qt::SmoothTransformation));
         m_previewLabel->setText("");
     }
@@ -375,7 +194,7 @@ void PanelEditorWidget::setPreviewUrl(const QString &url)
 {
     if (url.isEmpty()) {
         if (m_previewLabel) {
-            m_previewLabel->setText(Text::PREVIEW);
+            m_previewLabel->setText(QString::fromUtf8("预览"));
             m_previewLabel->setPixmap(QPixmap());
         }
         return;
@@ -406,23 +225,23 @@ void PanelEditorWidget::setState(State state)
     
     switch (state) {
         case State::Ready:
-            m_statusLabel->setText(Text::TASK_STATUS + Text::PENDING);
-            m_statusLabel->setStyleSheet(Style::STATUS_READY);
+            m_statusLabel->setText(QString::fromUtf8("任务状态: 等待中"));
+            m_statusLabel->setStyleSheet("font-size: 12px; color: #9CA3AF; background: transparent;");
             if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
             break;
         case State::Processing:
-            m_statusLabel->setText(Text::TASK_STATUS + Text::PROCESSING);
-            m_statusLabel->setStyleSheet(Style::STATUS_PROCESSING);
+            m_statusLabel->setText(QString::fromUtf8("任务状态: 处理中"));
+            m_statusLabel->setStyleSheet("font-size: 12px; color: #F59E0B; background: transparent; font-weight: 600;");
             if (m_submitEditBtn) m_submitEditBtn->setEnabled(false);
             break;
         case State::Success:
-            m_statusLabel->setText(Text::TASK_STATUS + Text::SUCCESS);
-            m_statusLabel->setStyleSheet(Style::STATUS_SUCCESS);
+            m_statusLabel->setText(QString::fromUtf8("任务状态: 成功"));
+            m_statusLabel->setStyleSheet("font-size: 12px; color: #10B981; background: transparent; font-weight: 600;");
             if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
             break;
         case State::Error:
-            m_statusLabel->setText(Text::TASK_STATUS + Text::FAILED);
-            m_statusLabel->setStyleSheet(Style::STATUS_ERROR);
+            m_statusLabel->setText(QString::fromUtf8("任务状态: 失败"));
+            m_statusLabel->setStyleSheet("font-size: 12px; color: #EF4444; background: transparent; font-weight: 600;");
             if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
             break;
     }
@@ -438,93 +257,63 @@ QString PanelEditorWidget::editInstruction() const
     return m_editInstructionEdit ? m_editInstructionEdit->toPlainText().trimmed() : QString();
 }
 
-QWidget* PanelEditorWidget::createHeader()
-{
-    QWidget *header = new QWidget();
-    header->setStyleSheet(TRANSPARENT_BG);
-    QHBoxLayout *layout = new QHBoxLayout(header);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(16);
-    
-    layout->addWidget(createHeaderPreview());
-    layout->addWidget(createHeaderInfo(), 1);
-    layout->addStretch();
-    layout->addWidget(createCloseButton());
-    
-    return header;
-}
-
-QWidget* PanelEditorWidget::createHeaderPreview()
-{
-    m_previewLabel = new QLabel();
-    m_previewLabel->setFixedSize(Size::PREVIEW_WIDTH, Size::PREVIEW_HEIGHT);
-    m_previewLabel->setStyleSheet(Style::PREVIEW_PLACEHOLDER);
-    m_previewLabel->setAlignment(Qt::AlignCenter);
-    m_previewLabel->setText(Text::PREVIEW);
-    return m_previewLabel;
-}
-
-QWidget* PanelEditorWidget::createHeaderInfo()
-{
-    QWidget *info = new QWidget();
-    info->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(info);
-    layout->setContentsMargins(0, 4, 0, 0);
-    layout->setSpacing(6);
-    
-    m_idLabel = new QLabel(QString::fromUtf8("面板 %1-%2").arg(m_chapterNumber).arg(m_panelNumber));
-    m_idLabel->setStyleSheet(Style::PANEL_ID_STYLE);
-    layout->addWidget(m_idLabel);
-    
-    m_posLabel = new QLabel(Text::POSITION + QString("P%1-%2").arg(m_chapterNumber).arg(m_panelNumber));
-    m_posLabel->setStyleSheet(Style::PANEL_META_STYLE);
-    layout->addWidget(m_posLabel);
-    
-    QLabel *sceneLabel = new QLabel(QString::fromUtf8("场景：%1").arg(Text::WAIT_GENERATE));
-    sceneLabel->setStyleSheet(Style::PANEL_META_STYLE);
-    layout->addWidget(sceneLabel);
-    layout->addStretch();
-    
-    return info;
-}
-
-QPushButton* PanelEditorWidget::createCloseButton()
-{
-    QString closeText = QString::fromUtf8("关闭");
-    QPushButton *btn = new QPushButton(closeText);
-    btn->setFixedSize(32, 32);
-    btn->setStyleSheet(Style::CLOSE_BTN_STYLE);
-    btn->setCursor(Qt::PointingHandCursor);
-    connect(btn, &QPushButton::clicked, this, &PanelEditorWidget::closed);
-    return btn;
-}
-
 QWidget* PanelEditorWidget::createSceneDescSection()
 {
     QWidget *card = new QWidget();
-    card->setObjectName("sectionCard");
-    card->setStyleSheet(Style::CARD_BG);
+    card->setObjectName("sceneCard");
+    card->setStyleSheet(R"(
+        #sceneCard {
+            background: #F9FAFB;
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+        }
+    )");
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
     
-    QLabel *titleLabel = new QLabel(Text::SCENE_DESC);
-    titleLabel->setStyleSheet(Style::SECTION_TITLE);
+    QLabel *titleLabel = new QLabel(QString::fromUtf8("场景描述"));
+    titleLabel->setStyleSheet("font-size: 13px; font-weight: 600; color: #374151; background: transparent;");
     layout->addWidget(titleLabel);
     
     m_sceneDescEdit = new QTextEdit();
-    m_sceneDescEdit->setStyleSheet(Style::SCENE_EDIT_STYLE);
-    m_sceneDescEdit->setFixedHeight(Size::SCENE_DESC_HEIGHT);
+    m_sceneDescEdit->setStyleSheet(R"(
+        QTextEdit {
+            padding: 12px;
+            font-size: 13px;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #374151;
+        }
+        QTextEdit:focus {
+            border-color: #84cc16;
+        }
+    )");
+    m_sceneDescEdit->setFixedHeight(SCENE_DESC_HEIGHT);
     layout->addWidget(m_sceneDescEdit);
     
-    QLabel *hintLabel = new QLabel(Text::SCENE_HINT);
-    hintLabel->setStyleSheet(Style::HINT_LABEL_STYLE);
+    QLabel *hintLabel = new QLabel(QString::fromUtf8("用于生成当前分镜画面"));
+    hintLabel->setStyleSheet("font-size: 11px; color: #9CA3AF; background: transparent;");
     layout->addWidget(hintLabel);
     
-    m_saveSceneBtn = new QPushButton(Text::SAVE_SCENE);
-    m_saveSceneBtn->setStyleSheet(Style::SAVE_BTN_STYLE);
+    m_saveSceneBtn = new QPushButton(QString::fromUtf8("保存场景"));
+    m_saveSceneBtn->setStyleSheet(R"(
+        QPushButton {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            background: white;
+            color: #4d7c0f;
+            border: 1px solid #84cc16;
+            border-radius: 8px;
+        }
+        QPushButton:hover {
+            background: #F7FEE7;
+        }
+    )");
     m_saveSceneBtn->setCursor(Qt::PointingHandCursor);
-    m_saveSceneBtn->setFixedHeight(38);
+    m_saveSceneBtn->setFixedHeight(36);
     connect(m_saveSceneBtn, &QPushButton::clicked, this, &PanelEditorWidget::onSaveSceneClicked);
     layout->addWidget(m_saveSceneBtn);
     
@@ -534,28 +323,49 @@ QWidget* PanelEditorWidget::createSceneDescSection()
 QWidget* PanelEditorWidget::createEditModeSection()
 {
     QWidget *card = new QWidget();
-    card->setObjectName("sectionCard");
-    card->setStyleSheet(Style::CARD_BG);
+    card->setObjectName("modeCard");
+    card->setStyleSheet(R"(
+        #modeCard {
+            background: #F9FAFB;
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+        }
+    )");
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
     
-    QLabel *titleLabel = new QLabel(Text::EDIT_MODE);
-    titleLabel->setStyleSheet(Style::SECTION_TITLE);
+    QLabel *titleLabel = new QLabel(QString::fromUtf8("编辑模式"));
+    titleLabel->setStyleSheet("font-size: 13px; font-weight: 600; color: #374151; background: transparent;");
     layout->addWidget(titleLabel);
     
     QWidget *modeGroup = new QWidget();
     modeGroup->setObjectName("modeGroup");
-    modeGroup->setStyleSheet(Style::MODE_GROUP_CONTAINER);
+    modeGroup->setStyleSheet(R"(
+        #modeGroup {
+            background: #F3F4F6;
+            border-radius: 8px;
+        }
+    )");
     QHBoxLayout *modeLayout = new QHBoxLayout(modeGroup);
     modeLayout->setContentsMargins(4, 4, 4, 4);
     modeLayout->setSpacing(0);
     
-    m_inpaintBtn = createModeButton(Text::INPAINT, static_cast<int>(EditMode::Inpaint));
-    m_outpaintBtn = createModeButton(Text::OUTPAINT, static_cast<int>(EditMode::Outpaint));
-    m_bgSwapBtn = createModeButton(Text::BG_SWAP, static_cast<int>(EditMode::BgSwap));
+    m_inpaintBtn = createModeButton(QString::fromUtf8("局部重绘"), static_cast<int>(EditMode::Inpaint));
+    m_outpaintBtn = createModeButton(QString::fromUtf8("扩展绘制"), static_cast<int>(EditMode::Outpaint));
+    m_bgSwapBtn = createModeButton(QString::fromUtf8("背景替换"), static_cast<int>(EditMode::BgSwap));
     
-    m_inpaintBtn->setStyleSheet(Style::MODE_BTN_ACTIVE);
+    m_inpaintBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #ffffff;
+            color: #4d7c0f;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+    )");
     
     modeLayout->addWidget(m_inpaintBtn);
     modeLayout->addWidget(m_outpaintBtn);
@@ -568,20 +378,38 @@ QWidget* PanelEditorWidget::createEditModeSection()
 QWidget* PanelEditorWidget::createInstructionSection()
 {
     QWidget *card = new QWidget();
-    card->setObjectName("sectionCard");
-    card->setStyleSheet(Style::CARD_BG);
+    card->setObjectName("instrCard");
+    card->setStyleSheet(R"(
+        #instrCard {
+            background: #F9FAFB;
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+        }
+    )");
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
     
-    QLabel *titleLabel = new QLabel(Text::EDIT_INSTRUCTION);
-    titleLabel->setStyleSheet(Style::SECTION_TITLE);
+    QLabel *titleLabel = new QLabel(QString::fromUtf8("编辑指令"));
+    titleLabel->setStyleSheet("font-size: 13px; font-weight: 600; color: #374151; background: transparent;");
     layout->addWidget(titleLabel);
     
     m_editInstructionEdit = new QTextEdit();
-    m_editInstructionEdit->setPlaceholderText(Text::EDIT_HINT);
-    m_editInstructionEdit->setStyleSheet(Style::SCENE_EDIT_STYLE);
-    m_editInstructionEdit->setFixedHeight(Size::INSTRUCTION_HEIGHT);
+    m_editInstructionEdit->setPlaceholderText(QString::fromUtf8("输入修改要求..."));
+    m_editInstructionEdit->setStyleSheet(R"(
+        QTextEdit {
+            padding: 12px;
+            font-size: 13px;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #374151;
+        }
+        QTextEdit:focus {
+            border-color: #84cc16;
+        }
+    )");
+    m_editInstructionEdit->setFixedHeight(INSTRUCTION_HEIGHT);
     layout->addWidget(m_editInstructionEdit);
     
     layout->addWidget(createMaskFileRow());
@@ -591,24 +419,35 @@ QWidget* PanelEditorWidget::createInstructionSection()
 QWidget* PanelEditorWidget::createMaskFileRow()
 {
     QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
+    row->setStyleSheet("background: transparent;");
     QHBoxLayout *layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(10);
     
-    QLabel *maskLabel = new QLabel(Text::MASK_FILE);
-    maskLabel->setStyleSheet(Style::INFO_TEXT);
-    maskLabel->setFixedWidth(90);
+    QLabel *maskLabel = new QLabel(QString::fromUtf8("遮罩文件:"));
+    maskLabel->setStyleSheet("font-size: 12px; color: #6B7280; background: transparent;");
     layout->addWidget(maskLabel);
     
-    m_selectMaskBtn = new QPushButton(Text::SELECT_FILE);
-    m_selectMaskBtn->setStyleSheet(Style::MASK_ROW_STYLE);
+    m_selectMaskBtn = new QPushButton(QString::fromUtf8("选择文件"));
+    m_selectMaskBtn->setStyleSheet(R"(
+        QPushButton {
+            padding: 4px 12px;
+            font-size: 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            background: white;
+            color: #4B5563;
+        }
+        QPushButton:hover {
+            border-color: #84cc16;
+            background: #F7FEE7;
+        }
+    )");
     m_selectMaskBtn->setCursor(Qt::PointingHandCursor);
-    m_selectMaskBtn->setFixedHeight(32);
     connect(m_selectMaskBtn, &QPushButton::clicked, this, &PanelEditorWidget::onSelectMaskFileClicked);
     layout->addWidget(m_selectMaskBtn);
     
-    m_maskFileLabel = new QLabel(Text::NOT_SELECTED);
+    m_maskFileLabel = new QLabel(QString::fromUtf8("未选择"));
     m_maskFileLabel->setStyleSheet("font-size: 12px; color: #9CA3AF; background: transparent;");
     layout->addWidget(m_maskFileLabel);
     layout->addStretch();
@@ -619,20 +458,37 @@ QWidget* PanelEditorWidget::createMaskFileRow()
 QWidget* PanelEditorWidget::createFooter()
 {
     QWidget *footer = new QWidget();
-    footer->setStyleSheet(TRANSPARENT_BG);
+    footer->setStyleSheet("background: transparent;");
     QVBoxLayout *layout = new QVBoxLayout(footer);
     layout->setContentsMargins(0, 8, 0, 0);
-    layout->setSpacing(12);
+    layout->setSpacing(10);
     
-    m_submitEditBtn = new QPushButton(Text::SUBMIT_EDIT);
-    m_submitEditBtn->setStyleSheet(Style::SUBMIT_BTN_STYLE);
+    m_submitEditBtn = new QPushButton(QString::fromUtf8("提交编辑"));
+    m_submitEditBtn->setStyleSheet(R"(
+        QPushButton {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #84cc16, stop:1 #65a30d);
+            color: white;
+            border: none;
+            border-radius: 10px;
+        }
+        QPushButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #a3e635, stop:1 #84cc16);
+        }
+        QPushButton:disabled {
+            background: #D1D5DB;
+            color: #9CA3AF;
+        }
+    )");
     m_submitEditBtn->setCursor(Qt::PointingHandCursor);
-    m_submitEditBtn->setFixedHeight(48);
+    m_submitEditBtn->setFixedHeight(44);
     connect(m_submitEditBtn, &QPushButton::clicked, this, &PanelEditorWidget::onSubmitEditClicked);
     layout->addWidget(m_submitEditBtn);
     
-    m_statusLabel = new QLabel(Text::TASK_STATUS + Text::PENDING);
-    m_statusLabel->setStyleSheet(Style::STATUS_READY);
+    m_statusLabel = new QLabel(QString::fromUtf8("任务状态: 等待中"));
+    m_statusLabel->setStyleSheet("font-size: 12px; color: #9CA3AF; background: transparent;");
     m_statusLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_statusLabel);
     
@@ -642,7 +498,21 @@ QWidget* PanelEditorWidget::createFooter()
 QPushButton* PanelEditorWidget::createModeButton(const QString& text, int mode)
 {
     QPushButton *btn = new QPushButton(text);
-    btn->setStyleSheet(Style::MODE_BTN_NORMAL);
+    btn->setStyleSheet(R"(
+        QPushButton {
+            background: transparent;
+            color: #6B7280;
+            font-size: 12px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+        QPushButton:hover {
+            background: rgba(255,255,255,0.5);
+            color: #374151;
+        }
+    )");
     btn->setCursor(Qt::PointingHandCursor);
     connect(btn, &QPushButton::clicked, [this, mode]() { onEditModeClicked(mode); });
     return btn;
@@ -650,8 +520,32 @@ QPushButton* PanelEditorWidget::createModeButton(const QString& text, int mode)
 
 void PanelEditorWidget::updateModeButtons(EditMode activeMode)
 {
-    QString activeStyle = Style::MODE_BTN_ACTIVE;
-    QString normalStyle = Style::MODE_BTN_NORMAL;
+    QString activeStyle = R"(
+        QPushButton {
+            background: #ffffff;
+            color: #4d7c0f;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+    )";
+    QString normalStyle = R"(
+        QPushButton {
+            background: transparent;
+            color: #6B7280;
+            font-size: 12px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+        }
+        QPushButton:hover {
+            background: rgba(255,255,255,0.5);
+            color: #374151;
+        }
+    )";
     
     if (m_inpaintBtn) m_inpaintBtn->setStyleSheet(activeMode == EditMode::Inpaint ? activeStyle : normalStyle);
     if (m_outpaintBtn) m_outpaintBtn->setStyleSheet(activeMode == EditMode::Outpaint ? activeStyle : normalStyle);
@@ -661,7 +555,7 @@ void PanelEditorWidget::updateModeButtons(EditMode activeMode)
 void PanelEditorWidget::loadPreviewFromUrl(const QString &url)
 {
     if (m_previewLabel) {
-        m_previewLabel->setText(Text::LOADING);
+        m_previewLabel->setText(QString::fromUtf8("加载中..."));
     }
     
     QNetworkRequest request{QUrl(url)};
@@ -677,7 +571,7 @@ void PanelEditorWidget::onImageDownloadFinished(QNetworkReply *reply)
     
     if (reply->error() != QNetworkReply::NoError) {
         if (m_previewLabel) {
-            m_previewLabel->setText(Text::LOAD_FAILED);
+            m_previewLabel->setText(QString::fromUtf8("加载失败"));
         }
         return;
     }
@@ -687,7 +581,7 @@ void PanelEditorWidget::onImageDownloadFinished(QNetworkReply *reply)
     if (pixmap.loadFromData(imageData)) {
         setPreviewPixmap(pixmap);
     } else if (m_previewLabel) {
-        m_previewLabel->setText(Text::LOAD_FAILED);
+        m_previewLabel->setText(QString::fromUtf8("加载失败"));
     }
 }
 
@@ -721,11 +615,11 @@ void PanelEditorWidget::onSubmitEditClicked()
 
 void PanelEditorWidget::onSelectMaskFileClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, Text::SELECT_FILE, "", "Images (*.png *.jpg)");
+    QString fileName = QFileDialog::getOpenFileName(this, QString::fromUtf8("选择文件"), "", "Images (*.png *.jpg)");
     if (!fileName.isEmpty()) {
         m_maskFilePath = fileName;
         if (m_maskFileLabel) {
-            m_maskFileLabel->setText(Text::SELECTED);
+            m_maskFileLabel->setText(QString::fromUtf8("已选择"));
             m_maskFileLabel->setStyleSheet("font-size: 12px; color: #10B981; background: transparent; font-weight: 500;");
         }
     }

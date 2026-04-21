@@ -16,11 +16,6 @@ public:
         const QJsonArray& existingCharacters,
         const QJsonArray& existingScenes,
         int chapterNumber);
-    
-    static QJsonObject buildExamplePanel();
-    static QJsonObject buildExampleCharacter();
-    static QJsonObject buildExampleScene();
-    static QJsonObject buildCustomExample();
 
 private:
     QwenPromptBuilder() = delete;

@@ -21,7 +21,7 @@ void EditorCardBase::showEditorCard()
         setupEditorCard();
     }
     
-    if (!m_overlayWidget) {
+    if (!m_overlayWidget || !m_editorCard) {
         return;
     }
     
@@ -32,10 +32,11 @@ void EditorCardBase::showEditorCard()
         m_overlayWidget->setGeometry(parent->rect());
     }
     
+    updateEditorCardPosition();
+    
+    m_editorCard->show();
     m_overlayWidget->show();
     m_overlayWidget->raise();
-    
-    updateEditorCardPosition();
 }
 
 void EditorCardBase::hideEditorCard()
@@ -50,12 +51,23 @@ void EditorCardBase::updateEditorCardPosition()
     if (!m_overlayWidget || !m_editorCard) return;
     
     QRect overlayRect = m_overlayWidget->rect();
-    int cardWidth = m_editorCard->width();
-    int cardHeight = m_editorCard->height();
+    
+    int cardWidth = m_editorCard->minimumWidth();
+    int cardHeight = m_editorCard->minimumHeight();
+    
+    if (cardWidth <= 0) cardWidth = m_editorCard->width();
+    if (cardHeight <= 0) cardHeight = m_editorCard->height();
+    
+    if (cardWidth <= 0) cardWidth = 480;
+    if (cardHeight <= 0) cardHeight = 600;
     
     int x = (overlayRect.width() - cardWidth) / 2;
     int y = (overlayRect.height() - cardHeight) / 2;
     
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    
+    m_editorCard->setFixedSize(cardWidth, cardHeight);
     m_editorCard->move(x, y);
 }
 

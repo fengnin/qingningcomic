@@ -1,7 +1,8 @@
 #include "components/BibleItem.h"
 #include "components/EditorStyles.h"
+#include "utils/BibleUtils.h"
 #include "utils/AsyncImageLoader.h"
-#include "Logger.h"
+#include "utils/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollArea>
@@ -11,6 +12,7 @@
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QPixmapCache>
+#include <QPainter>
 
 namespace {
     using EditorStyles::TRANSPARENT_BG;
@@ -69,6 +71,62 @@ namespace {
             break;
         }
         return -1;
+    }
+
+    void setComboText(QComboBox* combo, const QString& value)
+    {
+        if (!combo || value.isEmpty()) {
+            return;
+        }
+
+        const int index = combo->findText(value);
+        if (index >= 0) {
+            combo->setCurrentIndex(index);
+        }
+    }
+
+    void setModeComboText(ModeComboBox* combo, const QString& value)
+    {
+        if (!combo || value.isEmpty()) {
+            return;
+        }
+
+        const int index = combo->findText(value);
+        if (index >= 0) {
+            combo->setCurrentIndex(index);
+        }
+    }
+
+    void setLineEditText(QLineEdit* edit, const QString& value)
+    {
+        if (edit && !value.isEmpty()) {
+            edit->setText(value);
+        }
+    }
+
+    void setTextEditText(QTextEdit* edit, const QString& value)
+    {
+        if (edit && !value.isEmpty()) {
+            edit->setPlainText(value);
+        }
+    }
+
+    int parsePositiveInt(const QString& value)
+    {
+        const QRegularExpression digitsRe(QStringLiteral("(\\d+)"));
+        const QRegularExpressionMatch match = digitsRe.match(value);
+        return match.hasMatch() ? match.captured(1).toInt() : 0;
+    }
+
+    void clearSceneMetadata(SceneDetails& details)
+    {
+        details.anchorPoints.clear();
+        details.signatureObjects.clear();
+        details.fixedColorBlocks.clear();
+        details.consistencyRules.clear();
+        details.currentInterpretation.clear();
+        details.confidence.clear();
+        details.status.clear();
     }
 }
 BibleItem::BibleItem(const QString &name, const QStringList &details, BibleType type, QWidget *parent)
@@ -681,30 +739,20 @@ void BibleItem::displayProcessedImage(const QPixmap& pixmap)
         return;
     }
     
-    // 按标签比例裁剪
-    double targetRatio = static_cast<double>(LABEL_WIDTH) / LABEL_HEIGHT;  // 128/180 约 0.711
+    // 计算填充模式：保持比例填满容器，允许轻微裁剪
+    QSize targetSize = LABEL_SIZE;
+    qreal scaleX = (qreal)targetSize.width() / displayPixmap.width();
+    qreal scaleY = (qreal)targetSize.height() / displayPixmap.height();
+    qreal scale = qMax(scaleX, scaleY);
     
-    // 裁剪内容以适配标签比例
-    double srcRatio = static_cast<double>(displayPixmap.width()) / displayPixmap.height();
+    int newWidth = qRound(displayPixmap.width() * scale);
+    int newHeight = qRound(displayPixmap.height() * scale);
+    displayPixmap = displayPixmap.scaled(newWidth, newHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     
-    // Crop to match the label aspect ratio while keeping the top anchor.
-    int cropX = 0, cropY = 0;
-    int cropW = displayPixmap.width();
-    int cropH = displayPixmap.height();
-    if (srcRatio > targetRatio) {
-        cropW = static_cast<int>(displayPixmap.height() * targetRatio);
-        cropX = (displayPixmap.width() - cropW) / 2;
-    } else if (srcRatio < targetRatio) {
-        cropH = static_cast<int>(displayPixmap.width() / targetRatio);
-        cropY = 0;
-    }
-    
-    if (cropX != 0 || cropY != 0 || cropW != displayPixmap.width() || cropH != displayPixmap.height()) {
-        displayPixmap = displayPixmap.copy(cropX, cropY, cropW, cropH);
-    }
-    
-    // 裁剪可视区域，去掉边缘留白
-    displayPixmap = displayPixmap.scaled(LABEL_SIZE, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    // 居中裁剪到目标尺寸
+    int cropX = (newWidth - targetSize.width()) / 2;
+    int cropY = (newHeight - targetSize.height()) / 2;
+    displayPixmap = displayPixmap.copy(cropX, cropY, targetSize.width(), targetSize.height());
     
     m_imageLabel->setPixmap(displayPixmap);
     m_imageLabel->setStyleSheet(EditorStyles::bibleImageHasImageStyle());
@@ -910,40 +958,43 @@ void BibleItem::populateCharacterEditorData()
     if (!m_genderCombo || !m_ageSpin || !m_hairColorEdit || !m_eyeColorEdit) return;
     
     for (const QString &detail : m_details) {
-        if (detail.contains(QString::fromUtf8("gender"))) {
-            
-            QRegularExpression genderRe(QStringLiteral("gender\\s*[:：]\\s*([^,;\\n]+)"));
-            QRegularExpressionMatch match = genderRe.match(detail);
-            if (match.hasMatch()) {
-                QString gender = match.captured(1);  // 提取性别
-                int index = m_genderCombo->findText(gender);
-                if (index >= 0) m_genderCombo->setCurrentIndex(index);
-            }
-            
-            QRegularExpression ageRe(QStringLiteral("age\\s*[:：]\\s*(\\d+)"));
-            match = ageRe.match(detail);
-            if (match.hasMatch()) {
-                m_ageSpin->setValue(match.captured(1).toInt());
-            }
-            
-            QRegularExpression hairColorRe(QStringLiteral("hairColor\\s*[:：]\\s*([^,;\\n]+)"));
-            match = hairColorRe.match(detail);
-            if (match.hasMatch()) {
-                m_hairColorEdit->setText(match.captured(1));
-            }
-            
-            QRegularExpression eyeColorRe(QStringLiteral("eyeColor\\s*[:：]\\s*([^,;\\n]+)"));
-            match = eyeColorRe.match(detail);
-            if (match.hasMatch()) {
-                m_eyeColorEdit->setText(match.captured(1));
-            }
+        const QString gender = BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("gender"), QString::fromUtf8("性别")});
+        if (!gender.isEmpty()) {
+            setComboText(m_genderCombo, gender);
         }
-        else {
-            populateTextField(detail, QString::fromUtf8("bodyType"), m_bodyTypeEdit);
-            populateTextField(detail, QString::fromUtf8("hairStyle"), m_hairStyleEdit);
-            populateTextField(detail, QString::fromUtf8("clothing"), m_clothingEdit);
-            populateTextField(detail, QString::fromUtf8("distinctiveFeatures"), m_featuresEdit);
-            populateTextField(detail, QString::fromUtf8("personality"), m_personalityEdit);
+
+        const int age = parsePositiveInt(BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("age"), QString::fromUtf8("年龄")}));
+        if (age > 0) {
+            m_ageSpin->setValue(age);
+        }
+
+        setLineEditText(m_hairColorEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("hairColor"), QString::fromUtf8("发色")}));
+        setLineEditText(m_eyeColorEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("eyeColor"), QString::fromUtf8("瞳色"), QString::fromUtf8("眼睛")}));
+        setLineEditText(m_bodyTypeEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("bodyType"), QString::fromUtf8("体型")}));
+        setLineEditText(m_hairStyleEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("hairStyle"), QString::fromUtf8("发型")}));
+
+        const QString clothing = BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("clothing"), QString::fromUtf8("服饰")});
+        if (!clothing.isEmpty()) {
+            setLineEditText(m_clothingEdit, BibleUtils::splitCommaSeparatedList(clothing).join(QStringLiteral(", ")));
+        }
+
+        const QString features = BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("distinctiveFeatures"), QString::fromUtf8("明显特征"), QString::fromUtf8("特征")});
+        if (!features.isEmpty()) {
+            setLineEditText(m_featuresEdit, BibleUtils::splitCommaSeparatedList(features).join(QStringLiteral(", ")));
+        }
+
+        const QString personality = BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("personality"), QString::fromUtf8("个性"), QString::fromUtf8("性格")});
+        if (!personality.isEmpty()) {
+            setLineEditText(m_personalityEdit, BibleUtils::splitCommaSeparatedList(personality).join(QStringLiteral(", ")));
         }
     }
 }
@@ -955,10 +1006,7 @@ void BibleItem::populateCharacterEditorFromData(const Character& character)
     CharacterAppearance app = character.appearance();
     
     // 填充角色信息
-    if (!app.gender.isEmpty()) {
-        int index = m_genderCombo->findText(app.gender);
-        if (index >= 0) m_genderCombo->setCurrentIndex(index);
-    }
+    setComboText(m_genderCombo, app.gender);
     
     // 年龄
     if (app.age > 0) {
@@ -966,25 +1014,25 @@ void BibleItem::populateCharacterEditorFromData(const Character& character)
     }
     
     // 发色
-    if (m_hairColorEdit) m_hairColorEdit->setText(app.hairColor);
+    setLineEditText(m_hairColorEdit, app.hairColor);
     
     // 眼睛颜色
-    if (m_eyeColorEdit) m_eyeColorEdit->setText(app.eyeColor);
+    setLineEditText(m_eyeColorEdit, app.eyeColor);
     
     // 体型
-    if (m_bodyTypeEdit) m_bodyTypeEdit->setText(app.build);
+    setLineEditText(m_bodyTypeEdit, app.build);
     
     // 发型
-    if (m_hairStyleEdit) m_hairStyleEdit->setText(app.hairStyle);
+    setLineEditText(m_hairStyleEdit, app.hairStyle);
     
     // 服饰
-    if (m_clothingEdit) m_clothingEdit->setText(app.clothing.join(", "));
+    setLineEditText(m_clothingEdit, app.clothing.join(", "));
     
     // 特征
-    if (m_featuresEdit) m_featuresEdit->setText(app.distinctiveFeatures.join(", "));
+    setLineEditText(m_featuresEdit, app.distinctiveFeatures.join(", "));
     
     // 性格
-    if (m_personalityEdit) m_personalityEdit->setText(character.personality().join(", "));
+    setLineEditText(m_personalityEdit, character.personality().join(", "));
 }
 
 void BibleItem::populateSceneEditorData()
@@ -1000,12 +1048,18 @@ void BibleItem::populateSceneEditorData()
     m_sceneNameEdit->setText(m_name);
     
     for (const QString &detail : m_details) {
-        populateTextField(detail, QString::fromUtf8("description"), m_sceneDescEdit);
-        populateTextField(detail, QString::fromUtf8("building"), m_buildingEdit);
-        populateTextField(detail, QString::fromUtf8("color"), m_colorEdit);
-        populateTextField(detail, QString::fromUtf8("landmark"), m_landmarkEdit);
-        populateTextField(detail, QString::fromUtf8("layout"), m_layoutEdit);
-        populateTextField(detail, QString::fromUtf8("atmosphere"), m_atmosphereEdit);
+        setTextEditText(m_sceneDescEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("description"), QString::fromUtf8("描述")}));
+        setLineEditText(m_buildingEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("building"), QString::fromUtf8("建筑")}));
+        setLineEditText(m_colorEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("color"), QString::fromUtf8("色调")}));
+        setLineEditText(m_landmarkEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("landmark"), QString::fromUtf8("地标")}));
+        setLineEditText(m_layoutEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("layout"), QString::fromUtf8("布局")}));
+        setLineEditText(m_atmosphereEdit, BibleUtils::extractDetailValue(
+            detail, QStringList{QStringLiteral("atmosphere"), QString::fromUtf8("氛围")}));
     }
 }
 
@@ -1017,63 +1071,23 @@ void BibleItem::populateSceneEditorFromData(const Scene& scene)
     
     SceneDetails det = scene.details();
     
-    if (m_sceneDescEdit) m_sceneDescEdit->setPlainText(det.description);
-    if (m_buildingEdit) m_buildingEdit->setText(det.building);
-    if (m_colorEdit) m_colorEdit->setText(det.color);
-    if (m_landmarkEdit) m_landmarkEdit->setText(det.landmark);
-    if (m_layoutEdit) m_layoutEdit->setText(det.layout);
-    if (m_atmosphereEdit) m_atmosphereEdit->setText(det.atmosphere);
+    setTextEditText(m_sceneDescEdit, det.description);
+    setLineEditText(m_buildingEdit, det.building);
+    setLineEditText(m_colorEdit, det.color);
+    setLineEditText(m_landmarkEdit, det.landmark);
+    setLineEditText(m_layoutEdit, det.layout);
+    setLineEditText(m_atmosphereEdit, det.atmosphere);
     
     // 选择类型
-    if (m_typeCombo && !det.type.isEmpty()) {
-        int idx = m_typeCombo->findText(det.type);
-        if (idx >= 0) m_typeCombo->setCurrentIndex(idx);
-    }
-    if (m_settingCombo && !det.setting.isEmpty()) {
-        int idx = m_settingCombo->findText(det.setting);
-        if (idx >= 0) m_settingCombo->setCurrentIndex(idx);
-    }
-    if (m_timeOfDayCombo && !det.timeOfDay.isEmpty()) {
-        int idx = m_timeOfDayCombo->findText(det.timeOfDay);
-        if (idx >= 0) m_timeOfDayCombo->setCurrentIndex(idx);
-    }
-    if (m_weatherCombo && !det.weather.isEmpty()) {
-        int idx = m_weatherCombo->findText(det.weather);
-        if (idx >= 0) m_weatherCombo->setCurrentIndex(idx);
-    }
-    if (m_narrativeRoleEdit) m_narrativeRoleEdit->setText(det.narrativeRole);
-}
-
-QString BibleItem::extractValue(const QString &detail, const QString &key)
-{
-    QString prefix = key + QString::fromUtf8(": ");
-    if (detail.startsWith(prefix)) {
-        return detail.mid(prefix.length()).trimmed();
-    }
-    return QString();
-}
-
-void BibleItem::populateTextField(const QString &detail, const QString &key, QLineEdit *edit)
-{
-    if (!edit) return;
-    QString value = extractValue(detail, key);
-    if (!value.isEmpty()) {
-        edit->setText(value);
-    }
-}
-
-void BibleItem::populateTextField(const QString &detail, const QString &key, QTextEdit *edit)
-{
-    if (!edit) return;
-    QString value = extractValue(detail, key);
-    if (!value.isEmpty()) {
-        edit->setPlainText(value);
-    }
+    setModeComboText(m_typeCombo, det.type);
+    setModeComboText(m_settingCombo, det.setting);
+    setModeComboText(m_timeOfDayCombo, det.timeOfDay);
+    setModeComboText(m_weatherCombo, det.weather);
+    setLineEditText(m_narrativeRoleEdit, det.narrativeRole);
 }
 
 void BibleItem::saveCharacterData()
 {
-    // \u4ece\u7f16\u8f91\u5668\u6784\u5efa\u66f4\u65b0\u540e\u7684 Character \u5bf9\u8c61
     Character updated = m_hasCharacterData ? m_characterData : Character();
     if (!m_hasCharacterData) {
         updated.setId(m_itemId);
@@ -1081,57 +1095,28 @@ void BibleItem::saveCharacterData()
     
     CharacterAppearance app = updated.appearance();
     
-    QString gender = m_genderCombo->currentText();
-    app.gender = gender;
+    app.gender = m_genderCombo->currentText();
     app.age = m_ageSpin->value();
     app.hairColor = m_hairColorEdit->text().trimmed();
     app.eyeColor = m_eyeColorEdit->text().trimmed();
     app.build = m_bodyTypeEdit->text().trimmed();
     app.hairStyle = m_hairStyleEdit->text().trimmed();
     
-    QString clothing = m_clothingEdit->text().trimmed();
-    app.clothing = clothing.isEmpty() ? QStringList() : clothing.split(", ");
+    app.clothing = BibleUtils::splitCommaSeparatedList(m_clothingEdit->text());
     
-    QString features = m_featuresEdit->text().trimmed();
-    app.distinctiveFeatures = features.isEmpty() ? QStringList() : features.split(", ");
+    app.distinctiveFeatures = BibleUtils::splitCommaSeparatedList(m_featuresEdit->text());
     
     updated.setAppearance(app);
     
-    QString personality = m_personalityEdit->text().trimmed();
-    updated.setPersonality(personality.isEmpty() ? QStringList() : personality.split(", "));
+    updated.setPersonality(BibleUtils::splitCommaSeparatedList(m_personalityEdit->text()));
     
-    // 从编辑器构建更新后的 Character 对象
     m_characterData = updated;
     m_hasCharacterData = true;
     
-    QStringList newDetails;
-    
-    QString genderDisplay = gender;  // 性别显示时的 AI 说明
-    if (!genderDisplay.isEmpty() || app.age > 0) {
-        const QString ageStr = app.age > 0 ? QString::number(app.age) + QString::fromUtf8("岁") : QString();
-        newDetails << QString::fromUtf8("%1 | %2岁 | %3 | %4")
-            .arg(genderDisplay, ageStr, app.hairColor, app.eyeColor);
-    }
-    if (!app.build.isEmpty()) {
-        newDetails << QString::fromUtf8("体型: %1").arg(app.build);
-    }
-    if (!app.hairStyle.isEmpty()) {
-        newDetails << QString::fromUtf8("发型: %1").arg(app.hairStyle);
-    }
-    if (!app.clothing.isEmpty()) {
-        newDetails << QString::fromUtf8("服装: %1").arg(app.clothing.join(", "));
-    }
-    if (!app.distinctiveFeatures.isEmpty()) {
-        newDetails << QString::fromUtf8("特征: %1").arg(app.distinctiveFeatures.join(", "));
-    }
-    if (!updated.personality().isEmpty()) {
-        newDetails << QString::fromUtf8("性格: %1").arg(updated.personality().join(", "));
-    }
-    
+    QStringList newDetails = updated.toDisplayStrings();
     m_details = newDetails;
     setDetails(newDetails);
     
-    emit dataChanged(m_itemId, newDetails);
     emit characterDataChanged(m_itemId, updated);
 }
 
@@ -1149,85 +1134,42 @@ void BibleItem::saveSceneData()
     }
     updated.setName(m_name);
     
-    SceneDetails det = updated.details();
-    det.description = m_sceneDescEdit->toPlainText().trimmed();
-    det.building = m_buildingEdit->text().trimmed();
-    det.color = m_colorEdit->text().trimmed();
-    det.landmark = m_landmarkEdit->text().trimmed();
-    det.layout = m_layoutEdit->text().trimmed();
-    det.atmosphere = m_atmosphereEdit->text().trimmed();
-    
-    // 选择类型
-    if (m_typeCombo) det.type = m_typeCombo->currentText();
-    if (m_settingCombo) det.setting = m_settingCombo->currentText();
-    if (m_timeOfDayCombo) det.timeOfDay = m_timeOfDayCombo->currentText();
-    if (m_weatherCombo) det.weather = m_weatherCombo->currentText();
-    if (m_narrativeRoleEdit) det.narrativeRole = m_narrativeRoleEdit->text().trimmed();
+    SceneDetails det = collectSceneDetailsFromEditors();
     
     updated.setDetails(det);
     
     m_sceneData = updated;
     m_hasSceneData = true;
     
-    QStringList newDetails;
-    
-    QString desc = m_sceneDescEdit->toPlainText().trimmed();
-    if (!desc.isEmpty()) {
-        newDetails.append(desc);
-    }
-    
-    QString building = m_buildingEdit->text().trimmed();
-    if (!building.isEmpty()) {
-        newDetails << QString::fromUtf8("建筑: %1").arg(building);
-    }
-    
-    QString color = m_colorEdit->text().trimmed();
-    if (!color.isEmpty()) {
-        newDetails << QString::fromUtf8("色调: %1").arg(color);
-    }
-    
-    QString landmark = m_landmarkEdit->text().trimmed();
-    if (!landmark.isEmpty()) {
-        newDetails << QString::fromUtf8("地标: %1").arg(landmark);
-    }
-    
-    QString layout = m_layoutEdit->text().trimmed();
-    if (!layout.isEmpty()) {
-        newDetails << QString::fromUtf8("布局: %1").arg(layout);
-    }
-    
-    QString atmosphere = m_atmosphereEdit->text().trimmed();
-    if (!atmosphere.isEmpty()) {
-        newDetails << QString::fromUtf8("氛围: %1").arg(atmosphere);
-    }
-    
-    // 选择类型
-    if (!det.type.isEmpty()) {
-        newDetails << QString::fromUtf8("类型: %1").arg(det.type);
-    }
-    if (!det.setting.isEmpty()) {
-        newDetails << QString::fromUtf8("背景设定: %1").arg(det.setting);
-    }
-    if (!det.timeOfDay.isEmpty()) {
-        newDetails << QString::fromUtf8("时间段: %1").arg(det.timeOfDay);
-    }
-    if (!det.weather.isEmpty()) {
-        newDetails << QString::fromUtf8("天气: %1").arg(det.weather);
-    }
-    if (!det.narrativeRole.isEmpty()) {
-        newDetails << QString::fromUtf8("叙事角色: %1").arg(det.narrativeRole);
-    }
-    
+    QStringList newDetails = det.toDisplayStrings();
     m_details = newDetails;
     setDetails(newDetails);
     
-    emit dataChanged(m_itemId, newDetails);
     emit sceneDataChanged(m_itemId, updated);
+}
+
+SceneDetails BibleItem::collectSceneDetailsFromEditors() const
+{
+    SceneDetails det = m_hasSceneData ? m_sceneData.details() : SceneDetails();
+
+    if (m_sceneDescEdit) det.description = m_sceneDescEdit->toPlainText().trimmed();
+    if (m_buildingEdit) det.building = m_buildingEdit->text().trimmed();
+    if (m_colorEdit) det.color = m_colorEdit->text().trimmed();
+    if (m_landmarkEdit) det.landmark = m_landmarkEdit->text().trimmed();
+    if (m_layoutEdit) det.layout = m_layoutEdit->text().trimmed();
+    if (m_atmosphereEdit) det.atmosphere = m_atmosphereEdit->text().trimmed();
+
+    if (m_typeCombo) det.type = m_typeCombo->currentText();
+    if (m_settingCombo) det.setting = m_settingCombo->currentText();
+    if (m_timeOfDayCombo) det.timeOfDay = m_timeOfDayCombo->currentText();
+    if (m_weatherCombo) det.weather = m_weatherCombo->currentText();
+    if (m_narrativeRoleEdit) det.narrativeRole = m_narrativeRoleEdit->text().trimmed();
+
+    clearSceneMetadata(det);
+    return det;
 }
 
 void BibleItem::onCancelClicked()
 {
     hideEditorCard();
 }
-
-

@@ -1,6 +1,7 @@
-#include "ConfirmDialog.h"
-#include "StyleManager.h"
-#include "EncodingUtils.h"
+#include "components/ConfirmDialog.h"
+#include "utils/StyleManager.h"
+#include "utils/EncodingUtils.h"
+#include "utils/UIFactory.h"
 #include <QPropertyAnimation>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
@@ -56,10 +57,7 @@ void ConfirmDialog::setupUI()
         "}"
     ).arg(BORDER_RADIUS));
     
-    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(30);
-    shadow->setColor(QColor(0, 0, 0, 40));
-    shadow->setOffset(0, 8);
+    QGraphicsDropShadowEffect *shadow = UIFactory::createShadowEffect(30, QColor(0, 0, 0, 40), QPointF(0, 8));
     m_container->setGraphicsEffect(shadow);
     
     QVBoxLayout *containerLayout = new QVBoxLayout(m_container);
@@ -77,11 +75,9 @@ void ConfirmDialog::setupUI()
 
 void ConfirmDialog::createHeader(QVBoxLayout *parentLayout)
 {
-    QHBoxLayout *headerLayout = new QHBoxLayout();
-    headerLayout->setSpacing(12);
+    QHBoxLayout *headerLayout = UIFactory::createHBoxLayout(0, 12);
     
-    m_iconLabel = new QLabel();
-    m_iconLabel->setText("!");
+    m_iconLabel = UIFactory::createLabel("!");
     m_iconLabel->setAlignment(Qt::AlignCenter);
     m_iconLabel->setFixedSize(ICON_SIZE, ICON_SIZE);
     m_iconLabel->setFont(QFont("Arial", 18, QFont::Bold));
@@ -93,7 +89,7 @@ void ConfirmDialog::createHeader(QVBoxLayout *parentLayout)
         "}"
     ).arg(WARNING_BG, WARNING_COLOR).arg(ICON_SIZE / 2));
     
-    m_titleLabel = new QLabel();
+    m_titleLabel = UIFactory::createLabel(QString());
     m_titleLabel->setFont(QFont("Microsoft YaHei", 14, QFont::Bold));
     m_titleLabel->setStyleSheet("color: #171717; background: transparent;");
     m_titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -106,7 +102,7 @@ void ConfirmDialog::createHeader(QVBoxLayout *parentLayout)
 
 void ConfirmDialog::createMessageArea(QVBoxLayout *parentLayout)
 {
-    m_messageLabel = new QLabel();
+    m_messageLabel = UIFactory::createLabel(QString());
     m_messageLabel->setWordWrap(true);
     m_messageLabel->setFont(QFont("Microsoft YaHei", 11));
     m_messageLabel->setStyleSheet("color: #525252; background: transparent; line-height: 1.5;");
@@ -118,15 +114,11 @@ void ConfirmDialog::createMessageArea(QVBoxLayout *parentLayout)
 
 void ConfirmDialog::createButtonArea(QVBoxLayout *parentLayout)
 {
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->setSpacing(12);
-    buttonLayout->setContentsMargins(0, 8, 0, 0);
+    QHBoxLayout *buttonLayout = UIFactory::createHBoxLayout(0, 8, 0, 12);
     
     buttonLayout->addStretch();
     
-    m_cancelBtn = new QPushButton(tr("取消"));
-    m_cancelBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
-    m_cancelBtn->setCursor(Qt::PointingHandCursor);
+    m_cancelBtn = UIFactory::createButton(tr("取消"), BUTTON_WIDTH, BUTTON_HEIGHT);
     m_cancelBtn->setFont(QFont("Microsoft YaHei", 10));
     m_cancelBtn->setStyleSheet(
         "QPushButton {"
@@ -143,9 +135,7 @@ void ConfirmDialog::createButtonArea(QVBoxLayout *parentLayout)
         "}"
     );
     
-    m_confirmBtn = new QPushButton(tr("确定"));
-    m_confirmBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
-    m_confirmBtn->setCursor(Qt::PointingHandCursor);
+    m_confirmBtn = UIFactory::createButton(tr("确定"), BUTTON_WIDTH, BUTTON_HEIGHT);
     m_confirmBtn->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
     m_confirmBtn->setStyleSheet(QString(
         "QPushButton {"

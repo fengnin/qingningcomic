@@ -1,4 +1,4 @@
-#include "SqlBuilder.h"
+#include "data/SqlBuilder.h"
 
 QString SqlBuilder::buildInsert(const QString& table, const QVariantMap& data,
                                  QStringList& outColumns, QVariantList& outValues)

@@ -1,9 +1,9 @@
-#include "DatabaseManager.h"
-#include "ServiceContainer.h"
+#include "data/DatabaseManager.h"
+#include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
 #include "utils/DatabaseUtils.h"
-#include "SqlBuilder.h"
-#include "Logger.h"
+#include "data/SqlBuilder.h"
+#include "utils/Logger.h"
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QJsonDocument>
@@ -51,7 +51,11 @@ bool DatabaseManager::connectInternal(const QString& host, int port, const QStri
     if (!DatabaseUtils::initConnectionCharsetNoAutoCommit(m_database)) {
         LOG_WARNING("Database", "Failed to set charset, continuing anyway");
     }
-    
+
+    if (!DatabaseUtils::initConnectionSessionTimeouts(m_database)) {
+        LOG_WARNING("Database", "Failed to set session timeouts, continuing anyway");
+    }
+
     LOG_INFO("Database", QString("Connected to %1 (utf8mb4)").arg(database));
     return true;
 }
@@ -355,6 +359,7 @@ bool DatabaseManager::beginTransaction()
             QSqlQuery query(m_database);
             query.exec("SET NAMES utf8mb4");
             query.exec("SET autocommit = 0");
+            DatabaseUtils::initConnectionSessionTimeouts(m_database);
             LOG_INFO("Database", "Reconnected after ping failure");
         }
         

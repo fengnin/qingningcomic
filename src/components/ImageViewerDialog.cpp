@@ -1,7 +1,7 @@
 #include "components/ImageViewerDialog.h"
 #include "components/EditorStyles.h"
-#include "SharedNetworkManager.h"
-#include "Logger.h"
+#include "api/SharedNetworkManager.h"
+#include "utils/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollBar>

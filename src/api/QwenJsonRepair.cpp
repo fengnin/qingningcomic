@@ -1,6 +1,6 @@
 #include "api/QwenJsonRepair.h"
-#include "JsonRepairAdapter.h"
-#include "Logger.h"
+#include "utils/JsonRepairAdapter.h"
+#include "utils/Logger.h"
 #include <QRegularExpression>
 
 QJsonObject QwenJsonRepair::parseWithRepair(const QString& rawContent)

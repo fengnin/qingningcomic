@@ -1,7 +1,7 @@
-#include "VolcEngineImageClient.h"
-#include "ServiceContainer.h"
+#include "api/VolcEngineImageClient.h"
+#include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
-#include "Logger.h"
+#include "utils/Logger.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
 #include <QEventLoop>

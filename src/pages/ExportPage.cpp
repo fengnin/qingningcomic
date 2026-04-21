@@ -1,9 +1,9 @@
-#include "ExportPage.h"
+#include "pages/ExportPage.h"
 #include "components/EditorStyles.h"
 #include "utils/StatusHelper.h"
 #include "services/ExportService.h"
-#include "ServiceContainer.h"
-#include "EncodingUtils.h"
+#include "services/ServiceContainer.h"
+#include "utils/EncodingUtils.h"
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QUrl>
@@ -14,8 +14,11 @@
 namespace {
     using namespace StatusHelper;
     constexpr int INPUT_HEIGHT = 50;
+    constexpr int SEARCH_BTN_WIDTH = 140;
     constexpr int DETAIL_ITEM_HEIGHT = 72;
+    constexpr int HISTORY_LIST_HEIGHT = 160;
     const QString COLOR_PRIMARY = "#84cc16";
+    const QString COLOR_SUCCESS = "#10b981";
     const QString COLOR_ERROR = "#ef4444";
     const QString COLOR_TEXT = "#1e293b";
     const QString COLOR_TEXT_LIGHT = "#64748b";
@@ -287,17 +290,16 @@ QWidget* ExportPage::createHeader()
         color: white;
         font-size: 24px;
     )");
-    iconLabel->setText(QString::fromUtf8("📦"));
-    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
+    iconLabel->setText(QString::fromUtf8("\U0001F4E6"));
     iconLabel->setAlignment(Qt::AlignCenter);
 
-    QLabel *titleLabel = createLabel(tr("导出中心"), "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
+    QLabel *titleLabel = createLabel("导出中心", "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
 
     titleLayout->addWidget(iconLabel);
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
 
-    QLabel *descLabel = createLabel(tr("查看导出结果、下载文件并跟踪导出历史。支持 PDF、Webtoon 和资源包格式。"), "font-size: 15px; color: #64748b; background: transparent; padding-left: 60px;");
+    QLabel *descLabel = createLabel("查询导出结果、下载文件、追踪导出历史。支持 PDF、Webtoon 长图、资源包三种格式。", "font-size: 15px; color: #64748b; background: transparent; padding-left: 60px;");
     descLabel->setWordWrap(true);
 
     layout->addWidget(titleRow);
@@ -321,21 +323,40 @@ QWidget* ExportPage::createSearchCard()
 
 QWidget* ExportPage::createSearchArea()
 {
+    QWidget *widget = createTransparentWidget();
+    QVBoxLayout *layout = new QVBoxLayout(widget);
+    setupLayout(layout, 0, 0, 0, 0, 14);
+
+    QLabel *label = createLabel("导出 ID", "font-size: 14px; font-weight: 600; color: #374151; background: transparent;");
+    layout->addWidget(label);
+    layout->addWidget(createSearchInputRow());
+
+    m_errorLabel = new QLabel();
+    m_errorLabel->setStyleSheet(ERROR_LABEL_STYLE);
+    m_errorLabel->setVisible(false);
+    m_errorLabel->setWordWrap(true);
+    layout->addWidget(m_errorLabel);
+
+    return widget;
+}
+
+QWidget* ExportPage::createSearchInputRow()
+{
     QWidget *searchRow = createTransparentWidget();
     QHBoxLayout *searchLayout = new QHBoxLayout(searchRow);
     setupLayout(searchLayout, 0, 0, 0, 0, 16);
 
     m_exportIdEdit = new QLineEdit();
-    m_exportIdEdit->setPlaceholderText(tr("请输入导出任务ID"));
+    m_exportIdEdit->setPlaceholderText("输入导出任务 ID");
     m_exportIdEdit->setStyleSheet(INPUT_STYLE);
     m_exportIdEdit->setMinimumHeight(INPUT_HEIGHT);
     connect(m_exportIdEdit, &QLineEdit::textChanged, this, &ExportPage::validateInput);
 
-    m_searchBtn = new QPushButton(tr("查询"));
-    m_searchBtn->setStyleSheet(BTN_PRIMARY_STYLE);
-    m_searchBtn->setCursor(Qt::PointingHandCursor);
-    m_searchBtn->setMinimumHeight(INPUT_HEIGHT);
+    m_searchBtn = new QPushButton("🔍 查询");
     m_searchBtn->setEnabled(false);
+    m_searchBtn->setStyleSheet(BTN_PRIMARY_STYLE);
+    m_searchBtn->setMinimumSize(SEARCH_BTN_WIDTH, INPUT_HEIGHT);
+    m_searchBtn->setCursor(Qt::PointingHandCursor);
     connect(m_searchBtn, &QPushButton::clicked, this, &ExportPage::onSearchClicked);
 
     searchLayout->addWidget(m_exportIdEdit, 1);
@@ -346,26 +367,30 @@ QWidget* ExportPage::createSearchArea()
 
 QWidget* ExportPage::createResultArea()
 {
-    m_resultWidget = createCard("resultCard");
-    QVBoxLayout *resultLayout = new QVBoxLayout(m_resultWidget);
-    setupLayout(resultLayout, 32, 28, 32, 28, 18);
+    m_resultWidget = createTransparentWidget();
+    m_resultWidget->setVisible(false);
 
-    resultLayout->addWidget(createResultHeader());
-    resultLayout->addWidget(createResultDetails());
+    QVBoxLayout *layout = new QVBoxLayout(m_resultWidget);
+    setupLayout(layout, 0, 0, 0, 0, 20);
 
-    QWidget *buttonRow = createTransparentWidget();
-    QHBoxLayout *buttonLayout = new QHBoxLayout(buttonRow);
-    setupLayout(buttonLayout, 0, 0, 0, 0, 0);
-    buttonLayout->addStretch();
+    QFrame *separator = new QFrame();
+    separator->setFrameShape(QFrame::HLine);
+    separator->setStyleSheet("background: #e2e8f0;");
+    separator->setFixedHeight(1);
 
-    m_downloadBtn = new QPushButton(tr("下载"));
+    layout->addWidget(separator);
+    layout->addWidget(createResultHeader());
+    layout->addWidget(createResultDetails());
+
+    m_downloadBtn = new QPushButton("📥 打开下载链接");
+    m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
+    m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
+    m_downloadBtn->setCursor(Qt::PointingHandCursor);
     connect(m_downloadBtn, &QPushButton::clicked, []() {
         QDesktopServices::openUrl(QUrl("https://example.com/download"));
     });
-    buttonLayout->addWidget(m_downloadBtn);
+    layout->addWidget(m_downloadBtn);
 
-    resultLayout->addWidget(buttonRow);
-    m_resultWidget->setVisible(false);
     return m_resultWidget;
 }
 
@@ -375,7 +400,7 @@ QWidget* ExportPage::createResultHeader()
     QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
     setupLayout(headerLayout, 0, 0, 0, 0, 0);
 
-    QLabel *resultTitle = createLabel(tr("导出结果"), "font-size: 16px; font-weight: bold; color: #1e293b; background: transparent;");
+    QLabel *resultTitle = createLabel("导出详情", "font-size: 16px; font-weight: bold; color: #1e293b; background: transparent;");
 
     QLabel *resultIdLabel = new QLabel();
     resultIdLabel->setObjectName("resultIdLabel");
@@ -394,11 +419,11 @@ QWidget* ExportPage::createResultDetails()
     QGridLayout *gridLayout = new QGridLayout(detailsGrid);
     gridLayout->setContentsMargins(0, 0, 0, 0);
     gridLayout->setSpacing(14);
-    gridLayout->addWidget(createDetailItem(tr("作品ID"), &m_resultNovelIdLabel), 0, 0);
+    gridLayout->addWidget(createDetailItem("作品 ID", &m_resultNovelIdLabel), 0, 0);
     gridLayout->addWidget(createDetailItem(tr("格式"), &m_resultFormatLabel), 0, 1);
     gridLayout->addWidget(createDetailItem(tr("状态"), &m_resultStatusLabel), 1, 0);
     gridLayout->addWidget(createDetailItem(tr("文件大小"), &m_resultFileSizeLabel), 1, 1);
-    gridLayout->addWidget(createDetailItem(tr("创建时间"), &m_resultCreatedAtLabel), 2, 0, 1, 2);
+    gridLayout->addWidget(createDetailItem("创建时间", &m_resultCreatedAtLabel), 2, 0, 1, 2);
 
     return detailsGrid;
 }
@@ -445,9 +470,9 @@ QWidget* ExportPage::createHistoryHeader()
     QHBoxLayout *layout = new QHBoxLayout(widget);
     setupLayout(layout, 0, 0, 0, 0, 0);
 
-    QLabel *titleLabel = createLabel(tr("历史记录"), "font-size: 18px; font-weight: bold; color: #1e293b; background: transparent;");
+    QLabel *titleLabel = createLabel("最近的导出记录", "font-size: 18px; font-weight: bold; color: #1e293b; background: transparent;");
 
-    QLabel *hintLabel = createLabel(tr("本地缓存仅保留最近 10 条记录。"), "font-size: 13px; color: #94a3b8; background: transparent;");
+    QLabel *hintLabel = createLabel("本地缓存，仅保存最近 10 项", "font-size: 13px; color: #94a3b8; background: transparent;");
 
     layout->addWidget(titleLabel);
     layout->addStretch();
@@ -459,7 +484,7 @@ QWidget* ExportPage::createHistoryHeader()
 QWidget* ExportPage::createHistoryList()
 {
     m_historyList = new QListWidget();
-    m_historyList->setMinimumHeight(240);
+    m_historyList->setMinimumHeight(HISTORY_LIST_HEIGHT);
     m_historyList->setStyleSheet(HISTORY_LIST_STYLE);
     
     connect(m_historyList, &QListWidget::itemClicked, [this](QListWidgetItem *item) {
@@ -478,7 +503,7 @@ void ExportPage::loadHistory()
 
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem(tr("导出任务: %1").arg(id));
+        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
         m_historyList->addItem(item);
     }
 }
@@ -496,7 +521,7 @@ void ExportPage::saveHistory(const QString &exportId)
 
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem(tr("导出任务: %1").arg(id));
+        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
         m_historyList->addItem(item);
     }
 }
@@ -509,18 +534,18 @@ void ExportPage::onSearchClicked()
 
     QString exportId = m_exportIdEdit->text().trimmed();
     if (exportId.isEmpty()) {
-        showError(tr("请输入导出任务ID"));
+        showError(TR("请输入导出 ID"));
         return;
     }
 
     clearMessages();
-    m_searchBtn->setText(tr("查询中..."));
+    m_searchBtn->setText(TR("查询中..."));
     m_searchBtn->setEnabled(false);
 
     ExportService* exportService = ServiceContainer::instance()->exportService();
     if (!exportService) {
-        showError(tr("服务不可用"));
-        m_searchBtn->setText(tr("查询"));
+        showError(TR("导出服务未初始化"));
+        m_searchBtn->setText(TR("查询"));
         m_searchBtn->setEnabled(true);
         return;
     }
@@ -528,8 +553,8 @@ void ExportPage::onSearchClicked()
     ExportResult result = exportService->getById(exportId);
     
     if (result.id.isEmpty()) {
-    showError(tr("未找到导出记录: %1").arg(exportId));
-        m_searchBtn->setText(tr("查询"));
+        showError(TR("未找到导出记录: %1").arg(exportId));
+        m_searchBtn->setText(TR("查询"));
         m_searchBtn->setEnabled(true);
         return;
     }
@@ -546,7 +571,7 @@ void ExportPage::onSearchClicked()
     showResult(data);
     saveHistory(exportId);
 
-    m_searchBtn->setText(tr("查询"));
+    m_searchBtn->setText(TR("查询"));
     m_searchBtn->setEnabled(true);
     validateInput();
 }
@@ -562,17 +587,13 @@ void ExportPage::onHistoryItemClicked(int index)
 
 void ExportPage::validateInput()
 {
-    if (!m_searchBtn || !m_exportIdEdit) {
-        return;
-    }
-
     bool isValid = !m_exportIdEdit->text().trimmed().isEmpty();
     m_searchBtn->setEnabled(isValid);
 }
 
 QString ExportPage::formatBytes(qint64 size)
 {
-    if (size <= 0) return QStringLiteral("-");
+    if (size <= 0) return "—";
     if (size < 1024) return QString("%1 B").arg(size);
     if (size < 1024 * 1024) return QString("%1 KB").arg((double)size / 1024, 0, 'f', 1);
     if (size < 1024 * 1024 * 1024) return QString("%1 MB").arg((double)size / 1024 / 1024, 0, 'f', 1);
@@ -581,7 +602,7 @@ QString ExportPage::formatBytes(qint64 size)
 
 QString ExportPage::formatDateTime(const QString &dateTime)
 {
-    if (dateTime.isEmpty()) return QStringLiteral("-");
+    if (dateTime.isEmpty()) return "—";
     QDateTime dt = QDateTime::fromString(dateTime, Qt::ISODate);
     if (!dt.isValid()) return dateTime;
     return dt.toLocalTime().toString("yyyy-MM-dd hh:mm:ss");
@@ -590,8 +611,8 @@ QString ExportPage::formatDateTime(const QString &dateTime)
 QString ExportPage::formatLabel(const QString &format)
 {
     if (format == "pdf") return "PDF";
-    if (format == "webtoon") return "Webtoon";
-    if (format == "resources") return "Resources (ZIP)";
+    if (format == "webtoon") return "Webtoon 长图";
+    if (format == "resources") return "资源包 (ZIP)";
     return format;
 }
 
@@ -602,11 +623,8 @@ QString ExportPage::statusLabel(const QString &status)
 
 void ExportPage::showError(const QString &message)
 {
-    if (!m_errorLabel) {
-        return;
-    }
     clearMessages();
-    m_errorLabel->setText(message);
+    m_errorLabel->setText("❌ " + message);
     m_errorLabel->setVisible(true);
 }
 
@@ -635,11 +653,11 @@ void ExportPage::showResult(const QVariantMap &data)
 
 void ExportPage::clearMessages()
 {
+    if (m_errorLabel) {
+        m_errorLabel->setVisible(false);
+    }
     m_resultWidget->setVisible(false);
 }
-
-
-
 
 
 

@@ -11,10 +11,10 @@
 #include <QScrollArea>
 #include <QSize>
 
-#include "Bible.h"
-#include "Character.h"
-#include "Scene.h"
-#include "ModeComboBox.h"
+#include "models/Bible.h"
+#include "models/Character.h"
+#include "models/Scene.h"
+#include "components/ModeComboBox.h"
 
 class QVBoxLayout;
 
@@ -89,11 +89,7 @@ private:
     void populateCharacterEditorFromData(const Character& character);
     void populateSceneEditorData();
     void populateSceneEditorFromData(const Scene& scene);
-    QString extractValue(const QString &detail, const QString &key);
-    
-    // 通用字段填充方法
-    void populateTextField(const QString &detail, const QString &key, QLineEdit *edit);
-    void populateTextField(const QString &detail, const QString &key, QTextEdit *edit);
+    SceneDetails collectSceneDetailsFromEditors() const;
     
     // UI 辅助方法
     QWidget* createInputField(const QString &label, QLineEdit *&edit, const QString &placeholder);

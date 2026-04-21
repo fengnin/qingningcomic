@@ -1,8 +1,8 @@
 #include "components/PanelCard.h"
 #include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
-#include "Logger.h"
 #include "utils/AsyncImageLoader.h"
+#include "utils/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QEvent>
@@ -99,6 +99,36 @@ void PanelCard::setupMainLayout()
     layout->addWidget(createDescriptionLabel(), 1);
 }
 
+void PanelCard::setupEditorCard()
+{
+    m_overlayWidget = createOverlay();
+    m_overlayWidget->installEventFilter(this);
+    
+    m_editorWidget = new PanelEditorWidget(m_overlayWidget);
+    m_editorWidget->setPanelInfo(m_chapterNumber, m_panelNumber, m_panelId);
+    m_editorWidget->setSceneDescription(m_description);
+    m_editorWidget->setPreviewUrl(m_previewUrl);
+    
+    connect(m_editorWidget, &PanelEditorWidget::sceneDescriptionChanged,
+            this, &PanelCard::onSceneDescriptionChanged);
+    connect(m_editorWidget, &PanelEditorWidget::editSubmitted,
+            this, &PanelCard::onEditSubmitted);
+    connect(m_editorWidget, &PanelEditorWidget::imageGenerated,
+            this, &PanelCard::onImageGenerated);
+    connect(m_editorWidget, &PanelEditorWidget::closed,
+            this, &PanelCard::onEditorClosed);
+    
+    m_editorCard = m_editorWidget;
+}
+
+void PanelCard::syncDataToEditor()
+{
+    if (m_editorWidget) {
+        m_editorWidget->setSceneDescription(m_description);
+        m_editorWidget->setPreviewUrl(m_previewUrl);
+    }
+}
+
 QWidget* PanelCard::createPreviewSection()
 {
     QWidget *container = createContainerWidget<QVBoxLayout>();
@@ -115,7 +145,7 @@ QWidget* PanelCard::createPreviewSection()
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setText(Text::PREVIEW);
     m_previewLabel->installEventFilter(this);
-    m_previewLabel->setCursor(Qt::ArrowCursor);
+    m_previewLabel->setCursor(Qt::PointingHandCursor);
     layout->addWidget(m_previewLabel);
     
     m_sizeLabel = new QLabel();
@@ -175,7 +205,6 @@ void PanelCard::setPreviewUrl(const QString &url)
         return;
     }
     
-    // Use the URL hash as part of the cache key so different URLs map to different cache entries.
     QString urlHash = QString(QCryptographicHash::hash(url.toUtf8(), QCryptographicHash::Md5).toHex());
     QString id = QString("panel_%1_%2_%3")
         .arg(m_chapterNumber).arg(m_panelNumber).arg(urlHash);
@@ -257,9 +286,6 @@ void PanelCard::setImageSize(int width, int height)
     QString ratio = simplifyRatio(width, height);
     m_sizeLabel->setText(QString("%1x%2 (%3)").arg(width).arg(height).arg(ratio));
     m_sizeLabel->show();
-    
-    LOG_INFO("PanelCard", QString("面板 %1-%2 图像尺寸: %3x%4, 比例: %5")
-        .arg(m_chapterNumber).arg(m_panelNumber).arg(width).arg(height).arg(ratio));
 }
 
 void PanelCard::setPreviewText(const QString &text)
@@ -304,49 +330,14 @@ bool PanelCard::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
     }
-    return QFrame::eventFilter(watched, event);
+    return EditorCardBase::eventFilter(watched, event);
 }
 
 void PanelCard::mousePressEvent(QMouseEvent *event)
 {
-    QFrame::mousePressEvent(event);
+    EditorCardBase::mousePressEvent(event);
     showEditorCard();
     emit clicked(m_panelNumber);
-}
-
-void PanelCard::onEditBtnClicked()
-{
-    showEditorCard();
-}
-
-void PanelCard::setupEditorCard()
-{
-    m_overlayWidget = createOverlay();
-    m_overlayWidget->installEventFilter(this);
-    
-    m_editorWidget = new PanelEditorWidget(m_overlayWidget);
-    m_editorWidget->setPanelInfo(m_chapterNumber, m_panelNumber, m_panelId);
-    m_editorWidget->setSceneDescription(m_description);
-    m_editorWidget->setPreviewUrl(m_previewUrl);
-    
-    connect(m_editorWidget, &PanelEditorWidget::sceneDescriptionChanged,
-            this, &PanelCard::onSceneDescriptionChanged);
-    connect(m_editorWidget, &PanelEditorWidget::editSubmitted,
-            this, &PanelCard::onEditSubmitted);
-    connect(m_editorWidget, &PanelEditorWidget::imageGenerated,
-            this, &PanelCard::onImageGenerated);
-    connect(m_editorWidget, &PanelEditorWidget::closed,
-            this, &PanelCard::onEditorClosed);
-    
-    m_editorCard = m_editorWidget;
-}
-
-void PanelCard::syncDataToEditor()
-{
-    if (m_editorWidget) {
-        m_editorWidget->setSceneDescription(m_description);
-        m_editorWidget->setPreviewUrl(m_previewUrl);
-    }
 }
 
 void PanelCard::onSceneDescriptionChanged(const QString &description)
@@ -360,15 +351,9 @@ void PanelCard::onSceneDescriptionChanged(const QString &description)
 
 void PanelCard::onEditSubmitted(int editMode, const QString &instruction, const QString &maskPath)
 {
-    m_lastEditMode = editMode;
-    m_lastEditInstruction = instruction;
-    m_lastEditMaskPath = maskPath;
-
-    LOG_INFO("PanelCard", QString("Edit submitted for P%1-%2: mode=%3, mask=%4")
-        .arg(m_chapterNumber)
-        .arg(m_panelNumber)
-        .arg(editMode)
-        .arg(maskPath));
+    Q_UNUSED(editMode)
+    Q_UNUSED(instruction)
+    Q_UNUSED(maskPath)
 }
 
 void PanelCard::onImageGenerated(const QString &imageUrl)

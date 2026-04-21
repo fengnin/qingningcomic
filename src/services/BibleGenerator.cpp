@@ -1,9 +1,12 @@
-#include "BibleGenerator.h"
-#include "CharacterExtractor.h"
-#include "SceneExtractor.h"
-#include "Logger.h"
+#include "services/BibleGenerator.h"
+#include "services/CharacterExtractor.h"
+#include "services/SceneExtractor.h"
+#include "utils/Logger.h"
 #include "utils/JsonUtils.h"
 #include "utils/BibleUtils.h"
+#include <QJsonDocument>
+
+using namespace BibleUtils::BibleUpdateStrategy;
 
 BibleGenerator* BibleGenerator::m_instance = nullptr;
 std::once_flag BibleGenerator::m_instanceOnceFlag;
@@ -67,140 +70,55 @@ QJsonObject BibleGenerator::sceneToJson(const Scene& scene) const
     return scene.toJson();
 }
 
-namespace {
-
-void updateCharacterAppearance(CharacterAppearance& app, const QJsonObject& appObj)
-{
-    // 标量字段：只填充空值
-    if (BibleUtils::shouldUpdateField(app.gender, appObj["gender"].toString())) {
-        app.gender = appObj["gender"].toString();
-    }
-    if (BibleUtils::shouldUpdateField(app.age, appObj["age"].toInt())) {
-        app.age = appObj["age"].toInt();
-    }
-    if (BibleUtils::shouldUpdateField(app.hairColor, appObj["hairColor"].toString())) {
-        app.hairColor = appObj["hairColor"].toString();
-    }
-    if (BibleUtils::shouldUpdateField(app.hairStyle, appObj["hairStyle"].toString())) {
-        app.hairStyle = appObj["hairStyle"].toString();
-    }
-    if (BibleUtils::shouldUpdateField(app.eyeColor, appObj["eyeColor"].toString())) {
-        app.eyeColor = appObj["eyeColor"].toString();
-    }
-    if (BibleUtils::shouldUpdateField(app.build, appObj["build"].toString())) {
-        app.build = appObj["build"].toString();
-    }
-    
-    // 数组字段：合并去重（对齐原仓库 mergeAppearance 的 arrayFields 逻辑）
-    QJsonArray clothingArray = appObj["clothing"].toArray();
-    if (!clothingArray.isEmpty()) {
-        QStringList incoming = BibleUtils::jsonArrayToStringList(clothingArray);
-        app.clothing = BibleUtils::mergeStringLists(app.clothing, incoming);
-    }
-    
-    QJsonArray accessoriesArray = appObj["accessories"].toArray();
-    if (!accessoriesArray.isEmpty()) {
-        QStringList incoming = BibleUtils::jsonArrayToStringList(accessoriesArray);
-        app.accessories = BibleUtils::mergeStringLists(app.accessories, incoming);
-    }
-    
-    QJsonArray featuresArray = appObj["distinctiveFeatures"].toArray();
-    if (!featuresArray.isEmpty()) {
-        QStringList incoming = BibleUtils::jsonArrayToStringList(featuresArray);
-        app.distinctiveFeatures = BibleUtils::mergeStringLists(app.distinctiveFeatures, incoming);
-    }
-}
-
-void updateSceneDetails(SceneDetails& det, const QJsonObject& detailsObj)
-{
-    auto updateField = [&detailsObj, &det](const QString& key, QString& field) {
-        QString value = detailsObj[key].toString();
-        if (BibleUtils::shouldUpdateField(field, value)) {
-            field = value;
-        }
-    };
-    
-    updateField("description", det.description);
-    updateField("building", det.building);
-    updateField("color", det.color);
-    updateField("landmark", det.landmark);
-    updateField("layout", det.layout);
-    updateField("atmosphere", det.atmosphere);
-    updateField("type", det.type);
-    updateField("setting", det.setting);
-    updateField("timeOfDay", det.timeOfDay);
-    updateField("weather", det.weather);
-    updateField("narrativeRole", det.narrativeRole);
-    
-    // 深度合并嵌套结构（对齐原仓库 mergeScenes）
-    QJsonObject incomingVisual = detailsObj["visualCharacteristics"].toObject();
-    if (!incomingVisual.isEmpty()) {
-        det.visualCharacteristics = BibleUtils::mergeVisualCharacteristics(
-            det.visualCharacteristics, incomingVisual);
-    }
-    
-    QJsonObject incomingSpatial = detailsObj["spatialLayout"].toObject();
-    if (!incomingSpatial.isEmpty()) {
-        det.spatialLayout = BibleUtils::mergeSpatialLayout(
-            det.spatialLayout, incomingSpatial);
-    }
-    
-    QJsonArray incomingTime = detailsObj["timeVariations"].toArray();
-    if (!incomingTime.isEmpty()) {
-        det.timeVariations = BibleUtils::mergeVariations(
-            det.timeVariations, incomingTime, "timeOfDay");
-    }
-    
-    QJsonArray incomingWeather = detailsObj["weatherVariations"].toArray();
-    if (!incomingWeather.isEmpty()) {
-        det.weatherVariations = BibleUtils::mergeVariations(
-            det.weatherVariations, incomingWeather, "weather");
-    }
-}
-
-}
-
 void BibleGenerator::updateExistingCharacters(const QString& novelId, const QJsonArray& characters)
 {
     int updatedCount = 0;
     
     for (const QJsonValue& charVal : characters) {
         QJsonObject charObj = charVal.toObject();
+        const QString charId = charObj["id"].toString().trimmed();
         QString name = charObj["name"].toString();
         
-        if (name.isEmpty()) {
+        if (name.isEmpty() && charId.isEmpty()) {
             continue;
         }
         
-        Character existing = CharacterExtractor::instance()->getCharacterByName(novelId, name);
+        Character existing;
+        if (!charId.isEmpty()) {
+            existing = CharacterExtractor::instance()->getCharacterById(charId);
+            if (!existing.id().isEmpty() && existing.novelId() != novelId) {
+                existing = Character();
+            }
+        }
+        if (existing.id().isEmpty() && !name.isEmpty()) {
+            existing = CharacterExtractor::instance()->getCharacterByName(novelId, name);
+        }
         if (existing.id().isEmpty()) {
             continue;
         }
         
         if (shouldUpdateCharacter(existing, charObj)) {
-            QJsonObject appObj = charObj["appearance"].toObject();
+            QJsonObject appObj = resolveAppearanceObject(charObj);
             CharacterAppearance app = existing.appearance();
             
             updateCharacterAppearance(app, appObj);
             existing.setAppearance(app);
             
             QJsonArray personalityArray = charObj["personality"].toArray();
-            if (!personalityArray.isEmpty()) {
-                QStringList incoming = JsonUtils::jsonArrayToStringList(personalityArray);
-                existing.setPersonality(BibleUtils::mergeStringLists(existing.personality(), incoming));
+            if (!personalityArray.isEmpty() && existing.personality().isEmpty()) {
+                existing.setPersonality(JsonUtils::jsonArrayToStringList(personalityArray));
             }
             
-            CharacterExtractor::instance()->updateCharacter(existing);
-            updatedCount++;
-            
-            emit characterUpdated(name);
+            if (CharacterExtractor::instance()->updateCharacter(existing)) {
+                updatedCount++;
+                LOG_INFO("BibleGenerator", QString("Updated character: %1").arg(name.isEmpty() ? existing.name() : name));
+                emit characterUpdated(name.isEmpty() ? existing.name() : name);
+            }
         }
     }
-    
-    if (updatedCount > 0) {
-        LOG_INFO("BibleGenerator", QString("Updated %1 characters for novel %2")
-            .arg(updatedCount).arg(novelId));
-    }
+
+    LOG_INFO("BibleGenerator", QString("Updated %1 characters for novel %2")
+        .arg(updatedCount).arg(novelId));
 }
 
 void BibleGenerator::updateExistingScenes(const QString& novelId, const QJsonArray& scenes)
@@ -209,49 +127,56 @@ void BibleGenerator::updateExistingScenes(const QString& novelId, const QJsonArr
     
     for (const QJsonValue& sceneVal : scenes) {
         QJsonObject sceneObj = sceneVal.toObject();
+        const QString sceneId = sceneObj["id"].toString().trimmed();
         QString name = sceneObj["name"].toString();
-        QString sceneId = sceneObj["id"].toString();
         
         if (name.isEmpty() && sceneId.isEmpty()) {
             continue;
         }
         
-        Scene existing = SceneExtractor::instance()->getSceneBySceneId(novelId, 
-            sceneId.isEmpty() ? name : sceneId);
+        Scene existing;
+        if (!sceneId.isEmpty()) {
+            existing = SceneExtractor::instance()->getSceneById(sceneId);
+            if (!existing.id().isEmpty() && existing.novelId() != novelId) {
+                existing = Scene();
+            }
+        }
+        if (existing.id().isEmpty()) {
+            existing = SceneExtractor::instance()->getSceneBySceneId(novelId,
+                sceneId.isEmpty() ? name : sceneId);
+        }
+        if (existing.id().isEmpty() && !name.isEmpty()) {
+            existing = SceneExtractor::instance()->getSceneByName(novelId, name);
+        }
         if (existing.id().isEmpty()) {
             continue;
         }
         
         if (shouldUpdateScene(existing, sceneObj)) {
-            QJsonObject detailsObj = sceneObj["details"].toObject();
-            if (detailsObj.isEmpty()) {
-                detailsObj = sceneObj;
-            }
-            
+            QJsonObject detailsObj = resolveSceneDetailsObject(sceneObj);
             SceneDetails det = existing.details();
             
             updateSceneDetails(det, detailsObj);
             existing.setDetails(det);
             
-            SceneExtractor::instance()->updateScene(existing);
-            updatedCount++;
-            
-            emit sceneUpdated(name);
+            if (SceneExtractor::instance()->updateScene(existing)) {
+                updatedCount++;
+                LOG_INFO("BibleGenerator", QString("Updated scene: %1").arg(name.isEmpty() ? existing.name() : name));
+                emit sceneUpdated(name.isEmpty() ? existing.name() : name);
+            }
         }
     }
-    
-    if (updatedCount > 0) {
-        LOG_INFO("BibleGenerator", QString("Updated %1 scenes for novel %2")
-            .arg(updatedCount).arg(novelId));
-    }
+
+    LOG_INFO("BibleGenerator", QString("Updated %1 scenes for novel %2")
+        .arg(updatedCount).arg(novelId));
 }
 
 bool BibleGenerator::shouldUpdateCharacter(const Character& existing, const QJsonObject& newData) const
 {
-    QJsonObject appObj = newData["appearance"].toObject();
+    QJsonObject appObj = resolveAppearanceObject(newData);
     CharacterAppearance app = existing.appearance();
     
-    if (BibleUtils::hasEmptyAppearanceFields(app) && BibleUtils::hasNewAppearanceData(appObj)) {
+    if (hasEmptyAppearanceFields(app) && hasNewAppearanceData(appObj)) {
         return true;
     }
     
@@ -264,11 +189,9 @@ bool BibleGenerator::shouldUpdateCharacter(const Character& existing, const QJso
 
 bool BibleGenerator::shouldUpdateScene(const Scene& existing, const QJsonObject& newData) const
 {
-    QJsonObject detailsObj = newData["details"].toObject();
-    if (detailsObj.isEmpty()) {
-        detailsObj = newData;
-    }
+    QJsonObject detailsObj = resolveSceneDetailsObject(newData);
     SceneDetails det = existing.details();
     
-    return BibleUtils::hasEmptyDetailsFields(det) && BibleUtils::hasNewDetailsData(detailsObj);
+    return (hasEmptyDetailsFields(det) && hasNewDetailsData(detailsObj)) ||
+           hasIterationUpdates(det, detailsObj);
 }

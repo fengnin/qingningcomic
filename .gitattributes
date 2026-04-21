@@ -16,3 +16,10 @@ CMakeLists.txt text eol=lf
 *.gif binary
 *.ico binary
 *.pdf binary
+
+
+* text=auto eol=lf
+
+*.java text working-tree-encoding=UTF-8
+*.ts text working-tree-encoding=UTF-8
+*.js text working-tree-encoding=UTF-8

@@ -1,14 +1,15 @@
 #ifndef BIBLESECTIONWIDGET_H
 #define BIBLESECTIONWIDGET_H
 
-#include "Character.h"
-#include "Scene.h"
+#include "models/Character.h"
+#include "models/Scene.h"
 #include "components/BibleItem.h"
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
 #include <QVBoxLayout>
+#include <QScrollArea>
 
 class Novel;
 
@@ -23,7 +24,6 @@ public:
     void setNovelId(const QString& novelId);
     void refreshBible();
     void clearBible();
-    void updateItemImage(const QString& id, const QString& imagePath, BibleType type);
 
     int characterCount() const { return m_characterCount; }
     int sceneCount() const { return m_sceneCount; }
@@ -35,6 +35,8 @@ signals:
     void bibleItemDataChanged(const QString& id, const QStringList& details);
     void bibleItemImageUpdated(const QString& id, const QString& imagePath, BibleType type);
     void bibleItemDeleteRequested(const QString& id, BibleType type);
+    void characterDataChanged(const QString& id, const Character& character);
+    void sceneDataChanged(const QString& id, const Scene& scene);
 
 private:
     QFrame* createBibleCard(const QString& title, QLabel*& countLabel, QWidget*& container, BibleType type);

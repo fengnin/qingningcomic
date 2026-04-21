@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QSharedPointer>
 #include <functional>
-#include "ServiceContainer.h"
+#include "services/ServiceContainer.h"
 
 class BaseViewModel : public QObject
 {

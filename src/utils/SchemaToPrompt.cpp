@@ -1,29 +1,86 @@
-#include "SchemaToPrompt.h"
+#include "utils/SchemaToPrompt.h"
 #include <QJsonDocument>
-#include <QStringList>
+#include <QRegularExpression>
+
+QString SchemaToPrompt::sanitizeDescription(const QString &description)
+{
+    if (description.isEmpty()) {
+        return description;
+    }
+
+    QString result = description;
+
+    static const QStringList markers = {
+        QString::fromUtf8("例如："),
+        QString::fromUtf8("例如:"),
+        QString::fromUtf8("例如"),
+        QString::fromUtf8("示例："),
+        QString::fromUtf8("示例:"),
+        QString::fromUtf8("示例"),
+        QString::fromUtf8("比如："),
+        QString::fromUtf8("比如:"),
+        QString::fromUtf8("比如"),
+        QStringLiteral("Examples:"),
+        QStringLiteral("Examples："),
+        QStringLiteral("Examples"),
+        QStringLiteral("Example:"),
+        QStringLiteral("Example："),
+        QStringLiteral("Example"),
+        QStringLiteral("e.g."),
+        QStringLiteral("e.g")
+    };
+
+    int cutPos = result.length();
+    for (const QString& marker : markers) {
+        const int pos = result.indexOf(marker, 0, Qt::CaseInsensitive);
+        if (pos >= 0 && pos < cutPos) {
+            cutPos = pos;
+        }
+    }
+
+    if (cutPos < result.length()) {
+        result = result.left(cutPos);
+    }
+
+    result = result.trimmed();
+    result.replace(QRegularExpression(QStringLiteral("\\s{2,}")), QStringLiteral(" "));
+    return result;
+}
 
 QString SchemaToPrompt::buildSystemPrompt(const QJsonObject &schema, const Options &options)
 {
     QString prompt = QString::fromUtf8(
-        "你是漫画分镜 JSON Schema 说明助手。\n\n"
-        "请把下面的 Schema 整理成适合模型阅读的说明，重点突出字段用途、必填项、枚举值和约束。\n\n"
-        "- 优先说明 `existingCharacters` 和 `existingScenes` 对应的已有角色/场景，避免重复创建。\n"
-        "- `panel.background.sceneId` 应尽量映射到已有场景的 id。\n"
-        "- `appearance` 描述角色外貌，不要写成镜头语言。\n"
-        "- `visualCharacteristics` 用于固定场景的视觉特征。\n"
-        "- `scene` 只描述场景本身，不包含人物或动作。\n"
-        "- `visualPrompt` 必须是中文图像提示词。\n\n"
-        "请按字段层级输出，保持字段名不变。\n\n"
+        "你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。\n\n"
+
+        "📖 **跨章节连续性**：复用已有角色和场景，识别角色别名，将后续新称呼归并到同一实体；当新章节提供更明确的名字、别名或设定时，更新对应圣经条目，并保留历史别名。\n\n"
+
+        "🎬 **核心规则**：\n"
+        "- 每页6个面板，index从0-5\n"
+        "- 所有文字使用简体中文\n"
+        "- 角色/场景必须有完整属性，禁止空值\n\n"
+
+        "👤 **角色外观**：必须提取gender、age、hairColor、hairStyle、eyeColor、build、clothing、distinctiveFeatures。文本未明确描述时可合理推断，但不得编造与上下文冲突的信息；后续章节若提供更准确设定，应回写到角色圣经。\n\n"
+
+        "🏞️ **场景规则**：\n"
+        "- **场景ID**：使用稳定、简洁、可复用的标识，避免同一场景在不同章节生成不同ID\n"
+        "- **合并同类场景**：语义、位置和视觉锚点一致的描述必须归并为同一场景实体；后续更完整的场景信息应更新到同一场景条目\n"
+        "- **不拆连通空间**：玄关与客厅相连则合并为一个场景，不要拆成两个\n"
+        "- **建筑统称需拆分**：整体建筑描述应拆分为具体可画的功能区域\n"
+        "- **命名绝对一致**：同一场景在所有面板中使用完全相同的名称\n"
+        "- 必须提取：type、setting、timeOfDay、weather、narrativeRole、visualCharacteristics、anchorPoints（至少3个）、signatureObjects（至少3个）\n\n"
+
+        "📋 **JSON Schema 字段说明**：\n\n"
     );
     
     prompt += generateFieldDocs(schema);
     
-    prompt += "\n示例 JSON：\n\n";
-    
     QJsonObject example = options.customExample.isEmpty() ? generateExample(schema) : options.customExample;
-    prompt += "```json\n";
-    prompt += QString::fromUtf8(QJsonDocument(example).toJson(QJsonDocument::Indented));
-    prompt += "\n```\n";
+    if (!example.isEmpty()) {
+        prompt += QString::fromUtf8("\n📝 **完整示例**：\n\n");
+        prompt += "```json\n";
+        prompt += QString::fromUtf8(QJsonDocument(example).toJson(QJsonDocument::Indented));
+        prompt += "\n```\n";
+    }
     
     if (!options.additionalInstructions.isEmpty()) {
         prompt += "\n" + options.additionalInstructions + "\n";
@@ -67,7 +124,10 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
         docs += "\n";
         
         if (fieldSchema.contains("description")) {
-            docs += QString("%1  %2\n").arg(indent, fieldSchema["description"].toString());
+            const QString description = sanitizeDescription(fieldSchema["description"].toString());
+            if (!description.isEmpty()) {
+                docs += QString("%1  %2\n").arg(indent, description);
+            }
         }
         
         if (fieldSchema.contains("enum")) {
@@ -76,7 +136,7 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
             for (const QJsonValue &v : enumValues) {
                 enumStrings.append(v.toString());
             }
-            docs += QString("%1  枚举: %2\n").arg(indent, enumStrings.join(", "));
+            docs += QString("%1  可选值: %2\n").arg(indent, enumStrings.join(", "));
         }
         
         QStringList constraints = getFieldConstraints(fieldSchema);
@@ -91,10 +151,10 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
         if (fieldSchema["type"].toString() == "array" && fieldSchema.contains("items")) {
             QJsonObject items = fieldSchema["items"].toObject();
             if (items["type"].toString() == "object" && items.contains("properties")) {
-                docs += QString("%1  子项:\n").arg(indent);
+                docs += QString("%1  数组元素结构:\n").arg(indent);
                 docs += generateFieldDocs(items, indentLevel + 2);
             } else if (items.contains("type")) {
-                docs += QString("%1  子项类型: %2\n").arg(indent, items["type"].toString());
+                docs += QString("%1  数组元素类型: %2\n").arg(indent, items["type"].toString());
             }
         }
         
@@ -144,7 +204,7 @@ QJsonValue SchemaToPrompt::generateFieldExample(const QJsonObject &fieldSchema)
             }
         }
         if (fieldSchema.contains("description")) {
-            return fieldSchema["description"].toString();
+            return sanitizeDescription(fieldSchema["description"].toString());
         }
         return QString("string value");
     }
@@ -208,8 +268,8 @@ QStringList SchemaToPrompt::getFieldConstraints(const QJsonObject &fieldSchema)
         {"maxLength", QString::fromUtf8("最大长度")},
         {"minimum", QString::fromUtf8("最小值")},
         {"maximum", QString::fromUtf8("最大值")},
-        {"minItems", QString::fromUtf8("最少项数")},
-        {"maxItems", QString::fromUtf8("最多项数")}
+        {"minItems", QString::fromUtf8("最少元素")},
+        {"maxItems", QString::fromUtf8("最多元素")}
     };
     
     QStringList constraints;

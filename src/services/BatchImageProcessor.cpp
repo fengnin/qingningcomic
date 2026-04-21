@@ -1,4 +1,4 @@
-#include "BatchImageProcessor.h"
+#include "services/BatchImageProcessor.h"
 
 BatchImageProcessor::BatchImageProcessor(QObject* parent)
     : QObject(parent)

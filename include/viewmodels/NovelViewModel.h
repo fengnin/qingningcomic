@@ -2,7 +2,7 @@
 #define NOVELVIEWMODEL_H
 
 #include "viewmodels/BaseViewModel.h"
-#include "Novel.h"
+#include "models/Novel.h"
 #include "utils/SingletonUtils.h"
 #include <QList>
 #include <QVariantMap>
@@ -26,10 +26,11 @@ public:
     
     void loadNovels(const QString& userId = QString(), int page = 1, int pageSize = 20);
     void loadNovel(const QString& novelId);
-    void createNovel(const QString& userId, const QString& title, const QString& text);
+    void createNovel(const QString& userId, const QString& title, const QString& text,
+                     const QVariantMap& metadata = QVariantMap());
     bool updateNovel(const QString& novelId, const QVariantMap& data);
     void updateNovelStatus(const QString& novelId, NovelStatus status);
-    void deleteNovel(const QString& novelId);
+    bool deleteNovel(const QString& novelId);
     void setCurrentNovel(const Novel& novel);
     
     void refreshCurrentNovel();

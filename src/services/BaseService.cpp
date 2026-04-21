@@ -1,7 +1,7 @@
 #include "services/BaseService.h"
-#include "DatabaseManager.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
+#include "data/DatabaseManager.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
 
 BaseService::BaseService(DatabaseManager* db, QObject* parent)
     : QObject(parent)

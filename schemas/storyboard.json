@@ -29,7 +29,7 @@
             "description": "Page number (1-based)"
           },
           "index": {
-            "description": "Panel index on the page (0-5, cycles for each page). Generate as many panels as needed based on the story content - do not limit to 6 panels total."
+            "description": "Panel index on the page (0-5, 6 panels per page)"
           },
           "scene": {
             "type": "string",
@@ -47,27 +47,27 @@
             "properties": {
               "sceneId": {
                 "type": "string",
-                "description": "Reference to scene bible entry (e.g., 'main_street', 'school_library'). Use this to maintain consistency for recurring locations."
+                "description": "Reference to the scene bible entry. Use this to maintain consistency for recurring locations."
               },
               "setting": {
                 "type": "string",
-                "description": "Location/environment description (e.g., '古镇石板街道', '图书馆内部', '樱花树下')"
+                "description": "Location/environment description."
               },
               "timeOfDay": {
                 "type": "string",
-                "description": "Time of day for lighting reference. Examples: dawn, morning, noon, afternoon, dusk, evening, night, midnight"
+                "description": "Time of day for lighting reference."
               },
               "weather": {
                 "type": "string",
-                "description": "Weather conditions affecting the scene. Examples: clear, cloudy, rainy, snowy, foggy, stormy, windy"
+                "description": "Weather conditions affecting the scene."
               },
               "lighting": {
                 "type": "string",
-                "description": "Lighting style and quality. Examples: natural, artificial, dramatic, soft, harsh, backlit, silhouette"
+                "description": "Lighting style and quality."
               },
               "details": {
                 "type": "array",
-                "description": "Specific background elements (e.g., '远处的山峦', '街边的灯笼', '飘落的樱花')",
+                "description": "Specific background elements.",
                 "items": {
                   "type": "string"
                 }
@@ -83,7 +83,7 @@
             "properties": {
               "mood": {
                 "type": "string",
-                "description": "Overall emotional tone of the panel. Examples: peaceful, tense, romantic, mysterious, melancholic, joyful, dramatic, calm, chaotic, nostalgic, ominous, hopeful"
+                "description": "Overall emotional tone of the panel."
               },
               "soundEffects": {
                 "type": "array",
@@ -97,7 +97,7 @@
                   "properties": {
                     "sound": {
                       "type": "string",
-                      "description": "Sound description (e.g., '脚步声', '风声', '心跳')"
+                      "description": "Sound description."
                     },
                     "style": {
                       "type": "string",
@@ -108,7 +108,7 @@
               },
               "particleEffects": {
                 "type": "array",
-                "description": "Visual particle effects (e.g., '花瓣飘落', '雪花飞舞', '光尘')",
+                "description": "Visual particle effects.",
                 "items": {
                   "type": "string"
                 }
@@ -117,11 +117,11 @@
           },
           "shotType": {
             "type": "string",
-            "description": "Camera shot distance/framing. Examples: close-up, medium, wide, extreme-wide, extreme-close-up, cowboy-shot"
+            "description": "Camera shot distance/framing."
           },
           "cameraAngle": {
             "type": "string",
-            "description": "Camera angle perspective. Examples: eye-level, high-angle, low-angle, birds-eye, worms-eye, dutch-angle, over-shoulder"
+            "description": "Camera angle perspective."
           },
           "composition": {
             "type": "object",
@@ -129,15 +129,15 @@
             "properties": {
               "focusPoint": {
                 "type": "string",
-                "description": "Main focal point of the panel (e.g., '女孩的眼睛', '两人的轮廓')"
+                "description": "Main focal point of the panel."
               },
               "depthOfField": {
                 "type": "string",
-                "description": "Focus depth (shallow=blurred background, deep=everything sharp). Examples: shallow, deep, normal"
+                "description": "Focus depth (shallow=blurred background, deep=everything sharp)."
               },
               "rule": {
                 "type": "string",
-                "description": "Compositional guideline used. Examples: rule-of-thirds, golden-ratio, center-composition, diagonal, leading-lines"
+                "description": "Compositional guideline used."
               }
             }
           },
@@ -147,19 +147,19 @@
             "properties": {
               "genre": {
                 "type": "string",
-                "description": "Manga/art genre style. Examples: shonen, shoujo, seinen, josei, realistic, chibi, sketch"
+                "description": "Manga/art genre style."
               },
               "lineWeight": {
                 "type": "string",
-                "description": "Line art thickness. Examples: thin, medium, thick, varied"
+                "description": "Line art thickness."
               },
               "shading": {
                 "type": "string",
-                "description": "Shading technique. Examples: screentone, crosshatch, cel-shading, soft-shading, high-contrast"
+                "description": "Shading technique."
               },
               "colorPalette": {
                 "type": "string",
-                "description": "Color scheme description (e.g., 'warm sunset tones', 'cool blues', 'monochrome')"
+                "description": "Color scheme description."
               }
             }
           },
@@ -183,11 +183,11 @@
                 },
                 "expression": {
                   "type": "string",
-                  "description": "Character facial expression. Examples: neutral, happy, sad, angry, surprised, determined, fearful, confused, excited, shy, disgusted, contempt, anxious, loving, jealous, proud"
+                  "description": "Character facial expression."
                 },
                 "position": {
                   "type": "string",
-                  "description": "Character's depth position in the scene. Examples: foreground, midground, background"
+                  "description": "Character's depth position in the scene."
                 }
               }
             }
@@ -215,26 +215,26 @@
                 "bubbleType": {
                   "type": "string",
                   "default": "speech",
-                  "description": "Type of dialogue bubble. Examples: speech, thought, narration, scream, whisper, shout"
+                  "description": "Type of dialogue bubble."
                 },
                 "emotion": {
                   "type": "string",
-                  "description": "Emotional tone of the dialogue. Examples: neutral, excited, angry, sad, scared, confused, joking"
+                  "description": "Emotional tone of the dialogue."
                 }
               }
             }
           },
           "visualPrompt": {
             "type": "string",
-            "description": "用于AI图像生成的中文提示词，详细描述画面内容、角色、场景、光影、风格等（例如：'夕阳下的古镇街道，金色阳光洒在青石板路上，穿着校服的少年独自走在街上，两旁是低矮的砖房，远处是连绵的山峦，温暖宁静的氛围，少年漫画风格，网点纸阴影'）"
+            "description": "Primary prompt for AI image generation."
           },
           "visualPromptEn": {
             "type": "string",
-            "description": "English prompt for AI image generation (Imagen 3, Midjourney, Stable Diffusion, etc.). Example: 'A quiet small town street at sunset, golden light on cobblestone pavement, teenage boy in school uniform walking alone with backpack, low brick houses on both sides, distant mountains, warm peaceful atmosphere, seinen manga style, screentone shading'"
+            "description": "English prompt kept for compatibility and downstream tools."
           },
           "narrativeFunction": {
             "type": "string",
-            "description": "Narrative purpose of this panel in storytelling. Examples: establishing-shot, action, reaction, dialogue, transition, dramatic-reveal, flashback, montage, emotional-beat"
+            "description": "Narrative purpose of this panel in storytelling."
           }
         }
       }
@@ -247,7 +247,8 @@
         "type": "object",
         "required": [
           "name",
-          "role"
+          "role",
+          "appearance"
         ],
         "properties": {
           "name": {
@@ -257,7 +258,7 @@
           },
           "role": {
             "type": "string",
-            "description": "Character role in the story. Examples: protagonist, antagonist, supporting, background, mentor, love-interest"
+            "description": "Character role in the story."
           },
           "appearance": {
             "type": "object",
@@ -272,11 +273,11 @@
               },
               "hairColor": {
                 "type": "string",
-                "description": "Hair color (e.g., 'black', 'blonde', 'red')"
+                "description": "Hair color."
               },
               "hairStyle": {
                 "type": "string",
-                "description": "Hair style (e.g., 'long', 'short', 'ponytail')"
+                "description": "Hair style."
               },
               "eyeColor": {
                 "type": "string",
@@ -284,11 +285,11 @@
               },
               "height": {
                 "type": "string",
-                "description": "Height description (e.g., 'tall', 'average', 'short')"
+                "description": "Height description."
               },
               "build": {
                 "type": "string",
-                "description": "Body build (e.g., 'slim', 'athletic', 'muscular')"
+                "description": "Body build."
               },
               "clothing": {
                 "type": "array",
@@ -299,7 +300,7 @@
               },
               "distinctiveFeatures": {
                 "type": "array",
-                "description": "Distinctive features (e.g., 'scar on left cheek', 'glasses')",
+                "description": "Distinctive features.",
                 "items": {
                   "type": "string"
                 }
@@ -322,32 +323,40 @@
       "description": "Scene bible - all recurring locations/settings in the story for visual consistency",
       "items": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "type",
-          "description"
-        ],
+          "required": [
+            "id",
+            "name",
+            "type",
+            "description",
+            "anchorPoints",
+            "signatureObjects",
+            "fixedColorBlocks",
+            "consistencyRules"
+          ],
         "properties": {
           "id": {
             "type": "string",
             "minLength": 1,
-            "description": "Unique identifier for this scene (e.g., 'main_street', 'school_library', 'protagonist_home')"
+            "description": "Unique identifier for this scene."
           },
           "name": {
             "type": "string",
             "minLength": 1,
-            "description": "Scene name (e.g., '小镇主街', '学校图书馆', '李明的家')"
+            "description": "Scene name."
           },
           "type": {
             "type": "string",
-            "description": "Scene category type. Examples: indoor, outdoor, indoor-outdoor, natural, urban, rural, fantasy, abstract"
+            "description": "Scene category type (English)."
+          },
+          "typeZh": {
+            "type": "string",
+            "description": "场景类型（中文）。"
           },
           "description": {
             "type": "string",
             "minLength": 10,
             "maxLength": 500,
-            "description": "Detailed description of the scene/location ONLY. Must NOT include any characters, people, or human activities. Focus purely on the physical environment: architecture, landscape, furniture, decorations, lighting, atmosphere. Example: '一条古老的石板街道，两旁是低矮的砖木结构房屋，青瓦屋顶，木质门窗，墙面斑驳，街边有老槐树和石拱桥' - NOT: '李明走在街道上' or '人们在街上走动'"
+            "description": "Detailed description of the scene/location"
           },
           "visualCharacteristics": {
             "type": "object",
@@ -355,7 +364,7 @@
             "properties": {
               "architecture": {
                 "type": "string",
-                "description": "Architectural style and key structures (e.g., '低矮砖房，木门窗，瓦片屋顶')"
+                "description": "Architectural style and key structures."
               },
               "keyLandmarks": {
                 "type": "array",
@@ -366,7 +375,7 @@
               },
               "colorScheme": {
                 "type": "string",
-                "description": "Dominant color palette (e.g., 'warm earth tones', 'cool blues and grays')"
+                "description": "Dominant color palette."
               },
               "lighting": {
                 "type": "object",
@@ -374,15 +383,15 @@
                 "properties": {
                   "naturalLight": {
                     "type": "string",
-                    "description": "Amount of natural light. Examples: abundant, moderate, limited, none"
+                    "description": "Amount of natural light."
                   },
                   "artificialLight": {
                     "type": "string",
-                    "description": "Artificial lighting presence. Examples: none, minimal, moderate, heavy"
+                    "description": "Artificial lighting presence."
                   },
                   "lightSources": {
                     "type": "array",
-                    "description": "Specific light sources (e.g., '街灯', '蜡烛', '窗户')",
+                    "description": "Specific light sources.",
                     "items": {
                       "type": "string"
                     }
@@ -391,7 +400,7 @@
               },
               "atmosphere": {
                 "type": "string",
-                "description": "General atmosphere/feeling of the scene (e.g., 'nostalgic and peaceful', 'busy and modern')"
+                "description": "General atmosphere/feeling of the scene."
               },
               "soundscape": {
                 "type": "array",
@@ -402,7 +411,7 @@
               },
               "textures": {
                 "type": "array",
-                "description": "Dominant textures and materials (e.g., '石板地面', '木质家具', '布质窗帘')",
+                "description": "Dominant textures and materials.",
                 "items": {
                   "type": "string"
                 }
@@ -415,11 +424,11 @@
             "properties": {
               "size": {
                 "type": "string",
-                "description": "Overall size/scale of the space. Examples: cramped, small, medium, large, vast"
+                "description": "Overall size/scale of the space."
               },
               "layout": {
                 "type": "string",
-                "description": "Spatial arrangement description (e.g., '狭长的街道，两旁是店铺')"
+                "description": "Spatial arrangement description."
               },
               "keyAreas": {
                 "type": "array",
@@ -451,7 +460,12 @@
               ],
               "properties": {
                 "timeOfDay": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Time of day (English)."
+                },
+                "timeOfDayZh": {
+                  "type": "string",
+                  "description": "时间段（中文）。"
                 },
                 "description": {
                   "type": "string",
@@ -475,7 +489,12 @@
               ],
               "properties": {
                 "weather": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Weather condition (English)."
+                },
+                "weatherZh": {
+                  "type": "string",
+                  "description": "天气（中文）。"
                 },
                 "description": {
                   "type": "string",
@@ -486,7 +505,58 @@
           },
           "narrativeRole": {
             "type": "string",
-            "description": "This scene's role in the narrative. Examples: primary-setting, secondary-setting, transitional, symbolic, flashback-location, dream-sequence"
+            "description": "This scene's role in the narrative (English)."
+          },
+          "narrativeRoleZh": {
+            "type": "string",
+            "description": "场景的叙事角色（中文）。"
+          },
+          "anchorPoints": {
+            "type": "array",
+            "minItems": 3,
+            "description": "Fixed visual anchors that must remain recognizable across repeated appearances. Must be concrete, drawable items such as door signs, window shapes, corridor ends, fixed walls, or repeated furniture.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "signatureObjects": {
+            "type": "array",
+            "minItems": 3,
+            "description": "Signature objects or furnishings that should repeatedly appear in the scene. Do not use vague terms like 'atmosphere' or 'layout'.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fixedColorBlocks": {
+            "type": "array",
+            "minItems": 2,
+            "description": "Stable color blocks that define the scene's repeated visual identity. Use concrete colors/materials instead of generic 'warm tone' or 'cool tone'.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "consistencyRules": {
+            "type": "array",
+            "minItems": 2,
+            "description": "Constraints that should not change when the scene reappears. Write them as executable visual rules, not abstract statements.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstAppearance": {
+            "type": "object",
+            "description": "When this scene first appears in the story",
+            "properties": {
+              "chapter": {
+                "description": "Chapter number"
+              },
+              "page": {
+                "description": "Page number"
+              },
+              "panelIndex": {
+                "description": "Panel index"
+              }
+            }
           },
           "referenceImages": {
             "type": "array",

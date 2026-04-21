@@ -1,9 +1,10 @@
-#include "AnalysisStatusManager.h"
-#include "EncodingUtils.h"
+#include "services/AnalysisStatusManager.h"
+#include "utils/EncodingUtils.h"
 #include <QPushButton>
 #include <QLabel>
 
 AnalysisStatusManager* AnalysisStatusManager::m_instance = nullptr;
+std::once_flag AnalysisStatusManager::m_instanceOnceFlag;
 
 AnalysisStatusManager::AnalysisStatusManager(QObject *parent)
     : QObject(parent)
@@ -13,9 +14,9 @@ AnalysisStatusManager::AnalysisStatusManager(QObject *parent)
 
 AnalysisStatusManager* AnalysisStatusManager::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new AnalysisStatusManager();
-    }
+    });
     return m_instance;
 }
 
@@ -23,7 +24,7 @@ void AnalysisStatusManager::initStyles()
 {
     m_styles[Status::Ready] = {
         tr("开始分析"),
-        tr("待分析"),
+        tr("就绪"),
         "#374151",
         true
     };

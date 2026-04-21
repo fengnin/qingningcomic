@@ -1,4 +1,4 @@
-#include "Novel.h"
+#include "models/Novel.h"
 #include <QUuid>
 #include "utils/JsonUtils.h"
 

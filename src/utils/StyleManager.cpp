@@ -1,4 +1,4 @@
-#include "StyleManager.h"
+#include "utils/StyleManager.h"
 
 const QString StyleManager::SIDEBAR_GRADIENT_START = "#fffbef";
 const QString StyleManager::SIDEBAR_GRADIENT_END = "#fef3c7";

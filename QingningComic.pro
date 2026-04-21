@@ -54,6 +54,7 @@ SOURCES += \
     src/models/Job.cpp \
     src/models/Task.cpp \
     src/models/Bible.cpp \
+    src/models/Scene.cpp \
     src/services/NovelService.cpp \
     src/services/StoryboardService.cpp \
     src/services/AnalysisService.cpp \
@@ -63,6 +64,7 @@ SOURCES += \
     src/services/CharacterExtractor.cpp \
     src/services/SceneExtractor.cpp \
     src/services/BibleGenerator.cpp \
+    src/services/BibleContextInjector.cpp \
     src/api/QwenClient.cpp \
     src/api/StorageClient.cpp \
     src/api/QwenImageClient.cpp \
@@ -117,44 +119,45 @@ SOURCES += \
 
 HEADERS += \
     include/AppInitializer.h \
-    include/MainWindow.h \
-    include/DashboardPage.h \
-    include/NovelUploadPage.h \
-    include/ExportPage.h \
-    include/NovelPage.h \
-    include/NovelDetailPage.h \
-    include/CharacterDetailPage.h \
-    include/DatabaseManager.h \
-    include/DatabaseWorker.h \
-    include/FileStorage.h \
-    include/SqlBuilder.h \
-    include/Novel.h \
-    include/Character.h \
-    include/Storyboard.h \
-    include/Panel.h \
-    include/Job.h \
-    include/Task.h \
-    include/Bible.h \
-    include/BibleCache.h \
+    include/app/MainWindow.h \
+    include/pages/DashboardPage.h \
+    include/pages/NovelUploadPage.h \
+    include/pages/ExportPage.h \
+    include/pages/NovelPage.h \
+    include/pages/NovelDetailPage.h \
+    include/pages/CharacterDetailPage.h \
+    include/data/DatabaseManager.h \
+    include/data/DatabaseWorker.h \
+    include/data/FileStorage.h \
+    include/data/SqlBuilder.h \
+    include/models/Novel.h \
+    include/models/Character.h \
+    include/models/Storyboard.h \
+    include/models/Panel.h \
+    include/models/Job.h \
+    include/models/Task.h \
+    include/models/Bible.h \
+    include/utils/BibleCache.h \
     include/viewmodels/BaseViewModel.h \
     include/viewmodels/NovelViewModel.h \
     include/viewmodels/StoryboardViewModel.h \
-    include/NovelService.h \
-    include/StoryboardService.h \
-    include/AnalysisService.h \
+    include/services/NovelService.h \
+    include/services/StoryboardService.h \
+    include/services/AnalysisService.h \
     include/services/BaseService.h \
     include/services/ExportService.h \
-    include/TaskQueue.h \
-    include/CharacterExtractor.h \
-    include/SceneExtractor.h \
-    include/Scene.h \
-    include/BibleGenerator.h \
-    include/BibleImageService.h \
+    include/services/TaskQueue.h \
+    include/services/CharacterExtractor.h \
+    include/services/SceneExtractor.h \
+    include/models/Scene.h \
+    include/services/BibleGenerator.h \
+    include/services/BibleImageService.h \
+    include/services/BibleContextInjector.h \
     include/utils/JsonUtils.h \
-    include/QwenClient.h \
-    include/StorageClient.h \
-    include/QwenImageClient.h \
-    include/VolcEngineImageClient.h \
+    include/api/QwenClient.h \
+    include/api/StorageClient.h \
+    include/api/QwenImageClient.h \
+    include/api/VolcEngineImageClient.h \
     include/api/VolcEngineSignature.h \
     include/api/VolcEngineRequest.h \
     include/api/VolcEngineResponse.h \
@@ -162,19 +165,19 @@ HEADERS += \
     include/api/QwenPromptBuilder.h \
     include/api/QwenStoryboardMerger.h \
     include/api/QwenStreamHandler.h \
-    include/FileManager.h \
-    include/StyleManager.h \
-    include/Logger.h \
-    include/EncodingUtils.h \
+    include/utils/FileManager.h \
+    include/utils/StyleManager.h \
+    include/utils/Logger.h \
+    include/utils/EncodingUtils.h \
     include/utils/AsyncImageLoader.h \
-    include/AppConfig.h \
-    include/UserSession.h \
-    include/SuccessDialog.h \
-    include/ConfirmDialog.h \
-    include/SchemaToPrompt.h \
-    include/JsonRepairAdapter.h \
-    include/PromptBuilder.h \
-    include/RetryPolicy.h \
+    include/utils/AppConfig.h \
+    include/utils/UserSession.h \
+    include/components/SuccessDialog.h \
+    include/components/ConfirmDialog.h \
+    include/utils/SchemaToPrompt.h \
+    include/utils/JsonRepairAdapter.h \
+    include/utils/PromptBuilder.h \
+    include/utils/RetryPolicy.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \
     include/components/ImageViewerDialog.h \
@@ -188,19 +191,19 @@ HEADERS += \
     include/components/EditorStyles.h \
     include/components/AnalysisProgressWidget.h \
     include/components/AnalysisResultWidget.h \
-    include/AnalysisStatusManager.h \
+    include/services/AnalysisStatusManager.h \
     include/utils/StatusHelper.h \
     include/utils/ShotTypeHelper.h \
     include/utils/SingletonUtils.h \
-    include/ServiceContainer.h \
-    include/TaskRegistry.h \
-    include/ImageService.h \
-    include/BatchImageProcessor.h \
-    include/SharedNetworkManager.h \
-    include/FortuneCookieWidget.h \
-    include/SidebarWidget.h \
-    include/ChangeRequest.h \
-    include/ChangeRequestService.h \
+    include/services/ServiceContainer.h \
+    include/services/TaskRegistry.h \
+    include/services/ImageService.h \
+    include/services/BatchImageProcessor.h \
+    include/api/SharedNetworkManager.h \
+    include/widgets/FortuneCookieWidget.h \
+    include/widgets/SidebarWidget.h \
+    include/models/ChangeRequest.h \
+    include/services/ChangeRequestService.h \
     include/components/BibleSectionWidget.h \
     include/components/PanelPreviewWidget.h
 
@@ -208,13 +211,24 @@ HEADERS += \
 INCLUDEPATH += \
     include \
     src \
+    include/app \
+    include/data \
+    include/models \
+    include/services \
+    include/api \
+    include/utils \
+    include/components \
+    include/viewmodels \
+    include/widgets \
+    include/pages \
+    src/app \
     src/data \
     src/models \
     src/services \
     src/api \
     src/utils \
     src/components \
-    include/components
+    src/pages
 
 # 目标文件存放目录
 DESTDIR = bin

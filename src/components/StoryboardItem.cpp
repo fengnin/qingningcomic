@@ -1,7 +1,8 @@
 #include "components/StoryboardItem.h"
 #include "components/EditorStyles.h"
 #include "utils/ShotTypeHelper.h"
-#include "Logger.h"
+#include "utils/Logger.h"
+#include "utils/UIFactory.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollArea>
@@ -55,10 +56,7 @@ void StoryboardItem::setupUI()
     setMinimumWidth(300);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     
-    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(12);
-    shadow->setColor(QColor(0, 0, 0, 20));
-    shadow->setOffset(0, 2);
+    QGraphicsDropShadowEffect *shadow = UIFactory::createShadowEffect(12, QColor(0, 0, 0, 20), QPointF(0, 2));
     setGraphicsEffect(shadow);
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
@@ -87,50 +85,40 @@ void StoryboardItem::setupUI()
 
 QWidget* StoryboardItem::createHeaderRow()
 {
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
+    QWidget *row = UIFactory::createTransparentWidget();
     row->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     row->setMinimumHeight(32);
-    QHBoxLayout *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(8);
+    QHBoxLayout *layout = UIFactory::createHBoxLayout(0, 8);
     
     QString panelText = QString::fromUtf8("面板 #%1").arg(m_panelNumber);
-    m_panelNumberLabel = new QLabel(panelText);
-    m_panelNumberLabel->setStyleSheet(EditorStyles::panelNumberLabelStyle());
+    m_panelNumberLabel = UIFactory::createLabel(panelText, EditorStyles::panelNumberLabelStyle());
     layout->addWidget(m_panelNumberLabel);
     layout->addStretch();
     
     QString editText = QString::fromUtf8("编辑");
-    m_editBtn = new QPushButton(editText);
-    m_editBtn->setFixedSize(90, 32);
+    m_editBtn = UIFactory::createButton(editText, 90, 32, EditorStyles::editButtonStyle());
     m_editBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    m_editBtn->setStyleSheet(EditorStyles::editButtonStyle());
-    m_editBtn->setCursor(Qt::PointingHandCursor);
     connect(m_editBtn, &QPushButton::clicked, this, &StoryboardItem::onEditBtnClicked);
     layout->addWidget(m_editBtn);
     
+    row->setLayout(layout);
     return row;
 }
 
 QWidget* StoryboardItem::createInfoRow(const QString &title, QLabel *&contentLabel, const QString &content, bool wordWrap)
 {
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
-    QHBoxLayout *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(8);
+    QWidget *row = UIFactory::createTransparentWidget();
+    QHBoxLayout *layout = UIFactory::createHBoxLayout(0, 8);
     
-    QLabel *titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet(EditorStyles::storyboardInfoTitleStyle());
+    QLabel *titleLabel = UIFactory::createLabel(title, EditorStyles::storyboardInfoTitleStyle());
     titleLabel->setFixedWidth(60);
     layout->addWidget(titleLabel);
     
-    contentLabel = new QLabel(content);
-    contentLabel->setStyleSheet(EditorStyles::storyboardInfoContentStyle());
+    contentLabel = UIFactory::createLabel(content, EditorStyles::storyboardInfoContentStyle());
     contentLabel->setWordWrap(wordWrap);
     layout->addWidget(contentLabel);
     
+    row->setLayout(layout);
     return row;
 }
 
@@ -196,13 +184,12 @@ void StoryboardItem::setupEditorCard()
     
     QScrollArea *scrollArea = new QScrollArea();
     scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setStyleSheet(EditorStyles::scrollAreaStyle());
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     
     QWidget *scrollContent = new QWidget();
-    scrollContent->setStyleSheet(TRANSPARENT_BG);
+    scrollContent->setStyleSheet("background: transparent;");
     QVBoxLayout *cardLayout = new QVBoxLayout(scrollContent);
     cardLayout->setContentsMargins(24, 12, 24, 12);
     cardLayout->setSpacing(12);
@@ -276,55 +263,43 @@ void StoryboardItem::syncDataToEditor()
 QWidget* StoryboardItem::createComboBoxGroup(const QString &title1, QComboBox *&combo1, const QStringList &items1,
                                               const QString &title2, QComboBox *&combo2, const QStringList &items2)
 {
-    QWidget *section = new QWidget();
-    section->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *outerLayout = new QVBoxLayout(section);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
-    outerLayout->setSpacing(6);
+    QWidget *section = UIFactory::createTransparentWidget();
+    QVBoxLayout *outerLayout = UIFactory::createVBoxLayout(0, 6);
     
     QString shotCameraTitle = QString::fromUtf8("景别 / 机位");
     outerLayout->addWidget(createLabel(shotCameraTitle, "#333333", 12, true));
     
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
-    QHBoxLayout *rowLayout = new QHBoxLayout(row);
-    rowLayout->setContentsMargins(0, 0, 0, 0);
-    rowLayout->setSpacing(12);
+    QWidget *row = UIFactory::createTransparentWidget();
+    QHBoxLayout *rowLayout = UIFactory::createHBoxLayout(0, 12);
     
-    QWidget *group1 = new QWidget();
-    group1->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout1 = new QVBoxLayout(group1);
-    layout1->setContentsMargins(0, 0, 0, 0);
-    layout1->setSpacing(4);
+    QWidget *group1 = UIFactory::createTransparentWidget();
+    QVBoxLayout *layout1 = UIFactory::createVBoxLayout(0, 4);
     layout1->addWidget(createLabel(title1, "#6B7280", 11));
     layout1->addWidget(createComboBoxWithArrow(combo1, items1));
+    group1->setLayout(layout1);
     rowLayout->addWidget(group1, 1);
     
-    QWidget *group2 = new QWidget();
-    group2->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout2 = new QVBoxLayout(group2);
-    layout2->setContentsMargins(0, 0, 0, 0);
-    layout2->setSpacing(4);
+    QWidget *group2 = UIFactory::createTransparentWidget();
+    QVBoxLayout *layout2 = UIFactory::createVBoxLayout(0, 4);
     layout2->addWidget(createLabel(title2, "#6B7280", 11));
     layout2->addWidget(createComboBoxWithArrow(combo2, items2));
+    group2->setLayout(layout2);
     rowLayout->addWidget(group2, 1);
     
+    row->setLayout(rowLayout);
     outerLayout->addWidget(row);
+    section->setLayout(outerLayout);
     return section;
 }
 
 QWidget* StoryboardItem::createComboBoxWithArrow(QComboBox *&combo, const QStringList &items)
 {
-    QWidget *container = new QWidget();
-    container->setStyleSheet(EditorStyles::TRANSPARENT_BG);
+    QWidget *container = UIFactory::createTransparentWidget();
     container->setFixedHeight(36);
     
-    QHBoxLayout *layout = new QHBoxLayout(container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    QHBoxLayout *layout = UIFactory::createHBoxLayout(0, 0);
     
-    combo = new QComboBox();
-    combo->addItems(items);
+    combo = UIFactory::createComboBox(items);
     combo->setStyleSheet(EditorStyles::storyboardComboBoxStyle());
     combo->setFixedHeight(36);
     layout->addWidget(combo, 1);
@@ -333,14 +308,10 @@ QWidget* StoryboardItem::createComboBoxWithArrow(QComboBox *&combo, const QStrin
     btnContainer->setFixedWidth(28);
     btnContainer->setStyleSheet(EditorStyles::storyboardComboBoxBtnStyle());
     
-    QVBoxLayout *btnLayout = new QVBoxLayout(btnContainer);
-    btnLayout->setContentsMargins(2, 0, 2, 0);
-    btnLayout->setSpacing(0);
+    QVBoxLayout *btnLayout = UIFactory::createVBoxLayout(2, 0, 2, 0, 0);
     
     QString arrowText = QStringLiteral("▼");
-    QPushButton *arrowBtn = new QPushButton(arrowText);
-    arrowBtn->setFixedSize(24, 20);
-    arrowBtn->setCursor(Qt::PointingHandCursor);
+    QPushButton *arrowBtn = UIFactory::createButton(arrowText, 24, 20);
     arrowBtn->setStyleSheet(R"(
         QPushButton {
             border: none;
@@ -359,8 +330,10 @@ QWidget* StoryboardItem::createComboBoxWithArrow(QComboBox *&combo, const QStrin
     connect(arrowBtn, &QPushButton::clicked, [this, combo]() { combo->showPopup(); });
     btnLayout->addWidget(arrowBtn);
     
+    btnContainer->setLayout(btnLayout);
     layout->addWidget(btnContainer);
     
+    container->setLayout(layout);
     return container;
 }
 

@@ -1,5 +1,5 @@
-#include "SidebarWidget.h"
-#include "FortuneCookieWidget.h"
+#include "widgets/SidebarWidget.h"
+#include "widgets/FortuneCookieWidget.h"
 #include <QPainter>
 #include <QLinearGradient>
 #include <QFontMetrics>
@@ -48,7 +48,7 @@ void SidebarWidget::createBrandSection(QVBoxLayout *parentLayout)
     QLabel *brandName = createLabel(QString::fromUtf8("青柠漫画"),
         "font-size: 18px; font-weight: bold; color: #451a03; background: transparent;", 18, true);
     
-    QLabel *brandSubtitle = createLabel(QString::fromUtf8("Comic Creator"),
+    QLabel *brandSubtitle = createLabel(QString::fromUtf8("全流程创作工作台"),
         "font-size: 12px; color: #5c3d1e; background: transparent;", 12);
     
     textLayout->addWidget(brandName);
@@ -85,10 +85,10 @@ void SidebarWidget::createNavSection(QVBoxLayout *parentLayout)
         }
     });
     
-    addNavItem({QStringLiteral("🏠"), QString::fromUtf8("总览"), QString::fromUtf8("Dashboard"), 0});
-    addNavItem({QStringLiteral("📁"), QString::fromUtf8("作品空间"), QString::fromUtf8("Works"), 1});
-    addNavItem({QStringLiteral("✏"), QString::fromUtf8("分镜编辑"), QString::fromUtf8("Storyboard"), 2});
-    addNavItem({QStringLiteral("📦"), QString::fromUtf8("导出中心"), QString::fromUtf8("Export"), 3});
+    addNavItem({QStringLiteral("🏠"), QString::fromUtf8("总览"), QString::fromUtf8("总览"), 0});
+    addNavItem({QStringLiteral("📄"), QString::fromUtf8("上传作品"), QString::fromUtf8("上传作品"), 1});
+    addNavItem({QString::fromUtf8("📚"), QString::fromUtf8("项目空间"), QString::fromUtf8("项目空间"), 2});
+    addNavItem({QStringLiteral("📦"), QString::fromUtf8("导出中心"), QString::fromUtf8("导出中心"), 3});
     
     parentLayout->addWidget(m_navList, 1);
 }
@@ -107,7 +107,7 @@ void SidebarWidget::createFooterSection(QVBoxLayout *parentLayout)
     setupMargins(footerLayout, 16, 10, 12, 10, 5);
     
     QLabel *footerLabel = createLabel(
-        QString::fromUtf8("v1.0.0"),
+        QString::fromUtf8("连接故事、角色、分镜的统一控制中心"),
         "background: transparent; color: " + SidebarStyle::Color::FOOTER_LABEL + "; font-size: 13px;", 13);
     footerLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     
@@ -225,5 +225,3 @@ void SidebarWidget::setupMargins(QBoxLayout *layout, int left, int top, int righ
     layout->setContentsMargins(left, top, right, bottom);
     if (spacing > 0) layout->setSpacing(spacing);
 }
-
-

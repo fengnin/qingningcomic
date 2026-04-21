@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS character_configs (
     description TEXT,
     appearance JSON,
     tags JSON,
-    reference_images JSON,
     generated_portraits JSON,
     is_default BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

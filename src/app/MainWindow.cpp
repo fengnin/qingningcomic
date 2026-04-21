@@ -1,14 +1,14 @@
-#include "MainWindow.h"
-#include "SidebarWidget.h"
-#include "DashboardPage.h"
-#include "NovelPage.h"
-#include "NovelUploadPage.h"
-#include "ExportPage.h"
-#include "NovelDetailPage.h"
-#include "Novel.h"
+#include "app/MainWindow.h"
+#include "widgets/SidebarWidget.h"
+#include "pages/DashboardPage.h"
+#include "pages/NovelPage.h"
+#include "pages/NovelUploadPage.h"
+#include "pages/ExportPage.h"
+#include "pages/NovelDetailPage.h"
+#include "models/Novel.h"
 #include "viewmodels/NovelViewModel.h"
-#include "StyleManager.h"
-#include "Logger.h"
+#include "utils/StyleManager.h"
+#include "utils/Logger.h"
 #include <QApplication>
 #include <QStyle>
 #include <QPainter>
@@ -150,7 +150,11 @@ void MainWindow::connectPageSignals()
         connect(novelPage, &NovelPage::editNovelRequested,
                 this, &MainWindow::onEditNovelRequested);
         connect(novelPage, &NovelPage::createNovelRequested,
-                this, [this]() { switchToPage(1, QString::fromUtf8("新建作品")); });
+                this, [this]() {
+                    switchToPage(1, QString::fromUtf8("新建作品"));
+                    auto *page = qobject_cast<NovelUploadPage*>(m_uploadPage);
+                    if (page) page->resetToCreateMode();
+                });
     }
     
     auto *detailPage = qobject_cast<NovelDetailPage*>(m_novelDetailPage);
@@ -165,11 +169,6 @@ void MainWindow::refreshPage(int pageIndex)
     if (!m_pageStack) return;
     
     switch (pageIndex) {
-        case 1: {
-            auto *page = qobject_cast<NovelUploadPage*>(m_uploadPage);
-            if (page) page->resetToCreateMode();
-            break;
-        }
         case 2: {
             auto *page = qobject_cast<NovelPage*>(m_novelPage);
             if (page) page->refresh();

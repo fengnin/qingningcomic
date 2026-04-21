@@ -1,10 +1,10 @@
-#include "JsonRepairAdapter.h"
+#include "utils/JsonRepairAdapter.h"
 #include <QProcess>
 #include <QCoreApplication>
 #include <QDir>
 #include <QJsonDocument>
 #include <QDebug>
-#include <Logger.h>
+#include "utils/Logger.h"
 
 namespace JsonRepair {
 

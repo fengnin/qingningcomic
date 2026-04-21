@@ -1,4 +1,4 @@
-#include "BibleCache.h"
+#include "utils/BibleCache.h"
 
 BibleCache* BibleCache::m_instance = nullptr;
 QMutex BibleCache::m_instanceMutex;
@@ -15,6 +15,15 @@ BibleCache* BibleCache::instance()
         m_instance = new BibleCache();
     });
     return m_instance;
+}
+
+void BibleCache::cleanup()
+{
+    QMutexLocker locker(&m_instanceMutex);
+    if (m_instance) {
+        delete m_instance;
+        m_instance = nullptr;
+    }
 }
 
 bool BibleCache::isCacheValid(const QDateTime& timestamp) const

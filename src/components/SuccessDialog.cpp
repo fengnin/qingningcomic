@@ -1,6 +1,8 @@
-#include "SuccessDialog.h"
-#include "EncodingUtils.h"
+#include "components/SuccessDialog.h"
+#include "utils/EncodingUtils.h"
+#include "utils/UIFactory.h"
 #include <QPropertyAnimation>
+#include <QKeyEvent>
 
 namespace {
     constexpr int DIALOG_WIDTH = 420;
@@ -76,50 +78,49 @@ void SuccessDialog::setupUI()
     
     QVBoxLayout *containerLayout = new QVBoxLayout(m_container);
     containerLayout->setContentsMargins(0, 0, 0, 0);
-    containerLayout->setSpacing(0);
     
     createHeader(containerLayout);
     createContent(containerLayout);
     createFooter(containerLayout);
+    
+    setFocusPolicy(Qt::StrongFocus);
+    setFocus();
 }
 
 void SuccessDialog::createHeader(QVBoxLayout *parentLayout)
 {
-    QWidget *headerWidget = new QWidget();
+    QWidget *headerWidget = UIFactory::createTransparentWidget();
     headerWidget->setFixedHeight(HEADER_HEIGHT);
     headerWidget->setObjectName("headerWidget");
     
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
-    headerLayout->setContentsMargins(24, 24, 24, 16);
-    headerLayout->setSpacing(12);
+    QHBoxLayout *headerLayout = UIFactory::createHBoxLayout(24, 24, 24, 16, 12);
     
-    m_iconLabel = new QLabel();
+    m_iconLabel = UIFactory::createLabel(QString());
     m_iconLabel->setAlignment(Qt::AlignCenter);
     m_iconLabel->setObjectName("iconLabel");
     m_iconLabel->setFixedSize(40, 40);
     m_iconLabel->setFont(QFont("Segoe UI Symbol", 20, QFont::Bold));
     
-    m_titleLabel = new QLabel();
+    m_titleLabel = UIFactory::createLabel(QString());
     m_titleLabel->setObjectName("titleLabel");
     m_titleLabel->setFont(QFont("Microsoft YaHei", 16, QFont::Bold));
-    
+
     headerLayout->addWidget(m_iconLabel);
     headerLayout->addWidget(m_titleLabel);
     headerLayout->addStretch();
     
+    headerWidget->setLayout(headerLayout);
     parentLayout->addWidget(headerWidget);
 }
 
 void SuccessDialog::createContent(QVBoxLayout *parentLayout)
 {
-    QWidget *contentWidget = new QWidget();
+    QWidget *contentWidget = UIFactory::createTransparentWidget();
     contentWidget->setObjectName("contentWidget");
     
-    QVBoxLayout *contentLayout = new QVBoxLayout(contentWidget);
-    contentLayout->setContentsMargins(24, 8, 24, 16);
-    contentLayout->setSpacing(16);
+    QVBoxLayout *contentLayout = UIFactory::createVBoxLayout(24, 8, 24, 16, 16);
     
-    m_messageLabel = new QLabel();
+    m_messageLabel = UIFactory::createLabel(QString());
     m_messageLabel->setObjectName("messageLabel");
     m_messageLabel->setWordWrap(true);
     m_messageLabel->setTextFormat(Qt::PlainText);
@@ -128,36 +129,35 @@ void SuccessDialog::createContent(QVBoxLayout *parentLayout)
     
     contentLayout->addWidget(m_messageLabel);
     
-    m_detailsWidget = new QWidget();
+    m_detailsWidget = UIFactory::createTransparentWidget();
     m_detailsWidget->setObjectName("detailsWidget");
-    m_detailsLayout = new QVBoxLayout(m_detailsWidget);
-    m_detailsLayout->setContentsMargins(20, 16, 20, 16);
-    m_detailsLayout->setSpacing(12);
+    m_detailsLayout = UIFactory::createVBoxLayout(20, 16, 20, 16, 12);
     m_detailsWidget->hide();
     
     contentLayout->addWidget(m_detailsWidget);
     contentLayout->addStretch();
     
+    contentWidget->setLayout(contentLayout);
     parentLayout->addWidget(contentWidget);
 }
 
 void SuccessDialog::createFooter(QVBoxLayout *parentLayout)
 {
-    QWidget *footerWidget = new QWidget();
+    QWidget *footerWidget = UIFactory::createTransparentWidget();
     footerWidget->setFixedHeight(FOOTER_HEIGHT);
     footerWidget->setObjectName("footerWidget");
     
-    QHBoxLayout *footerLayout = new QHBoxLayout(footerWidget);
-    footerLayout->setContentsMargins(24, 0, 24, 16);
+    QHBoxLayout *footerLayout = UIFactory::createHBoxLayout(24, 0, 24, 16, 0);
     footerLayout->addStretch();
     
-    m_closeBtn = new QPushButton(QString::fromUtf8("关闭"));
+    m_closeBtn = UIFactory::createButton(QString::fromUtf8("关闭"), BUTTON_WIDTH, BUTTON_HEIGHT);
     m_closeBtn->setObjectName("closeBtn");
-    m_closeBtn->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
-    m_closeBtn->setCursor(Qt::PointingHandCursor);
     m_closeBtn->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setDefault(true);
     
     footerLayout->addWidget(m_closeBtn);
+    footerWidget->setLayout(footerLayout);
     parentLayout->addWidget(footerWidget);
     
     connect(m_closeBtn, &QPushButton::clicked, this, &SuccessDialog::onCloseClicked);
@@ -257,6 +257,15 @@ void SuccessDialog::showEvent(QShowEvent *event)
 {
     QDialog::showEvent(event);
     animateFadeIn();
+}
+
+void SuccessDialog::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape) {
+        onCloseClicked();
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }
 
 void SuccessDialog::animateFadeIn()

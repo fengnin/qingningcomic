@@ -1,8 +1,8 @@
-#include "StorageClient.h"
-#include "ServiceContainer.h"
+#include "api/StorageClient.h"
+#include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>

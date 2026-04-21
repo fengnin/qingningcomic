@@ -1,6 +1,6 @@
-#include "PromptBuilder.h"
-#include "CharacterExtractor.h"
-#include "Logger.h"
+#include "utils/PromptBuilder.h"
+#include "services/CharacterExtractor.h"
+#include "utils/Logger.h"
 #include <QRegularExpression>
 
 namespace {
@@ -27,10 +27,10 @@ namespace {
         "composite image, collage, double exposure, split composition, "
         "multiple views, dual perspective, overlay, superimposed";
 
-    const QString SCENE_NEGATIVE_EXTRA = 
+    const QString SCENE_NEGATIVE_EXTRA =
         ", monochrome, grayscale, black and white, "
-        "no people, no characters, no humans, no figures, no person, no human, "
-        "empty scene, uninhabited, no faces, no bodies";
+        "person, people, human, character, figure, face, body, "
+        "portrait, anime character, manga character, girl, boy, man, woman";
 
     const QString PANEL_NEGATIVE_EXTRA = 
         ", monochrome, grayscale, black and white";
@@ -680,9 +680,6 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     addIfNotEmpty(parts, matchSceneDetails(sceneRefs, sceneId, sceneName));
     addIfNotEmpty(parts, panelSceneText);
 
-    QStringList characterDescriptions;
-    QString primaryCharacterRef;
-    
     QString shotType = panel["shotType"].toString();
     if (!shotType.isEmpty()) {
         parts.append(SHOT_TYPE_MAPPING.value(shotType, QString("%1 shot").arg(shotType)));
@@ -708,8 +705,11 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QStringList dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
     QString primarySceneRef = resolveSceneRefPath(sceneRefs, sceneId, sceneName);
     
+    QStringList characterDescriptions;
+    QString primaryCharacterRef;
     QStringList panelCharNames;
-    for (const auto &charVal : panel["characters"].toArray()) {
+    
+    for (const auto& charVal : panel["characters"].toArray()) {
         QJsonObject charObj = charVal.toObject();
         QString charName = charObj["name"].toString();
         panelCharNames.append(charName);
@@ -830,6 +830,25 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     
     appendVisualCharacteristics(parts, scene["visualCharacteristics"].toObject());
     appendSpatialLayout(parts, scene["spatialLayout"].toObject());
+    addListIfNotEmpty(parts, normalizeList(scene["anchorPoints"]), "fixed anchors:");
+    addListIfNotEmpty(parts, normalizeList(scene["signatureObjects"]), "signature objects:");
+    addListIfNotEmpty(parts, normalizeList(scene["fixedColorBlocks"]), "fixed color blocks:");
+    addListIfNotEmpty(parts, normalizeList(scene["consistencyRules"]), "consistency rules:");
+    QString currentInterpretation = scene["currentInterpretation"].toString().trimmed();
+    if (!currentInterpretation.isEmpty()) {
+        parts.append(QString("current interpretation: %1").arg(currentInterpretation));
+    }
+    QString status = scene["status"].toString().trimmed();
+    if (!status.isEmpty()) {
+        parts.append(QString("status: %1").arg(status));
+    }
+    QString confidence = scene["confidence"].toString().trimmed();
+    if (!confidence.isEmpty()) {
+        parts.append(QString("confidence: %1").arg(confidence));
+    }
+    addListIfNotEmpty(parts, normalizeList(scene["evidence"]), "evidence:");
+    addListIfNotEmpty(parts, normalizeList(scene["aliases"]), "aliases:");
+    addListIfNotEmpty(parts, normalizeList(scene["history"]), "history:");
     appendVariationDescs(parts, scene["timeVariations"].toArray(), TIME_OF_DAY_MAPPING, "timeOfDay", "time variations");
     appendVariationDescs(parts, scene["weatherVariations"].toArray(), WEATHER_MAPPING, "weather", "weather variations");
     

@@ -1,11 +1,11 @@
-#include "DashboardPage.h"
-#include "DatabaseManager.h"
-#include "Logger.h"
+#include "pages/DashboardPage.h"
+#include "data/DatabaseManager.h"
+#include "utils/Logger.h"
 #include "utils/StatusHelper.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "components/EditorStyles.h"
-#include "EncodingUtils.h"
-#include "UserSession.h"
+#include "utils/EncodingUtils.h"
+#include "utils/UserSession.h"
 #include <QGridLayout>
 #include <QFont>
 #include <QTimer>
@@ -25,7 +25,7 @@ namespace {
     };
     
     const StatCardData STAT_CARDS[] = {
-        {QString::fromUtf8("总任务"), Colors::DASHBOARD_STAT_TOTAL_BG},
+        {QString::fromUtf8("任务总数"), Colors::DASHBOARD_STAT_TOTAL_BG},
         {QString::fromUtf8("进行中"), Colors::DASHBOARD_STAT_RUNNING_BG},
         {QString::fromUtf8("已完成"), Colors::DASHBOARD_STAT_COMPLETED_BG},
         {QString::fromUtf8("失败"), Colors::DASHBOARD_STAT_FAILED_BG}
@@ -39,7 +39,7 @@ namespace {
     };
     
     const GuideStepData GUIDE_STEPS[] = {
-        {1, QString::fromUtf8("上传或选择作品"), QString::fromUtf8("在「项目空间」确认作品信息，确保已经生成分镜。")},
+        {1, QString::fromUtf8("上传或选择作品"), QString::fromUtf8("在「项目空间」确认作品信息，确保已经分析小说。")},
         {2, QString::fromUtf8("提交自然语言修改"), QString::fromUtf8("作品详情页 → 修改请求，输入自然语言即可触发 CR-DSL 解析。")},
         {3, QString::fromUtf8("高清生成与导出"), QString::fromUtf8("选择预览/高清模式生成面板，完成后在导出中心获取 PDF / Webtoon。")}
     };
@@ -51,26 +51,26 @@ namespace {
     };
     
     const FilterOption TYPE_FILTER = {
-        QString::fromUtf8("任务类型"),
+        QString::fromUtf8("类型"),
         {
-            QString::fromUtf8("全部"),
-            QString::fromUtf8("分镜分析"),
-            QString::fromUtf8("面板生成"),
-            QString::fromUtf8("角色提取"),
-            QString::fromUtf8("场景提取"),
-            QString::fromUtf8("导出任务"),
-            QString::fromUtf8("图像生成"),
-            QString::fromUtf8("文本扩写"),
-            QString::fromUtf8("对话重写"),
-            QString::fromUtf8("其他")
+            QString::fromUtf8("全部类型"),
+            QString::fromUtf8("分析小说"),
+            QString::fromUtf8("面板预览"),
+            QString::fromUtf8("面板高清"),
+            QString::fromUtf8("修改请求"),
+            QString::fromUtf8("面板编辑"),
+            QString::fromUtf8("角色标准像"),
+            QString::fromUtf8("导出 PDF"),
+            QString::fromUtf8("导出 Webtoon"),
+            QString::fromUtf8("导出资源包")
         }
     };
     
     const FilterOption STATUS_FILTER = {
         QString::fromUtf8("状态"),
         {
-            QString::fromUtf8("全部"),
-            QString::fromUtf8("等待中"),
+            QString::fromUtf8("全部状态"),
+            QString::fromUtf8("排队中"),
             QString::fromUtf8("进行中"),
             QString::fromUtf8("已完成"),
             QString::fromUtf8("失败")
@@ -88,8 +88,8 @@ namespace {
     const QString CARD_SUBTITLE_ACTIVE_JOBS = QString::fromUtf8("CR / 导出 / 面板任务进展");
     const QString CARD_TITLE_GUIDE = QString::fromUtf8("操作指引");
     const QString CARD_SUBTITLE_GUIDE = QString::fromUtf8("三步完成创作闭环");
-    const QString FOOTER_TEXT_ACTIVE_JOBS = QString::fromUtf8("任务正在后台运行，请耐心等待...");
-    const QString HERO_DESC_TEXT = QString::fromUtf8("欢迎使用青柠漫画创作平台");
+    const QString FOOTER_TEXT_ACTIVE_JOBS = QString::fromUtf8("所有任务均可在 作品详情 → 修改请求 / 导出中心 中触发，执行进度将在此同步更新。");
+    const QString HERO_DESC_TEXT = QString::fromUtf8("实时掌握小说转漫画链路的任务状态，查看修改闭环、高清批跑与导出中心的运行情况。");
 }
 
 DashboardPage::DashboardPage(QWidget *parent)
@@ -105,10 +105,12 @@ void DashboardPage::setupConnections()
     StoryboardViewModel* vm = StoryboardViewModel::instance();
     
     connect(vm, &StoryboardViewModel::storyboardsLoaded,
-            this, &DashboardPage::refresh, Qt::QueuedConnection);
+            this, [this](const QString&, const QList<Storyboard>&) { refresh(); }, Qt::QueuedConnection);
     connect(vm, &StoryboardViewModel::analysisStarted,
             this, &DashboardPage::refresh, Qt::QueuedConnection);
     connect(vm, &StoryboardViewModel::analysisCompleted,
+            this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::analysisFailed,
             this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
     
     m_refreshTimer = new QTimer(this);
@@ -184,19 +186,28 @@ void DashboardPage::loadStatsFromDatabase()
 {
     DatabaseManager* db = DatabaseManager::instance();
     QString userId = UserSession::instance()->currentUserId();
-    QList<QVariantMap> novels = db->selectAll("novels", "user_id = ?", QVariantList{userId});
-    
-    int totalNovels = novels.size();
-    int completedNovels = 0;
-    int analyzingNovels = 0;
-    
-    for (const QVariantMap& novel : novels) {
-        QString status = novel.value("status").toString();
-        if (status == "completed") completedNovels++;
-        else if (status == "analyzing") analyzingNovels++;
+    QList<QVariantMap> jobs = db->selectAll(
+        "jobs",
+        "novel_id IN (SELECT id FROM novels WHERE user_id = ?)",
+        QVariantList{userId});
+
+    int totalJobs = jobs.size();
+    int runningJobs = 0;
+    int completedJobs = 0;
+    int failedJobs = 0;
+
+    for (const QVariantMap& job : jobs) {
+        QString status = job.value("status").toString().toLower();
+        if (status == "running" || status == "in_progress" || status == "pending") {
+            runningJobs++;
+        } else if (status == "completed") {
+            completedJobs++;
+        } else if (status == "failed") {
+            failedJobs++;
+        }
     }
-    
-    updateJobStats(totalNovels, analyzingNovels, completedNovels, 0);
+
+    updateJobStats(totalJobs, runningJobs, completedJobs, failedJobs);
 }
 
 // ========== UI 初始化 ==========
@@ -235,7 +246,7 @@ QWidget* DashboardPage::createHeroTextSection()
     QVBoxLayout *textLayout = new QVBoxLayout(textWidget);
     setupLayout(textLayout, 0, 0, 0, 0, 8);
     
-    // 鏍囬琛?    
+    // 标题行
     QWidget *titleRow = createTransparentWidget();
     QHBoxLayout *titleLayout = new QHBoxLayout(titleRow);
     setupLayout(titleLayout, 0, 0, 0, 0, 12);
@@ -243,12 +254,11 @@ QWidget* DashboardPage::createHeroTextSection()
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(Constants::DASHBOARD_ICON_SIZE, Constants::DASHBOARD_ICON_SIZE);
     iconLabel->setStyleSheet(dashboardIconStyle());
-    iconLabel->setText(QString::fromUtf8("📊"));
-    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
+    iconLabel->setText(QString::fromUtf8("🏠"));
     iconLabel->setAlignment(Qt::AlignCenter);
     
     QLabel *titleLabel = createLabel(
-        QString::fromUtf8("总览"), 
+        QString::fromUtf8("工作台"),
         dashboardTitleStyle(), 
         Constants::DASHBOARD_SIZE_TITLE, true);
     
@@ -258,7 +268,7 @@ QWidget* DashboardPage::createHeroTextSection()
     
     textLayout->addWidget(titleRow);
     
-    // 描述文案
+    // 描述文字
     QString descText = HERO_DESC_TEXT;
     QLabel *descLabel = createLabel(descText, dashboardDescStyle(), Constants::DASHBOARD_SIZE_NORMAL);
     descLabel->setWordWrap(true);
@@ -366,7 +376,7 @@ QWidget* DashboardPage::createFilter(const QString &label, const QStringList &it
 
 QPushButton* DashboardPage::createRefreshButton()
 {
-    m_refreshBtn = new QPushButton(tr("刷新"));
+    m_refreshBtn = new QPushButton(TR("刷新列表"));
     m_refreshBtn->setStyleSheet(refreshButtonStyle());
     m_refreshBtn->setCursor(Qt::PointingHandCursor);
     connect(m_refreshBtn, &QPushButton::clicked, this, &DashboardPage::refresh);
@@ -427,7 +437,6 @@ QWidget* DashboardPage::createStandardCard(const QString &title, const QString &
     return card;
 }
 
-// ========== 浠诲姟鍗＄墖 ==========
 
 QWidget* DashboardPage::createJobOverviewCard()
 {
@@ -592,7 +601,7 @@ QWidget* DashboardPage::createActiveJobsFooter()
     return footer;
 }
 
-// ========== 鎸囧紩鍗＄墖 ==========
+
 
 QWidget* DashboardPage::createGuideCard()
 {
@@ -662,4 +671,3 @@ QWidget* DashboardPage::createStepContent(const QString &title, const QString &d
     
     return stepContent;
 }
-

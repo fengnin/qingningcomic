@@ -8,6 +8,16 @@
 namespace SingletonUtils {
 
 template<typename T>
+struct SingletonDeleter
+{
+    static void destroy(T*& instance)
+    {
+        delete instance;
+        instance = nullptr;
+    }
+};
+
+template<typename T>
 T* getOrCreate(T*& instance, QMutex& mutex, std::function<T*()> factory)
 {
     if (instance) {
@@ -22,6 +32,15 @@ T* getOrCreate(T*& instance, QMutex& mutex, std::function<T*()> factory)
 }
 
 template<typename T>
+void cleanup(T*& instance, QMutex& mutex)
+{
+    QMutexLocker locker(&mutex);
+    if (instance) {
+        SingletonDeleter<T>::destroy(instance);
+    }
+}
+
+template<typename T>
 T* getFromContainer(std::function<T*()> containerGetter)
 {
     return containerGetter();
@@ -32,7 +51,9 @@ T* getFromContainer(std::function<T*()> containerGetter)
 #define DECLARE_SINGLETON_MEMBERS(ClassName) \
     public: \
         static ClassName* instance(); \
+        static void cleanup(); \
     private: \
+        template<typename> friend struct SingletonUtils::SingletonDeleter; \
         static ClassName* m_instance; \
         static QMutex m_instanceMutex; \
         ClassName(const ClassName&) = delete; \
@@ -49,6 +70,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
     { \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(); }); \
+    } \
+    inline void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 #define IMPLEMENT_SINGLETON_WITH_ARG(ClassName, ...) \
@@ -58,6 +83,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
     { \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(__VA_ARGS__); }); \
+    } \
+    inline void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 #define DEFINE_SINGLETON_INSTANCE_SIMPLE(ClassName) \
@@ -66,6 +95,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
     { \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(); }); \
+    } \
+    void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 #define DEFINE_SINGLETON_INSTANCE_WITH_ARG(ClassName, ...) \
@@ -74,6 +107,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
     { \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(__VA_ARGS__); }); \
+    } \
+    void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 #define DEFINE_SINGLETON_INSTANCE(ClassName, containerGetter) \
@@ -86,6 +123,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
         } \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(); }); \
+    } \
+    void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 #define DEFINE_SINGLETON_INSTANCE_SERVICE(ClassName, containerGetter, ...) \
@@ -98,6 +139,10 @@ T* getFromContainer(std::function<T*()> containerGetter)
         } \
         return SingletonUtils::getOrCreate<ClassName>( \
             m_instance, m_instanceMutex, []() { return new ClassName(__VA_ARGS__); }); \
+    } \
+    void ClassName::cleanup() \
+    { \
+        SingletonUtils::cleanup<ClassName>(m_instance, m_instanceMutex); \
     }
 
 // ============================================================================
@@ -108,6 +153,7 @@ T* getFromContainer(std::function<T*()> containerGetter)
 #define DECLARE_SINGLETON(Class) \
 public: \
     static Class* instance(); \
+    static void destroyInstance(); \
 private: \
     static Class* m_instance; \
     static QMutex m_instanceMutex;
@@ -119,12 +165,16 @@ QMutex Class::m_instanceMutex; \
 Class* Class::instance() { \
     return SingletonUtils::getOrCreate<Class>( \
         m_instance, m_instanceMutex, []() { return new Class(); }); \
+} \
+void Class::destroyInstance() { \
+    SingletonUtils::cleanup<Class>(m_instance, m_instanceMutex); \
 }
 
 // 旧版无锁单例声明宏
 #define DECLARE_SINGLETON_NO_MUTEX(Class) \
 public: \
     static Class* instance(); \
+    static void destroyInstance(); \
 private: \
     static Class* m_instance;
 
@@ -136,6 +186,12 @@ Class* Class::instance() { \
         m_instance = new Class(); \
     } \
     return m_instance; \
+} \
+void Class::destroyInstance() { \
+    if (m_instance) { \
+        delete m_instance; \
+        m_instance = nullptr; \
+    } \
 }
 
 #endif // UTILS_SINGLETONUTILS_H

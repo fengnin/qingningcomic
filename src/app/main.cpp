@@ -1,9 +1,9 @@
 #include <QApplication>
 #include <QMessageBox>
-#include "MainWindow.h"
-#include "AppInitializer.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
+#include "app/MainWindow.h"
+#include "app/AppInitializer.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
 
 int main(int argc, char *argv[])
 {

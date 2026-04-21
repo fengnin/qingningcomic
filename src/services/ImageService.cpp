@@ -1,20 +1,20 @@
-#include "ImageService.h"
-#include "ServiceContainer.h"
-#include "DatabaseManager.h"
+#include "services/ImageService.h"
+#include "services/ServiceContainer.h"
+#include "data/DatabaseManager.h"
 #include "utils/SingletonUtils.h"
-#include "PromptBuilder.h"
-#include "QwenImageClient.h"
-#include "VolcEngineImageClient.h"
-#include "StorageClient.h"
-#include "FileStorage.h"
-#include "StoryboardService.h"
-#include "CharacterExtractor.h"
-#include "SceneExtractor.h"
-#include "TaskQueue.h"
-#include "Task.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
-#include "AppConfig.h"
+#include "utils/PromptBuilder.h"
+#include "api/QwenImageClient.h"
+#include "api/VolcEngineImageClient.h"
+#include "api/StorageClient.h"
+#include "data/FileStorage.h"
+#include "services/StoryboardService.h"
+#include "services/CharacterExtractor.h"
+#include "services/SceneExtractor.h"
+#include "services/TaskQueue.h"
+#include "models/Task.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
+#include "utils/AppConfig.h"
 #include <QJsonDocument>
 #include <QDateTime>
 #include <QFileInfo>
@@ -764,6 +764,7 @@ QJsonObject ImageService::buildCharacterRef(const Character& ch, QStringList& ou
     if (!ch.portraitPath().isEmpty()) {
         portraitPaths.append(ch.portraitPath());
     }
+    charJson["portraitPath"] = ch.portraitPath();
     charJson["portraitPaths"] = QJsonArray::fromStringList(portraitPaths);
     
     CharacterAppearance app = ch.appearance();
@@ -833,12 +834,10 @@ QJsonObject ImageService::buildSceneRef(const Scene& scene, QStringList& outRefe
     detailsJson["details"] = QJsonArray::fromStringList(details.details);
     sceneJson["details"] = detailsJson;
     
-    QString refPath = scene.referenceImagePath();
-    if (!refPath.isEmpty()) {
-        sceneJson["referenceImagePath"] = refPath;
-        if (!outReferenceImages.contains(refPath)) {
-            outReferenceImages.append(refPath);
-        }
+    QString referenceImagePath = scene.referenceImagePath();
+    sceneJson["referenceImagePath"] = referenceImagePath;
+    if (!referenceImagePath.isEmpty() && !outReferenceImages.contains(referenceImagePath)) {
+        outReferenceImages.append(referenceImagePath);
     }
     
     return sceneJson;
@@ -1370,4 +1369,3 @@ void ImageService::processPanelAsync(const QString& panelId, const ResolutionCon
     
     QTimer::singleShot(100, this, &ImageService::processNextPanel);
 }
-

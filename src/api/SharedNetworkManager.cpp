@@ -1,5 +1,5 @@
-#include "SharedNetworkManager.h"
-#include "Logger.h"
+#include "api/SharedNetworkManager.h"
+#include "utils/Logger.h"
 
 SharedNetworkManager* SharedNetworkManager::m_instance = nullptr;
 QMutex SharedNetworkManager::m_mutex;

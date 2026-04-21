@@ -34,7 +34,6 @@ signals:
     void imageClicked(const QString &imagePath);
 
 private slots:
-    void onEditBtnClicked();
     void onSceneDescriptionChanged(const QString &description);
     void onEditSubmitted(int editMode, const QString &instruction, const QString &maskPath);
     void onImageGenerated(const QString &imageUrl);
@@ -71,9 +70,6 @@ private:
     int m_chapterNumber;
     int m_panelNumber;
     QString m_description;
-    int m_lastEditMode = -1;
-    QString m_lastEditInstruction;
-    QString m_lastEditMaskPath;
     
     PanelEditorWidget *m_editorWidget = nullptr;
     

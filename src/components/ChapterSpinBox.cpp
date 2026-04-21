@@ -101,6 +101,7 @@ void ChapterSpinBox::setValue(int value)
 {
     if (value >= m_minimum && value <= m_maximum) {
         m_value = value;
+        QSignalBlocker blocker(m_lineEdit);
         m_lineEdit->setText(QString::number(value));
     }
 }

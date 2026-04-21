@@ -1,6 +1,6 @@
 #include "services/ExportService.h"
-#include "DatabaseManager.h"
-#include "Logger.h"
+#include "data/DatabaseManager.h"
+#include "utils/Logger.h"
 #include <QUuid>
 #include <QDateTime>
 

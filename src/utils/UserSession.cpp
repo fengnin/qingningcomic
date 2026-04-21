@@ -1,8 +1,9 @@
-#include "UserSession.h"
-#include "AppConfig.h"
-#include "Logger.h"
+#include "utils/UserSession.h"
+#include "utils/AppConfig.h"
+#include "utils/Logger.h"
 
 UserSession* UserSession::m_instance = nullptr;
+std::once_flag UserSession::m_instanceOnceFlag;
 
 UserSession::UserSession()
     : m_currentUserId(AppConfig::DEFAULT_USER_ID)
@@ -17,9 +18,9 @@ UserSession::~UserSession()
 
 UserSession* UserSession::instance()
 {
-    if (!m_instance) {
+    std::call_once(m_instanceOnceFlag, []() {
         m_instance = new UserSession();
-    }
+    });
     return m_instance;
 }
 

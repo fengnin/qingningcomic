@@ -1,4 +1,8 @@
 #include "utils/JsonUtils.h"
+#include "models/Character.h"
+#include "models/Storyboard.h"
+#include "models/Panel.h"
+#include "models/Job.h"
 
 namespace JsonUtils {
 
@@ -91,7 +95,7 @@ QJsonObject toJson(const Panel& panel)
     obj["visualPrompt"] = panel.visualPrompt();
     obj["previewS3Key"] = panel.previewS3Key();
     obj["hdS3Key"] = panel.hdS3Key();
-    obj["rawContent"] = panel.rawContent();  // 使用 rawContent 保留完整字段
+    obj["rawContent"] = panel.rawContent();
     return obj;
 }
 
@@ -103,7 +107,6 @@ Panel toPanel(const QJsonObject& obj)
     panel.setPage(get<int>(obj, "page"));
     panel.setIndex(get<int>(obj, "index"));
     
-    // 优先使用 rawContent，如果没有则使用 content
     if (obj.contains("rawContent")) {
         panel.setContent(getObject(obj, "rawContent"));
     } else {
@@ -148,56 +151,6 @@ Job toJob(const QJsonObject& obj)
     job.setCreatedAt(getDateTime(obj, "createdAt"));
     job.setUpdatedAt(getDateTime(obj, "updatedAt"));
     return job;
-}
-
-QJsonObject characterToJson(const Character& character)
-{
-    return toJson(character);
-}
-
-Character jsonToCharacter(const QJsonObject& obj)
-{
-    return toCharacter(obj);
-}
-
-QJsonObject appearanceToJson(const CharacterAppearance& appearance)
-{
-    return toJson(appearance);
-}
-
-CharacterAppearance jsonToAppearance(const QJsonObject& obj)
-{
-    return toAppearance(obj);
-}
-
-QJsonObject storyboardToJson(const Storyboard& storyboard)
-{
-    return toJson(storyboard);
-}
-
-Storyboard jsonToStoryboard(const QJsonObject& obj)
-{
-    return toStoryboard(obj);
-}
-
-QJsonObject panelToJson(const Panel& panel)
-{
-    return toJson(panel);
-}
-
-Panel jsonToPanel(const QJsonObject& obj)
-{
-    return toPanel(obj);
-}
-
-QJsonObject jobToJson(const Job& job)
-{
-    return toJson(job);
-}
-
-Job jsonToJob(const QJsonObject& obj)
-{
-    return toJob(obj);
 }
 
 }

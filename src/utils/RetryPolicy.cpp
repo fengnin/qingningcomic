@@ -1,5 +1,5 @@
-#include "RetryPolicy.h"
-#include "EncodingUtils.h"
+#include "utils/RetryPolicy.h"
+#include "utils/EncodingUtils.h"
 #include <QThread>
 #include <QtMath>
 

@@ -1,4 +1,4 @@
-#include "EncodingUtils.h"
+#include "utils/EncodingUtils.h"
 #include <QTextCodec>
 #include <QDebug>
 

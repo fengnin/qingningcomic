@@ -1,13 +1,204 @@
 #include "viewmodels/StoryboardViewModel.h"
-#include "ServiceContainer.h"
-#include "StoryboardService.h"
-#include "AnalysisService.h"
-#include "ImageService.h"
-#include "Logger.h"
-#include "EncodingUtils.h"
+#include "services/ServiceContainer.h"
+#include "services/StoryboardService.h"
+#include "services/AnalysisService.h"
+#include "services/ImageService.h"
+#include "utils/Logger.h"
+#include "utils/EncodingUtils.h"
+#include "utils/AsyncDbHelper.h"
+#include <QtConcurrent>
+#include <QPointer>
+#include <QJsonDocument>
+#include <QSqlDatabase>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QSqlRecord>
+#include <QVariantList>
 #include <QElapsedTimer>
 
 IMPLEMENT_SINGLETON(StoryboardViewModel)
+
+namespace {
+QVariantMap queryOneRow(QSqlDatabase& db, const QString& sql, const QVariantList& binds, bool* ok, QString* error)
+{
+    QVariantMap row;
+    QSqlQuery query(db);
+    if (!query.prepare(sql)) {
+        if (error) {
+            *error = query.lastError().text();
+        }
+        if (ok) {
+            *ok = false;
+        }
+        return row;
+    }
+
+    DatabaseUtils::bindValues(query, binds);
+
+    if (!query.exec()) {
+        if (error) {
+            *error = query.lastError().text();
+        }
+        if (ok) {
+            *ok = false;
+        }
+        return row;
+    }
+
+    if (query.next()) {
+        row = DatabaseUtils::recordToMap(query);
+    }
+
+    if (ok) {
+        *ok = true;
+    }
+    return row;
+}
+
+QList<QVariantMap> queryAllRows(QSqlDatabase& db, const QString& sql, const QVariantList& binds, bool* ok, QString* error)
+{
+    QList<QVariantMap> rows;
+    QSqlQuery query(db);
+    if (!query.prepare(sql)) {
+        if (error) {
+            *error = query.lastError().text();
+        }
+        if (ok) {
+            *ok = false;
+        }
+        return rows;
+    }
+
+    DatabaseUtils::bindValues(query, binds);
+
+    if (!query.exec()) {
+        if (error) {
+            *error = query.lastError().text();
+        }
+        if (ok) {
+            *ok = false;
+        }
+        return rows;
+    }
+
+    while (query.next()) {
+        rows.append(DatabaseUtils::recordToMap(query));
+    }
+
+    if (ok) {
+        *ok = true;
+    }
+    return rows;
+}
+
+Storyboard storyboardFromMap(const QVariantMap& map)
+{
+    Storyboard storyboard;
+    storyboard.setId(map.value(QStringLiteral("id")).toString());
+    storyboard.setNovelId(map.value(QStringLiteral("novel_id")).toString());
+    storyboard.setChapterNumber(map.value(QStringLiteral("chapter_number")).toInt());
+    storyboard.setTotalPages(map.value(QStringLiteral("total_pages")).toInt());
+    storyboard.setPanelCount(map.value(QStringLiteral("panel_count")).toInt());
+    storyboard.setVersion(map.value(QStringLiteral("version")).toInt());
+    return storyboard;
+}
+
+Panel panelFromMap(const QVariantMap& map)
+{
+    Panel panel;
+    panel.setId(map.value(QStringLiteral("id")).toString());
+    panel.setStoryboardId(map.value(QStringLiteral("storyboard_id")).toString());
+    panel.setPage(map.value(QStringLiteral("page")).toInt());
+    panel.setIndex(map.value(QStringLiteral("panel_index")).toInt());
+
+    const QString contentText = map.value(QStringLiteral("content")).toString();
+    const QJsonDocument doc = QJsonDocument::fromJson(contentText.toUtf8());
+    panel.setContent(doc.isObject() ? doc.object() : QJsonObject());
+    panel.setVisualPrompt(map.value(QStringLiteral("visual_prompt")).toString());
+    panel.setPreviewS3Key(map.value(QStringLiteral("preview_image_path")).toString());
+    panel.setHdS3Key(map.value(QStringLiteral("hd_image_path")).toString());
+    return panel;
+}
+
+QList<Storyboard> loadStoryboardsFromDatabase(const AsyncDbHelper::DatabaseConnectionInfo& info, const QString& novelId,
+                                             QString* error)
+{
+    QList<Storyboard> storyboards;
+    const QString connectionName = AsyncDbHelper::makeConnectionName(QStringLiteral("storyboards"));
+    QSqlDatabase db;
+    if (!AsyncDbHelper::openTemporaryConnection(db, info, connectionName, error)) {
+        AsyncDbHelper::closeTemporaryConnection(db, connectionName);
+        return storyboards;
+    }
+
+    bool ok = false;
+    const QString sql = QStringLiteral(
+        "SELECT id, novel_id, chapter_number, total_pages, panel_count, version "
+        "FROM storyboards WHERE novel_id = ? ORDER BY chapter_number ASC");
+    QVariantList binds;
+    binds << novelId;
+    const QList<QVariantMap> rows = queryAllRows(db, sql, binds, &ok, error);
+    if (ok) {
+        storyboards.reserve(rows.size());
+        for (const QVariantMap& row : rows) {
+            storyboards.append(storyboardFromMap(row));
+        }
+    }
+
+    AsyncDbHelper::closeTemporaryConnection(db, connectionName);
+    return storyboards;
+}
+
+bool loadStoryboardAndPanelsFromDatabase(const AsyncDbHelper::DatabaseConnectionInfo& info, const QString& novelId,
+                                        int chapterNumber, Storyboard* storyboard, QList<Panel>* panels,
+                                        QString* error)
+{
+    if (!storyboard || !panels) {
+        return false;
+    }
+
+    panels->clear();
+    *storyboard = Storyboard();
+
+    const QString connectionName = AsyncDbHelper::makeConnectionName(QStringLiteral("storyboard"));
+    QSqlDatabase db;
+    if (!AsyncDbHelper::openTemporaryConnection(db, info, connectionName, error)) {
+        AsyncDbHelper::closeTemporaryConnection(db, connectionName);
+        return false;
+    }
+
+    bool ok = false;
+    const QString storyboardSql = QStringLiteral(
+        "SELECT id, novel_id, chapter_number, total_pages, panel_count, version "
+        "FROM storyboards WHERE novel_id = ? AND chapter_number = ? LIMIT 1");
+    QVariantList storyboardBinds;
+    storyboardBinds << novelId << chapterNumber;
+    const QList<QVariantMap> storyboardRows = queryAllRows(
+        db, storyboardSql, storyboardBinds, &ok, error);
+    if (!ok || storyboardRows.isEmpty()) {
+        AsyncDbHelper::closeTemporaryConnection(db, connectionName);
+        return ok;
+    }
+
+    *storyboard = storyboardFromMap(storyboardRows.first());
+
+    const QString panelsSql = QStringLiteral(
+        "SELECT id, storyboard_id, page, panel_index, content, visual_prompt, preview_image_path, hd_image_path "
+        "FROM panels WHERE storyboard_id = ? ORDER BY page ASC, panel_index ASC");
+    QVariantList panelBinds;
+    panelBinds << storyboard->id();
+    const QList<QVariantMap> panelRows = queryAllRows(db, panelsSql, panelBinds, &ok, error);
+    if (ok) {
+        panels->reserve(panelRows.size());
+        for (const QVariantMap& row : panelRows) {
+            panels->append(panelFromMap(row));
+        }
+    }
+
+    AsyncDbHelper::closeTemporaryConnection(db, connectionName);
+    return ok;
+}
+} // namespace
 
 StoryboardViewModel::StoryboardViewModel(QObject* parent)
     : BaseViewModel(parent)
@@ -23,6 +214,9 @@ StoryboardViewModel::~StoryboardViewModel()
 
 void StoryboardViewModel::initialize()
 {
+    qRegisterMetaType<QList<Storyboard>>("QList<Storyboard>");
+    qRegisterMetaType<QList<Panel>>("QList<Panel>");
+
     m_storyboardService = getService<StoryboardService, StoryboardService*>(
         &ServiceContainer::storyboardService, StoryboardService::instance);
     
@@ -101,56 +295,94 @@ void StoryboardViewModel::clearCache()
     m_cachedNovelId.clear();
     m_cachedChapterNumber = 0;
     m_panelsCache.clear();
+    m_storyboardsLoading = false;
+    m_storyboardLoading = false;
 }
 
 void StoryboardViewModel::loadStoryboards(const QString& novelId, bool forceReload)
 {
-    if (!m_storyboardService) { return; }
-    
     if (!forceReload && hasCachedStoryboards(novelId)) {
-        emit storyboardsLoaded(m_storyboards);
+        emit storyboardsLoaded(novelId, m_storyboards);
         return;
     }
-    
+
+    if (m_storyboardsLoading && !forceReload && m_cachedNovelId == novelId) {
+        return;
+    }
+
     m_cachedNovelId = novelId;
-    m_storyboards = m_storyboardService->getAllStoryboards(novelId);
-    
-    emit storyboardsLoaded(m_storyboards);
+    m_storyboards.clear();
+    emit storyboardsLoaded(novelId, m_storyboards);
+    m_storyboardsLoading = true;
+
+    const int token = ++m_storyboardsLoadToken;
+    const AsyncDbHelper::DatabaseConnectionInfo dbInfo = AsyncDbHelper::snapshotConnection();
+    QPointer<StoryboardViewModel> self(this);
+
+    QtConcurrent::run([self, dbInfo, novelId, token]() {
+        QString error;
+        const QList<Storyboard> storyboards = loadStoryboardsFromDatabase(dbInfo, novelId, &error);
+        const bool success = error.isEmpty();
+
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(self.data(), [self, novelId, token, storyboards, success, error]() {
+            if (!self || token != self->m_storyboardsLoadToken || self->m_cachedNovelId != novelId) {
+                return;
+            }
+            self->applyStoryboardsLoaded(token, novelId, storyboards, success, error);
+        }, Qt::QueuedConnection);
+    });
 }
 
 void StoryboardViewModel::loadStoryboard(const QString& novelId, int chapterNumber, bool forceReload)
 {
-    if (!m_storyboardService) { return; }
-    
     if (!forceReload && hasCachedPanels(novelId, chapterNumber)) {
-        emit storyboardLoaded(m_currentStoryboard);
-        emit panelsLoaded(m_currentPanels);
+        emit storyboardLoaded(novelId, chapterNumber, m_currentStoryboard);
+        emit panelsLoaded(novelId, chapterNumber, m_currentPanels);
+        return;
+    }
+
+    if (m_storyboardLoading && !forceReload && m_cachedNovelId == novelId
+        && m_cachedChapterNumber == chapterNumber) {
         return;
     }
     
     m_cachedNovelId = novelId;
     m_cachedChapterNumber = chapterNumber;
-    
-    m_currentStoryboard = m_storyboardService->getStoryboardByChapter(novelId, chapterNumber);
-    
-    
-        if (!m_currentStoryboard.id().isEmpty()) {
-        QString cacheKey = m_currentStoryboard.id();
-        if (forceReload) {
-            m_panelsCache.remove(cacheKey);
+
+    m_currentStoryboard = Storyboard();
+    m_currentPanels.clear();
+    emit storyboardLoaded(novelId, chapterNumber, m_currentStoryboard);
+    emit panelsLoaded(novelId, chapterNumber, m_currentPanels);
+    m_storyboardLoading = true;
+
+    const int token = ++m_storyboardLoadToken;
+    const AsyncDbHelper::DatabaseConnectionInfo dbInfo = AsyncDbHelper::snapshotConnection();
+    QPointer<StoryboardViewModel> self(this);
+
+    QtConcurrent::run([self, dbInfo, novelId, chapterNumber, token]() {
+        Storyboard storyboard;
+        QList<Panel> panels;
+        QString error;
+        const bool success = loadStoryboardAndPanelsFromDatabase(dbInfo, novelId, chapterNumber,
+                                                                 &storyboard, &panels, &error);
+
+        if (!self) {
+            return;
         }
-        if (m_panelsCache.contains(cacheKey)) {
-            m_currentPanels = m_panelsCache[cacheKey];
-        } else {
-            m_currentPanels = m_storyboardService->getPanels(m_currentStoryboard.id());
-            m_panelsCache[cacheKey] = m_currentPanels;
-        }
-        emit panelsLoaded(m_currentPanels);
-    } else {
-        m_currentPanels.clear();
-    }
-    
-    emit storyboardLoaded(m_currentStoryboard);
+
+        QMetaObject::invokeMethod(self.data(), [self, novelId, chapterNumber, token, storyboard, panels, success, error]() {
+            if (!self || token != self->m_storyboardLoadToken
+                || self->m_cachedNovelId != novelId
+                || self->m_cachedChapterNumber != chapterNumber) {
+                return;
+            }
+            self->applyStoryboardLoaded(token, novelId, chapterNumber, storyboard, panels, success, error);
+        }, Qt::QueuedConnection);
+    });
 }
 
 void StoryboardViewModel::loadPanels(const QString& storyboardId)
@@ -164,7 +396,7 @@ void StoryboardViewModel::loadPanels(const QString& storyboardId)
         m_panelsCache[storyboardId] = m_currentPanels;
     }
     
-    emit panelsLoaded(m_currentPanels);
+    emit panelsLoaded(m_cachedNovelId, m_cachedChapterNumber, m_currentPanels);
 }
 
 void StoryboardViewModel::invalidatePanelsCache(const QString& storyboardId)
@@ -247,15 +479,15 @@ QString StoryboardViewModel::enqueueBatchPanelImageGeneration(const QStringList&
     return m_imageService->enqueueBatchPanelImageGeneration(panelIds, genMode);
 }
 
-void StoryboardViewModel::createEmptyStoryboard(const QString& novelId, int chapterNumber)
+bool StoryboardViewModel::createEmptyStoryboard(const QString& novelId, int chapterNumber)
 {
-    if (!m_storyboardService) { return; }
+    if (!m_storyboardService) { return false; }
     
     QJsonObject storyboardData;
     storyboardData[QStringLiteral("totalPages")] = 0;
     storyboardData[QStringLiteral("panels")] = QJsonArray();
     
-    m_storyboardService->saveStoryboard(novelId, storyboardData, chapterNumber);
+    return m_storyboardService->saveStoryboard(novelId, storyboardData, chapterNumber, false);
 }
 
 bool StoryboardViewModel::deleteStoryboard(const QString& novelId, int chapterNumber)
@@ -306,6 +538,49 @@ bool StoryboardViewModel::updatePanel(const QString& panelId, const QJsonObject&
 void StoryboardViewModel::onStoryboardSaved(const QString& novelId)
 {
     loadStoryboards(novelId, true);
+}
+
+void StoryboardViewModel::applyStoryboardsLoaded(int token, const QString& novelId,
+                                                 const QList<Storyboard>& storyboards,
+                                                 bool success, const QString& error)
+{
+    Q_UNUSED(token)
+    if (!success) {
+        setLastError(error);
+        m_storyboardsLoading = false;
+        return;
+    }
+
+    m_storyboards = storyboards;
+    m_cachedNovelId = novelId;
+    m_storyboardsLoading = false;
+    emit storyboardsLoaded(novelId, m_storyboards);
+}
+
+void StoryboardViewModel::applyStoryboardLoaded(int token, const QString& novelId,
+                                                int chapterNumber, const Storyboard& storyboard,
+                                                const QList<Panel>& panels, bool success,
+                                                const QString& error)
+{
+    Q_UNUSED(token)
+    if (!success) {
+        setLastError(error);
+        m_storyboardLoading = false;
+        return;
+    }
+
+    m_currentStoryboard = storyboard;
+    m_currentPanels = panels;
+    m_cachedNovelId = novelId;
+    m_cachedChapterNumber = chapterNumber;
+    m_storyboardLoading = false;
+
+    if (!m_currentStoryboard.id().isEmpty()) {
+        m_panelsCache[m_currentStoryboard.id()] = m_currentPanels;
+    }
+
+    emit storyboardLoaded(m_cachedNovelId, m_cachedChapterNumber, m_currentStoryboard);
+    emit panelsLoaded(m_cachedNovelId, m_cachedChapterNumber, m_currentPanels);
 }
 
 void StoryboardViewModel::onAnalysisStarted(const QString& novelId)
