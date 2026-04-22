@@ -3,6 +3,7 @@
 #include "utils/Logger.h"
 #include "utils/StatusHelper.h"
 #include "viewmodels/StoryboardViewModel.h"
+#include "viewmodels/NovelViewModel.h"
 #include "components/EditorStyles.h"
 #include "utils/EncodingUtils.h"
 #include "utils/UserSession.h"
@@ -25,7 +26,7 @@ namespace {
     };
     
     const StatCardData STAT_CARDS[] = {
-        {QString::fromUtf8("任务总数"), Colors::DASHBOARD_STAT_TOTAL_BG},
+        {QString::fromUtf8("任务数"), Colors::DASHBOARD_STAT_TOTAL_BG},
         {QString::fromUtf8("进行中"), Colors::DASHBOARD_STAT_RUNNING_BG},
         {QString::fromUtf8("已完成"), Colors::DASHBOARD_STAT_COMPLETED_BG},
         {QString::fromUtf8("失败"), Colors::DASHBOARD_STAT_FAILED_BG}
@@ -90,6 +91,15 @@ namespace {
     const QString CARD_SUBTITLE_GUIDE = QString::fromUtf8("三步完成创作闭环");
     const QString FOOTER_TEXT_ACTIVE_JOBS = QString::fromUtf8("所有任务均可在 作品详情 → 修改请求 / 导出中心 中触发，执行进度将在此同步更新。");
     const QString HERO_DESC_TEXT = QString::fromUtf8("实时掌握小说转漫画链路的任务状态，查看修改闭环、高清批跑与导出中心的运行情况。");
+
+    bool isCountedDashboardJobStatus(const QString& status)
+    {
+        const QString normalized = status.trimmed().toLower();
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return normalized != "cancelled";
+    }
 }
 
 DashboardPage::DashboardPage(QWidget *parent)
@@ -103,6 +113,7 @@ DashboardPage::DashboardPage(QWidget *parent)
 void DashboardPage::setupConnections()
 {
     StoryboardViewModel* vm = StoryboardViewModel::instance();
+    NovelViewModel* novelVm = NovelViewModel::instance();
     
     connect(vm, &StoryboardViewModel::storyboardsLoaded,
             this, [this](const QString&, const QList<Storyboard>&) { refresh(); }, Qt::QueuedConnection);
@@ -122,6 +133,15 @@ void DashboardPage::setupConnections()
             this, [this]() { QTimer::singleShot(1000, this, &DashboardPage::stopPolling); }, Qt::QueuedConnection);
     connect(vm, &StoryboardViewModel::analysisFailed,
             this, [this]() { QTimer::singleShot(1000, this, &DashboardPage::stopPolling); }, Qt::QueuedConnection);
+
+    if (novelVm) {
+        connect(novelVm, &NovelViewModel::novelCreated,
+                this, [this](const ::Novel&) { refresh(); }, Qt::QueuedConnection);
+        connect(novelVm, &NovelViewModel::novelDeleted,
+                this, [this](const QString&) { refresh(); }, Qt::QueuedConnection);
+        connect(novelVm, &NovelViewModel::novelUpdated,
+                this, [this](const QString&) { refresh(); }, Qt::QueuedConnection);
+    }
 }
 
 DashboardPage::~DashboardPage()
@@ -191,13 +211,18 @@ void DashboardPage::loadStatsFromDatabase()
         "novel_id IN (SELECT id FROM novels WHERE user_id = ?)",
         QVariantList{userId});
 
-    int totalJobs = jobs.size();
+    int totalJobs = 0;
     int runningJobs = 0;
     int completedJobs = 0;
     int failedJobs = 0;
 
     for (const QVariantMap& job : jobs) {
         QString status = job.value("status").toString().toLower();
+        if (!isCountedDashboardJobStatus(status)) {
+            continue;
+        }
+
+        ++totalJobs;
         if (status == "running" || status == "in_progress" || status == "pending") {
             runningJobs++;
         } else if (status == "completed") {

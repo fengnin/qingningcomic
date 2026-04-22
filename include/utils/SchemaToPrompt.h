@@ -30,6 +30,13 @@ private:
     static QStringList getFieldConstraints(const QJsonObject &fieldSchema);
     static QJsonValue generateFieldExample(const QJsonObject &fieldSchema);
     static QString sanitizeDescription(const QString &description);
+    
+    static QString getRoleDescription();
+    static QString getContinuityRules();
+    static QString getCoreTaskRules();
+    static QString getLanguageRequirements();
+    static QString getSchemaIntro();
+    static QString getExampleSection(const QJsonObject &example);
 };
 
 #endif

@@ -13,14 +13,17 @@
 #include <QHBoxLayout>
 
 namespace {
-const QStringList SAMPLE_PANEL_DESCRIPTIONS = {
-    QStringLiteral("清晨的街道上，主角停下脚步，望向远方。"),
-    QStringLiteral("镜头拉近，角色露出思考的神情。"),
-    QStringLiteral("同伴从一侧跑来，挥手打招呼。"),
-    QStringLiteral("两人短暂对话，气氛逐渐紧张起来。"),
-    QStringLiteral("视角切到天空与城市轮廓的交界处。"),
-    QStringLiteral("最后以角色背影收束，留下悬念。")
-};
+void resetPanelLayout(QHBoxLayout* layout)
+{
+    LayoutUtils::clearLayout(layout);
+}
+
+void updateCountLabel(QLabel* label, int count)
+{
+    if (label) {
+        label->setText(QObject::tr("共 %1 个面板").arg(count));
+    }
+}
 }
 
 PanelPreviewWidget::PanelPreviewWidget(QWidget* parent)
@@ -75,8 +78,7 @@ void PanelPreviewWidget::setupUI()
     
     scrollArea->setWidget(m_container);
     mainLayout->addWidget(scrollArea);
-    
-    populateWithSample();
+    populateEmptyState();
 }
 
 void PanelPreviewWidget::setChapter(int chapter)
@@ -89,6 +91,8 @@ void PanelPreviewWidget::setPanels(const QList<Panel>& panels)
     m_panels = panels;
     if (!panels.isEmpty() && !panels.first().storyboardId().isEmpty()) {
         m_storyboardId = panels.first().storyboardId();
+    } else {
+        m_storyboardId.clear();
     }
     refresh();
 }
@@ -97,20 +101,18 @@ void PanelPreviewWidget::clear()
 {
     m_panels.clear();
     m_panelCount = 0;
+    m_storyboardId.clear();
     m_panelCards.clear();
-    LayoutUtils::clearLayout(m_containerLayout);
-    populateWithSample();
-    
-    if (m_countLabel) {
-        m_countLabel->setText(tr("共 0 个面板"));
-    }
+    resetPanelLayout(m_containerLayout);
+    populateEmptyState();
+    updateCountLabel(m_countLabel, 0);
     emit panelCountChanged(0);
 }
 
 void PanelPreviewWidget::refresh()
 {
     m_panelCards.clear();
-    LayoutUtils::clearLayout(m_containerLayout);
+    resetPanelLayout(m_containerLayout);
     
     if (!m_storyboardId.isEmpty()) {
         QList<Panel> freshPanels = StoryboardService::instance()->getPanels(m_storyboardId);
@@ -121,10 +123,8 @@ void PanelPreviewWidget::refresh()
     
     if (m_panels.isEmpty()) {
         m_panelCount = 0;
-        populateWithSample();
-        if (m_countLabel) {
-            m_countLabel->setText(tr("共 0 个面板"));
-        }
+        populateEmptyState();
+        updateCountLabel(m_countLabel, 0);
         emit panelCountChanged(0);
         return;
     }
@@ -156,13 +156,12 @@ void PanelPreviewWidget::populateWithPanels(const QList<Panel>& panels)
         .arg(m_panelCount).arg(m_currentChapter));
 }
 
-void PanelPreviewWidget::populateWithSample()
+void PanelPreviewWidget::populateEmptyState()
 {
-    for (int i = 0; i < SAMPLE_PANEL_DESCRIPTIONS.size(); ++i) {
-        PanelCard *panelCard = createPanelCard(i + 1, SAMPLE_PANEL_DESCRIPTIONS[i]);
-        m_containerLayout->addWidget(panelCard);
-    }
-    
+    QLabel *emptyLabel = new QLabel(tr("暂无面板数据"));
+    emptyLabel->setAlignment(Qt::AlignCenter);
+    emptyLabel->setStyleSheet("font-size: 14px; color: #9CA3AF; padding: 32px 0;");
+    m_containerLayout->addWidget(emptyLabel);
     finishPopulate(0);
 }
 
@@ -170,9 +169,7 @@ void PanelPreviewWidget::finishPopulate(int actualCount)
 {
     m_containerLayout->addStretch();
     
-    if (m_countLabel) {
-        m_countLabel->setText(tr("共 %1 个面板").arg(actualCount));
-    }
+    updateCountLabel(m_countLabel, actualCount);
     
     if (actualCount > 0) {
         emit panelCountChanged(actualCount);

@@ -20,6 +20,7 @@ int calculateSceneSimilarity(const QString& name1, const QString& desc1,
                              const QString& name2, const QString& desc2);
 bool shouldMergeScenes(const QString& name1, const QString& desc1,
                        const QString& name2, const QString& desc2, int threshold = 50);
+const int SCENE_MERGE_THRESHOLD = 65;
 
 bool isDrawableSceneToken(const QString& text)
 {
@@ -67,36 +68,6 @@ bool isDrawableSceneToken(const QString& text)
     return containsAnyToken(text, drawableTokens);
 }
 
-QStringList buildSceneIdentityKeys(const ExtractedScene& scene)
-{
-    return SceneKeyUtils::buildSceneIdentityKeys(
-        scene.id,
-        scene.name,
-        scene.description,
-        scene.setting,
-        scene.aliases,
-        QStringList{scene.building, scene.landmark, scene.layout, scene.setting}
-    );
-}
-
-bool isLikelySameScene(const Scene& existing, const ExtractedScene& incoming)
-{
-    const QStringList existingKeys = SceneKeyUtils::buildSceneIdentityKeys(existing);
-    const QStringList incomingKeys = buildSceneIdentityKeys(incoming);
-
-    for (const QString& key : incomingKeys) {
-        if (existingKeys.contains(key, Qt::CaseInsensitive)) {
-            return true;
-        }
-    }
-
-    const int similarity = calculateSceneSimilarity(
-        existing.name(), existing.details().description,
-        incoming.name, incoming.description);
-
-    return similarity >= 55;
-}
-
 Scene findMatchingScene(const QList<Scene>& candidates, const Scene& incoming)
 {
     for (const Scene& candidate : candidates) {
@@ -114,7 +85,7 @@ Scene findMatchingScene(const QList<Scene>& candidates, const Scene& incoming)
 
         if (shouldMergeScenes(
                 incoming.name(), incoming.details().description,
-                candidate.name(), candidate.details().description)) {
+                candidate.name(), candidate.details().description, SCENE_MERGE_THRESHOLD)) {
             return candidate;
         }
     }
@@ -585,6 +556,35 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
     scene.weather = json["weather"].toString();
     scene.narrativeRole = json["narrativeRole"].toString();
     
+    if (json.contains("visualCharacteristics")) {
+        QJsonObject visual = json["visualCharacteristics"].toObject();
+        if (scene.building.isEmpty()) {
+            scene.building = visual["architecture"].toString();
+        }
+        if (scene.atmosphere.isEmpty()) {
+            scene.atmosphere = visual["atmosphere"].toString();
+        }
+        if (scene.color.isEmpty()) {
+            scene.color = visual["colorScheme"].toString();
+        }
+        if (scene.anchorPoints.isEmpty() && visual.contains("keyLandmarks")) {
+            scene.anchorPoints = JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray());
+        }
+        if (scene.landmark.isEmpty() && visual.contains("keyLandmarks")) {
+            scene.landmark = JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray()).join("、");
+        }
+        if (scene.signatureObjects.isEmpty() && visual.contains("textures")) {
+            scene.signatureObjects = JsonUtils::jsonArrayToStringList(visual["textures"].toArray());
+        }
+    }
+    
+    if (json.contains("spatialLayout")) {
+        QJsonObject spatial = json["spatialLayout"].toObject();
+        if (scene.layout.isEmpty()) {
+            scene.layout = spatial["layout"].toString();
+        }
+    }
+    
     if (json.contains("anchorPoints")) {
         scene.anchorPoints = JsonUtils::jsonArrayToStringList(json["anchorPoints"].toArray());
     }
@@ -654,9 +654,41 @@ QJsonObject ExtractedScene::toJson() const
 Scene SceneExtractor::toScene(const ExtractedScene& extracted, const QString& novelId)
 {
     Scene scene;
-    scene.setId(generateId());
+    const QString stableId = SceneKeyUtils::resolveSceneStableKey(
+        extracted.name,
+        extracted.description,
+        extracted.setting,
+        extracted.aliases,
+        QStringList{extracted.building, extracted.landmark, extracted.layout, extracted.setting}
+    );
+    QString fallbackStableId = stableId;
+    if (fallbackStableId.isEmpty()) {
+        fallbackStableId = SceneKeyUtils::normalizeSceneLabel(extracted.name);
+    }
+    if (fallbackStableId.isEmpty()) {
+        fallbackStableId = SceneKeyUtils::normalizeSceneLabel(extracted.setting);
+    }
+    if (fallbackStableId.isEmpty()) {
+        fallbackStableId = SceneKeyUtils::normalizeSceneLabel(extracted.description);
+    }
+
+    if (fallbackStableId.isEmpty()) {
+        return Scene();
+    }
+
+    const QString displayName = SceneKeyUtils::resolveSceneDisplayName(QStringList{
+        extracted.setting,
+        extracted.name,
+        extracted.description,
+        extracted.landmark,
+        extracted.building,
+        extracted.layout
+    });
+
+    scene.setId(BibleUtils::Utils::generateId());
     scene.setNovelId(novelId);
-    scene.setName(extracted.name);
+    scene.setName(displayName.isEmpty() ? fallbackStableId : displayName);
+    scene.setSceneId(fallbackStableId);
     
     SceneDetails details;
     details.description = extracted.description;
@@ -677,8 +709,8 @@ Scene SceneExtractor::toScene(const ExtractedScene& extracted, const QString& no
     details.narrativeRole = extracted.narrativeRole;
     details.narrativeRoleZh = extracted.narrativeRoleZh;
     details.aliases = extracted.aliases.isEmpty()
-        ? buildSceneAliasKeys(extracted.name, details)
-        : deduplicateList(BibleUtils::mergeStringLists(extracted.aliases, buildSceneAliasKeys(extracted.name, details)));
+        ? buildSceneAliasKeys(scene.name(), details)
+        : deduplicateList(BibleUtils::mergeStringLists(extracted.aliases, buildSceneAliasKeys(scene.name(), details)));
     details.anchorPoints = extracted.anchorPoints.isEmpty() ? buildConcreteAnchors(extracted) : extracted.anchorPoints;
     details.signatureObjects = extracted.signatureObjects.isEmpty() ? buildConcreteSignatureObjects(extracted) : extracted.signatureObjects;
     details.fixedColorBlocks = extracted.fixedColorBlocks.isEmpty() ? buildConcreteColorBlocks(extracted) : extracted.fixedColorBlocks;
@@ -741,6 +773,10 @@ Scene SceneExtractor::getSceneBySceneId(const QString& novelId, const QString& s
 bool SceneExtractor::saveScene(const QString& novelId, const ExtractedScene& extracted)
 {
     Scene scene = toScene(extracted, novelId);
+    if (scene.id().isEmpty()) {
+        LOG_WARNING("SceneExtractor", QString("Skipping unstable scene: %1").arg(extracted.name));
+        return false;
+    }
 
     QList<Scene> existingScenes = getScenesByNovel(novelId);
     Scene existing = findMatchingScene(existingScenes, scene);
@@ -752,7 +788,7 @@ bool SceneExtractor::saveScene(const QString& novelId, const ExtractedScene& ext
 
     for (const Scene& existingScene : existingScenes) {
         if (shouldMergeScenes(scene.name(), scene.details().description,
-                              existingScene.name(), existingScene.details().description)) {
+                              existingScene.name(), existingScene.details().description, SCENE_MERGE_THRESHOLD)) {
             LOG_INFO("SceneExtractor", QString("Merging similar scene '%1' into '%2' (similarity detected)")
                 .arg(scene.name()).arg(existingScene.name()));
             Scene merged = mergeScenes(existingScene, extracted);
@@ -945,9 +981,4 @@ bool SceneExtractor::deleteScene(const QString& sceneId)
     }
     
     return success;
-}
-
-QString SceneExtractor::generateId()
-{
-    return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }

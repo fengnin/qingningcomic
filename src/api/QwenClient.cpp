@@ -7,6 +7,7 @@
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/BibleUtils.h"
+#include "utils/JsonUtils.h"
 #include "utils/SceneKeyUtils.h"
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -71,8 +72,10 @@ QString cleanSceneDescription(const QString& text)
 }
 
 QString buildSceneMergeKey(const QJsonObject& scene);
-QStringList buildSceneMergeKeys(const QJsonObject& scene);
 QJsonObject mergeSceneObjects(const QJsonObject& existing, const QJsonObject& incoming);
+QStringList buildSceneDisplayNameCandidates(const QJsonObject& scene);
+bool shouldSkipSceneExtraction(const QString& sceneId, const QString& sceneName, const QString& sceneText);
+QJsonObject buildExtractedSceneObject(const QString& sceneId, const QString& sceneName, const QString& sceneText);
 }
 
 DEFINE_SINGLETON_INSTANCE_SIMPLE(QwenClient)
@@ -450,6 +453,24 @@ QJsonObject QwenClient::mergeStoryboards(const QList<QJsonObject>& storyboards)
 
 void QwenClient::mergeCharacters(QMap<QString, QJsonObject>& charMap, const QJsonArray& characters)
 {
+    auto shouldReplaceValue = [](const QJsonValue& existing, const QJsonValue& incoming, const QString& key) {
+        if (incoming.isNull() || incoming.isUndefined()) {
+            return false;
+        }
+        if (!existing.isNull() && !existing.isUndefined()) {
+            if (key == QStringLiteral("age")) {
+                return existing.toInt() <= 0 && incoming.toInt() > 0;
+            }
+            if (incoming.isString()) {
+                return existing.toString().trimmed().isEmpty() && !incoming.toString().trimmed().isEmpty();
+            }
+            if (incoming.isArray()) {
+                return existing.toArray().isEmpty() && !incoming.toArray().isEmpty();
+            }
+        }
+        return true;
+    };
+
     for (const QJsonValue& charVal : characters) {
         QJsonObject character = charVal.toObject();
         QString name = character["name"].toString();
@@ -470,12 +491,23 @@ void QwenClient::mergeCharacters(QMap<QString, QJsonObject>& charMap, const QJso
 
                 for (auto it = incomingAppearance.begin(); it != incomingAppearance.end(); ++it) {
                     const QString key = it.key();
-                    if (!mergedAppearance.contains(key) || mergedAppearance.value(key).isNull() || mergedAppearance.value(key).isUndefined()) {
+                    if (shouldReplaceValue(mergedAppearance.value(key), it.value(), key)) {
                         mergedAppearance[key] = it.value();
                     }
                 }
 
                 existing["appearance"] = mergedAppearance;
+            }
+
+            if (character.contains("aliases")) {
+                QStringList aliases = JsonUtils::jsonArrayToStringList(existing["aliases"].toArray());
+                aliases = BibleUtils::mergeStringLists(aliases, JsonUtils::jsonArrayToStringList(character["aliases"].toArray()));
+                if (character.contains("name")) {
+                    aliases = BibleUtils::mergeStringLists(aliases, QStringList{character["name"].toString()});
+                }
+                if (!aliases.isEmpty()) {
+                    existing["aliases"] = QJsonArray::fromStringList(aliases);
+                }
             }
 
             if (character.contains("personality") && existing["personality"].toArray().isEmpty()) {
@@ -491,26 +523,18 @@ void QwenClient::mergeScenes(QMap<QString, QJsonObject>& sceneMap, const QJsonAr
 {
     for (const QJsonValue& sceneVal : scenes) {
         QJsonObject scene = sceneVal.toObject();
-        const QStringList keys = buildSceneMergeKeys(scene);
+        const QString incomingKey = buildSceneMergeKey(scene);
         QString matchedKey;
 
-        for (const QString& key : keys) {
-            if (!key.isEmpty() && sceneMap.contains(key)) {
-                matchedKey = key;
-                break;
-            }
+        if (!incomingKey.isEmpty() && sceneMap.contains(incomingKey)) {
+            matchedKey = incomingKey;
         }
 
-        if (matchedKey.isEmpty()) {
+        if (matchedKey.isEmpty() && !incomingKey.isEmpty()) {
             for (auto it = sceneMap.constBegin(); it != sceneMap.constEnd(); ++it) {
-                const QStringList existingKeys = buildSceneMergeKeys(it.value());
-                for (const QString& key : keys) {
-                    if (!key.isEmpty() && existingKeys.contains(key, Qt::CaseInsensitive)) {
-                        matchedKey = it.key();
-                        break;
-                    }
-                }
-                if (!matchedKey.isEmpty()) {
+                const QString existingKey = buildSceneMergeKey(it.value());
+                if (!existingKey.isEmpty() && existingKey.compare(incomingKey, Qt::CaseInsensitive) == 0) {
+                    matchedKey = it.key();
                     break;
                 }
             }
@@ -521,9 +545,8 @@ void QwenClient::mergeScenes(QMap<QString, QJsonObject>& sceneMap, const QJsonAr
             continue;
         }
 
-        const QString storeKey = buildSceneMergeKey(scene);
-        if (!storeKey.isEmpty()) {
-            sceneMap[storeKey] = scene;
+        if (!incomingKey.isEmpty()) {
+            sceneMap[incomingKey] = scene;
         }
     }
 }
@@ -889,6 +912,17 @@ QJsonObject mergeCharacterObjects(const QJsonObject& existing, const QJsonObject
         merged["appearance"] = mergedAppearance;
     }
 
+    if (incoming.contains("aliases")) {
+        QStringList aliases = JsonUtils::jsonArrayToStringList(merged["aliases"].toArray());
+        aliases = BibleUtils::mergeStringLists(aliases, JsonUtils::jsonArrayToStringList(incoming["aliases"].toArray()));
+        if (incoming.contains("name")) {
+            aliases = BibleUtils::mergeStringLists(aliases, QStringList{incoming["name"].toString()});
+        }
+        if (!aliases.isEmpty()) {
+            merged["aliases"] = QJsonArray::fromStringList(aliases);
+        }
+    }
+
     if (incoming.contains("personality") && merged["personality"].toArray().isEmpty()) {
         merged["personality"] = incoming["personality"];
     }
@@ -898,13 +932,79 @@ QJsonObject mergeCharacterObjects(const QJsonObject& existing, const QJsonObject
 
 QString buildSceneMergeKey(const QJsonObject& scene)
 {
-    const QStringList keys = SceneKeyUtils::buildSceneIdentityKeys(scene);
-    return keys.isEmpty() ? QString() : keys.first();
+    const QJsonObject details = scene.value("details").toObject();
+    QStringList detailValues = {
+        scene.value("description").toString(),
+        details.value("description").toString(),
+        scene.value("setting").toString(),
+        scene.value("landmark").toString(),
+        scene.value("building").toString(),
+        scene.value("layout").toString()
+    };
+    return SceneKeyUtils::resolveSceneStableKey(
+        scene.value("name").toString(),
+        scene.value("description").toString(),
+        scene.value("setting").toString(),
+        JsonUtils::jsonArrayToStringList(scene.value("aliases").toArray()),
+        detailValues
+    );
 }
 
-QStringList buildSceneMergeKeys(const QJsonObject& scene)
+QStringList buildSceneDisplayNameCandidates(const QJsonObject& scene)
 {
-    return SceneKeyUtils::buildSceneIdentityKeys(scene);
+    const QJsonObject details = scene.value("details").toObject();
+    return {
+        scene.value("setting").toString(),
+        scene.value("name").toString(),
+        scene.value("description").toString(),
+        details.value("description").toString(),
+        scene.value("landmark").toString(),
+        scene.value("building").toString(),
+        scene.value("layout").toString()
+    };
+}
+
+bool shouldSkipSceneExtraction(const QString& sceneId, const QString& sceneName, const QString& sceneText)
+{
+    return sceneId.isEmpty() || sceneName.isEmpty() ||
+           isActionHeavySceneToken(sceneName) || isActionHeavySceneToken(sceneText);
+}
+
+QJsonObject buildExtractedSceneObject(const QString& sceneId, const QString& sceneName, const QString& sceneText)
+{
+    QString sceneDesc = cleanSceneDescription(sceneText);
+
+    static QRegularExpression charNamePattern(
+        QStringLiteral(R"(^\s*[\p{Han}A-Za-z0-9_·]{2,20}[：:])")
+    );
+
+    QStringList filteredSentences;
+    const QStringList sentences = sceneDesc.split(QRegularExpression(QStringLiteral(R"([。！？!?；;\n]+)")));
+    for (const QString& sentence : sentences) {
+        const QString trimmed = sentence.trimmed();
+        if (trimmed.isEmpty()) {
+            continue;
+        }
+        if (charNamePattern.match(trimmed).hasMatch()) {
+            continue;
+        }
+        if (isActionHeavySceneToken(trimmed)) {
+            continue;
+        }
+        filteredSentences.append(trimmed);
+    }
+
+    QString cleanedDesc = filteredSentences.join(". ");
+    if (cleanedDesc.isEmpty()) {
+        cleanedDesc = sceneDesc;
+    }
+
+    return QJsonObject{
+        {"id", sceneId},
+        {"name", sceneName},
+        {"type", "unknown"},
+        {"description", cleanedDesc}
+    };
 }
 
 QJsonObject mergeSceneObjects(const QJsonObject& existing, const QJsonObject& incoming)
@@ -976,26 +1076,21 @@ void QwenClient::extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>
     Q_UNUSED(sceneCounter);
     QJsonObject background = panel["background"].toObject();
     QString sceneId = background["sceneId"].toString();
-    QString setting = background["setting"].toString();
     QString sceneText = panel["scene"].toString();
-    QString sceneName = normalizeSceneLabel(setting);
-    if (sceneName.isEmpty()) {
-        sceneName = normalizeSceneLabel(sceneText);
-    }
-    if (sceneName.isEmpty()) {
-        sceneName = sceneText.trimmed();
-    }
+    QString sceneName = SceneKeyUtils::resolveSceneDisplayName(buildSceneDisplayNameCandidates(panel));
+    const QString stableSceneId = buildSceneMergeKey(panel);
     
     if (!sceneId.isEmpty() && existingSceneLookup.contains(sceneId)) {
         return;
     }
-    
+
     if (sceneId.isEmpty() && !sceneName.isEmpty()) {
         const QStringList candidates = {
             sceneName,
             normalizeSceneLabel(sceneName),
             sceneText.trimmed(),
-            normalizeSceneLabel(sceneText)
+            normalizeSceneLabel(sceneText),
+            stableSceneId
         };
         const QString matchedId = SceneKeyUtils::resolveSceneLookupId(existingSceneLookup, candidates);
         if (!matchedId.isEmpty()) {
@@ -1006,50 +1101,19 @@ void QwenClient::extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>
     }
 
     if (sceneId.isEmpty()) {
-        sceneId = sceneName;
+        sceneId = stableSceneId;
     }
 
     if (sceneName.isEmpty()) {
         sceneName = sceneId;
     }
 
-    if (sceneId.isEmpty()) {
+    if (shouldSkipSceneExtraction(sceneId, sceneName, sceneText)) {
         return;
     }
 
     if (!extractedScenes.contains(sceneId)) {
-        QString sceneDesc = cleanSceneDescription(sceneText);
-        
-        static QRegularExpression charNamePattern(
-            QStringLiteral(R"(^\s*[\p{Han}A-Za-z0-9_·]{2,20}[：:])")
-        );
-        
-        QStringList filteredSentences;
-        QStringList sentences = sceneDesc.split(QRegularExpression(QStringLiteral(R"([。！？!?；;\n]+)")));
-        for (const QString& sentence : sentences) {
-            QString trimmed = sentence.trimmed();
-            if (trimmed.isEmpty()) continue;
-            
-            if (charNamePattern.match(trimmed).hasMatch()) {
-                continue;
-            }
-            if (isActionHeavySceneToken(trimmed)) {
-                continue;
-            }
-            filteredSentences.append(trimmed);
-        }
-        
-        QString cleanedDesc = filteredSentences.join(". ");
-        if (cleanedDesc.isEmpty()) {
-            cleanedDesc = sceneDesc;
-        }
-        
-        extractedScenes[sceneId] = QJsonObject{
-            {"id", sceneId},
-            {"name", sceneName},
-            {"type", "unknown"},
-            {"description", cleanedDesc}
-        };
+        extractedScenes[sceneId] = buildExtractedSceneObject(sceneId, sceneName, sceneText);
     }
 }
 

@@ -47,43 +47,89 @@ QString SchemaToPrompt::sanitizeDescription(const QString &description)
     return result;
 }
 
+QString SchemaToPrompt::getRoleDescription()
+{
+    return QString::fromUtf8(
+        "你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。\n\n"
+    );
+}
+
+QString SchemaToPrompt::getContinuityRules()
+{
+    return QString::fromUtf8(
+        "📖 **跨章节连续性规则**（如果提供了现有圣经）：\n\n"
+        "- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色\n"
+        "- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组中包含所有现有场景（保持原有属性不变），并添加新出现的场景\n"
+        "- **引用场景ID**：在 panel.background.sceneId 中优先使用现有场景的 id，确保重复出现的地点使用相同的场景定义\n"
+        "- **补全新内容**：遇到新角色或新场景时，按照正常规则创建新条目，但保持与现有风格一致\n"
+        "- **禁止修改**：不要修改现有角色的 appearance 或现有场景的 visualCharacteristics，保持视觉连续性\n\n"
+    );
+}
+
+QString SchemaToPrompt::getCoreTaskRules()
+{
+    return QString::fromUtf8(
+        "🎬 **核心任务规则**：\n\n"
+        "1. **场景描写**：详细描述每个面板的视觉画面，包括环境、氛围、人物动作\n"
+        "2. **背景设定**：明确场景地点、时间、天气、光照\n"
+        "3. **镜头设计**：选择合适的景别和机位强化叙事\n"
+        "4. **氛围营造**：定义情绪基调、音效、粒子效果\n"
+        "5. **画风控制**：指定艺术风格包括类型、线条、阴影、配色\n"
+        "6. **构图原则**：运用构图法则确定焦点、景深、视觉引导\n"
+        "7. **角色刻画**：准确描述姿态、表情、位置\n"
+        "8. **对白处理**：提取对话，标注说话者、气泡类型、情感\n"
+        "9. **叙事功能**：明确面板的故事作用\n"
+        "10. **分页规范**：每页 6 个面板，index 从 0-5\n"
+        "11. **场景圣经**：为重复出现的场景创建统一视觉定义，确保跨章节一致性\n\n"
+    );
+}
+
+QString SchemaToPrompt::getLanguageRequirements()
+{
+    return QString::fromUtf8(
+        "🌐 **语言要求**：\n\n"
+        "- 所有文字类字段（包括 panels[].scene、panels[].background / atmosphere、panels[].characters[].pose & expression、dialogue、narrativeFunction、visualPrompt，以及 scenes / characters 梳理出来的描述）必须使用**简体中文**。\n"
+        "- Imagen Prompt（visualPrompt）也需要使用简体中文描述画面，不要混入英文提示词。\n"
+        "- 除变量名、接口字段名或必要的专有名词外，请避免英文单词或拼音。\n\n"
+    );
+}
+
+QString SchemaToPrompt::getSchemaIntro()
+{
+    return QString::fromUtf8(
+        "📋 **JSON Schema 字段说明**：\n\n"
+        "以下是完整的输出结构定义。所有字段说明都直接来自 JSON Schema，是唯一的事实来源。\n\n"
+    );
+}
+
+QString SchemaToPrompt::getExampleSection(const QJsonObject &example)
+{
+    QString section = QString::fromUtf8("\n📝 **完整示例**：\n\n");
+    section += QStringLiteral("```json\n");
+    section += QString::fromUtf8(QJsonDocument(example).toJson(QJsonDocument::Indented));
+    section += QStringLiteral("\n```\n");
+    return section;
+}
+
 QString SchemaToPrompt::buildSystemPrompt(const QJsonObject &schema, const Options &options)
 {
-    QString prompt = QString::fromUtf8(
-        "你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。\n\n"
-
-        "📖 **跨章节连续性**：复用已有角色和场景，识别角色别名，将后续新称呼归并到同一实体；当新章节提供更明确的名字、别名或设定时，更新对应圣经条目，并保留历史别名。\n\n"
-
-        "🎬 **核心规则**：\n"
-        "- 每页6个面板，index从0-5\n"
-        "- 所有文字使用简体中文\n"
-        "- 角色/场景必须有完整属性，禁止空值\n\n"
-
-        "👤 **角色外观**：必须提取gender、age、hairColor、hairStyle、eyeColor、build、clothing、distinctiveFeatures。文本未明确描述时可合理推断，但不得编造与上下文冲突的信息；后续章节若提供更准确设定，应回写到角色圣经。\n\n"
-
-        "🏞️ **场景规则**：\n"
-        "- **场景ID**：使用稳定、简洁、可复用的标识，避免同一场景在不同章节生成不同ID\n"
-        "- **合并同类场景**：语义、位置和视觉锚点一致的描述必须归并为同一场景实体；后续更完整的场景信息应更新到同一场景条目\n"
-        "- **不拆连通空间**：玄关与客厅相连则合并为一个场景，不要拆成两个\n"
-        "- **建筑统称需拆分**：整体建筑描述应拆分为具体可画的功能区域\n"
-        "- **命名绝对一致**：同一场景在所有面板中使用完全相同的名称\n"
-        "- 必须提取：type、setting、timeOfDay、weather、narrativeRole、visualCharacteristics、anchorPoints（至少3个）、signatureObjects（至少3个）\n\n"
-
-        "📋 **JSON Schema 字段说明**：\n\n"
-    );
+    QString prompt;
+    prompt.reserve(4096);
     
+    prompt += getRoleDescription();
+    prompt += getContinuityRules();
+    prompt += getCoreTaskRules();
+    prompt += getLanguageRequirements();
+    prompt += getSchemaIntro();
     prompt += generateFieldDocs(schema);
     
-    QJsonObject example = options.customExample.isEmpty() ? generateExample(schema) : options.customExample;
-    if (!example.isEmpty()) {
-        prompt += QString::fromUtf8("\n📝 **完整示例**：\n\n");
-        prompt += "```json\n";
-        prompt += QString::fromUtf8(QJsonDocument(example).toJson(QJsonDocument::Indented));
-        prompt += "\n```\n";
-    }
+    QJsonObject example = options.customExample.isEmpty() 
+        ? generateExample(schema) 
+        : options.customExample;
+    prompt += getExampleSection(example);
     
     if (!options.additionalInstructions.isEmpty()) {
-        prompt += "\n" + options.additionalInstructions + "\n";
+        prompt += QStringLiteral("\n") + options.additionalInstructions + QStringLiteral("\n");
     }
     
     return prompt;
@@ -91,15 +137,15 @@ QString SchemaToPrompt::buildSystemPrompt(const QJsonObject &schema, const Optio
 
 QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentLevel)
 {
-    QString indent = QString("  ").repeated(indentLevel);
+    QString indent = QStringLiteral("  ").repeated(indentLevel);
     QString docs;
     
     if (schema.isEmpty()) {
         return docs;
     }
     
-    QJsonObject properties = schema["properties"].toObject();
-    QJsonArray required = schema["required"].toArray();
+    QJsonObject properties = schema[QStringLiteral("properties")].toObject();
+    QJsonArray required = schema[QStringLiteral("required")].toArray();
     
     for (auto it = properties.begin(); it != properties.end(); ++it) {
         QString fieldName = it.key();
@@ -113,52 +159,58 @@ QString SchemaToPrompt::generateFieldDocs(const QJsonObject &schema, int indentL
             }
         }
         
-        QString requiredMark = isRequired ? QString::fromUtf8("必填") : QString::fromUtf8("可选");
+        QString requiredMark = isRequired 
+            ? QString::fromUtf8("必填") 
+            : QString::fromUtf8("可选");
         QString fieldType = getFieldType(fieldSchema);
 
-        docs += QString("%1- **%2**（%3）").arg(indent, fieldName, requiredMark);
+        docs += QStringLiteral("%1- **%2**（%3）").arg(indent, fieldName, requiredMark);
         
         if (!fieldType.isEmpty()) {
-            docs += QString(" [%1]").arg(fieldType);
+            docs += QStringLiteral(" [%1]").arg(fieldType);
         }
-        docs += "\n";
+        docs += QStringLiteral("\n");
         
-        if (fieldSchema.contains("description")) {
-            const QString description = sanitizeDescription(fieldSchema["description"].toString());
+        if (fieldSchema.contains(QStringLiteral("description"))) {
+            const QString description = sanitizeDescription(
+                fieldSchema[QStringLiteral("description")].toString());
             if (!description.isEmpty()) {
-                docs += QString("%1  %2\n").arg(indent, description);
+                docs += QStringLiteral("%1  %2\n").arg(indent, description);
             }
         }
         
-        if (fieldSchema.contains("enum")) {
-            QJsonArray enumValues = fieldSchema["enum"].toArray();
+        if (fieldSchema.contains(QStringLiteral("enum"))) {
+            QJsonArray enumValues = fieldSchema[QStringLiteral("enum")].toArray();
             QStringList enumStrings;
             for (const QJsonValue &v : enumValues) {
                 enumStrings.append(v.toString());
             }
-            docs += QString("%1  可选值: %2\n").arg(indent, enumStrings.join(", "));
+            docs += QStringLiteral("%1  可选值: %2\n").arg(indent, enumStrings.join(QStringLiteral(", ")));
         }
         
         QStringList constraints = getFieldConstraints(fieldSchema);
         if (!constraints.isEmpty()) {
-            docs += QString("%1  约束: %2\n").arg(indent, constraints.join(", "));
+            docs += QStringLiteral("%1  约束: %2\n").arg(indent, constraints.join(QStringLiteral(", ")));
         }
         
-        if (fieldSchema["type"].toString() == "object" && fieldSchema.contains("properties")) {
+        QString type = fieldSchema[QStringLiteral("type")].toString();
+        if (type == QStringLiteral("object") && fieldSchema.contains(QStringLiteral("properties"))) {
             docs += generateFieldDocs(fieldSchema, indentLevel + 1);
         }
         
-        if (fieldSchema["type"].toString() == "array" && fieldSchema.contains("items")) {
-            QJsonObject items = fieldSchema["items"].toObject();
-            if (items["type"].toString() == "object" && items.contains("properties")) {
-                docs += QString("%1  数组元素结构:\n").arg(indent);
+        if (type == QStringLiteral("array") && fieldSchema.contains(QStringLiteral("items"))) {
+            QJsonObject items = fieldSchema[QStringLiteral("items")].toObject();
+            if (items[QStringLiteral("type")].toString() == QStringLiteral("object") 
+                && items.contains(QStringLiteral("properties"))) {
+                docs += QStringLiteral("%1  数组元素结构:\n").arg(indent);
                 docs += generateFieldDocs(items, indentLevel + 2);
-            } else if (items.contains("type")) {
-                docs += QString("%1  数组元素类型: %2\n").arg(indent, items["type"].toString());
+            } else if (items.contains(QStringLiteral("type"))) {
+                docs += QStringLiteral("%1  数组元素类型: %2\n")
+                    .arg(indent, items[QStringLiteral("type")].toString());
             }
         }
         
-        docs += "\n";
+        docs += QStringLiteral("\n");
     }
     
     return docs;
@@ -170,9 +222,10 @@ QJsonObject SchemaToPrompt::generateExample(const QJsonObject &schema)
         return QJsonObject();
     }
     
-    if (schema["type"].toString() == "object" && schema.contains("properties")) {
+    if (schema[QStringLiteral("type")].toString() == QStringLiteral("object") 
+        && schema.contains(QStringLiteral("properties"))) {
         QJsonObject example;
-        QJsonObject properties = schema["properties"].toObject();
+        QJsonObject properties = schema[QStringLiteral("properties")].toObject();
         
         for (auto it = properties.begin(); it != properties.end(); ++it) {
             example[it.key()] = generateFieldExample(it.value().toObject());
@@ -190,48 +243,48 @@ QJsonObject SchemaToPrompt::generateExample(const QJsonObject &schema)
 
 QJsonValue SchemaToPrompt::generateFieldExample(const QJsonObject &fieldSchema)
 {
-    if (fieldSchema.contains("example")) {
-        return fieldSchema["example"];
+    if (fieldSchema.contains(QStringLiteral("example"))) {
+        return fieldSchema[QStringLiteral("example")];
     }
     
-    QString type = fieldSchema["type"].toString();
+    QString type = fieldSchema[QStringLiteral("type")].toString();
     
-    if (type == "string") {
-        if (fieldSchema.contains("enum")) {
-            QJsonArray enumValues = fieldSchema["enum"].toArray();
+    if (type == QStringLiteral("string")) {
+        if (fieldSchema.contains(QStringLiteral("enum"))) {
+            QJsonArray enumValues = fieldSchema[QStringLiteral("enum")].toArray();
             if (!enumValues.isEmpty()) {
                 return enumValues.first();
             }
         }
-        if (fieldSchema.contains("description")) {
-            return sanitizeDescription(fieldSchema["description"].toString());
+        if (fieldSchema.contains(QStringLiteral("description"))) {
+            return sanitizeDescription(fieldSchema[QStringLiteral("description")].toString());
         }
-        return QString("string value");
+        return QStringLiteral("string value");
     }
     
-    if (type == "number" || type == "integer") {
-        if (fieldSchema.contains("minimum")) {
-            return fieldSchema["minimum"].toInt();
+    if (type == QStringLiteral("number") || type == QStringLiteral("integer")) {
+        if (fieldSchema.contains(QStringLiteral("minimum"))) {
+            return fieldSchema[QStringLiteral("minimum")].toInt();
         }
         return 0;
     }
     
-    if (type == "boolean") {
+    if (type == QStringLiteral("boolean")) {
         return true;
     }
     
-    if (type == "array") {
-        if (fieldSchema.contains("items")) {
+    if (type == QStringLiteral("array")) {
+        if (fieldSchema.contains(QStringLiteral("items"))) {
             QJsonArray arr;
-            arr.append(generateFieldExample(fieldSchema["items"].toObject()));
+            arr.append(generateFieldExample(fieldSchema[QStringLiteral("items")].toObject()));
             return arr;
         }
         return QJsonArray();
     }
     
-    if (type == "object" && fieldSchema.contains("properties")) {
+    if (type == QStringLiteral("object") && fieldSchema.contains(QStringLiteral("properties"))) {
         QJsonObject obj;
-        QJsonObject properties = fieldSchema["properties"].toObject();
+        QJsonObject properties = fieldSchema[QStringLiteral("properties")].toObject();
         for (auto it = properties.begin(); it != properties.end(); ++it) {
             obj[it.key()] = generateFieldExample(it.value().toObject());
         }
@@ -243,19 +296,19 @@ QJsonValue SchemaToPrompt::generateFieldExample(const QJsonObject &fieldSchema)
 
 QString SchemaToPrompt::getFieldType(const QJsonObject &fieldSchema)
 {
-    if (fieldSchema.contains("type")) {
-        return fieldSchema["type"].toString();
+    if (fieldSchema.contains(QStringLiteral("type"))) {
+        return fieldSchema[QStringLiteral("type")].toString();
     }
     
-    if (fieldSchema.contains("oneOf")) {
-        QJsonArray oneOf = fieldSchema["oneOf"].toArray();
+    if (fieldSchema.contains(QStringLiteral("oneOf"))) {
+        QJsonArray oneOf = fieldSchema[QStringLiteral("oneOf")].toArray();
         QStringList types;
         for (const QJsonValue &v : oneOf) {
-            if (v.isObject() && v.toObject().contains("type")) {
-                types.append(v.toObject()["type"].toString());
+            if (v.isObject() && v.toObject().contains(QStringLiteral("type"))) {
+                types.append(v.toObject()[QStringLiteral("type")].toString());
             }
         }
-        return types.join(" | ");
+        return types.join(QStringLiteral(" | "));
     }
     
     return QString();
@@ -264,18 +317,20 @@ QString SchemaToPrompt::getFieldType(const QJsonObject &fieldSchema)
 QStringList SchemaToPrompt::getFieldConstraints(const QJsonObject &fieldSchema)
 {
     static const QList<std::pair<QString, QString>> constraintKeys = {
-        {"minLength", QString::fromUtf8("最小长度")},
-        {"maxLength", QString::fromUtf8("最大长度")},
-        {"minimum", QString::fromUtf8("最小值")},
-        {"maximum", QString::fromUtf8("最大值")},
-        {"minItems", QString::fromUtf8("最少元素")},
-        {"maxItems", QString::fromUtf8("最多元素")}
+        {QStringLiteral("minLength"), QString::fromUtf8("最小长度")},
+        {QStringLiteral("maxLength"), QString::fromUtf8("最大长度")},
+        {QStringLiteral("minimum"), QString::fromUtf8("最小值")},
+        {QStringLiteral("maximum"), QString::fromUtf8("最大值")},
+        {QStringLiteral("minItems"), QString::fromUtf8("最少元素")},
+        {QStringLiteral("maxItems"), QString::fromUtf8("最多元素")}
     };
     
     QStringList constraints;
     for (const auto& pair : constraintKeys) {
         if (fieldSchema.contains(pair.first)) {
-            constraints.append(QString("%1: %2").arg(pair.second).arg(fieldSchema[pair.first].toInt()));
+            constraints.append(QStringLiteral("%1: %2")
+                .arg(pair.second)
+                .arg(fieldSchema[pair.first].toInt()));
         }
     }
     

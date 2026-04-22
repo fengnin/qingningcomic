@@ -283,7 +283,43 @@ inline QString buildSceneCoreKey(const QString& text)
         QString::fromUtf8("远景")
     };
 
-    return containsAnyToken(result, abstractTokens) ? QString() : QString();
+    if (containsAnyToken(result, abstractTokens)) {
+        return QString();
+    }
+
+    return result;
+}
+
+inline QString resolveSceneStableKey(const QString& name,
+                                    const QString& description,
+                                    const QString& setting,
+                                    const QStringList& aliases = QStringList(),
+                                    const QStringList& detailValues = QStringList())
+{
+    QStringList candidates;
+    candidates << name << setting << description;
+    candidates << aliases << detailValues;
+
+    for (const QString& candidate : candidates) {
+        const QString normalized = normalizeSceneLabel(candidate);
+        const QString coreKey = buildSceneCoreKey(normalized.isEmpty() ? candidate : normalized);
+        if (!coreKey.isEmpty()) {
+            return coreKey;
+        }
+    }
+
+    return QString();
+}
+
+inline QString resolveSceneDisplayName(const QStringList& candidates)
+{
+    for (const QString& candidate : candidates) {
+        const QString normalized = normalizeSceneLabel(candidate);
+        if (!normalized.isEmpty()) {
+            return normalized;
+        }
+    }
+    return QString();
 }
 
 inline QStringList buildSceneAliasKeys(const QString& name, const SceneDetails& details)

@@ -19,42 +19,6 @@
 IMPLEMENT_SINGLETON(StoryboardViewModel)
 
 namespace {
-QVariantMap queryOneRow(QSqlDatabase& db, const QString& sql, const QVariantList& binds, bool* ok, QString* error)
-{
-    QVariantMap row;
-    QSqlQuery query(db);
-    if (!query.prepare(sql)) {
-        if (error) {
-            *error = query.lastError().text();
-        }
-        if (ok) {
-            *ok = false;
-        }
-        return row;
-    }
-
-    DatabaseUtils::bindValues(query, binds);
-
-    if (!query.exec()) {
-        if (error) {
-            *error = query.lastError().text();
-        }
-        if (ok) {
-            *ok = false;
-        }
-        return row;
-    }
-
-    if (query.next()) {
-        row = DatabaseUtils::recordToMap(query);
-    }
-
-    if (ok) {
-        *ok = true;
-    }
-    return row;
-}
-
 QList<QVariantMap> queryAllRows(QSqlDatabase& db, const QString& sql, const QVariantList& binds, bool* ok, QString* error)
 {
     QList<QVariantMap> rows;
@@ -114,7 +78,10 @@ Panel panelFromMap(const QVariantMap& map)
     const QString contentText = map.value(QStringLiteral("content")).toString();
     const QJsonDocument doc = QJsonDocument::fromJson(contentText.toUtf8());
     panel.setContent(doc.isObject() ? doc.object() : QJsonObject());
-    panel.setVisualPrompt(map.value(QStringLiteral("visual_prompt")).toString());
+    const QString visualPrompt = map.value(QStringLiteral("visual_prompt")).toString();
+    if (!visualPrompt.isEmpty()) {
+        panel.setVisualPrompt(visualPrompt);
+    }
     panel.setPreviewS3Key(map.value(QStringLiteral("preview_image_path")).toString());
     panel.setHdS3Key(map.value(QStringLiteral("hd_image_path")).toString());
     return panel;
@@ -503,7 +470,15 @@ bool StoryboardViewModel::deleteStoryboard(const QString& novelId, int chapterNu
                 break;
             }
         }
+        if (m_cachedNovelId == novelId && m_cachedChapterNumber == chapterNumber) {
+            m_currentStoryboard = Storyboard();
+            m_currentPanels.clear();
+            m_cachedChapterNumber = 0;
+        }
         m_panelsCache.clear();
+        m_storyboardsLoading = false;
+        m_storyboardLoading = false;
+        emit storyboardDeleted(novelId, chapterNumber);
     }
     
     return result;

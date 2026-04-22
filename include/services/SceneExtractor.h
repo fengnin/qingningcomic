@@ -84,12 +84,9 @@ private:
     Scene mergeScenes(const Scene& existing, const ExtractedScene& incoming);
     QVariantMap sceneToData(const Scene& scene) const;
     Scene sceneFromRow(const QVariantMap& row);
-    QString generateId();
     Scene findExistingScene(const QString& novelId, const QString& sceneId, const QString& name);
     void inferSceneDetails(ExtractedScene& scene);
     Scene preserveReferenceImagePath(Scene scene);
-    
-    static bool containsChinese(const QString& text);
     
     static SceneExtractor* m_instance;
     static std::once_flag m_instanceOnceFlag;

@@ -13,6 +13,7 @@
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
 #include "services/NovelService.h"
+#include "services/StoryboardService.h"
 #include "services/CharacterExtractor.h"
 #include "services/SceneExtractor.h"
 #include "services/BibleGenerator.h"
@@ -293,15 +294,6 @@ namespace {
         }
     )";
     
-    // ========== 初始化数据 ==========
-    const QStringList SAMPLE_PANEL_DESCRIPTIONS = {
-        QString::fromUtf8("主角站在窗前，凝视远方"),
-        QString::fromUtf8("两人在咖啡厅对话，气氛紧张"),
-        QString::fromUtf8("雨夜街道，霓虹灯闪烁"),
-        QString::fromUtf8("教室场景，阳光透过窗户洒入"),
-        QString::fromUtf8("战斗场景，能量爆发"),
-    };
-    
     // ========== 圣经图片辅助函数 ==========
     void saveCharacterBibleImage(const QString& characterId, const QString& imagePath)
     {
@@ -359,6 +351,145 @@ namespace {
         SceneExtractor::instance()->updateScene(scene);
     }
 
+    QStringList fieldNames(std::initializer_list<QString> keys)
+    {
+        QStringList result;
+        for (const QString& key : keys) {
+            result << key;
+        }
+        return result;
+    }
+
+    QString extractBibleField(const QString& detail, std::initializer_list<QString> keys)
+    {
+        return BibleUtils::extractDetailValue(detail, fieldNames(keys));
+    }
+
+    void applyCharacterBibleDetail(Character& character, CharacterAppearance& app, const QString& detail)
+    {
+        const QString gender = extractBibleField(detail, {QStringLiteral("gender"), QString::fromUtf8("性别")});
+        if (!gender.isEmpty()) {
+            app.gender = gender;
+        }
+
+        const int age = extractBibleField(detail, {QStringLiteral("age"), QString::fromUtf8("年龄")}).toInt();
+        if (age > 0) {
+            app.age = age;
+        }
+
+        const QString hairColor = extractBibleField(detail, {QStringLiteral("hairColor"), QString::fromUtf8("发色")});
+        if (!hairColor.isEmpty()) {
+            app.hairColor = hairColor;
+        }
+
+        const QString eyeColor = extractBibleField(detail, {QStringLiteral("eyeColor"), QString::fromUtf8("瞳色"), QString::fromUtf8("眼睛")});
+        if (!eyeColor.isEmpty()) {
+            app.eyeColor = eyeColor;
+        }
+
+        const QString bodyType = extractBibleField(detail, {QStringLiteral("bodyType"), QString::fromUtf8("体型")});
+        if (!bodyType.isEmpty()) {
+            app.build = bodyType;
+        }
+
+        const QString hairStyle = extractBibleField(detail, {QStringLiteral("hairStyle"), QString::fromUtf8("发型")});
+        if (!hairStyle.isEmpty()) {
+            app.hairStyle = hairStyle;
+        }
+
+        const QString clothing = extractBibleField(detail, {QStringLiteral("clothing"), QString::fromUtf8("服饰")});
+        if (!clothing.isEmpty()) {
+            app.clothing = BibleUtils::splitCommaSeparatedList(clothing);
+        }
+
+        const QString accessories = extractBibleField(detail, {QStringLiteral("accessories"), QString::fromUtf8("配饰")});
+        if (!accessories.isEmpty()) {
+            app.accessories = BibleUtils::splitCommaSeparatedList(accessories);
+        }
+
+        const QString features = extractBibleField(detail, {QStringLiteral("features"), QStringLiteral("distinctiveFeatures"), QString::fromUtf8("明显特征"), QString::fromUtf8("特征")});
+        if (!features.isEmpty()) {
+            app.distinctiveFeatures = BibleUtils::splitCommaSeparatedList(features);
+        }
+
+        const QString personality = extractBibleField(detail, {QStringLiteral("personality"), QString::fromUtf8("个性"), QString::fromUtf8("性格")});
+        if (!personality.isEmpty()) {
+            character.setPersonality(BibleUtils::splitCommaSeparatedList(personality));
+        }
+    }
+
+    void applySceneBibleDetail(SceneDetails& det, const QString& detail)
+    {
+        const QString description = extractBibleField(detail, {QStringLiteral("description"), QString::fromUtf8("描述")});
+        if (!description.isEmpty()) {
+            det.description = description;
+        }
+
+        const QString building = extractBibleField(detail, {QStringLiteral("building"), QString::fromUtf8("建筑")});
+        if (!building.isEmpty()) {
+            det.building = building;
+        }
+
+        const QString color = extractBibleField(detail, {QStringLiteral("color"), QString::fromUtf8("色调")});
+        if (!color.isEmpty()) {
+            det.color = color;
+        }
+
+        const QString landmark = extractBibleField(detail, {QStringLiteral("landmark"), QString::fromUtf8("地标")});
+        if (!landmark.isEmpty()) {
+            det.landmark = landmark;
+        }
+
+        const QString layout = extractBibleField(detail, {QStringLiteral("layout"), QString::fromUtf8("布局")});
+        if (!layout.isEmpty()) {
+            det.layout = layout;
+        }
+
+        const QString atmosphere = extractBibleField(detail, {QStringLiteral("atmosphere"), QString::fromUtf8("氛围")});
+        if (!atmosphere.isEmpty()) {
+            det.atmosphere = atmosphere;
+        }
+    }
+
+    QStringList buildPanelCharacterInfo(const QJsonArray& charArray)
+    {
+        QStringList charInfos;
+        for (const QJsonValue& c : charArray) {
+            const QJsonObject charObj = c.toObject();
+            const QString name = charObj["name"].toString();
+            QStringList notes;
+            const QString pose = charObj["pose"].toString();
+            const QString expression = charObj["expression"].toString();
+            if (!pose.isEmpty()) {
+                notes << pose;
+            }
+            if (!expression.isEmpty()) {
+                notes << expression;
+            }
+            QString info = name;
+            if (!notes.isEmpty()) {
+                info += QString(" (%1)").arg(notes.join(", "));
+            }
+            charInfos << info;
+        }
+        return charInfos;
+    }
+
+    QStringList buildPanelDialogueInfo(const QJsonArray& dialogueArray)
+    {
+        QStringList dialogueInfos;
+        for (const QJsonValue& d : dialogueArray) {
+            const QJsonObject dialogueObj = d.toObject();
+            const QString speaker = dialogueObj["speaker"].toString();
+            const QString text = dialogueObj["text"].toString();
+            if (!speaker.isEmpty() && speaker != "narration") {
+                dialogueInfos << QString("%1: %2").arg(speaker, text);
+            } else if (!text.isEmpty()) {
+                dialogueInfos << text;
+            }
+        }
+        return dialogueInfos;
+    }
     // ========== 辅助函数 ==========
     QWidget* createTransparentWidget()
     {
@@ -1132,31 +1263,10 @@ QWidget* NovelDetailPage::createStoryboardCard()
     QVBoxLayout *containerLayout = new QVBoxLayout(m_storyboardContainer);
     containerLayout->setContentsMargins(0, 0, 8, 0);
     containerLayout->setSpacing(16);
-    
-    QList<QPair<int, QStringList>> storyboardItems = {
-        {1, {"第1章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {2, {"第2章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {3, {"第3章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {4, {"第4章", "分镜A", "分镜B", "分镜C", "分镜D"}}
-    };
-    
-    for (const auto &item : storyboardItems) {
-        const QStringList parts = item.second;
-        StoryboardItem *storyboardItem = new StoryboardItem(
-            item.first,
-            parts.value(0),
-            parts.value(1),
-            parts.value(2),
-            parts.value(3),
-            parts.value(4),
-            parts.value(5),
-            parts.value(6),
-            parts.value(7)
-        );
-        connect(storyboardItem, &StoryboardItem::dataChanged, this, &NovelDetailPage::onStoryboardDataChanged);
-        containerLayout->addWidget(storyboardItem);
-    }
-    
+    QLabel *emptyLabel = createLabel(tr("暂无分镜，请先分析章节。"), m_colorHint, 14);
+    emptyLabel->setAlignment(Qt::AlignCenter);
+    emptyLabel->setMinimumHeight(160);
+    containerLayout->addWidget(emptyLabel);
     containerLayout->addStretch();
     
     scrollArea->setWidget(m_storyboardContainer);
@@ -1204,13 +1314,7 @@ void NovelDetailPage::updateDisplay()
     m_titleLabel->setText(m_currentNovel.title());
     
     StoryboardViewModel* vm = StoryboardViewModel::instance();
-    vm->loadStoryboards(m_currentNovel.id());
-    vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
-
-    QList<Storyboard> storyboards;
-    if (vm->hasCachedStoryboards(m_currentNovel.id())) {
-        storyboards = vm->storyboards();
-    }
+    QList<Storyboard> storyboards = StoryboardService::instance()->getAllStoryboards(m_currentNovel.id());
     
     m_completedChapterCount = storyboards.size();
     
@@ -1316,28 +1420,21 @@ void NovelDetailPage::refreshChapterCardsOnly()
 {
     if (!m_chapterContainerLayout) return;
     
-    StoryboardViewModel* vm = StoryboardViewModel::instance();
-    vm->loadStoryboards(m_currentNovel.id());
-    QList<Storyboard> storyboards = vm->storyboards();
-    refreshChapterCards(storyboards);
-    
-    if (m_chapterCountLabel) {
-        m_chapterCountLabel->setText(QString("章节数: %1").arg(storyboards.size()));
-    }
-    
-    int maxChapterNumber = 0;
+    QList<Storyboard> storyboards = StoryboardService::instance()->getAllStoryboards(m_currentNovel.id());
+    m_completedChapterCount = storyboards.size();
+
+    bool currentExists = false;
     for (const Storyboard& storyboard : storyboards) {
-        if (storyboard.chapterNumber() > maxChapterNumber) {
-            maxChapterNumber = storyboard.chapterNumber();
+        if (storyboard.chapterNumber() == m_currentChapter) {
+            currentExists = true;
+            break;
         }
     }
-    
-    int nextChapterNumber = maxChapterNumber > 0 ? maxChapterNumber + 1 : 1;
-    if (m_chapterNumberSpin) {
-        m_chapterNumberSpin->setValue(nextChapterNumber);
+    if (!currentExists) {
+        m_currentChapter = storyboards.isEmpty() ? 1 : storyboards.first().chapterNumber();
     }
-    
-    updateChapterHints(storyboards);
+
+    updateDisplay();
 }
 
 void NovelDetailPage::onChapterClicked(int chapterNumber)
@@ -1368,11 +1465,6 @@ void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
         return;
     }
     
-    if (m_currentChapter == chapterNumber) {
-        m_currentChapter = 1;
-    }
-    m_completedChapterCount--;
-    
     setUpdatesEnabled(false);
     
     refreshChapterCardsOnly();
@@ -1389,16 +1481,6 @@ void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
             hScrollBar->setValue(newPos);
         }
     });
-}
-
-QList<QPair<int, QStringList>> NovelDetailPage::getSampleStoryboardItems() const
-{
-    return {
-        {1, {"第1章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {2, {"第2章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {3, {"第3章", "分镜A", "分镜B", "分镜C", "分镜D"}},
-        {4, {"第4章", "分镜A", "分镜B", "分镜C", "分镜D"}}
-    };
 }
 
 QPair<int, QStringList> NovelDetailPage::parsePanelToItem(const Panel& panel) const
@@ -1423,39 +1505,8 @@ QPair<int, QStringList> NovelDetailPage::parsePanelToItem(const Panel& panel) co
         cameraAngle = content["camera_angle"].toString();
     }
     
-    QStringList charInfos;
-    QJsonArray charArray = content["characters"].toArray();
-    
-    for (const QJsonValue& c : charArray) {
-        QJsonObject charObj = c.toObject();
-        QString name = charObj["name"].toString();
-        QString pose = charObj["pose"].toString();
-        QString expression = charObj["expression"].toString();
-        
-        QString info = name;
-        QStringList notes;
-        if (!pose.isEmpty()) notes << pose;
-        if (!expression.isEmpty()) notes << expression;
-        if (!notes.isEmpty()) {
-            info += QString(" (%1)").arg(notes.join(", "));
-        }
-        charInfos << info;
-    }
-    
-    QStringList dialogueInfos;
-    QJsonArray dialogueArray = content["dialogue"].toArray();
-    
-    for (const QJsonValue& d : dialogueArray) {
-        QJsonObject dialogueObj = d.toObject();
-        QString speaker = dialogueObj["speaker"].toString();
-        QString text = dialogueObj["text"].toString();
-        
-        if (!speaker.isEmpty() && speaker != "narration") {
-            dialogueInfos << QString("%1: %2").arg(speaker, text);
-        } else if (!text.isEmpty()) {
-            dialogueInfos << text;
-        }
-    }
+    const QStringList charInfos = buildPanelCharacterInfo(content["characters"].toArray());
+    const QStringList dialogueInfos = buildPanelDialogueInfo(content["dialogue"].toArray());
     
     QString visualPrompt = panel.visualPrompt();
     QString visualPromptEn = panel.visualPromptEn();
@@ -1487,6 +1538,11 @@ void NovelDetailPage::clearLayout(QLayout *layout)
 
 void NovelDetailPage::refreshStoryboardItems()
 {
+    refreshStoryboardItems(loadPanelsFromDatabase());
+}
+
+void NovelDetailPage::refreshStoryboardItems(const QList<Panel>& panels)
+{
     if (!m_storyboardContainer) {
         LOG_WARNING("NovelDetailPage", "refreshStoryboardItems: m_storyboardContainer is null");
         return;
@@ -1499,8 +1555,11 @@ void NovelDetailPage::refreshStoryboardItems()
     }
     
     clearLayout(containerLayout);
-    
-    QList<QPair<int, QStringList>> storyboardItems = loadStoryboardFromDatabase();
+
+    QList<QPair<int, QStringList>> storyboardItems;
+    for (const Panel& panel : panels) {
+        storyboardItems.append(parsePanelToItem(panel));
+    }
 
     int createdCount = 0;
     for (const auto &item : storyboardItems) {
@@ -1528,32 +1587,25 @@ void NovelDetailPage::refreshStoryboardItems()
     containerLayout->addStretch();
     
     if (m_panelPreviewWidget) {
-        QList<Panel> panels = StoryboardViewModel::instance()->currentPanels();
         m_panelPreviewWidget->setPanels(panels);
     }
 }
 
-QList<QPair<int, QStringList>> NovelDetailPage::loadStoryboardFromDatabase() const
+QList<Panel> NovelDetailPage::loadPanelsFromDatabase() const
 {
-    QList<QPair<int, QStringList>> items;
+    QList<Panel> panels;
     QString novelId = m_currentNovel.id();
-    
+
     if (novelId.isEmpty()) {
-        return items;
+        return panels;
     }
 
-    StoryboardViewModel* vm = StoryboardViewModel::instance();
-    if (!vm->hasCachedPanels(novelId, m_currentChapter)) {
-        return items;
+    Storyboard storyboard = StoryboardService::instance()->getStoryboardByChapter(novelId, m_currentChapter);
+    if (storyboard.id().isEmpty()) {
+        return panels;
     }
-    
-    QList<Panel> panels = vm->currentPanels();
-    
-    for (const Panel& panel : panels) {
-        items.append(parsePanelToItem(panel));
-    }
-    
-    return items;
+
+    return StoryboardService::instance()->getPanels(storyboard.id());
 }
 
 void NovelDetailPage::updateChapterSelection(int chapterNumber)
@@ -1616,8 +1668,7 @@ void NovelDetailPage::onPanelsLoaded(const QString& novelId, int chapterNumber, 
         return;
     }
 
-    Q_UNUSED(panels)
-    refreshStoryboardItems();
+    refreshStoryboardItems(panels);
 }
 
 
@@ -2283,57 +2334,8 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
     Character character = CharacterExtractor::instance()->getCharacterById(id);
     if (!character.id().isEmpty()) {
         CharacterAppearance app = character.appearance();
-        
         for (const QString &detail : details) {
-            const QString gender = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("gender"), QString::fromUtf8("性别")});
-            if (!gender.isEmpty()) {
-                app.gender = gender;
-            }
-
-            const int age = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("age"), QString::fromUtf8("年龄")}).toInt();
-            if (age > 0) {
-                app.age = age;
-            }
-
-            const QString hairColor = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("hairColor"), QString::fromUtf8("发色")});
-            if (!hairColor.isEmpty()) {
-                app.hairColor = hairColor;
-            }
-
-            const QString eyeColor = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("eyeColor"), QString::fromUtf8("瞳色"), QString::fromUtf8("眼睛")});
-            if (!eyeColor.isEmpty()) {
-                app.eyeColor = eyeColor;
-            }
-
-            const QString bodyType = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("bodyType"), QString::fromUtf8("体型")});
-            if (!bodyType.isEmpty()) {
-                app.build = bodyType;
-            }
-
-            const QString hairStyle = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("hairStyle"), QString::fromUtf8("发型")});
-            if (!hairStyle.isEmpty()) {
-                app.hairStyle = hairStyle;
-            }
-
-            const QString clothing = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("clothing"), QString::fromUtf8("服饰")});
-            if (!clothing.isEmpty()) {
-                app.clothing = BibleUtils::splitCommaSeparatedList(clothing);
-            }
-
-            const QString accessories = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("accessories"), QString::fromUtf8("配饰")});
-            if (!accessories.isEmpty()) {
-                app.accessories = BibleUtils::splitCommaSeparatedList(accessories);
-            }
-
-            const QString features = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("features"), QStringLiteral("distinctiveFeatures"), QString::fromUtf8("明显特征"), QString::fromUtf8("特征")});
-            if (!features.isEmpty()) {
-                app.distinctiveFeatures = BibleUtils::splitCommaSeparatedList(features);
-            }
-
-            const QString personality = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("personality"), QString::fromUtf8("个性"), QString::fromUtf8("性格")});
-            if (!personality.isEmpty()) {
-                character.setPersonality(BibleUtils::splitCommaSeparatedList(personality));
-            }
+            applyCharacterBibleDetail(character, app, detail);
         }
         
         character.setAppearance(app);
@@ -2344,37 +2346,8 @@ void NovelDetailPage::onBibleItemDataChanged(const QString &id, const QStringLis
     Scene scene = SceneExtractor::instance()->getSceneBySceneId(m_currentNovel.id(), id);
     if (!scene.id().isEmpty()) {
         SceneDetails det = scene.details();
-
         for (const QString &detail : details) {
-            const QString description = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("description"), QString::fromUtf8("描述")});
-            if (!description.isEmpty()) {
-                det.description = description;
-            }
-
-            const QString building = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("building"), QString::fromUtf8("建筑")});
-            if (!building.isEmpty()) {
-                det.building = building;
-            }
-
-            const QString color = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("color"), QString::fromUtf8("色调")});
-            if (!color.isEmpty()) {
-                det.color = color;
-            }
-
-            const QString landmark = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("landmark"), QString::fromUtf8("地标")});
-            if (!landmark.isEmpty()) {
-                det.landmark = landmark;
-            }
-
-            const QString layout = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("layout"), QString::fromUtf8("布局")});
-            if (!layout.isEmpty()) {
-                det.layout = layout;
-            }
-
-            const QString atmosphere = BibleUtils::extractDetailValue(detail, QStringList{QStringLiteral("atmosphere"), QString::fromUtf8("氛围")});
-            if (!atmosphere.isEmpty()) {
-                det.atmosphere = atmosphere;
-            }
+            applySceneBibleDetail(det, detail);
         }
 
         scene.setDetails(det);

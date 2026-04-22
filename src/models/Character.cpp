@@ -25,6 +25,7 @@ QJsonObject CharacterAppearance::toJson() const
     json["clothing"] = JsonUtils::stringListToJsonArray(clothing);
     json["accessories"] = JsonUtils::stringListToJsonArray(accessories);
     json["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(distinctiveFeatures);
+    json["aliases"] = JsonUtils::stringListToJsonArray(aliases);
     return json;
 }
 
@@ -41,6 +42,7 @@ CharacterAppearance CharacterAppearance::fromJson(const QJsonObject& json)
     app.clothing = JsonUtils::jsonArrayToStringList(json["clothing"].toArray());
     app.accessories = JsonUtils::jsonArrayToStringList(json["accessories"].toArray());
     app.distinctiveFeatures = JsonUtils::jsonArrayToStringList(json["distinctiveFeatures"].toArray());
+    app.aliases = JsonUtils::jsonArrayToStringList(json["aliases"].toArray());
     return app;
 }
 
@@ -55,6 +57,9 @@ QVariantMap Character::toVariantMap() const
     map["age"] = m_appearance.age;
     map["appearance"] = JsonUtils::jsonToString(m_appearance.toJson());
     map["personalities"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(m_personality));
+    if (!aliases().isEmpty()) {
+        map["aliases"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(aliases()));
+    }
     if (!m_portraitPath.isEmpty()) {
         map["portrait_path"] = m_portraitPath;
     }
@@ -102,11 +107,41 @@ Character Character::fromVariantMap(const QVariantMap& map)
         }
     }
     
-    if (c.m_appearance.gender.isEmpty() && c.m_appearance.age == 0) {
-        qDebug() << "[Character] Using fallback for appearance fields";
+    if (c.m_appearance.gender.isEmpty()) {
         c.m_appearance.gender = map["gender"].toString();
-        c.m_appearance.age = map["age"].toInt();
     }
+
+    if (c.m_appearance.age <= 0) {
+        const int mappedAge = map["age"].toInt();
+        if (mappedAge > 0) {
+            c.m_appearance.age = mappedAge;
+        }
+    }
+
+    if (!c.m_appearance.gender.isEmpty() || c.m_appearance.age > 0) {
+        qDebug() << "[Character] Top-level appearance fallback applied:"
+                 << "gender=" << c.m_appearance.gender
+                 << "age=" << c.m_appearance.age;
+    }
+
+    QVariant aliasesVariant = map["aliases"];
+    if (aliasesVariant.isValid() && !aliasesVariant.isNull()) {
+        QString aliasesStr;
+        if (aliasesVariant.type() == QVariant::ByteArray) {
+            aliasesStr = QString::fromUtf8(aliasesVariant.toByteArray());
+        } else {
+            aliasesStr = aliasesVariant.toString();
+        }
+
+        if (!aliasesStr.isEmpty() && aliasesStr != "null") {
+            QJsonParseError parseError;
+            QJsonDocument doc = QJsonDocument::fromJson(aliasesStr.toUtf8(), &parseError);
+            if (parseError.error == QJsonParseError::NoError && doc.isArray()) {
+                c.m_appearance.aliases = JsonUtils::jsonArrayToStringList(doc.array());
+            }
+        }
+    }
+    c.m_aliases = c.m_appearance.aliases;
     
     QVariant personalitiesVariant = map["personalities"];
     qDebug() << "[Character] personalities type:" << personalitiesVariant.typeName()
@@ -143,6 +178,7 @@ QJsonObject Character::toJson() const
     json["name"] = m_name;
     json["role"] = m_role;
     json["appearance"] = m_appearance.toJson();
+    json["aliases"] = JsonUtils::stringListToJsonArray(aliases());
     json["personality"] = JsonUtils::stringListToJsonArray(m_personality);
     if (!m_portraitPath.isEmpty()) {
         json["portraitPath"] = m_portraitPath;
@@ -158,6 +194,12 @@ Character Character::fromJson(const QJsonObject& json)
     c.m_name = json["name"].toString();
     c.m_role = json["role"].toString();
     c.m_appearance = CharacterAppearance::fromJson(json["appearance"].toObject());
+    c.m_aliases = JsonUtils::jsonArrayToStringList(json["aliases"].toArray());
+    if (c.m_aliases.isEmpty()) {
+        c.m_aliases = c.m_appearance.aliases;
+    } else {
+        c.m_appearance.aliases = c.m_aliases;
+    }
     c.m_personality = JsonUtils::jsonArrayToStringList(json["personality"].toArray());
     c.m_portraitPath = json["portraitPath"].toString();
     return c;
@@ -166,45 +208,20 @@ Character Character::fromJson(const QJsonObject& json)
 QStringList Character::toDisplayStrings() const
 {
     QStringList lines;
-    
+
     auto addLine = [&lines](const QString& label, const QString& value) {
-        if (!value.isEmpty()) {
-            lines << QString::fromUtf8("%1: %2").arg(label, value);
-        }
+        lines << QString::fromUtf8("%1: %2").arg(label, value);
     };
-    
-    QStringList appearanceBits;
-    if (!m_appearance.gender.isEmpty()) {
-        appearanceBits << QString::fromUtf8("性别: %1").arg(m_appearance.gender);
-    }
-    if (m_appearance.age > 0) {
-        appearanceBits << QString::fromUtf8("年龄: %1岁").arg(m_appearance.age);
-    }
-    if (!m_appearance.hairColor.isEmpty()) {
-        appearanceBits << QString::fromUtf8("发色: %1").arg(m_appearance.hairColor);
-    }
-    if (!m_appearance.hairStyle.isEmpty()) {
-        appearanceBits << QString::fromUtf8("发型: %1").arg(m_appearance.hairStyle);
-    }
-    if (!m_appearance.eyeColor.isEmpty()) {
-        appearanceBits << QString::fromUtf8("瞳色: %1").arg(m_appearance.eyeColor);
-    }
-    if (!m_appearance.build.isEmpty()) {
-        appearanceBits << QString::fromUtf8("体型: %1").arg(m_appearance.build);
-    }
-    if (!appearanceBits.isEmpty()) {
-        lines << QString::fromUtf8("外观: %1").arg(appearanceBits.join(QString::fromUtf8("、")));
-    }
-    
-    if (!m_appearance.clothing.isEmpty()) {
-        lines << QString::fromUtf8("服饰: %1").arg(m_appearance.clothing.join(QString::fromUtf8("、")));
-    }
-    if (!m_appearance.distinctiveFeatures.isEmpty()) {
-        lines << QString::fromUtf8("明显特征: %1").arg(m_appearance.distinctiveFeatures.join(QString::fromUtf8("、")));
-    }
-    if (!m_personality.isEmpty()) {
-        lines << QString::fromUtf8("个性: %1").arg(m_personality.join(QString::fromUtf8("、")));
-    }
+
+    addLine(QString::fromUtf8("性别"), m_appearance.gender);
+    addLine(QString::fromUtf8("年龄"), m_appearance.age > 0 ? QString::fromUtf8("%1岁").arg(m_appearance.age) : QString());
+    addLine(QString::fromUtf8("发色"), m_appearance.hairColor);
+    addLine(QString::fromUtf8("发型"), m_appearance.hairStyle);
+    addLine(QString::fromUtf8("瞳色"), m_appearance.eyeColor);
+    addLine(QString::fromUtf8("体型"), m_appearance.build);
+    addLine(QString::fromUtf8("服饰"), m_appearance.clothing.join(QString::fromUtf8("、")));
+    addLine(QString::fromUtf8("明显特征"), m_appearance.distinctiveFeatures.join(QString::fromUtf8("、")));
+    addLine(QString::fromUtf8("个性"), m_personality.join(QString::fromUtf8("、")));
     
     return lines;
 }

@@ -16,20 +16,6 @@
 namespace {
 const QString COLOR_HINT = "#6B7280";
 
-void addDetailIfNotEmpty(QStringList& details, const QString& label, const QString& value)
-{
-    if (!value.isEmpty()) {
-        details << QStringLiteral("%1: %2").arg(label, value);
-    }
-}
-
-void addJoinedDetailIfNotEmpty(QStringList& details, const QString& label, const QStringList& values, const QString& separator)
-{
-    if (!values.isEmpty()) {
-        details << QStringLiteral("%1: %2").arg(label, values.join(separator));
-    }
-}
-
 inline void connectBibleItemSignals(BibleSectionWidget* widget, BibleItem* item, const Character&)
 {
     QObject::connect(item, &BibleItem::characterDataChanged, widget, 
@@ -296,21 +282,19 @@ QStringList BibleSectionWidget::buildCharacterDetails(const Character& character
         .arg(character.name())
         .arg(character.role()));
 
-    QStringList appearanceBits;
-    addDetailIfNotEmpty(appearanceBits, tr("性别"), app.gender);
-    if (app.age > 0) appearanceBits << tr("年龄: %1岁").arg(app.age);
-    addDetailIfNotEmpty(appearanceBits, tr("发色"), app.hairColor);
-    addDetailIfNotEmpty(appearanceBits, tr("发型"), app.hairStyle);
-    addDetailIfNotEmpty(appearanceBits, tr("瞳色"), app.eyeColor);
-    addDetailIfNotEmpty(appearanceBits, tr("体型"), app.build);
-    if (!appearanceBits.isEmpty()) {
-        details << tr("外观: %1").arg(appearanceBits.join(tr("、")));
-    }
+    auto addDisplayLine = [&details](const QString& label, const QString& value) {
+        details << QStringLiteral("%1: %2").arg(label, value.isEmpty() ? QString::fromUtf8("未填写") : value);
+    };
 
-    
-    addJoinedDetailIfNotEmpty(details, tr("服饰"), app.clothing, tr("、"));
-    addJoinedDetailIfNotEmpty(details, tr("明显特征"), app.distinctiveFeatures, tr("、"));
-    addJoinedDetailIfNotEmpty(details, tr("个性"), character.personality(), tr("、"));
+    addDisplayLine(tr("性别"), app.gender);
+    addDisplayLine(tr("年龄"), app.age > 0 ? tr("%1岁").arg(app.age) : QString());
+    addDisplayLine(tr("发色"), app.hairColor);
+    addDisplayLine(tr("发型"), app.hairStyle);
+    addDisplayLine(tr("瞳色"), app.eyeColor);
+    addDisplayLine(tr("体型"), app.build);
+    addDisplayLine(tr("服饰"), app.clothing.join(tr("、")));
+    addDisplayLine(tr("明显特征"), app.distinctiveFeatures.join(tr("、")));
+    addDisplayLine(tr("个性"), character.personality().join(tr("、")));
 
     LOG_INFO("BibleSectionWidget", QString("Character bible details lines=%1, name=%2").arg(details.size()).arg(character.name()));
 

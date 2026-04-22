@@ -142,8 +142,8 @@ private:
     void refreshChapterCardsOnly();
     void clearChapterCards();
     void refreshStoryboardItems();
-    QList<QPair<int, QStringList>> loadStoryboardFromDatabase() const;
-    QList<QPair<int, QStringList>> getSampleStoryboardItems() const;
+    void refreshStoryboardItems(const QList<Panel>& panels);
+    QList<Panel> loadPanelsFromDatabase() const;
     QPair<int, QStringList> parsePanelToItem(const Panel& panel) const;
     void clearLayout(QLayout *layout);
     void updateChapterSelection(int chapterNumber);

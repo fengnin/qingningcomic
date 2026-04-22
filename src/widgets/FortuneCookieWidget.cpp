@@ -14,8 +14,8 @@ namespace FortuneCookieStyle {
     constexpr int WIDGET_MIN_HEIGHT = 380;
     constexpr int ANIMATION_INTERVAL = 33;
     constexpr int CRACK_DURATION = 2000;
-    constexpr qreal SPARKLE_ROTATION_SPEED = 90.0;
-    constexpr qreal SPARKLE_INTERNAL_SPEED = 30.0;
+    constexpr qreal SPARKLE_ROTATION_SPEED = 150.0;
+    constexpr qreal SPARKLE_INTERNAL_SPEED = 45.0;
     
     namespace Color {
         const QColor BG_START(255, 251, 235);

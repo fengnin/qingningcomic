@@ -23,6 +23,7 @@ struct ExtractedCharacter {
     QStringList clothing;
     QStringList accessories;
     QStringList distinctiveFeatures;
+    QStringList aliases;
     QStringList personality;
     QStringList tags;
     
@@ -70,14 +71,10 @@ private:
     
     ExtractedCharacter parsePanelCharacter(const QJsonValue& charVal);
     ExtractedCharacter parseAICharacter(const QJsonObject& charObj);
-    void inferAppearanceFromRole(ExtractedCharacter& extracted);
     void enrichCharacterFromText(ExtractedCharacter& extracted, const QString& sourceText);
     Character toCharacter(const ExtractedCharacter& extracted, const QString& novelId);
     QVariantMap characterToData(const Character& character) const;
     Character characterFromRow(const QVariantMap& row);
-    QString generateId();
-    
-    static bool containsChinese(const QString& text);
     
     // 名称标准化：去除AI生成的常见后缀，如"（本体）"、"（真身）"等
     static QString normalizeCharacterName(const QString& name);

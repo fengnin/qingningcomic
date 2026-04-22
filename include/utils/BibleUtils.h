@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMap>
+#include <QUuid>
 #include "models/Character.h"
 #include "models/Scene.h"
 #include "utils/JsonUtils.h"
@@ -235,107 +236,6 @@ inline bool containsAny(const QString& text, const QStringList& tokens)
         }
     }
     return false;
-}
-
-// 从文本推断性别
-inline QString inferGender(const QString& role, const QString& name)
-{
-    QString roleLower = role.toLower();
-    QString nameLower = name.toLower();
-    
-    if (roleLower.contains("女") || roleLower.contains("female")) {
-        return "女";
-    }
-    if (roleLower.contains("男") || roleLower.contains("male")) {
-        return "男";
-    }
-    
-    static const QStringList femaleNames = {"母亲", "妈妈", "奶奶", "姐姐", "妹妹", "阿姨", "姑姑", "婶婶"};
-    static const QStringList maleNames = {"父亲", "爸爸", "爷爷", "哥哥", "弟弟", "叔叔", "伯伯", "舅舅"};
-    
-    for (const QString& fn : femaleNames) {
-        if (nameLower.contains(fn)) return "女";
-    }
-    for (const QString& mn : maleNames) {
-        if (nameLower.contains(mn)) return "男";
-    }
-    
-    return QString();
-}
-
-// 从文本推断年龄
-inline int inferAge(const QString& role, const QString& name)
-{
-    QString roleLower = role.toLower();
-    QString nameLower = name.toLower();
-    QString combined = roleLower + " " + nameLower;
-
-    static const QStringList parentTokens = {
-        QString::fromUtf8("父亲"),
-        QString::fromUtf8("母亲"),
-        QString::fromUtf8("爸爸"),
-        QString::fromUtf8("妈妈"),
-        QString::fromUtf8("父"),
-        QString::fromUtf8("母"),
-        QString::fromUtf8("家长")
-    };
-
-    if (containsAny(combined, parentTokens)) {
-        return 45;
-    }
-    
-    if (combined.contains("老年") || combined.contains("elderly") || 
-        nameLower.contains("爷爷") || nameLower.contains("奶奶")) {
-        return 65;
-    }
-    if (combined.contains("中年") || combined.contains("middle-aged") ||
-        combined.contains("父亲") || combined.contains("母亲") ||
-        combined.contains("爸爸") || combined.contains("妈妈")) {
-        return 45;
-    }
-    if (combined.contains("青年") || combined.contains("young adult") || combined.contains("大学生")) {
-        return 22;
-    }
-    if (combined.contains("少年") || combined.contains("teenager") || combined.contains("学生")) {
-        return 16;
-    }
-    if (combined.contains("儿童") || combined.contains("child")) {
-        return 8;
-    }
-    return 0;
-}
-
-// 从性别和年龄推断发型
-inline QString inferHairStyle(const QString& gender, int age)
-{
-    if (gender == "女") {
-        return age >= 50 ? "短发" : "长发";
-    }
-    return "短发";
-}
-
-// 从性别和年龄推断体型（常见取值：苗条、健壮、丰满、瘦弱）
-inline QString inferBuild(const QString& gender, int age = 0)
-{
-    Q_UNUSED(age)
-    if (gender == "女") {
-        return "苗条";
-    }
-    return "健壮";
-}
-
-// 从角色推断性格
-inline QStringList inferPersonality(const QString& role, const QString& name)
-{
-    QString roleLower = role.toLower();
-    QString nameLower = name.toLower();
-    
-    if (roleLower.contains("主角")) return {"善良", "勇敢"};
-    if (roleLower.contains("反派")) return {"阴险", "狡诈"};
-    if (nameLower.contains("爷爷") || nameLower.contains("奶奶")) return {"慈祥", "温和"};
-    if (nameLower.contains("父亲") || nameLower.contains("爸爸")) return {"严厉", "负责"};
-    if (nameLower.contains("母亲") || nameLower.contains("妈妈")) return {"温柔", "体贴"};
-    return {"温和", "友善"};
 }
 
 // 从文本推断场景类型
@@ -619,7 +519,6 @@ inline bool isDynamicSceneText(const QString& text)
         QString::fromUtf8("孩子"),
         QString::fromUtf8("母亲"),
         QString::fromUtf8("父亲"),
-        QString::fromUtf8("青柠"),
         QString::fromUtf8("摊主"),
         QString::fromUtf8("爷爷")
     };
@@ -793,7 +692,7 @@ inline bool hasEmptyAppearanceFields(const CharacterAppearance& app)
     return app.gender.isEmpty() || app.age == 0 || app.hairColor.isEmpty() ||
            app.hairStyle.isEmpty() || app.eyeColor.isEmpty() || app.build.isEmpty() ||
            app.height.isEmpty() || app.clothing.isEmpty() || app.accessories.isEmpty() ||
-           app.distinctiveFeatures.isEmpty();
+           app.distinctiveFeatures.isEmpty() || app.aliases.isEmpty();
 }
 
 inline bool hasNewAppearanceData(const QJsonObject& appObj)
@@ -802,7 +701,8 @@ inline bool hasNewAppearanceData(const QJsonObject& appObj)
            !appObj["hairColor"].toString().isEmpty() || !appObj["hairStyle"].toString().isEmpty() ||
            !appObj["eyeColor"].toString().isEmpty() || !appObj["build"].toString().isEmpty() ||
            !appObj["height"].toString().isEmpty() || !appObj["clothing"].toArray().isEmpty() ||
-           !appObj["accessories"].toArray().isEmpty() || !appObj["distinctiveFeatures"].toArray().isEmpty();
+           !appObj["accessories"].toArray().isEmpty() || !appObj["distinctiveFeatures"].toArray().isEmpty() ||
+           !appObj["aliases"].toArray().isEmpty();
 }
 
 inline bool hasEmptyDetailsFields(const SceneDetails& det)
@@ -895,6 +795,9 @@ inline void updateCharacterAppearance(CharacterAppearance& app, const QJsonObjec
     }
     if (!appObj["distinctiveFeatures"].toArray().isEmpty()) {
         app.distinctiveFeatures = mergeStringLists(app.distinctiveFeatures, JsonUtils::jsonArrayToStringList(appObj["distinctiveFeatures"].toArray()));
+    }
+    if (!appObj["aliases"].toArray().isEmpty()) {
+        app.aliases = mergeStringLists(app.aliases, JsonUtils::jsonArrayToStringList(appObj["aliases"].toArray()));
     }
 }
 
@@ -1076,6 +979,16 @@ inline const QStringList& getLocationSuffixes()
 }
 
 } // namespace BibleContextConstants
+
+// 公共工具函数
+namespace Utils {
+
+inline QString generateId()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+} // namespace Utils
 
 } // namespace BibleUtils
 

@@ -14,6 +14,7 @@ QJsonObject toJson(const Character& character)
     obj["name"] = character.name();
     obj["role"] = character.role();
     obj["appearance"] = toJson(character.appearance());
+    obj["aliases"] = toJsonArray(character.aliases());
     obj["personality"] = toJsonArray(character.personality());
     return obj;
 }
@@ -25,7 +26,9 @@ Character toCharacter(const QJsonObject& obj)
     character.setNovelId(get<QString>(obj, "novelId"));
     character.setName(get<QString>(obj, "name"));
     character.setRole(get<QString>(obj, "role"));
-    character.setAppearance(toAppearance(getObject(obj, "appearance")));
+    CharacterAppearance appearance = toAppearance(getObject(obj, "appearance"));
+    appearance.aliases = toStringList(getArray(obj, "aliases"));
+    character.setAppearance(appearance);
     character.setPersonality(toStringList(getArray(obj, "personality")));
     return character;
 }
@@ -43,6 +46,7 @@ QJsonObject toJson(const CharacterAppearance& appearance)
     obj["clothing"] = toJsonArray(appearance.clothing);
     obj["accessories"] = toJsonArray(appearance.accessories);
     obj["distinctiveFeatures"] = toJsonArray(appearance.distinctiveFeatures);
+    obj["aliases"] = toJsonArray(appearance.aliases);
     return obj;
 }
 
@@ -59,6 +63,7 @@ CharacterAppearance toAppearance(const QJsonObject& obj)
     appearance.clothing = toStringList(getArray(obj, "clothing"));
     appearance.accessories = toStringList(getArray(obj, "accessories"));
     appearance.distinctiveFeatures = toStringList(getArray(obj, "distinctiveFeatures"));
+    appearance.aliases = toStringList(getArray(obj, "aliases"));
     return appearance;
 }
 

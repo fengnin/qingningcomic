@@ -70,8 +70,11 @@ Panel StoryboardService::buildPanelFromQuery(QSqlQuery& query) const
     panel.setStoryboardId(query.value(1).toString());
     panel.setPage(query.value(2).toInt());
     panel.setIndex(query.value(3).toInt());
-    panel.setRawContent(parseJsonObject(query.value(4).toString()));
-    panel.setVisualPrompt(query.value(5).toString());
+    panel.setContent(parseJsonObject(query.value(4).toString()));
+    const QString visualPrompt = query.value(5).toString();
+    if (!visualPrompt.isEmpty()) {
+        panel.setVisualPrompt(visualPrompt);
+    }
     
     QString previewS3Key = query.value(6).toString();
     QString hdS3Key = query.value(7).toString();
@@ -94,7 +97,10 @@ Panel StoryboardService::buildPanelFromMap(const QVariantMap& map) const
     
     QJsonObject content = parseJsonObject(map["content"].toString());
     panel.setContent(content);
-    panel.setVisualPrompt(map["visual_prompt"].toString());
+    const QString visualPrompt = map["visual_prompt"].toString();
+    if (!visualPrompt.isEmpty()) {
+        panel.setVisualPrompt(visualPrompt);
+    }
     
     QString previewS3Key = map["preview_image_path"].toString();
     QString hdS3Key = map["hd_image_path"].toString();
@@ -334,9 +340,11 @@ bool StoryboardService::updatePanel(const QString& panelId, const QJsonObject& c
     QString contentStr = serializeJson(content);
     QString previewPath = content["previewS3Key"].toString();
     QString hdPath = content["hdS3Key"].toString();
+    QString visualPrompt = content["visualPrompt"].toString();
     
     QVariantMap data;
     data["content"] = contentStr;
+    data["visual_prompt"] = visualPrompt;
     data["preview_image_path"] = previewPath;
     data["hd_image_path"] = hdPath;
     
@@ -353,20 +361,26 @@ bool StoryboardService::deleteStoryboard(const QString& novelId, int chapterNumb
     if (!checkConnection("deleteStoryboard")) {
         return false;
     }
-    
+
+    TransactionScope transaction(m_db);
+    if (!transaction.isActive()) {
+        emitError("deleteStoryboard", "Failed to begin transaction");
+        return false;
+    }
+
     QString storyboardId = findStoryboardId(novelId, chapterNumber);
     if (storyboardId.isEmpty()) {
         return true;
     }
-    
+
     if (!deletePanelsByStoryboardId(storyboardId)) {
         return false;
     }
-    
+
     QSqlQuery query(m_db->database());
     query.prepare("DELETE FROM storyboards WHERE id = ?");
     query.addBindValue(storyboardId);
-    
+
     if (!query.exec()) {
         emitError("deleteStoryboard", query.lastError().text());
         return false;
@@ -377,7 +391,8 @@ bool StoryboardService::deleteStoryboard(const QString& novelId, int chapterNumb
     updateQuery.addBindValue(novelId);
     if (!updateQuery.exec()) {
         emitError("deleteStoryboard", updateQuery.lastError().text());
+        return false;
     }
 
-    return true;
+    return transaction.commit();
 }

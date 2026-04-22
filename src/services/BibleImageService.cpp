@@ -378,7 +378,7 @@ bool BibleImageService::processNextCharacter()
         recordSuccess();
         m_currentCharIndex++;
         scheduleNext([this]() { processNextItem(); });
-        return false;
+        return true;
     }
     
     m_currentCharacter = character;
@@ -406,7 +406,7 @@ bool BibleImageService::processNextScene()
         recordSuccess();
         m_currentSceneIndex++;
         scheduleNext([this]() { processNextItem(); });
-        return false;
+        return true;
     }
     
     m_currentCharacter = Character();

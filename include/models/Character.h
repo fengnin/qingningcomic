@@ -23,6 +23,7 @@ struct CharacterAppearance
     QStringList clothing;    // 服装列表
     QStringList accessories; // 配饰列表
     QStringList distinctiveFeatures;  // 显著特征
+    QStringList aliases;     // 历史别名 / 关联称呼
     
     QJsonObject toJson() const;
     static CharacterAppearance fromJson(const QJsonObject& json);
@@ -31,7 +32,8 @@ struct CharacterAppearance
     inline bool hasEmptyFields() const
     {
         return gender.isEmpty() || age == 0 || hairColor.isEmpty() ||
-               hairStyle.isEmpty() || eyeColor.isEmpty() || build.isEmpty();
+               hairStyle.isEmpty() || eyeColor.isEmpty() || build.isEmpty() ||
+               aliases.isEmpty();
     }
 };
 
@@ -48,6 +50,7 @@ class Character
     Q_PROPERTY(QString role READ role WRITE setRole)
     Q_PROPERTY(CharacterAppearance appearance READ appearance WRITE setAppearance)
     Q_PROPERTY(QStringList personality READ personality WRITE setPersonality)
+    Q_PROPERTY(QStringList aliases READ aliases WRITE setAliases)
     Q_PROPERTY(QString portraitPath READ portraitPath WRITE setPortraitPath)
 
 public:
@@ -76,10 +79,21 @@ public:
     void setRole(const QString& role) { m_role = role; }
 
     CharacterAppearance appearance() const { return m_appearance; }
-    void setAppearance(const CharacterAppearance& appearance) { m_appearance = appearance; }
+    void setAppearance(const CharacterAppearance& appearance)
+    {
+        m_appearance = appearance;
+        m_aliases = appearance.aliases;
+    }
 
     QStringList personality() const { return m_personality; }
     void setPersonality(const QStringList& personality) { m_personality = personality; }
+
+    QStringList aliases() const { return m_aliases.isEmpty() ? m_appearance.aliases : m_aliases; }
+    void setAliases(const QStringList& aliases)
+    {
+        m_aliases = aliases;
+        m_appearance.aliases = aliases;
+    }
 
     QString portraitPath() const { return m_portraitPath; }
     void setPortraitPath(const QString& path) { m_portraitPath = path; }
@@ -100,6 +114,7 @@ private:
     QString m_role;           // 角色角色：protagonist, secondary, antagonist 等
     CharacterAppearance m_appearance;  // 外观描述
     QStringList m_personality;  // 性格特征列表
+    QStringList m_aliases;      // 历史别名 / 关联称呼
     QString m_portraitPath;    // 肖像图片路径
 };
 

@@ -5,8 +5,8 @@
 #include <QKeyEvent>
 
 namespace {
-    constexpr int DIALOG_WIDTH = 420;
-    constexpr int DIALOG_HEIGHT = 340;
+    constexpr int DIALOG_WIDTH = 440;
+    constexpr int DIALOG_HEIGHT = 320;
     constexpr int HEADER_HEIGHT = 80;
     constexpr int FOOTER_HEIGHT = 60;
     constexpr int BUTTON_WIDTH = 100;
@@ -125,7 +125,8 @@ void SuccessDialog::createContent(QVBoxLayout *parentLayout)
     m_messageLabel->setWordWrap(true);
     m_messageLabel->setTextFormat(Qt::PlainText);
     m_messageLabel->setFont(QFont("Microsoft YaHei", 11));
-    m_messageLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_messageLabel->setAlignment(Qt::AlignCenter);
+    m_messageLabel->setMinimumWidth(DIALOG_WIDTH - 80);
     
     contentLayout->addWidget(m_messageLabel);
     
@@ -150,7 +151,7 @@ void SuccessDialog::createFooter(QVBoxLayout *parentLayout)
     QHBoxLayout *footerLayout = UIFactory::createHBoxLayout(24, 0, 24, 16, 0);
     footerLayout->addStretch();
     
-    m_closeBtn = UIFactory::createButton(QString::fromUtf8("关闭"), BUTTON_WIDTH, BUTTON_HEIGHT);
+    m_closeBtn = UIFactory::createButton(QString::fromUtf8("确定"), BUTTON_WIDTH, BUTTON_HEIGHT);
     m_closeBtn->setObjectName("closeBtn");
     m_closeBtn->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
     m_closeBtn->setCursor(Qt::PointingHandCursor);

@@ -39,7 +39,7 @@ private slots:
 private:
     void setupUI();
     void populateWithPanels(const QList<Panel>& panels);
-    void populateWithSample();
+    void populateEmptyState();
     void finishPopulate(int actualCount);
     PanelCard* createPanelCard(int panelNum, const QString& description, 
                                 const QString& panelId = QString(), 

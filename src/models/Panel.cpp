@@ -22,6 +22,17 @@ namespace {
         }
         return result;
     }
+
+    template<typename T, typename Selector>
+    QStringList collectStrings(const QList<T>& items, Selector selector)
+    {
+        QStringList result;
+        result.reserve(items.size());
+        for (const T& item : items) {
+            result << selector(item);
+        }
+        return result;
+    }
 }
 
 Panel::Panel()
@@ -36,6 +47,8 @@ QJsonObject Panel::content() const
     obj["scene"] = m_scene;
     obj["shotType"] = m_shotType;
     obj["cameraAngle"] = m_cameraAngle;
+    obj["visualPrompt"] = m_visualPrompt;
+    obj["visualPromptEn"] = m_visualPromptEn;
     obj["characters"] = charactersToJsonArray();
     obj["dialogue"] = dialogueToJsonArray();
     return obj;
@@ -68,12 +81,8 @@ QString Panel::charactersText() const
     if (m_characters.isEmpty()) {
         return QString::fromUtf8(u8"\u65e0\u89d2\u8272");
     }
-    QStringList names;
-    names.reserve(m_characters.size());
-    for (const auto &c : m_characters) {
-        names << c.name;
-    }
-    return names.join(QString::fromUtf8(u8"\u3001"));
+    return collectStrings(m_characters, [](const CharacterPose& pose) { return pose.name; })
+        .join(QString::fromUtf8(u8"\u3001"));
 }
 
 QString Panel::dialogueText() const
@@ -81,12 +90,11 @@ QString Panel::dialogueText() const
     if (m_dialogue.isEmpty()) {
         return QString::fromUtf8(u8"\u65e0\u5bf9\u767d");
     }
-    QStringList lines;
-    lines.reserve(m_dialogue.size());
-    for (const auto &d : m_dialogue) {
-        lines << (d.text.isEmpty() ? d.speaker : QString::fromUtf8(u8"%1\uff1a%2").arg(d.speaker, d.text));
-    }
-    return lines.join(QString::fromUtf8(u8"\uff1b"));
+    return collectStrings(m_dialogue, [](const DialogueLine& line) {
+        return line.text.isEmpty()
+            ? line.speaker
+            : QString::fromUtf8(u8"%1\uff1a%2").arg(line.speaker, line.text);
+    }).join(QString::fromUtf8(u8"\uff1b"));
 }
 
 QJsonArray Panel::charactersToJsonArray() const
@@ -126,6 +134,16 @@ void Panel::parseSceneFields(const QJsonObject& content)
     }
     if (content.contains("cameraAngle")) {
         m_cameraAngle = content["cameraAngle"].toString();
+    }
+    if (content.contains("visualPrompt")) {
+        m_visualPrompt = content["visualPrompt"].toString();
+    } else if (content.contains("visual_prompt")) {
+        m_visualPrompt = content["visual_prompt"].toString();
+    }
+    if (content.contains("visualPromptEn")) {
+        m_visualPromptEn = content["visualPromptEn"].toString();
+    } else if (content.contains("visual_prompt_en")) {
+        m_visualPromptEn = content["visual_prompt_en"].toString();
     }
 }
 
@@ -177,20 +195,10 @@ void Panel::clear()
 
 QStringList Panel::characterNames() const
 {
-    QStringList names;
-    names.reserve(m_characters.size());
-    for (const auto& c : m_characters) {
-        names << c.name;
-    }
-    return names;
+    return collectStrings(m_characters, [](const CharacterPose& pose) { return pose.name; });
 }
 
 QStringList Panel::dialogueTexts() const
 {
-    QStringList texts;
-    texts.reserve(m_dialogue.size());
-    for (const auto& d : m_dialogue) {
-        texts << d.text;
-    }
-    return texts;
+    return collectStrings(m_dialogue, [](const DialogueLine& line) { return line.text; });
 }
