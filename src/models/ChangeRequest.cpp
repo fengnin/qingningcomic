@@ -1,6 +1,39 @@
 #include "models/ChangeRequest.h"
 #include <QDateTime>
 
+namespace {
+
+void appendIfNotEmpty(QJsonObject& json, const QString& key, const QString& value)
+{
+    if (!value.isEmpty()) {
+        json[key] = value;
+    }
+}
+
+QJsonObject resultToJson(const ChangeRequestOpResult& result)
+{
+    QJsonObject json;
+    json["action"] = result.action;
+    json["status"] = result.status;
+    json["output"] = result.output;
+    if (!result.errorMessage.isEmpty()) {
+        json["error"] = result.errorMessage;
+    }
+    return json;
+}
+
+ChangeRequestOpResult resultFromJson(const QJsonObject& json)
+{
+    ChangeRequestOpResult result;
+    result.action = json["action"].toString();
+    result.status = json["status"].toString();
+    result.output = json["output"].toObject();
+    result.errorMessage = json["error"].toString();
+    return result;
+}
+
+} // namespace
+
 ChangeRequest::ChangeRequest()
 {
 }
@@ -17,23 +50,20 @@ QJsonObject ChangeRequest::toJson() const
     json["jobId"] = m_jobId;
     json["createdAt"] = m_createdAt;
     json["updatedAt"] = m_updatedAt;
-    
-    if (!m_errorMessage.isEmpty()) {
-        json["error"] = m_errorMessage;
-    }
-    
+    appendIfNotEmpty(json, QStringLiteral("error"), m_errorMessage);
+
     if (m_dsl.isValid()) {
         json["dsl"] = m_dsl.toJson();
     }
-    
+
     if (!m_context.isEmpty()) {
         json["context"] = m_context;
     }
-    
+
     if (!m_results.isEmpty()) {
         QJsonArray resultsArray;
         for (const auto& result : m_results) {
-            resultsArray.append(result.toJson());
+            resultsArray.append(resultToJson(result));
         }
         json["results"] = resultsArray;
     }
@@ -62,12 +92,7 @@ ChangeRequest ChangeRequest::fromJson(const QJsonObject& json)
     
     QJsonArray resultsArray = json["results"].toArray();
     for (const auto& result : resultsArray) {
-        ChangeRequestOpResult opResult;
-        opResult.action = result.toObject()["action"].toString();
-        opResult.status = result.toObject()["status"].toString();
-        opResult.output = result.toObject()["output"].toObject();
-        opResult.errorMessage = result.toObject()["error"].toString();
-        cr.m_results.append(opResult);
+        cr.m_results.append(resultFromJson(result.toObject()));
     }
     
     return cr;

@@ -72,7 +72,10 @@ private:
     
     QJsonObject loadJsonSchema();
     bool isTaskMatch(const QString& taskId, const TaskData& task) const;
-    void saveResults(const QString& novelId, int chapterNumber, const QwenClient::StoryboardResult& result);
+    void saveResults(const QString& novelId,
+                     int chapterNumber,
+                     const QwenClient::StoryboardResult& result,
+                     const QString& sourceText);
     void updateProgress(int progress, const QString& message);
     void handleGeneratedStoryboard(const QString& novelId, int chapterNumber,
                                    const QwenClient::StoryboardResult& storyboardResult,
@@ -92,6 +95,7 @@ private:
     QString m_currentNovelId;
     QString m_currentTaskId;
     QString m_currentJobId;
+    QString m_currentSourceText;
     int m_currentChapterNumber = 1;
     AnalysisResult m_lastResult;
     bool m_processing = false;

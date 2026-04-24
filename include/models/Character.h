@@ -24,6 +24,7 @@ struct CharacterAppearance
     QStringList accessories; // 配饰列表
     QStringList distinctiveFeatures;  // 显著特征
     QStringList aliases;     // 历史别名 / 关联称呼
+    QJsonObject fieldSources; // 字段来源：explicit / inferred / manual
     
     QJsonObject toJson() const;
     static CharacterAppearance fromJson(const QJsonObject& json);

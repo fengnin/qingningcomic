@@ -1732,17 +1732,24 @@ void NovelDetailPage::onAnalyzeClicked()
     if (m_analysisResult) {
         m_analysisResult->hide();
     }
-    
-    QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(m_currentNovel.id());
-    QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(m_currentNovel.id());
-    
-    StoryboardViewModel::instance()->startAnalysisWithBible(
-        m_currentNovel.id(), 
-        originalText, 
-        targetChapter, 
-        existingCharacters, 
-        existingScenes
-    );
+
+    const QString novelId = m_currentNovel.id();
+    QTimer::singleShot(0, this, [this, novelId, originalText, targetChapter]() {
+        if (novelId != m_currentNovel.id()) {
+            return;
+        }
+
+        QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(novelId);
+        QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(novelId);
+
+        StoryboardViewModel::instance()->startAnalysisWithBible(
+            novelId,
+            originalText,
+            targetChapter,
+            existingCharacters,
+            existingScenes
+        );
+    });
 }
 
 void NovelDetailPage::onViewExportsClicked()
@@ -1796,13 +1803,19 @@ void NovelDetailPage::onAddChapterClicked()
     if (m_analysisResult) {
         m_analysisResult->hide();
     }
-    
-    QString novelId = m_currentNovel.id();
-    
-    QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(novelId);
-    QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(novelId);
-    
-    StoryboardViewModel::instance()->startAnalysisWithBible(novelId, text, chapterNumber, existingCharacters, existingScenes);
+
+    const QString novelId = m_currentNovel.id();
+    QTimer::singleShot(0, this, [this, novelId, text, chapterNumber]() {
+        if (novelId != m_currentNovel.id()) {
+            return;
+        }
+
+        QJsonArray existingCharacters = BibleGenerator::instance()->collectExistingCharacters(novelId);
+        QJsonArray existingScenes = BibleGenerator::instance()->collectExistingScenes(novelId);
+
+        StoryboardViewModel::instance()->startAnalysisWithBible(
+            novelId, text, chapterNumber, existingCharacters, existingScenes);
+    });
 }
 
 void NovelDetailPage::createRunningJobRecord(int chapterNumber)
@@ -1889,6 +1902,7 @@ void NovelDetailPage::onAnalysisCompleted(const QString& novelId, int chapterNum
 void NovelDetailPage::handleAnalysisSuccess(int chapter)
 {
     setAnalysisStatus(AnalysisStatusManager::Status::Processing, tr("图片生成中..."));
+    beginBibleImageGeneration();
     
     if (m_analysisProgress) {
         m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
@@ -1904,11 +1918,11 @@ void NovelDetailPage::handleAnalysisSuccess(int chapter)
     m_chapterTextEdit->clear();
     
     StoryboardViewModel::instance()->clearCache();
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->refreshBible();
-    }
-    
-    updateDisplay();
+    requestBibleRefresh();
+
+    QTimer::singleShot(0, this, [this]() {
+        updateDisplay();
+    });
     
 }
 
@@ -2012,8 +2026,7 @@ void NovelDetailPage::startAutoImageGeneration(int chapter)
         return;
     }
 
-    m_isBibleImageGenerationRunning = true;
-    m_deferredBibleRefresh = false;
+    beginBibleImageGeneration();
     
     if (m_analysisProgress) {
         m_analysisProgress->reset();
@@ -2051,14 +2064,13 @@ void NovelDetailPage::onBibleImageBatchProgress(int current, int total, const QS
 
 void NovelDetailPage::onAllBibleImagesCompleted(int successCount, int failedCount)
 {
-    m_isBibleImageGenerationRunning = false;
     m_completedImageTasks = successCount + failedCount;
     onAllImageGenerationCompleted();
 }
 
 void NovelDetailPage::onAllImageGenerationCompleted()
 {
-    m_isBibleImageGenerationRunning = false;
+    endBibleImageGeneration();
     
     if (m_analysisProgress) {
         m_analysisProgress->setState(AnalysisProgressWidget::State::Completed);
@@ -2251,14 +2263,35 @@ QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue)
 
 void NovelDetailPage::onRefreshBibleClicked()
 {
+    refreshBibleSection();
+}
+
+bool NovelDetailPage::isBibleGenerating() const
+{
+    if (m_isBibleImageGenerationRunning || BibleImageService::instance()->isGenerating()) {
+        return true;
+    }
+
+    StoryboardViewModel* vm = StoryboardViewModel::instance();
+    return vm && vm->isAnalyzing();
+}
+
+void NovelDetailPage::refreshBibleSection()
+{
     if (m_bibleSectionWidget) {
         m_bibleSectionWidget->refreshBible();
     }
 }
 
-bool NovelDetailPage::isBibleGenerating() const
+void NovelDetailPage::beginBibleImageGeneration()
 {
-    return m_isBibleImageGenerationRunning || BibleImageService::instance()->isGenerating();
+    m_isBibleImageGenerationRunning = true;
+    m_deferredBibleRefresh = false;
+}
+
+void NovelDetailPage::endBibleImageGeneration()
+{
+    m_isBibleImageGenerationRunning = false;
 }
 
 void NovelDetailPage::requestBibleRefresh()
@@ -2272,9 +2305,7 @@ void NovelDetailPage::requestBibleRefresh()
     }
 
     m_deferredBibleRefresh = false;
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->refreshBible();
-    }
+    refreshBibleSection();
 }
 
 void NovelDetailPage::applyDeferredBibleRefresh()
@@ -2284,9 +2315,7 @@ void NovelDetailPage::applyDeferredBibleRefresh()
     }
     m_deferredBibleRefresh = false;
 
-    if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->refreshBible();
-    }
+    refreshBibleSection();
 }
 
 void NovelDetailPage::onBibleDataChanged()

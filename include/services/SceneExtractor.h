@@ -39,9 +39,10 @@ struct ExtractedScene {
     QStringList history;
     QJsonArray timeVariations;
     QJsonArray weatherVariations;
+    QJsonObject fieldSources;
     
     QJsonObject toJson() const;
-    static ExtractedScene fromJson(const QJsonObject& json);
+    static ExtractedScene fromJson(const QJsonObject& json, const QString& sourceText = QString());
 };
 
 class SceneExtractor : public QObject
@@ -51,8 +52,7 @@ class SceneExtractor : public QObject
 public:
     static SceneExtractor* instance();
     
-    QList<ExtractedScene> extractFromScenes(const QJsonArray& scenes);
-    ExtractedScene parseAIScene(const QJsonObject& sceneObj);
+    QList<ExtractedScene> extractFromScenes(const QJsonArray& scenes, const QString& sourceText = QString());
     
     bool saveScene(const QString& novelId, const ExtractedScene& scene);
     int saveScenes(const QString& novelId, const QList<ExtractedScene>& scenes);

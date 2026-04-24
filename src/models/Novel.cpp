@@ -2,6 +2,17 @@
 #include <QUuid>
 #include "utils/JsonUtils.h"
 
+namespace {
+
+void putIfValid(QVariantMap& map, const QString& key, const QDateTime& value)
+{
+    if (value.isValid()) {
+        map[key] = value.toString(Qt::ISODate);
+    }
+}
+
+} // namespace
+
 // 状态名称查找表
 const char* Novel::STATUS_NAMES[] = {
     "created",    // NovelStatus::Created = 0
@@ -49,8 +60,8 @@ QVariantMap Novel::toVariantMap() const
     map[QStringLiteral("status")] = statusToString(m_status);
     map[QStringLiteral("storyboard_id")] = m_storyboardId;
     map[QStringLiteral("metadata")] = JsonUtils::variantMapToJsonString(m_metadata);
-    map[QStringLiteral("created_at")] = m_createdAt.toString(Qt::ISODate);
-    map[QStringLiteral("updated_at")] = m_updatedAt.toString(Qt::ISODate);
+    putIfValid(map, QStringLiteral("created_at"), m_createdAt);
+    putIfValid(map, QStringLiteral("updated_at"), m_updatedAt);
     return map;
 }
 

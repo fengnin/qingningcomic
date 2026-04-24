@@ -89,9 +89,19 @@ public:
 private:
     static constexpr int PANELS_PER_PAGE = 6;
 
+    struct StoryboardPromptContext {
+        QString systemPrompt;
+        QString userMessage;
+    };
+
     bool checkInitialized(const QString& operation);
     
     QJsonArray buildMessages(const QString& systemPrompt, const QString& userPrompt);
+    StoryboardPromptContext buildStoryboardPromptContext(
+        const QString& text,
+        const QJsonArray& existingCharacters,
+        const QJsonArray& existingScenes,
+        int chapterNumber) const;
 
     QStringList splitTextIntelligently(const QString& text, int maxLength);
     QStringList extractSentences(const QString& text);
@@ -122,12 +132,19 @@ private:
         bool strictMode,
         const QString& schemaName
     );
+    QJsonObject buildBasePayload(
+        const QString& systemPrompt,
+        const QString& userMessage,
+        double temperature,
+        int maxTokens
+    );
     QJsonObject buildSimplePayload(
         const QString& systemPrompt,
         const QString& userMessage,
         double temperature,
         int maxTokens
     );
+    QJsonObject sendPromptRequest(const QJsonObject& payload);
     QJsonObject extractApiResponse(const QJsonObject& response);
 
     QJsonObject ensureStoryboardShape(const QJsonObject& storyboard);

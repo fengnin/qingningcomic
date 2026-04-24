@@ -66,6 +66,27 @@ QString statusToString(TaskStatus status)
 
 }
 
+namespace {
+
+QString toCompactJson(const QJsonObject& object)
+{
+    return QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact));
+}
+
+QDateTime readDateTime(const QJsonObject& json, const QString& key)
+{
+    return QDateTime::fromString(json.value(key).toString(), Qt::ISODate);
+}
+
+void writeDateTime(QJsonObject& json, const QString& key, const QDateTime& value)
+{
+    if (value.isValid()) {
+        json[key] = value.toString(Qt::ISODate);
+    }
+}
+
+} // namespace
+
 QString TaskData::typeString() const
 {
     return TaskHelper::typeToString(type);
@@ -105,10 +126,9 @@ QJsonObject TaskData::toJson() const
     json["result"] = result;
     json["retryCount"] = retryCount;
     json["maxRetries"] = maxRetries;
-    
-    if (createdAt.isValid()) json["createdAt"] = createdAt.toString(Qt::ISODate);
-    if (startedAt.isValid()) json["startedAt"] = startedAt.toString(Qt::ISODate);
-    if (completedAt.isValid()) json["completedAt"] = completedAt.toString(Qt::ISODate);
+    writeDateTime(json, QStringLiteral("createdAt"), createdAt);
+    writeDateTime(json, QStringLiteral("startedAt"), startedAt);
+    writeDateTime(json, QStringLiteral("completedAt"), completedAt);
     
     return json;
 }
@@ -132,9 +152,9 @@ TaskData TaskData::fromJson(const QJsonObject& json)
     task.retryCount = json["retryCount"].toInt();
     task.maxRetries = json["maxRetries"].toInt(3);
     
-    task.createdAt = QDateTime::fromString(json["createdAt"].toString(), Qt::ISODate);
-    task.startedAt = QDateTime::fromString(json["startedAt"].toString(), Qt::ISODate);
-    task.completedAt = QDateTime::fromString(json["completedAt"].toString(), Qt::ISODate);
+    task.createdAt = readDateTime(json, QStringLiteral("createdAt"));
+    task.startedAt = readDateTime(json, QStringLiteral("startedAt"));
+    task.completedAt = readDateTime(json, QStringLiteral("completedAt"));
     
     return task;
 }
@@ -186,10 +206,10 @@ QVariantMap TaskData::toDatabaseRow() const
     
     QJsonObject paramsObj = params;
     paramsObj["chapterNumber"] = chapterNumber;
-    data["params"] = QString::fromUtf8(QJsonDocument(paramsObj).toJson(QJsonDocument::Compact));
+    data["params"] = toCompactJson(paramsObj);
     
     if (!result.isEmpty()) {
-        data["result"] = QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact));
+        data["result"] = toCompactJson(result);
     } else {
         data["result"] = QVariant();
     }

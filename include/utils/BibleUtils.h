@@ -705,6 +705,202 @@ inline bool hasNewAppearanceData(const QJsonObject& appObj)
            !appObj["aliases"].toArray().isEmpty();
 }
 
+inline bool hasCharacterAppearanceChanges(const CharacterAppearance& existing, const QJsonObject& appObj)
+{
+    auto scalarChanged = [&appObj](const QString& key, const QString& existingValue) {
+        const QString incoming = appObj[key].toString().trimmed();
+        return !incoming.isEmpty() && incoming != existingValue.trimmed();
+    };
+
+    auto intChanged = [&appObj](const QString& key, int existingValue) {
+        const int incoming = appObj[key].toInt();
+        return incoming > 0 && incoming != existingValue;
+    };
+
+    auto listChanged = [&appObj](const QString& key, const QStringList& existingValues) {
+        const QStringList incoming = JsonUtils::jsonArrayToStringList(appObj[key].toArray());
+        for (const QString& value : incoming) {
+            if (!existingValues.contains(value)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    return scalarChanged("gender", existing.gender) ||
+           intChanged("age", existing.age) ||
+           scalarChanged("hairColor", existing.hairColor) ||
+           scalarChanged("hairStyle", existing.hairStyle) ||
+           scalarChanged("eyeColor", existing.eyeColor) ||
+           scalarChanged("build", existing.build) ||
+           scalarChanged("height", existing.height) ||
+           listChanged("clothing", existing.clothing) ||
+           listChanged("accessories", existing.accessories) ||
+           listChanged("distinctiveFeatures", existing.distinctiveFeatures) ||
+           listChanged("aliases", existing.aliases);
+}
+
+inline bool isExplicitSource(const QString& source)
+{
+    return source.compare(QStringLiteral("explicit"), Qt::CaseInsensitive) == 0;
+}
+
+inline bool isInferredSource(const QString& source)
+{
+    return source.compare(QStringLiteral("inferred"), Qt::CaseInsensitive) == 0;
+}
+
+inline bool isManualSource(const QString& source)
+{
+    return source.compare(QStringLiteral("manual"), Qt::CaseInsensitive) == 0;
+}
+
+inline bool isLockedSource(const QString& source)
+{
+    return isManualSource(source) || isExplicitSource(source);
+}
+
+inline int sourcePriority(const QString& source)
+{
+    if (isManualSource(source)) {
+        return 3;
+    }
+    if (isExplicitSource(source)) {
+        return 2;
+    }
+    if (isInferredSource(source)) {
+        return 1;
+    }
+    return 0;
+}
+
+inline int fieldSourcePolicyVersion()
+{
+    return 3;
+}
+
+inline QString fieldSource(const QJsonObject& sources, const QString& field)
+{
+    return sources.value(field).toString();
+}
+
+inline void setFieldSource(QJsonObject& sources, const QString& field, const QString& source)
+{
+    sources[field] = source;
+}
+
+inline QString normalizedSource(const QString& source, const QString& fallback)
+{
+    return source.isEmpty() ? fallback : source;
+}
+
+inline bool canReplaceSource(const QString& existingSource, const QString& incomingSource)
+{
+    return sourcePriority(existingSource) < sourcePriority(incomingSource);
+}
+
+inline void setUpdatedSource(QJsonObject& sources, const QString& field, const QString& incomingSource, const QString& fallback)
+{
+    setFieldSource(sources, field, normalizedSource(incomingSource, fallback));
+}
+
+inline void downgradeLegacyFieldSource(QJsonObject& sources, const QString& field)
+{
+    const QString current = fieldSource(sources, field);
+    if (!current.isEmpty() && !isManualSource(current)) {
+        setFieldSource(sources, field, QStringLiteral("inferred"));
+    }
+}
+
+inline bool shouldUpdateFromSource(const QString& existingSource, const QString& incomingSource)
+{
+    return !incomingSource.isEmpty() && sourcePriority(incomingSource) > sourcePriority(existingSource);
+}
+
+inline bool canAdoptFieldValue(bool hasExistingValue,
+                               const QString& existingSource,
+                               const QString& incomingSource)
+{
+    if (incomingSource.isEmpty() || isLockedSource(existingSource)) {
+        return false;
+    }
+
+    return !hasExistingValue || shouldUpdateFromSource(existingSource, incomingSource);
+}
+
+inline bool canAdoptFieldValue(const QString& existingValue,
+                               const QString& existingSource,
+                               const QString& incomingSource)
+{
+    return canAdoptFieldValue(!existingValue.trimmed().isEmpty(), existingSource, incomingSource);
+}
+
+inline bool canAdoptFieldValue(int existingValue,
+                               const QString& existingSource,
+                               const QString& incomingSource)
+{
+    return canAdoptFieldValue(existingValue > 0, existingSource, incomingSource);
+}
+
+inline bool canAdoptFieldValue(const QStringList& existingValues,
+                               const QString& existingSource,
+                               const QString& incomingSource)
+{
+    return canAdoptFieldValue(!existingValues.isEmpty(), existingSource, incomingSource);
+}
+
+inline bool hasDirectTextEvidence(const QString& sourceText, const QString& value)
+{
+    const QString trimmedSource = sourceText.trimmed();
+    const QString trimmedValue = value.trimmed();
+    return !trimmedSource.isEmpty() && !trimmedValue.isEmpty() &&
+           trimmedSource.contains(trimmedValue, Qt::CaseInsensitive);
+}
+
+inline bool hasDirectTextEvidence(const QString& sourceText, const QStringList& values)
+{
+    for (const QString& value : values) {
+        if (hasDirectTextEvidence(sourceText, value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline QString sourceFromTextEvidence(const QString& sourceText,
+                                      const QString& value,
+                                      const QString& inferredValue = QString())
+{
+    Q_UNUSED(inferredValue);
+    // 只有源文本里能直接找到字段值时，才提升为 explicit。
+    if (hasDirectTextEvidence(sourceText, value)) {
+        return QStringLiteral("explicit");
+    }
+    return QStringLiteral("inferred");
+}
+
+inline QString sourceFromTextEvidence(const QString& sourceText,
+                                      const QStringList& values,
+                                      const QStringList& inferredValues = QStringList())
+{
+    Q_UNUSED(inferredValues);
+    if (hasDirectTextEvidence(sourceText, values)) {
+        return QStringLiteral("explicit");
+    }
+    return QStringLiteral("inferred");
+}
+
+inline bool hasCharacterPersonalityChanges(const QStringList& existing, const QJsonArray& incomingArray)
+{
+    const QStringList incoming = JsonUtils::jsonArrayToStringList(incomingArray);
+    for (const QString& value : incoming) {
+        if (!existing.contains(value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline bool hasEmptyDetailsFields(const SceneDetails& det)
 {
     const bool indoorScene = isIndoorSceneType(det.type);
@@ -712,9 +908,9 @@ inline bool hasEmptyDetailsFields(const SceneDetails& det)
            det.landmark.isEmpty() || det.layout.isEmpty() || det.atmosphere.isEmpty() ||
            det.anchorPoints.isEmpty() || det.signatureObjects.isEmpty() ||
            det.fixedColorBlocks.isEmpty() || det.consistencyRules.isEmpty() ||
-           det.type.isEmpty() || det.setting.isEmpty() || det.timeOfDay.isEmpty() ||
+           det.type.isEmpty() || det.typeZh.isEmpty() || det.setting.isEmpty() || det.timeOfDay.isEmpty() ||
            det.currentInterpretation.isEmpty() || det.confidence.isEmpty() ||
-           det.status.isEmpty() || det.evidence.isEmpty() || det.aliases.isEmpty() ||
+           det.status.isEmpty() || det.narrativeRoleZh.isEmpty() || det.evidence.isEmpty() || det.aliases.isEmpty() ||
            det.history.isEmpty() ||
            (!indoorScene && det.weather.isEmpty());
 }
@@ -722,8 +918,8 @@ inline bool hasEmptyDetailsFields(const SceneDetails& det)
 inline bool hasNewDetailsData(const QJsonObject& detailsObj)
 {
     QStringList keys = {"description", "building", "color", "landmark", "layout",
-                        "atmosphere", "type", "setting", "timeOfDay", "weather",
-                        "currentInterpretation", "confidence", "status"};
+                        "atmosphere", "type", "typeZh", "setting", "timeOfDay", "weather", "spaceSize",
+                        "currentInterpretation", "confidence", "status", "narrativeRole", "narrativeRoleZh"};
     for (const QString& key : keys) {
         if (!detailsObj[key].toString().isEmpty()) {
             return true;
@@ -766,65 +962,85 @@ inline bool hasIterationUpdates(const SceneDetails& existing, const QJsonObject&
 
 inline void updateCharacterAppearance(CharacterAppearance& app, const QJsonObject& appObj)
 {
-    if (shouldUpdateField(app.gender, appObj["gender"].toString())) {
-        app.gender = appObj["gender"].toString();
-    }
-    if (shouldUpdateField(app.age, appObj["age"].toInt())) {
-        app.age = appObj["age"].toInt();
-    }
-    if (shouldUpdateField(app.hairColor, appObj["hairColor"].toString())) {
-        app.hairColor = appObj["hairColor"].toString();
-    }
-    if (shouldUpdateField(app.hairStyle, appObj["hairStyle"].toString())) {
-        app.hairStyle = appObj["hairStyle"].toString();
-    }
-    if (shouldUpdateField(app.eyeColor, appObj["eyeColor"].toString())) {
-        app.eyeColor = appObj["eyeColor"].toString();
-    }
-    if (shouldUpdateField(app.build, appObj["build"].toString())) {
-        app.build = appObj["build"].toString();
-    }
-    if (shouldUpdateField(app.height, appObj["height"].toString())) {
-        app.height = appObj["height"].toString();
-    }
-    if (!appObj["clothing"].toArray().isEmpty()) {
-        app.clothing = mergeStringLists(app.clothing, JsonUtils::jsonArrayToStringList(appObj["clothing"].toArray()));
-    }
-    if (!appObj["accessories"].toArray().isEmpty()) {
-        app.accessories = mergeStringLists(app.accessories, JsonUtils::jsonArrayToStringList(appObj["accessories"].toArray()));
-    }
-    if (!appObj["distinctiveFeatures"].toArray().isEmpty()) {
-        app.distinctiveFeatures = mergeStringLists(app.distinctiveFeatures, JsonUtils::jsonArrayToStringList(appObj["distinctiveFeatures"].toArray()));
-    }
-    if (!appObj["aliases"].toArray().isEmpty()) {
-        app.aliases = mergeStringLists(app.aliases, JsonUtils::jsonArrayToStringList(appObj["aliases"].toArray()));
-    }
+    const QJsonObject incomingSources = appObj.value("fieldSources").toObject();
+
+    auto updateScalar = [&appObj, &app, &incomingSources](QString& field, const QString& key) {
+        const QString incoming = appObj[key].toString().trimmed();
+        const QString incomingSource = incomingSources.value(key).toString();
+        const QString existingSource = fieldSource(app.fieldSources, key);
+        if (!incoming.isEmpty() && canAdoptFieldValue(field, existingSource, incomingSource)) {
+            field = incoming;
+            setFieldSource(app.fieldSources, key, normalizedSource(incomingSource, QStringLiteral("explicit")));
+        }
+    };
+    auto updateInt = [&appObj, &app, &incomingSources](int& field, const QString& key) {
+        const int incoming = appObj[key].toInt();
+        const QString incomingSource = incomingSources.value(key).toString();
+        const QString existingSource = fieldSource(app.fieldSources, key);
+        if (incoming > 0 && canAdoptFieldValue(field, existingSource, incomingSource)) {
+            field = incoming;
+            setFieldSource(app.fieldSources, key, normalizedSource(incomingSource, QStringLiteral("explicit")));
+        }
+    };
+    auto updateList = [&appObj, &app, &incomingSources](QStringList& field, const QString& key) {
+        const QStringList incoming = JsonUtils::jsonArrayToStringList(appObj[key].toArray());
+        const QString incomingSource = incomingSources.value(key).toString();
+        const QString existingSource = fieldSource(app.fieldSources, key);
+        if (incoming.isEmpty()) {
+            return;
+        }
+        if (!canAdoptFieldValue(field, existingSource, incomingSource)) {
+            return;
+        }
+        field = (field.isEmpty() || isExplicitSource(incomingSource) || isManualSource(incomingSource))
+            ? incoming
+            : mergeStringLists(field, incoming);
+        setFieldSource(app.fieldSources, key, normalizedSource(incomingSource, QStringLiteral("inferred")));
+    };
+
+    updateScalar(app.gender, "gender");
+    updateInt(app.age, "age");
+    updateScalar(app.hairColor, "hairColor");
+    updateScalar(app.hairStyle, "hairStyle");
+    updateScalar(app.eyeColor, "eyeColor");
+    updateScalar(app.build, "build");
+    updateScalar(app.height, "height");
+    updateList(app.clothing, "clothing");
+    updateList(app.accessories, "accessories");
+    updateList(app.distinctiveFeatures, "distinctiveFeatures");
+    updateList(app.aliases, "aliases");
 }
 
 inline void updateSceneDetails(SceneDetails& det, const QJsonObject& detailsObj)
 {
     const bool indoorScene = isIndoorSceneType(detailsObj["type"].toString()) ||
                              isIndoorSceneType(det.type);
+    const QJsonObject incomingSources = detailsObj.value("fieldSources").toObject();
 
-    auto updateField = [&detailsObj](const QString& key, QString& field) {
-        QString value = detailsObj[key].toString();
-        if (shouldUpdateField(field, value)) {
-            field = value;
-        }
-    };
-    auto updateOverwriteField = [&detailsObj](const QString& key, QString& field) {
+    auto updateField = [&detailsObj, &det, &incomingSources](const QString& key, QString& field) {
         QString value = detailsObj[key].toString().trimmed();
-        if (!value.isEmpty() && field.trimmed() != value) {
+        const QString incomingSource = incomingSources.value(key).toString();
+        const QString existingSource = fieldSource(det.fieldSources, key);
+        if (!value.isEmpty() && canAdoptFieldValue(field, existingSource, incomingSource)) {
             field = value;
+            setFieldSource(det.fieldSources, key,
+                normalizedSource(incomingSource, QStringLiteral("explicit")));
         }
     };
-    auto updateListField = [&detailsObj](const QString& key, QStringList& field) {
+    auto updateListField = [&detailsObj, &det, &incomingSources](const QString& key, QStringList& field) {
         QStringList values = JsonUtils::jsonArrayToStringList(detailsObj[key].toArray());
-        if (field.isEmpty() && !values.isEmpty()) {
-            field = values;
-        } else if (!values.isEmpty()) {
-            field = mergeStringLists(field, values);
+        const QString incomingSource = incomingSources.value(key).toString();
+        const QString existingSource = fieldSource(det.fieldSources, key);
+        if (values.isEmpty()) {
+            return;
         }
+        if (!canAdoptFieldValue(field, existingSource, incomingSource)) {
+            return;
+        }
+        field = (field.isEmpty() || isExplicitSource(incomingSource) || isManualSource(incomingSource))
+            ? values
+            : mergeStringLists(field, values);
+        setFieldSource(det.fieldSources, key, normalizedSource(incomingSource, QStringLiteral("inferred")));
     };
     
     updateField("description", det.description);
@@ -838,17 +1054,21 @@ inline void updateSceneDetails(SceneDetails& det, const QJsonObject& detailsObj)
     updateListField("fixedColorBlocks", det.fixedColorBlocks);
     updateListField("consistencyRules", det.consistencyRules);
     updateField("type", det.type);
+    updateField("typeZh", det.typeZh);
     updateField("setting", det.setting);
     updateField("timeOfDay", det.timeOfDay);
+    updateField("spaceSize", det.spaceSize);
     if (indoorScene) {
         det.weather.clear();
         det.weatherVariations = QJsonArray();
     } else {
         updateField("weather", det.weather);
     }
-    updateOverwriteField("currentInterpretation", det.currentInterpretation);
-    updateOverwriteField("confidence", det.confidence);
-    updateOverwriteField("status", det.status);
+    updateField("currentInterpretation", det.currentInterpretation);
+    updateField("confidence", det.confidence);
+    updateField("status", det.status);
+    updateField("narrativeRole", det.narrativeRole);
+    updateField("narrativeRoleZh", det.narrativeRoleZh);
     updateListField("evidence", det.evidence);
     updateListField("aliases", det.aliases);
     updateListField("history", det.history);

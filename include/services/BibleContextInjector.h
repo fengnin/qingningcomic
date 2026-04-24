@@ -28,6 +28,7 @@ public:
     
     QJsonArray filterCharacters(const QString& text, const QJsonArray& characters);
     QJsonArray filterScenes(const QString& text, const QJsonArray& scenes);
+    QString normalizeLookupText(const QString& text) const;
 
 private:
     BibleContextInjector() = default;
@@ -38,7 +39,6 @@ private:
     static BibleContextInjector* m_instance;
     static std::once_flag m_instanceOnceFlag;
     
-    QString normalizeLookupText(const QString& text) const;
     QStringList deduplicateKeys(const QStringList& keys) const;
     bool textContainsMention(const QString& normalizedText, const QString& candidate) const;
     QStringList splitLookupPhrases(const QString& text) const;
@@ -48,7 +48,6 @@ private:
     
     QString summarizeCharacter(const QJsonObject& character) const;
     QString summarizeScene(const QJsonObject& scene) const;
-    QString joinArrayPreview(const QJsonArray& array, int limit = 3) const;
 };
 
 #endif

@@ -36,7 +36,6 @@ private slots:
     void resetZoom();
     void rotateLeft();
     void rotateRight();
-    void closeDialog();
 
 private:
     void setupUI();
@@ -53,7 +52,6 @@ private:
     QPushButton *m_resetBtn;
     QPushButton *m_rotateLeftBtn;
     QPushButton *m_rotateRightBtn;
-    QPushButton *m_closeBtn;
     QLabel *m_zoomLabel;
     
     QPixmap m_originalPixmap;

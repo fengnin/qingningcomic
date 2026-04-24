@@ -152,113 +152,15 @@ struct SceneDetails
     QJsonObject spatialLayout;
     QJsonArray timeVariations;
     QJsonArray weatherVariations;
+    QJsonObject fieldSources; // 字段来源：explicit / inferred / manual
     
-    QJsonObject toJson() const
-    {
-        QJsonObject json;
-        if (!description.isEmpty()) json["description"] = description;
-        if (!building.isEmpty()) json["building"] = building;
-        if (!color.isEmpty()) json["color"] = color;
-        if (!landmark.isEmpty()) json["landmark"] = landmark;
-        if (!layout.isEmpty()) json["layout"] = layout;
-        if (!atmosphere.isEmpty()) json["atmosphere"] = atmosphere;
-        if (!anchorPoints.isEmpty()) json["anchorPoints"] = QJsonArray::fromStringList(anchorPoints);
-        if (!signatureObjects.isEmpty()) json["signatureObjects"] = QJsonArray::fromStringList(signatureObjects);
-        if (!fixedColorBlocks.isEmpty()) json["fixedColorBlocks"] = QJsonArray::fromStringList(fixedColorBlocks);
-        if (!consistencyRules.isEmpty()) json["consistencyRules"] = QJsonArray::fromStringList(consistencyRules);
-        if (!type.isEmpty()) json["type"] = type;
-        if (!typeZh.isEmpty()) json["typeZh"] = typeZh;
-        if (!setting.isEmpty()) json["setting"] = setting;
-        if (!timeOfDay.isEmpty()) json["timeOfDay"] = timeOfDay;
-        if (!weather.isEmpty()) json["weather"] = weather;
-        if (!spaceSize.isEmpty()) json["spaceSize"] = spaceSize;
-        if (!currentInterpretation.isEmpty()) json["currentInterpretation"] = currentInterpretation;
-        if (!confidence.isEmpty()) json["confidence"] = confidence;
-        if (!status.isEmpty()) json["status"] = status;
-        if (!narrativeRole.isEmpty()) json["narrativeRole"] = narrativeRole;
-        if (!narrativeRoleZh.isEmpty()) json["narrativeRoleZh"] = narrativeRoleZh;
-        if (!details.isEmpty()) json["details"] = QJsonArray::fromStringList(details);
-        if (!evidence.isEmpty()) json["evidence"] = QJsonArray::fromStringList(evidence);
-        if (!aliases.isEmpty()) json["aliases"] = QJsonArray::fromStringList(aliases);
-        if (!history.isEmpty()) json["history"] = QJsonArray::fromStringList(history);
-        
-        if (!visualCharacteristics.isEmpty()) {
-            json["visualCharacteristics"] = visualCharacteristics;
-        }
-        if (!spatialLayout.isEmpty()) {
-            json["spatialLayout"] = spatialLayout;
-        }
-        if (!timeVariations.isEmpty()) {
-            json["timeVariations"] = timeVariations;
-        }
-        if (!weatherVariations.isEmpty()) {
-            json["weatherVariations"] = weatherVariations;
-        }
-        
-        return json;
-    }
-    
-    static SceneDetails fromJson(const QJsonObject& json)
-    {
-        SceneDetails det;
-        det.description = json["description"].toString();
-        det.building = json["building"].toString();
-        det.color = json["color"].toString();
-        det.landmark = json["landmark"].toString();
-        det.layout = json["layout"].toString();
-        det.atmosphere = json["atmosphere"].toString();
-        det.anchorPoints = JsonUtils::jsonArrayToStringList(json["anchorPoints"].toArray());
-        det.signatureObjects = JsonUtils::jsonArrayToStringList(json["signatureObjects"].toArray());
-        det.fixedColorBlocks = JsonUtils::jsonArrayToStringList(json["fixedColorBlocks"].toArray());
-        det.consistencyRules = JsonUtils::jsonArrayToStringList(json["consistencyRules"].toArray());
-        det.type = json["type"].toString();
-        det.typeZh = json["typeZh"].toString();
-        det.setting = json["setting"].toString();
-        det.timeOfDay = json["timeOfDay"].toString();
-        det.weather = json["weather"].toString();
-        det.spaceSize = json["spaceSize"].toString();
-        det.currentInterpretation = json["currentInterpretation"].toString();
-        det.confidence = json["confidence"].toString();
-        det.status = json["status"].toString();
-        det.narrativeRole = json["narrativeRole"].toString();
-        det.narrativeRoleZh = json["narrativeRoleZh"].toString();
-        det.evidence = JsonUtils::jsonArrayToStringList(json["evidence"].toArray());
-        det.aliases = JsonUtils::jsonArrayToStringList(json["aliases"].toArray());
-        det.history = JsonUtils::jsonArrayToStringList(json["history"].toArray());
-        if (isIndoorSceneType(det.type)) {
-            det.weather.clear();
-            det.weatherVariations = QJsonArray();
-        }
-        
-        QJsonArray detailsArray = json["details"].toArray();
-        for (const QJsonValue& v : detailsArray) {
-            det.details << v.toString();
-        }
-        
-        det.visualCharacteristics = json["visualCharacteristics"].toObject();
-        det.spatialLayout = json["spatialLayout"].toObject();
-        det.timeVariations = json["timeVariations"].toArray();
-        det.weatherVariations = json["weatherVariations"].toArray();
-        
-        return det;
-    }
+    QJsonObject toJson() const;
+    static SceneDetails fromJson(const QJsonObject& json);
     
     QStringList toDisplayStrings() const;
     
     // 判断场景详情是否有空字段
-    inline bool hasEmptyFields() const
-    {
-        const bool indoorScene = isIndoorSceneType(type);
-        return description.isEmpty() || building.isEmpty() || color.isEmpty() ||
-               landmark.isEmpty() || layout.isEmpty() || atmosphere.isEmpty() ||
-               anchorPoints.isEmpty() || signatureObjects.isEmpty() || fixedColorBlocks.isEmpty() ||
-               consistencyRules.isEmpty() ||
-               spaceSize.isEmpty() || type.isEmpty() || setting.isEmpty() || timeOfDay.isEmpty() ||
-               currentInterpretation.isEmpty() || confidence.isEmpty() || status.isEmpty() ||
-               evidence.isEmpty() || aliases.isEmpty() || history.isEmpty() ||
-               narrativeRole.isEmpty() ||
-               (!indoorScene && weather.isEmpty());
-    }
+    bool hasEmptyFields() const;
 };
 
 class Scene
@@ -287,62 +189,11 @@ public:
     QString referenceImagePath() const { return m_referenceImagePath; }
     void setReferenceImagePath(const QString& path) { m_referenceImagePath = path; }
     
-    QJsonObject toJson() const
-    {
-        QJsonObject json;
-        json["id"] = m_id;
-        json["novelId"] = m_novelId;
-        json["name"] = m_name;
-        json["sceneId"] = m_sceneId;
-        json["details"] = m_details.toJson();
-        json["tags"] = QJsonArray::fromStringList(m_tags);
-        json["referenceImagePath"] = m_referenceImagePath;
-        return json;
-    }
+    QJsonObject toJson() const;
+    static Scene fromJson(const QJsonObject& json);
     
-    static Scene fromJson(const QJsonObject& json)
-    {
-        Scene scene;
-        scene.m_id = json["id"].toString();
-        scene.m_novelId = json["novelId"].toString();
-        scene.m_name = json["name"].toString();
-        scene.m_sceneId = json["sceneId"].toString();
-        scene.m_details = SceneDetails::fromJson(json["details"].toObject());
-        scene.m_tags = JsonUtils::jsonArrayToStringList(json["tags"].toArray());
-        scene.m_referenceImagePath = json["referenceImagePath"].toString();
-        return scene;
-    }
-    
-    QVariantMap toVariantMap() const
-    {
-        QVariantMap map;
-        map["id"] = m_id;
-        map["novel_id"] = m_novelId;
-        map["name"] = m_name;
-        map["scene_id"] = m_sceneId;
-        map["details"] = JsonUtils::jsonToString(m_details.toJson());
-        map["tags"] = JsonUtils::jsonToString(QJsonArray::fromStringList(m_tags));
-        map["reference_image_path"] = m_referenceImagePath;
-        return map;
-    }
-    
-    static Scene fromVariantMap(const QVariantMap& map)
-    {
-        Scene scene;
-        scene.m_id = map["id"].toString();
-        scene.m_novelId = map["novel_id"].toString();
-        scene.m_name = map["name"].toString();
-        scene.m_sceneId = map["scene_id"].toString();
-        
-        QJsonObject detailsJson = JsonUtils::variantToJson(map["details"]);
-        if (!detailsJson.isEmpty()) {
-            scene.m_details = SceneDetails::fromJson(detailsJson);
-        }
-        
-        scene.m_tags = JsonUtils::variantToStringList(map["tags"]);
-        scene.m_referenceImagePath = map["reference_image_path"].toString();
-        return scene;
-    }
+    QVariantMap toVariantMap() const;
+    static Scene fromVariantMap(const QVariantMap& map);
     
 private:
     QString m_id;

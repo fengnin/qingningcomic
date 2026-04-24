@@ -1,315 +1,397 @@
-周三的清晨，天刚蒙蒙亮，书店还没正式开门，门口就传来了轻轻的脚步声。青柠正弯腰整理刚到的旧书，听见声音抬起头，透过玻璃窗，看见陈伯正站在门口，手里提着一个竹篮，指尖轻轻摩挲着篮沿，神情温和。
-陈伯是男性，今年七十二岁，身形不算高大，约莫一米六五左右，体型偏瘦，脊背有些微微弯曲，那是岁月留下的痕迹，却依旧精神矍铄，走路虽有些蹒跚，却步伐稳健，透着一股温和的韧劲。他的发色是纯粹的雪白，没有一丝杂色，发型是利落的短发，额前的碎发有些花白，贴在光洁的额头上，显得格外精神。
-
-陈伯的瞳色是深褐色，像陈年的老茶，浑浊却明亮，眼神里藏着岁月的沉淀，平日里总是带着温和的笑意，看向人的时候，眼底满是善意，唯有想起孙女或是旧物时，会泛起淡淡的怅惘。他的脸上布满了深浅不一的皱纹，眼角的皱纹最是明显，笑起来的时候会挤在一起，却一点也不显得苍老，反而多了几分慈祥，鼻梁上有一颗小小的黑痣，是他最显眼的特征，多年来一直都在，成了他容貌里不可缺少的一部分。
-
-今天陈伯穿了一件洗得发白的藏青色斜襟棉布衫，领口和袖口都有些磨损，却干净整洁，没有一丝污渍，下身是一条深灰色的宽松长裤，裤脚挽到脚踝，露出一双布满老茧的脚，脚上穿着一双黑色的千层底布鞋，是手工缝制的，看起来格外舒适。他的左手手腕上戴着一块旧怀表，表链是银色的，已经有些氧化发黑，却被擦拭得干干净净，那是他年轻时和妻子一起买的，也是他最珍贵的东西。
-
-陈伯的性格温和敦厚，待人真诚，说话时声音沙哑却温和，语速偏慢，语气里总是带着几分客气，却不显得生分。他心思细腻，懂得感恩，青柠不过是送了他一本旧书，他却记在心里，接二连三地送来心意，不张扬，却格外动人。他念旧情，重情义，对孙女格外疼爱，对逝去的妻子也始终念念不忘，骨子里藏着老一辈人的淳朴和善良，不急躁、不张扬，做事慢条斯理，却格外认真。
-
-青柠连忙放下手里的书，走过去打开店门，浅琥珀色的眸子里泛起一丝暖意：“陈伯，您怎么这么早？”
-
-陈伯笑着抬起头，深褐色的眼眸里满是温和，把手里的竹篮递过去：“姑娘，这是我今早刚摘的栀子，自家院子里种的，开得正香，给你带点，放在书店里，也添点生气。”竹篮里的栀子花洁白盛放，香气扑鼻，和书店里的油墨香交织在一起，格外清新。
-
-青柠接过竹篮，指尖触到陈伯布满老茧的手，那双手粗糙却温暖，带着岁月的温度。她轻声道：“谢谢您，陈伯，栀子花很好看，也很香。”
-
-陈伯摆了摆手，笑着说：“跟爷爷客气什么，要不是你，我也找不到那本书，我孙女下周就回来了，到时候我再带她来谢谢你。”他说着，目光落在书店里的书架上，眼神里泛起淡淡的怀念，“我年轻的时候，也常来这种旧书店，那时候，你奶奶总陪着我，一起找书、看书，一转眼，这么多年就过去了。”
-
-青柠安静地听着，没有插话，琥珀色的眸子里满是柔和。她能感受到陈伯话语里的怅惘和温柔，也能读懂他眼底的怀念，就像她怀念自己弄丢的那本旧笔记本一样，每个人的心里，都藏着一段舍不得忘记的旧时光。
-
-陈伯坐了一会儿，喝了一杯青柠泡的薄荷茶，便起身告辞了。他走的时候，脚步依旧蹒跚，雪白的短发在晨光里格外显眼，藏青色的棉布衫被风吹得轻轻晃动，却依旧挺直了脊背。
-
-青柠把栀子花放在柜台旁的窗台上，看着陈伯远去的背影，指尖轻轻抚摸着花瓣，心里泛起一丝暖意。她忽然觉得，陈伯就像一本旧书，外表朴素，内里却藏着最真挚的情感，而那些藏在岁月里的温柔，正在一点点温暖着她疏离的心房。
-
-
-
-[2026-04-22 12:16:58.197] [INFO] [NovelDetailPage] Bible item edit clicked: id=拾光书店（室内）, type=1
-[2026-04-22 12:16:58.224] [INFO] [NovelDetailPage] Editing scene: 拾光书店（室内）
-[Character] name: "陈伯" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 65, \"build\": \"瘦小微驼\", \"gender\": \"男\", \"height\": \"约160cm\", \"aliases\": [\"陈伯\"], \"clothing\": [\"洗得发白的靛蓝布衫\", \"深灰布裤\", \"旧布鞋\"], \"eyeColor\": \"浅褐色\", \"hairColor\": \"花白\", \"hairStyle\": \"寸头\", \"accessories\": [],"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":65,"aliases":["陈伯"],"build":"瘦小微驼","clothing":["洗得发白的靛蓝布衫","深灰布裤","旧布鞋"],"distinctiveFeatures":["满头银发，梳得整齐","眼角皱纹深刻，眼神却明亮急切","左手无名指戴一枚磨亮的铜戒","整齐寸头","手背有老年斑","指节粗大"],"eyeColor":"浅褐色","gender":"男","hairColor":"花白","hairStyle":"寸头","height":"约160cm"})
-[Character] Top-level appearance fallback applied: gender= "男" age= 65
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("慈爱", "固执", "怀旧", "略带不安的恳切", "朴实")
-[2026-04-22 12:19:43.952] [DEBUG] [CharacterExtractor] Loaded character row: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter, gender=男, age=65, hairColor=花白, hairStyle=寸头, eyeColor=浅褐色, build=瘦小微驼, clothing=洗得发白的靛蓝布衫, 深灰布裤, 旧布鞋, features=满头银发，梳得整齐, 眼角皱纹深刻，眼神却明亮急切, 左手无名指戴一枚磨亮的铜戒, 整齐寸头, 手背有老年斑, 指节粗大, personality=慈爱, 固执, 怀旧, 略带不安的恳切, 朴实, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "青柠" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 17, \"build\": \"清瘦但挺拔\", \"gender\": \"女\", \"height\": \"162cm\", \"aliases\": [\"青柠\"], \"clothing\": [\"浅蓝棉麻围裙\", \"白色短袖T恤\", \"牛仔裤\", \"帆布鞋\", \"白色帆布鞋\"], \"eyeColor\": \"浅琥珀色\", \"hairColor\": \"浅亚麻色\", \"hairStyle\": \"齐肩直发，"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":17,"aliases":["青柠"],"build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤","帆布鞋","白色帆布鞋"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离","左耳一枚小巧银杏叶耳钉","颧骨处淡雀斑","浅亚麻色齐肩直发（微自然卷）","银色青柠吊坠手链"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"浅亚麻色","hairStyle":"齐肩直发，低马尾，碎发垂颊","height":"162cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 17
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("安静内敛", "细腻敏感", "温柔克制", "心藏执念", "不卑不亢", "观察力强")
-[2026-04-22 12:19:43.952] [DEBUG] [CharacterExtractor] Loaded character row: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist, gender=女, age=17, hairColor=浅亚麻色, hairStyle=齐肩直发，低马尾，碎发垂颊, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, 帆布鞋, 白色帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, 左耳一枚小巧银杏叶耳钉, 颧骨处淡雀斑, 浅亚麻色齐肩直发（微自然卷）, 银色青柠吊坠手链, personality=安静内敛, 细腻敏感, 温柔克制, 心藏执念, 不卑不亢, 观察力强, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[Character] name: "林阿姨" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 45, \"build\": \"中等偏丰腴\", \"gender\": \"女\", \"height\": \"约165cm\", \"aliases\": [], \"clothing\": [\"米色针织开衫\", \"藏青连衣裙\", \"珍珠耳钉\", \"布面平底鞋\"], \"eyeColor\": \"暖棕色\", \"hairColor\": \"深棕带灰调\", \"hairStyle\": \"齐耳波浪短发\", \"acces"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"aliases":[],"build":"中等偏丰腴","clothing":["米色针织开衫","藏青连衣裙","珍珠耳钉","布面平底鞋"],"distinctiveFeatures":["温润笑容","眼角细纹","手腕戴老式机械表"],"eyeColor":"暖棕色","gender":"女","hairColor":"深棕带灰调","hairStyle":"齐耳波浪短发","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 45
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("和蔼可亲", "细心体贴", "富有生活智慧")
-[2026-04-22 12:19:43.952] [DEBUG] [CharacterExtractor] Loaded character row: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter, gender=女, age=45, hairColor=深棕带灰调, hairStyle=齐耳波浪短发, eyeColor=暖棕色, build=中等偏丰腴, clothing=米色针织开衫, 藏青连衣裙, 珍珠耳钉, 布面平底鞋, features=温润笑容, 眼角细纹, 手腕戴老式机械表, personality=和蔼可亲, 细心体贴, 富有生活智慧, portraitPath=characters/def429c6-36f0-46a6-b2ff-519495449e29/reference.png
-[2026-04-22 12:19:43.953] [INFO] [BibleGenerator] Collected 3 existing characters for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:19:43.979] [INFO] [BibleGenerator] Collected 2 existing scenes for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:19:43.979] [INFO] [AnalysisService] Starting streaming analysis for novel: 1387c4eb-0f4b-4679-bf56-d7841dd282b0, chapter: 3
-[2026-04-22 12:19:44.095] [INFO] [AnalysisJobUtils] Created job: eaf888a6-e8bc-49a5-8bb7-6ae673c5ef29 for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0, chapter 3
-[2026-04-22 12:19:44.098] [INFO] [BibleContextInjector] Filtered bible context: characters 2/3, scenes 0/2
-[2026-04-22 12:19:44.101] [DEBUG] [QwenPromptBuilder] System prompt length: 13755 chars, example keys: characters, panels, scenes, totalPages
-[2026-04-22 12:19:44.102] [DEBUG] [QwenClient] 发送流式请求
-[2026-04-22 12:19:44.102] [DEBUG] [QwenClient] 请求地址: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-[2026-04-22 12:19:44.102] [DEBUG] [QwenClient] 请求体大小: 56022 bytes
-[2026-04-22 12:22:30.056] [DEBUG] [NovelDetailPage] setNovel: 青柠, id=1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:22:30.211] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
-[2026-04-22 12:22:30.242] [INFO] [BibleSectionWidget] Rendering character bible: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter
-[2026-04-22 12:22:30.242] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
-[2026-04-22 12:22:30.245] [INFO] [BibleSectionWidget] Rendering character bible: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist
-[2026-04-22 12:22:30.245] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
-[2026-04-22 12:22:30.250] [INFO] [BibleSectionWidget] Rendering character bible: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter
-[2026-04-22 12:22:30.250] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
-[2026-04-22 12:22:30.260] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 3
-[2026-04-22 12:22:30.260] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=2
-[2026-04-22 12:22:30.260] [DEBUG] [NovelDetailPage] onSceneCountChanged: 2 -> 2
-[2026-04-22 12:22:30.260] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=2
-[2026-04-22 12:22:30.260] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 2 scenes
-[2026-04-22 12:22:30.647] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=2
-[2026-04-22 12:22:46.482] [INFO] [QwenClient] 流式响应已累计 20140 字符
-[2026-04-22 12:22:46.482] [DEBUG] [QwenClient] Storyboard shape: panels=6, characters=2, scenes=3
-[2026-04-22 12:22:46.484] [DEBUG] [QwenClient] Extracted chars=2 scenes=0 existingScenes=3
-[2026-04-22 12:22:46.484] [DEBUG] [QwenClient] 规范化结果 - 面板:6 角色:2 场景:3
-[2026-04-22 12:22:46.484] [INFO] [AnalysisService] Stream completed, processing result...
-[2026-04-22 12:22:46.601] [INFO] [AnalysisService] saveResults called: novelId=1387c4eb-0f4b-4679-bf56-d7841dd282b0, chapter=3, panels=6, characters=2, scenes=3
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Parsing character '陈伯', role=supportingCharacter, appearance: {"age":72,"build":"瘦小微驼","clothing":["洗得发白的藏青色斜襟棉布衫","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋"],"distinctiveFeatures":["雪白利落寸头，额前花白碎发贴额","鼻梁上一颗明显黑痣","左手腕戴氧化银怀表（表链洁净）","双手布满老茧"],"eyeColor":"深褐色（如陈年老茶）","gender":"男","hairColor":"纯白","hairStyle":"短发（寸头）","height":"约165cm"}
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Parsed character '陈伯': role=supportingCharacter, gender=男, age=72, hairColor=纯白, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Enriched from text for '陈伯': hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, clothing=洗得发白的藏青色斜襟棉布衫, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, features=雪白利落寸头，额前花白碎发贴额, 鼻梁上一颗明显黑痣, 左手腕戴氧化银怀表（表链洁净）, 双手布满老茧, accessories=
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Parsing character '青柠', role=protagonist, appearance: {"age":"青年","build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤"],"distinctiveFeatures":["齐肩直发，低马尾，颊边垂落几缕碎发"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"黑色","hairStyle":"齐肩直发+低马尾","height":"中等偏高"}
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Parsed character '青柠': role=protagonist, gender=女, age=25, hairColor=黑色, eyeColor=浅琥珀色, build=清瘦但挺拔
-[2026-04-22 12:22:46.627] [DEBUG] [CharacterExtractor] Enriched from text for '青柠': hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, features=齐肩直发，低马尾，颊边垂落几缕碎发, accessories=
-[2026-04-22 12:22:46.627] [INFO] [CharacterExtractor] Extracted 2 characters from AI response
-[2026-04-22 12:22:46.651] [DEBUG] [CharacterExtractor] Character '陈伯' matched existing '陈伯', merging...
-[2026-04-22 12:22:46.709] [INFO] [CharacterExtractor] Updated character: 陈伯, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "陈伯" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 72, \"build\": \"瘦小微驼\", \"gender\": \"男\", \"height\": \"约165cm\", \"aliases\": [\"陈伯\"], \"clothing\": [\"洗得发白的靛蓝布衫\", \"深灰布裤\", \"旧布鞋\", \"洗得发白的藏青色斜襟棉布衫\", \"深灰色宽松长裤（裤脚挽至脚踝）\", \"黑色手工千层底布鞋\"], \"eyeColor\": \"深褐色（如陈年老茶）\", "
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":72,"aliases":["陈伯"],"build":"瘦小微驼","clothing":["洗得发白的靛蓝布衫","深灰布裤","旧布鞋","洗得发白的藏青色斜襟棉布衫","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋"],"distinctiveFeatures":["满头银发，梳得整齐","眼角皱纹深刻，眼神却明亮急切","左手无名指戴一枚磨亮的铜戒","整齐寸头","手背有老年斑","指节粗大","雪白利落寸头，额前花白碎发贴额","鼻梁上一颗明显黑痣","左手腕戴氧化银怀表（表链洁净）","双手布满老茧"],"eyeColor":"深褐色（如陈年老茶）","gender":"男","hairColor":"纯白","hairStyle":"短发（寸头）","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "男" age= 72
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("慈爱", "固执", "怀旧", "略带不安的恳切", "朴实", "温和敦厚", "细腻感恩", "淳朴善良", "慢条斯理却认真")
-[2026-04-22 12:22:46.732] [DEBUG] [CharacterExtractor] Loaded character row: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, clothing=洗得发白的靛蓝布衫, 深灰布裤, 旧布鞋, 洗得发白的藏青色斜襟棉布衫, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, features=满头银发，梳得整齐, 眼角皱纹深刻，眼神却明亮急切, 左手无名指戴一枚磨亮的铜戒, 整齐寸头, 手背有老年斑, 指节粗大, 雪白利落寸头，额前花白碎发贴额, 鼻梁上一颗明显黑痣, 左手腕戴氧化银怀表（表链洁净）, 双手布满老茧, personality=慈爱, 固执, 怀旧, 略带不安的恳切, 朴实, 温和敦厚, 细腻感恩, 淳朴善良, 慢条斯理却认真, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "青柠" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 17, \"build\": \"清瘦但挺拔\", \"gender\": \"女\", \"height\": \"162cm\", \"aliases\": [\"青柠\"], \"clothing\": [\"浅蓝棉麻围裙\", \"白色短袖T恤\", \"牛仔裤\", \"帆布鞋\", \"白色帆布鞋\"], \"eyeColor\": \"浅琥珀色\", \"hairColor\": \"浅亚麻色\", \"hairStyle\": \"齐肩直发，"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":17,"aliases":["青柠"],"build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤","帆布鞋","白色帆布鞋"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离","左耳一枚小巧银杏叶耳钉","颧骨处淡雀斑","浅亚麻色齐肩直发（微自然卷）","银色青柠吊坠手链"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"浅亚麻色","hairStyle":"齐肩直发，低马尾，碎发垂颊","height":"162cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 17
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("安静内敛", "细腻敏感", "温柔克制", "心藏执念", "不卑不亢", "观察力强")
-[2026-04-22 12:22:46.733] [DEBUG] [CharacterExtractor] Loaded character row: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist, gender=女, age=17, hairColor=浅亚麻色, hairStyle=齐肩直发，低马尾，碎发垂颊, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, 帆布鞋, 白色帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, 左耳一枚小巧银杏叶耳钉, 颧骨处淡雀斑, 浅亚麻色齐肩直发（微自然卷）, 银色青柠吊坠手链, personality=安静内敛, 细腻敏感, 温柔克制, 心藏执念, 不卑不亢, 观察力强, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[Character] name: "林阿姨" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 45, \"build\": \"中等偏丰腴\", \"gender\": \"女\", \"height\": \"约165cm\", \"aliases\": [], \"clothing\": [\"米色针织开衫\", \"藏青连衣裙\", \"珍珠耳钉\", \"布面平底鞋\"], \"eyeColor\": \"暖棕色\", \"hairColor\": \"深棕带灰调\", \"hairStyle\": \"齐耳波浪短发\", \"acces"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"aliases":[],"build":"中等偏丰腴","clothing":["米色针织开衫","藏青连衣裙","珍珠耳钉","布面平底鞋"],"distinctiveFeatures":["温润笑容","眼角细纹","手腕戴老式机械表"],"eyeColor":"暖棕色","gender":"女","hairColor":"深棕带灰调","hairStyle":"齐耳波浪短发","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 45
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("和蔼可亲", "细心体贴", "富有生活智慧")
-[2026-04-22 12:22:46.733] [DEBUG] [CharacterExtractor] Loaded character row: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter, gender=女, age=45, hairColor=深棕带灰调, hairStyle=齐耳波浪短发, eyeColor=暖棕色, build=中等偏丰腴, clothing=米色针织开衫, 藏青连衣裙, 珍珠耳钉, 布面平底鞋, features=温润笑容, 眼角细纹, 手腕戴老式机械表, personality=和蔼可亲, 细心体贴, 富有生活智慧, portraitPath=characters/def429c6-36f0-46a6-b2ff-519495449e29/reference.png
-[2026-04-22 12:22:46.733] [DEBUG] [CharacterExtractor] Character '青柠' matched existing '青柠', merging...
-[2026-04-22 12:22:46.791] [INFO] [CharacterExtractor] Updated character: 青柠, gender=女, age=25, hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[2026-04-22 12:22:46.804] [DEBUG] [Database] Transaction completed successfully
-[2026-04-22 12:22:46.862] [DEBUG] [Database] Transaction completed successfully
-[2026-04-22 12:22:46.862] [INFO] [CharacterExtractor] Saved 2/2 characters for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:22:46.862] [INFO] [AnalysisService] Saved 2 characters to database
-[2026-04-22 12:22:46.942] [INFO] [SceneExtractor] Saved scene: 旧书拾光书店（临街立面）
-[2026-04-22 12:22:47.029] [INFO] [SceneExtractor] Saved scene: 柜台与窗台阅读角
-[2026-04-22 12:22:47.116] [INFO] [SceneExtractor] Saved scene: 胡桃木旧书架区
-[2026-04-22 12:22:47.116] [INFO] [AnalysisService] Saved 3 scenes to database
-[Character] name: "陈伯" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 72, \"build\": \"瘦小微驼\", \"gender\": \"男\", \"height\": \"约165cm\", \"aliases\": [\"陈伯\"], \"clothing\": [\"洗得发白的靛蓝布衫\", \"深灰布裤\", \"旧布鞋\", \"洗得发白的藏青色斜襟棉布衫\", \"深灰色宽松长裤（裤脚挽至脚踝）\", \"黑色手工千层底布鞋\"], \"eyeColor\": \"深褐色（如陈年老茶）\", "
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":72,"aliases":["陈伯"],"build":"瘦小微驼","clothing":["洗得发白的靛蓝布衫","深灰布裤","旧布鞋","洗得发白的藏青色斜襟棉布衫","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋"],"distinctiveFeatures":["满头银发，梳得整齐","眼角皱纹深刻，眼神却明亮急切","左手无名指戴一枚磨亮的铜戒","整齐寸头","手背有老年斑","指节粗大","雪白利落寸头，额前花白碎发贴额","鼻梁上一颗明显黑痣","左手腕戴氧化银怀表（表链洁净）","双手布满老茧"],"eyeColor":"深褐色（如陈年老茶）","gender":"男","hairColor":"纯白","hairStyle":"短发（寸头）","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "男" age= 72
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("慈爱", "固执", "怀旧", "略带不安的恳切", "朴实", "温和敦厚", "细腻感恩", "淳朴善良", "慢条斯理却认真")
-[2026-04-22 12:22:47.140] [DEBUG] [CharacterExtractor] Loaded character row: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, clothing=洗得发白的靛蓝布衫, 深灰布裤, 旧布鞋, 洗得发白的藏青色斜襟棉布衫, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, features=满头银发，梳得整齐, 眼角皱纹深刻，眼神却明亮急切, 左手无名指戴一枚磨亮的铜戒, 整齐寸头, 手背有老年斑, 指节粗大, 雪白利落寸头，额前花白碎发贴额, 鼻梁上一颗明显黑痣, 左手腕戴氧化银怀表（表链洁净）, 双手布满老茧, personality=慈爱, 固执, 怀旧, 略带不安的恳切, 朴实, 温和敦厚, 细腻感恩, 淳朴善良, 慢条斯理却认真, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "青柠" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 25, \"build\": \"清瘦但挺拔\", \"gender\": \"女\", \"height\": \"中等偏高\", \"aliases\": [\"青柠\"], \"clothing\": [\"浅蓝棉麻围裙\", \"白色短袖T恤\", \"牛仔裤\", \"帆布鞋\", \"白色帆布鞋\"], \"eyeColor\": \"浅琥珀色\", \"hairColor\": \"黑色\", \"hairStyle\": \"齐肩直发+低马尾"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":25,"aliases":["青柠"],"build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤","帆布鞋","白色帆布鞋"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离","左耳一枚小巧银杏叶耳钉","颧骨处淡雀斑","浅亚麻色齐肩直发（微自然卷）","银色青柠吊坠手链","齐肩直发，低马尾，颊边垂落几缕碎发"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"黑色","hairStyle":"齐肩直发+低马尾","height":"中等偏高"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 25
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("安静内敛", "细腻敏感", "温柔克制", "心藏执念", "不卑不亢", "观察力强", "善于倾听", "心存怀念")
-[2026-04-22 12:22:47.140] [DEBUG] [CharacterExtractor] Loaded character row: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist, gender=女, age=25, hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, 帆布鞋, 白色帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, 左耳一枚小巧银杏叶耳钉, 颧骨处淡雀斑, 浅亚麻色齐肩直发（微自然卷）, 银色青柠吊坠手链, 齐肩直发，低马尾，颊边垂落几缕碎发, personality=安静内敛, 细腻敏感, 温柔克制, 心藏执念, 不卑不亢, 观察力强, 善于倾听, 心存怀念, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[Character] name: "林阿姨" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 45, \"build\": \"中等偏丰腴\", \"gender\": \"女\", \"height\": \"约165cm\", \"aliases\": [], \"clothing\": [\"米色针织开衫\", \"藏青连衣裙\", \"珍珠耳钉\", \"布面平底鞋\"], \"eyeColor\": \"暖棕色\", \"hairColor\": \"深棕带灰调\", \"hairStyle\": \"齐耳波浪短发\", \"acces"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"aliases":[],"build":"中等偏丰腴","clothing":["米色针织开衫","藏青连衣裙","珍珠耳钉","布面平底鞋"],"distinctiveFeatures":["温润笑容","眼角细纹","手腕戴老式机械表"],"eyeColor":"暖棕色","gender":"女","hairColor":"深棕带灰调","hairStyle":"齐耳波浪短发","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 45
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("和蔼可亲", "细心体贴", "富有生活智慧")
-[2026-04-22 12:22:47.140] [DEBUG] [CharacterExtractor] Loaded character row: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter, gender=女, age=45, hairColor=深棕带灰调, hairStyle=齐耳波浪短发, eyeColor=暖棕色, build=中等偏丰腴, clothing=米色针织开衫, 藏青连衣裙, 珍珠耳钉, 布面平底鞋, features=温润笑容, 眼角细纹, 手腕戴老式机械表, personality=和蔼可亲, 细心体贴, 富有生活智慧, portraitPath=characters/def429c6-36f0-46a6-b2ff-519495449e29/reference.png
-[2026-04-22 12:22:47.511] [DEBUG] [Database] Transaction committed successfully
-[2026-04-22 12:22:47.512] [INFO] [AnalysisService] Storyboard saved successfully
-[2026-04-22 12:22:47.571] [INFO] [CharacterExtractor] Updated character: 陈伯, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[2026-04-22 12:22:47.572] [INFO] [BibleGenerator] Updated character: 陈伯
-[Character] name: "陈伯" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 72, \"build\": \"瘦小微驼\", \"gender\": \"男\", \"height\": \"约165cm\", \"aliases\": [\"陈伯\"], \"clothing\": [\"洗得发白的靛蓝布衫\", \"深灰布裤\", \"旧布鞋\", \"洗得发白的藏青色斜襟棉布衫\", \"深灰色宽松长裤（裤脚挽至脚踝）\", \"黑色手工千层底布鞋\"], \"eyeColor\": \"深褐色（如陈年老茶）\", "
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":72,"aliases":["陈伯"],"build":"瘦小微驼","clothing":["洗得发白的靛蓝布衫","深灰布裤","旧布鞋","洗得发白的藏青色斜襟棉布衫","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋"],"distinctiveFeatures":["满头银发，梳得整齐","眼角皱纹深刻，眼神却明亮急切","左手无名指戴一枚磨亮的铜戒","整齐寸头","手背有老年斑","指节粗大","雪白利落寸头，额前花白碎发贴额","鼻梁上一颗明显黑痣","左手腕戴氧化银怀表（表链洁净）","双手布满老茧"],"eyeColor":"深褐色（如陈年老茶）","gender":"男","hairColor":"纯白","hairStyle":"短发（寸头）","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "男" age= 72
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("慈爱", "固执", "怀旧", "略带不安的恳切", "朴实", "温和敦厚", "细腻感恩", "淳朴善良", "慢条斯理却认真")
-[2026-04-22 12:22:47.600] [DEBUG] [CharacterExtractor] Loaded character row: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, clothing=洗得发白的靛蓝布衫, 深灰布裤, 旧布鞋, 洗得发白的藏青色斜襟棉布衫, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, features=满头银发，梳得整齐, 眼角皱纹深刻，眼神却明亮急切, 左手无名指戴一枚磨亮的铜戒, 整齐寸头, 手背有老年斑, 指节粗大, 雪白利落寸头，额前花白碎发贴额, 鼻梁上一颗明显黑痣, 左手腕戴氧化银怀表（表链洁净）, 双手布满老茧, personality=慈爱, 固执, 怀旧, 略带不安的恳切, 朴实, 温和敦厚, 细腻感恩, 淳朴善良, 慢条斯理却认真, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "青柠" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 25, \"build\": \"清瘦但挺拔\", \"gender\": \"女\", \"height\": \"中等偏高\", \"aliases\": [\"青柠\"], \"clothing\": [\"浅蓝棉麻围裙\", \"白色短袖T恤\", \"牛仔裤\", \"帆布鞋\", \"白色帆布鞋\"], \"eyeColor\": \"浅琥珀色\", \"hairColor\": \"黑色\", \"hairStyle\": \"齐肩直发+低马尾"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":25,"aliases":["青柠"],"build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤","帆布鞋","白色帆布鞋"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离","左耳一枚小巧银杏叶耳钉","颧骨处淡雀斑","浅亚麻色齐肩直发（微自然卷）","银色青柠吊坠手链","齐肩直发，低马尾，颊边垂落几缕碎发"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"黑色","hairStyle":"齐肩直发+低马尾","height":"中等偏高"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 25
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("安静内敛", "细腻敏感", "温柔克制", "心藏执念", "不卑不亢", "观察力强", "善于倾听", "心存怀念")
-[2026-04-22 12:22:47.600] [DEBUG] [CharacterExtractor] Loaded character row: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist, gender=女, age=25, hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, 帆布鞋, 白色帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, 左耳一枚小巧银杏叶耳钉, 颧骨处淡雀斑, 浅亚麻色齐肩直发（微自然卷）, 银色青柠吊坠手链, 齐肩直发，低马尾，颊边垂落几缕碎发, personality=安静内敛, 细腻敏感, 温柔克制, 心藏执念, 不卑不亢, 观察力强, 善于倾听, 心存怀念, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[Character] name: "林阿姨" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 45, \"build\": \"中等偏丰腴\", \"gender\": \"女\", \"height\": \"约165cm\", \"aliases\": [], \"clothing\": [\"米色针织开衫\", \"藏青连衣裙\", \"珍珠耳钉\", \"布面平底鞋\"], \"eyeColor\": \"暖棕色\", \"hairColor\": \"深棕带灰调\", \"hairStyle\": \"齐耳波浪短发\", \"acces"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"aliases":[],"build":"中等偏丰腴","clothing":["米色针织开衫","藏青连衣裙","珍珠耳钉","布面平底鞋"],"distinctiveFeatures":["温润笑容","眼角细纹","手腕戴老式机械表"],"eyeColor":"暖棕色","gender":"女","hairColor":"深棕带灰调","hairStyle":"齐耳波浪短发","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 45
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("和蔼可亲", "细心体贴", "富有生活智慧")
-[2026-04-22 12:22:47.601] [DEBUG] [CharacterExtractor] Loaded character row: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter, gender=女, age=45, hairColor=深棕带灰调, hairStyle=齐耳波浪短发, eyeColor=暖棕色, build=中等偏丰腴, clothing=米色针织开衫, 藏青连衣裙, 珍珠耳钉, 布面平底鞋, features=温润笑容, 眼角细纹, 手腕戴老式机械表, personality=和蔼可亲, 细心体贴, 富有生活智慧, portraitPath=characters/def429c6-36f0-46a6-b2ff-519495449e29/reference.png
-[2026-04-22 12:22:47.659] [INFO] [CharacterExtractor] Updated character: 青柠, gender=女, age=25, hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[2026-04-22 12:22:47.659] [INFO] [BibleGenerator] Updated character: 青柠
-[2026-04-22 12:22:47.659] [INFO] [BibleGenerator] Updated 2 characters for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:22:47.829] [INFO] [SceneExtractor] Updated scene: 旧书拾光书店（临街立面）
-[2026-04-22 12:22:47.829] [INFO] [BibleGenerator] Updated scene: 旧书拾光书店（临街立面）
-[2026-04-22 12:22:47.993] [INFO] [SceneExtractor] Updated scene: 柜台与窗台阅读角
-[2026-04-22 12:22:47.993] [INFO] [BibleGenerator] Updated scene: 柜台与窗台阅读角
-[2026-04-22 12:22:48.162] [INFO] [SceneExtractor] Updated scene: 胡桃木旧书架区
-[2026-04-22 12:22:48.162] [INFO] [BibleGenerator] Updated scene: 胡桃木旧书架区
-[2026-04-22 12:22:48.162] [INFO] [BibleGenerator] Updated 3 scenes for novel 1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:22:48.220] [INFO] [AnalysisService] Generating images after analysis: novelId=1387c4eb-0f4b-4679-bf56-d7841dd282b0, chapter=3
-[Character] name: "陈伯" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 72, \"build\": \"瘦小微驼\", \"gender\": \"男\", \"height\": \"约165cm\", \"aliases\": [\"陈伯\"], \"clothing\": [\"洗得发白的靛蓝布衫\", \"深灰布裤\", \"旧布鞋\", \"洗得发白的藏青色斜襟棉布衫\", \"深灰色宽松长裤（裤脚挽至脚踝）\", \"黑色手工千层底布鞋\"], \"eyeColor\": \"深褐色（如陈年老茶）\", "
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":72,"aliases":["陈伯"],"build":"瘦小微驼","clothing":["洗得发白的靛蓝布衫","深灰布裤","旧布鞋","洗得发白的藏青色斜襟棉布衫","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋"],"distinctiveFeatures":["满头银发，梳得整齐","眼角皱纹深刻，眼神却明亮急切","左手无名指戴一枚磨亮的铜戒","整齐寸头","手背有老年斑","指节粗大","雪白利落寸头，额前花白碎发贴额","鼻梁上一颗明显黑痣","左手腕戴氧化银怀表（表链洁净）","双手布满老茧"],"eyeColor":"深褐色（如陈年老茶）","gender":"男","hairColor":"纯白","hairStyle":"短发（寸头）","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "男" age= 72
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("慈爱", "固执", "怀旧", "略带不安的恳切", "朴实", "温和敦厚", "细腻感恩", "淳朴善良", "慢条斯理却认真")
-[2026-04-22 12:22:48.249] [DEBUG] [CharacterExtractor] Loaded character row: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter, gender=男, age=72, hairColor=纯白, hairStyle=短发（寸头）, eyeColor=深褐色（如陈年老茶）, build=瘦小微驼, clothing=洗得发白的靛蓝布衫, 深灰布裤, 旧布鞋, 洗得发白的藏青色斜襟棉布衫, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, features=满头银发，梳得整齐, 眼角皱纹深刻，眼神却明亮急切, 左手无名指戴一枚磨亮的铜戒, 整齐寸头, 手背有老年斑, 指节粗大, 雪白利落寸头，额前花白碎发贴额, 鼻梁上一颗明显黑痣, 左手腕戴氧化银怀表（表链洁净）, 双手布满老茧, personality=慈爱, 固执, 怀旧, 略带不安的恳切, 朴实, 温和敦厚, 细腻感恩, 淳朴善良, 慢条斯理却认真, portraitPath=characters/3e3c9ccf-229c-4c67-99d6-eac7964f384f/reference.png
-[Character] name: "青柠" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 25, \"build\": \"清瘦但挺拔\", \"gender\": \"女\", \"height\": \"中等偏高\", \"aliases\": [\"青柠\"], \"clothing\": [\"浅蓝棉麻围裙\", \"白色短袖T恤\", \"牛仔裤\", \"帆布鞋\", \"白色帆布鞋\"], \"eyeColor\": \"浅琥珀色\", \"hairColor\": \"黑色\", \"hairStyle\": \"齐肩直发+低马尾"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":25,"aliases":["青柠"],"build":"清瘦但挺拔","clothing":["浅蓝棉麻围裙","白色短袖T恤","牛仔裤","帆布鞋","白色帆布鞋"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离","左耳一枚小巧银杏叶耳钉","颧骨处淡雀斑","浅亚麻色齐肩直发（微自然卷）","银色青柠吊坠手链","齐肩直发，低马尾，颊边垂落几缕碎发"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"黑色","hairStyle":"齐肩直发+低马尾","height":"中等偏高"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 25
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("安静内敛", "细腻敏感", "温柔克制", "心藏执念", "不卑不亢", "观察力强", "善于倾听", "心存怀念")
-[2026-04-22 12:22:48.250] [DEBUG] [CharacterExtractor] Loaded character row: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist, gender=女, age=25, hairColor=黑色, hairStyle=齐肩直发+低马尾, eyeColor=浅琥珀色, build=清瘦但挺拔, clothing=浅蓝棉麻围裙, 白色短袖T恤, 牛仔裤, 帆布鞋, 白色帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, 左耳一枚小巧银杏叶耳钉, 颧骨处淡雀斑, 浅亚麻色齐肩直发（微自然卷）, 银色青柠吊坠手链, 齐肩直发，低马尾，颊边垂落几缕碎发, personality=安静内敛, 细腻敏感, 温柔克制, 心藏执念, 不卑不亢, 观察力强, 善于倾听, 心存怀念, portraitPath=characters/b625b336-12ed-4063-ab93-274b5c871b08/reference.png
-[Character] name: "林阿姨" , appearance type: QString , isNull: false , isValid: true , canConvert<QString>: true
-[Character] appearance is String: "{\"age\": 45, \"build\": \"中等偏丰腴\", \"gender\": \"女\", \"height\": \"约165cm\", \"aliases\": [], \"clothing\": [\"米色针织开衫\", \"藏青连衣裙\", \"珍珠耳钉\", \"布面平底鞋\"], \"eyeColor\": \"暖棕色\", \"hairColor\": \"深棕带灰调\", \"hairStyle\": \"齐耳波浪短发\", \"acces"
-[Character] Parsed appearance JSON: QJsonObject({"accessories":[],"age":45,"aliases":[],"build":"中等偏丰腴","clothing":["米色针织开衫","藏青连衣裙","珍珠耳钉","布面平底鞋"],"distinctiveFeatures":["温润笑容","眼角细纹","手腕戴老式机械表"],"eyeColor":"暖棕色","gender":"女","hairColor":"深棕带灰调","hairStyle":"齐耳波浪短发","height":"约165cm"})
-[Character] Top-level appearance fallback applied: gender= "女" age= 45
-[Character] personalities type: QString , isNull: false , isValid: true
-[Character] Parsed personalities: ("和蔼可亲", "细心体贴", "富有生活智慧")
-[2026-04-22 12:22:48.250] [DEBUG] [CharacterExtractor] Loaded character row: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter, gender=女, age=45, hairColor=深棕带灰调, hairStyle=齐耳波浪短发, eyeColor=暖棕色, build=中等偏丰腴, clothing=米色针织开衫, 藏青连衣裙, 珍珠耳钉, 布面平底鞋, features=温润笑容, 眼角细纹, 手腕戴老式机械表, personality=和蔼可亲, 细心体贴, 富有生活智慧, portraitPath=characters/def429c6-36f0-46a6-b2ff-519495449e29/reference.png
-[2026-04-22 12:22:48.275] [INFO] [AnalysisService] Generating bible images: 3 characters, 5 scenes
-[2026-04-22 12:22:48.275] [INFO] [BibleImageService] Starting combined generation: 3 characters + 5 scenes = 8 total
-[2026-04-22 12:22:48.336] [INFO] [BibleImageService] Skipping character 陈伯, already has portrait
-[2026-04-22 12:22:48.337] [INFO] [AnalysisService] Stream analysis completed: novelId=1387c4eb-0f4b-4679-bf56-d7841dd282b0, panels=6, chars=2, scenes=3
-[2026-04-22 12:22:48.363] [DEBUG] [NovelDetailPage] Defer bible refresh until batch image generation completes
-[2026-04-22 12:22:48.496] [INFO] [BibleImageService] Skipping character 青柠, already has portrait
-[2026-04-22 12:22:48.656] [INFO] [BibleImageService] Skipping character 林阿姨, already has portrait
-[2026-04-22 12:22:48.919] [INFO] [BibleImageService] Generating reference for: 柜台与窗台阅读角
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] === 请求调试信息 ===
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] Model: qwen-image
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] Prompt: environment concept art, ultra detailed manga background, empty scene, no characters, use as a stric
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"environment concept art, ultra detailed manga background, empty scene, no characters, use as a strict environment reference, preserve architecture and atmosphere, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, scene name: 柜台与窗台阅读角, 书店内部核心功能区，位于进门右侧，由一张宽大原木柜台（表面有墨迹与刻痕）、一组三层胡桃木高书架（略倾斜，塞满旧书，书脊斑驳）及旁侧小圆桌（配青瓷杯与薄荷茶具）组成。此处是书籍流转、人际交汇、记忆沉淀的核心场域。, fixed anchors: 原木柜台刻痕, 青瓷插花瓶, 《浮生六记》常阅位, signature objects: 原木桌面粗砺感, 胡桃木书架温润包浆, 青瓷釉面冰凉光滑, fixed color blocks: 胡桃木棕+原木暖黄+青瓷釉色+栀子纯白, 青, time variations: 清晨, 晨光聚焦窗台，栀子盛放，青瓷瓶泛柔光，柜台整洁待客, high detail, volumetric lighting, cinematic environment, vibrant colors, full color"}],"role":"user"}]},"model":"qwen-image","parameters":{"n":1,"prompt_extend":true,"size":"1024*1024","watermark":false}}
-[2026-04-22 12:22:48.919] [DEBUG] [QwenImageClient] Async Mode: false
-[2026-04-22 12:22:57.999] [DEBUG] [QwenImageClient] === 响应调试信息 ===
-[2026-04-22 12:22:57.999] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/16/20260422/db7b9e77/9a335c10-b051-9d1b-8fae-945d34d9062e1980051241.png?Expires=1777437575&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=im05d0tt8DkcdPF59Lw0IgtIc54%3D"}],"role":"assistant"}}],"task_metric":{"FAILED":0,"SUCCEEDED":1,"TOTAL":1}},"usage":{"height":1024,"image_count":1,"width":1024},"request_id":"9a335c10-b051-9d1b-8fae-945d34d9062e"}
-[2026-04-22 12:22:58.000] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/16/20260422/db7b9e77/9a335c10-b051-9d1b-8fae-
-[2026-04-22 12:22:58.000] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/16/20260422/db7b9e77/9a335c10-b051-9d1b-8fae-, requestId=3741a732-9d84-4659-97d5-56f6c9c63d99
-[2026-04-22 12:22:58.000] [INFO] [QwenImageClient] Download request registered, key=3741a732-9d84-4659-97d5-56f6c9c63d99_download
-[2026-04-22 12:22:58.297] [INFO] [QwenImageClient] onImageDownloadFinished called
-[2026-04-22 12:22:58.297] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=3741a732-9d84-4659-97d5-56f6c9c63d99, error=0, errorString=Unknown error
-[2026-04-22 12:22:58.298] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1290505 bytes
-[2026-04-22 12:22:58.298] [INFO] [QwenImageClient] Image downloaded, size: 1290505 bytes
-[2026-04-22 12:22:58.298] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
-[2026-04-22 12:22:58.298] [INFO] [QwenImageClient] emitPendingResult: requestId=3741a732-9d84-4659-97d5-56f6c9c63d99, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
-[2026-04-22 12:22:58.298] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=3741a732-9d84-4659-97d5-56f6c9c63d99
-[2026-04-22 12:22:58.336] [DEBUG] [FileStorage] Created directory: E:/data/comic/scenes/3741a732-9d84-4659-97d5-56f6c9c63d99
-[2026-04-22 12:22:58.336] [INFO] [FileStorage] Scene reference saved: scenes/3741a732-9d84-4659-97d5-56f6c9c63d99/reference.png
-[2026-04-22 12:22:58.419] [INFO] [SceneExtractor] Updated scene: 柜台与窗台阅读角
-[2026-04-22 12:22:58.419] [INFO] [BibleImageService] Scene reference saved: scenes/3741a732-9d84-4659-97d5-56f6c9c63d99/reference.png
-[2026-04-22 12:22:58.580] [INFO] [BibleImageService] Skipping scene 拾光书店（室内）, already has reference
-[2026-04-22 12:22:58.741] [INFO] [BibleImageService] Skipping scene 旧书店内景, already has reference
-[2026-04-22 12:22:58.903] [INFO] [BibleImageService] Generating reference for: 旧书拾光书店（临街立面）
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] === 请求调试信息 ===
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] Model: qwen-image
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] Prompt: environment concept art, ultra detailed manga background, empty scene, no characters, use as a stric
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"environment concept art, ultra detailed manga background, empty scene, no characters, use as a strict environment reference, preserve architecture and atmosphere, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, scene name: 旧书拾光书店（临街立面）, fixed anchors: 老式玻璃移门, 青石板街道, signature objects: 磨砂玻璃质感, 胡桃木书架温润肌理, 棉麻围裙粗粝感, 青石板路冰凉颗粒感, fixed color blocks: 鹅黄墙+墨绿框+藏青布衫+浅蓝围裙+栀子纯白, 黄, 绿, time variations: 清晨, 晨光斜射，玻璃门泛柔光，青石路微湿，空气清冽，栀子初绽; 午后, 午后阳光满溢，书架投下长长影子，窗台栀子半开，薄荷茶气氤氲, weather variations: 小雨, 细雨如丝，玻璃门蒙薄雾，青石路泛幽光，栀子香气更显清冽, high detail, volumetric lighting, cinematic environment, vibrant colors, full color"}],"role":"user"}]},"model":"qwen-image","parameters":{"n":1,"prompt_extend":true,"size":"1024*1024","watermark":false}}
-[2026-04-22 12:22:58.903] [DEBUG] [QwenImageClient] Async Mode: false
-[2026-04-22 12:23:08.631] [DEBUG] [QwenImageClient] === 响应调试信息 ===
-[2026-04-22 12:23:08.631] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/f5/20260422/db7b9e77/d24d5389-0fe0-9611-bda5-5eab2e2f41ad3613898192.png?Expires=1777437586&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=yGP8dwuc0%2BnUkwMQXD1r8VjFlAo%3D"}],"role":"assistant"}}],"task_metric":{"FAILED":0,"SUCCEEDED":1,"TOTAL":1}},"usage":{"height":1024,"image_count":1,"width":1024},"request_id":"d24d5389-0fe0-9611-bda5-5eab2e2f41ad"}
-[2026-04-22 12:23:08.631] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/f5/20260422/db7b9e77/d24d5389-0fe0-9611-bda5-
-[2026-04-22 12:23:08.631] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/f5/20260422/db7b9e77/d24d5389-0fe0-9611-bda5-, requestId=b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09
-[2026-04-22 12:23:08.631] [INFO] [QwenImageClient] Download request registered, key=b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09_download
-[2026-04-22 12:23:08.783] [INFO] [QwenImageClient] onImageDownloadFinished called
-[2026-04-22 12:23:08.783] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09, error=0, errorString=Unknown error
-[2026-04-22 12:23:08.784] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1412315 bytes
-[2026-04-22 12:23:08.784] [INFO] [QwenImageClient] Image downloaded, size: 1412315 bytes
-[2026-04-22 12:23:08.784] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
-[2026-04-22 12:23:08.784] [INFO] [QwenImageClient] emitPendingResult: requestId=b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
-[2026-04-22 12:23:08.784] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09
-[2026-04-22 12:23:08.786] [DEBUG] [FileStorage] Created directory: E:/data/comic/scenes/b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09
-[2026-04-22 12:23:08.789] [INFO] [FileStorage] Scene reference saved: scenes/b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09/reference.png
-[2026-04-22 12:23:08.871] [INFO] [SceneExtractor] Updated scene: 旧书拾光书店（临街立面）
-[2026-04-22 12:23:08.871] [INFO] [BibleImageService] Scene reference saved: scenes/b3f49ff1-e2b4-4ee5-acd2-1192f6cb1b09/reference.png
-[2026-04-22 12:23:09.030] [INFO] [BibleImageService] Generating reference for: 胡桃木旧书架区
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] === 请求调试信息 ===
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] Model: qwen-image
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] Prompt: environment concept art, ultra detailed manga background, empty scene, no characters, use as a stric
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"environment concept art, ultra detailed manga background, empty scene, no characters, use as a strict environment reference, preserve architecture and atmosphere, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, scene name: 胡桃木旧书架区, fixed anchors: 《浮生六记》书脊磨损, 书架顶部积尘, 中段凹陷取阅带, signature objects: 胡桃木温润包浆, 旧书纸张脆硬感, 烫金剥落处粗粝触感, fixed color blocks: 胡桃木深棕+旧书脊灰褐+烫金残迹金棕, 金, time variations: 清晨, 晨光斜射，中段书脊泛暖光，灰尘在光柱中飞舞，幻影浮现, high detail, volumetric lighting, cinematic environment, vibrant colors, full color"}],"role":"user"}]},"model":"qwen-image","parameters":{"n":1,"prompt_extend":true,"size":"1024*1024","watermark":false}}
-[2026-04-22 12:23:09.030] [DEBUG] [QwenImageClient] Async Mode: false
-[2026-04-22 12:23:17.712] [DEBUG] [QwenImageClient] === 响应调试信息 ===
-[2026-04-22 12:23:17.713] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/52/20260422/db7b9e77/6b2efc1c-3679-9245-b331-a3d3a40f29c61525475637.png?Expires=1777437595&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=6rK1ydE42CHCsgnl8DMHSUid0gg%3D"}],"role":"assistant"}}],"task_metric":{"FAILED":0,"SUCCEEDED":1,"TOTAL":1}},"usage":{"height":1024,"image_count":1,"width":1024},"request_id":"6b2efc1c-3679-9245-b331-a3d3a40f29c6"}
-[2026-04-22 12:23:17.713] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/52/20260422/db7b9e77/6b2efc1c-3679-9245-b331-
-[2026-04-22 12:23:17.713] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-7c2c.oss-cn-shanghai.aliyuncs.com/7d/52/20260422/db7b9e77/6b2efc1c-3679-9245-b331-, requestId=bf08a929-4130-4aee-af63-2e241e60225a
-[2026-04-22 12:23:17.713] [INFO] [QwenImageClient] Download request registered, key=bf08a929-4130-4aee-af63-2e241e60225a_download
-[2026-04-22 12:23:17.935] [INFO] [QwenImageClient] onImageDownloadFinished called
-[2026-04-22 12:23:17.935] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=bf08a929-4130-4aee-af63-2e241e60225a, error=0, errorString=Unknown error
-[2026-04-22 12:23:17.936] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1277960 bytes
-[2026-04-22 12:23:17.936] [INFO] [QwenImageClient] Image downloaded, size: 1277960 bytes
-[2026-04-22 12:23:17.936] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
-[2026-04-22 12:23:17.936] [INFO] [QwenImageClient] emitPendingResult: requestId=bf08a929-4130-4aee-af63-2e241e60225a, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
-[2026-04-22 12:23:17.936] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=bf08a929-4130-4aee-af63-2e241e60225a
-[2026-04-22 12:23:17.938] [DEBUG] [FileStorage] Created directory: E:/data/comic/scenes/bf08a929-4130-4aee-af63-2e241e60225a
-[2026-04-22 12:23:17.939] [INFO] [FileStorage] Scene reference saved: scenes/bf08a929-4130-4aee-af63-2e241e60225a/reference.png
-[2026-04-22 12:23:18.021] [INFO] [SceneExtractor] Updated scene: 胡桃木旧书架区
-[2026-04-22 12:23:18.021] [INFO] [BibleImageService] Scene reference saved: scenes/bf08a929-4130-4aee-af63-2e241e60225a/reference.png
-[2026-04-22 12:23:18.137] [INFO] [AnalysisJobUtils] Updated job eaf888a6-e8bc-49a5-8bb7-6ae673c5ef29 status to: completed, progress: 100
-[2026-04-22 12:23:18.195] [INFO] [AnalysisService] Analysis completed: novelId=1387c4eb-0f4b-4679-bf56-d7841dd282b0
-[2026-04-22 12:23:18.196] [INFO] [BibleImageService] All Bible images completed: success=8, failed=0
-[2026-04-22 12:23:18.230] [INFO] [BibleSectionWidget] Rendering character bible: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter
-[2026-04-22 12:23:18.230] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
-[2026-04-22 12:23:18.234] [INFO] [BibleSectionWidget] Rendering character bible: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist
-[2026-04-22 12:23:18.234] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
-[2026-04-22 12:23:18.238] [INFO] [BibleSectionWidget] Rendering character bible: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter
-[2026-04-22 12:23:18.238] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
-[2026-04-22 12:23:18.262] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 3
-[2026-04-22 12:23:18.262] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=2
-[2026-04-22 12:23:18.262] [DEBUG] [NovelDetailPage] onSceneCountChanged: 2 -> 5
-[2026-04-22 12:23:18.262] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=5
-[2026-04-22 12:23:18.262] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 5 scenes
-[2026-04-22 12:23:18.296] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
-[2026-04-22 12:23:18.330] [INFO] [BibleSectionWidget] Rendering character bible: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter
-[2026-04-22 12:23:18.330] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
-[2026-04-22 12:23:18.334] [INFO] [BibleSectionWidget] Rendering character bible: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist
-[2026-04-22 12:23:18.334] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
-[2026-04-22 12:23:18.338] [INFO] [BibleSectionWidget] Rendering character bible: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter
-[2026-04-22 12:23:18.338] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
-[2026-04-22 12:23:18.365] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 3
-[2026-04-22 12:23:18.365] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=5
-[2026-04-22 12:23:18.365] [DEBUG] [NovelDetailPage] onSceneCountChanged: 5 -> 5
-[2026-04-22 12:23:18.365] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=5
-[2026-04-22 12:23:18.365] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 5 scenes
-[2026-04-22 12:23:19.019] [INFO] [BibleSectionWidget] Rendering character bible: id=3e3c9ccf-229c-4c67-99d6-eac7964f384f, name=陈伯, role=supportingCharacter
-[2026-04-22 12:23:19.019] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
-[2026-04-22 12:23:19.022] [INFO] [BibleSectionWidget] Rendering character bible: id=b625b336-12ed-4063-ab93-274b5c871b08, name=青柠, role=protagonist
-[2026-04-22 12:23:19.022] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
-[2026-04-22 12:23:19.026] [INFO] [BibleSectionWidget] Rendering character bible: id=def429c6-36f0-46a6-b2ff-519495449e29, name=林阿姨, role=supportingCharacter
-[2026-04-22 12:23:19.026] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
-[2026-04-22 12:23:19.049] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 3
-[2026-04-22 12:23:19.049] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=3, characters=3, scenes=5
-[2026-04-22 12:23:19.049] [DEBUG] [NovelDetailPage] onSceneCountChanged: 5 -> 5
-[2026-04-22 12:23:19.049] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=3, characters=3, scenes=5
-[2026-04-22 12:23:19.049] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 5 scenes
-[2026-04-22 12:23:19.651] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
-[2026-04-22 12:23:19.957] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=3, characters=3, scenes=5
+16:28:47: Starting E:\QingningComic\qingning\comic\build\Desktop_Qt_5_15_2_MinGW_64_bit-Debug\bin\QingningComic.exe...
+Error 20 (this feature has not been implemented yet) in function AVolute::GetProductInfoT::<lambda_3920e95365a48b95dd51020986e9e351>::operator ()
+Error 20 (this feature has not been implemented yet) in function AVolute::GetProductInfoT::<lambda_3920e95365a48b95dd51020986e9e351>::operator ()
+========== QingningComic Opened at 2026-04-24 16:28:47 ==========
+[2026-04-24 16:28:47.427] [INFO] [Application] QingningComic starting...
+[2026-04-24 16:28:47.427] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-04-24 16:28:47.704] [INFO] [Database] Connected to qingning_comic (utf8mb4)
+[2026-04-24 16:28:47.704] [INFO] [Database] Database connected successfully
+[2026-04-24 16:28:47.704] [INFO] [Database] Skipping default user creation (not in dev mode)
+[2026-04-24 16:28:47.705] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-04-24 16:28:47.705] [INFO] [QwenClient] Initialized with model: qwen-plus
+[2026-04-24 16:28:47.705] [INFO] [AppInitializer] QwenClient initialized successfully
+[2026-04-24 16:28:47.722] [INFO] [QwenImageClient] Initialized with generateModel: z-image-turbo, editModel: qwen-image-edit
+[2026-04-24 16:28:47.722] [INFO] [AppInitializer] QwenImageClient initialized successfully
+[2026-04-24 16:28:47.728] [INFO] [VolcEngineImageClient] Initialized with reqKey: high_aes_general_v30l_zt2i, baseUrl: https://visual.volcengineapi.com
+[2026-04-24 16:28:47.728] [INFO] [AppInitializer] VolcEngineImageClient initialized successfully
+[2026-04-24 16:28:47.729] [INFO] [AppInitializer] Using local storage, skipping StorageClient initialization
+[2026-04-24 16:28:47.729] [INFO] [FileStorage] Storage initialized at: /data/comic (absolute path)
+[2026-04-24 16:28:47.729] [INFO] [AppInitializer] FileStorage initialized at: /data/comic/
+[2026-04-24 16:28:47.729] [INFO] [TaskRegistry] GenerateStoryboard handler registered
+[2026-04-24 16:28:47.729] [INFO] [TaskRegistry] GeneratePanelImage handler registered
+[2026-04-24 16:28:47.729] [INFO] [TaskRegistry] GeneratePanels handler registered
+[2026-04-24 16:28:47.729] [INFO] [TaskRegistry] All task handlers registered
+[2026-04-24 16:28:47.777] [INFO] [TaskQueue] Loaded 207 tasks, 0 pending
+[2026-04-24 16:28:47.777] [INFO] [TaskQueue] Started with 1 workers (signal-driven)
+[2026-04-24 16:28:47.777] [INFO] [AppInitializer] ViewModels initialized
+[2026-04-24 16:28:47.777] [INFO] [TaskWorker] Worker started (signal-driven)
+[2026-04-24 16:28:48.258] [INFO] [UserSession] Initialized with default user: qingning
+[2026-04-24 16:30:03.970] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:30:03.970] [INFO] [NovelService] Deleted novel: da549d25-bc17-41d4-9b0c-0cec8d747ee5
+[2026-04-24 16:30:19.620] [DEBUG] [Database] Transaction committed successfully
+[2026-04-24 16:30:19.650] [INFO] [NovelService] Created novel: 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, text length: 490
+[2026-04-24 16:30:19.807] [DEBUG] [Database] Transaction committed successfully
+[2026-04-24 16:30:19.842] [INFO] [BibleGenerator] Collected 0 existing characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:30:19.868] [INFO] [BibleGenerator] Collected 0 existing scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:30:19.868] [INFO] [AnalysisService] Starting streaming analysis for novel: 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter: 1
+[2026-04-24 16:30:19.986] [INFO] [AnalysisJobUtils] Created job: c343277f-9175-48f9-b474-aa99f720c018 for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter 1
+[2026-04-24 16:30:19.987] [INFO] [AnalysisService] Loaded schema from E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/schemas/storyboard.json
+[2026-04-24 16:30:19.991] [DEBUG] [QwenPromptBuilder] System prompt length: 14027 chars, example keys: characters, panels, scenes, totalPages
+[2026-04-24 16:30:19.994] [DEBUG] [QwenClient] 发送流式请求
+[2026-04-24 16:30:19.994] [DEBUG] [QwenClient] 请求地址: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+[2026-04-24 16:30:19.994] [DEBUG] [QwenClient] 请求体大小: 53415 bytes
+[2026-04-24 16:32:28.228] [INFO] [QwenClient] 流式响应已累计 17668 字符
+[2026-04-24 16:32:28.229] [DEBUG] [QwenClient] Storyboard shape: panels=6, characters=2, scenes=1
+[2026-04-24 16:32:28.229] [DEBUG] [QwenClient] Extracted chars=2 scenes=0 existingScenes=1
+[2026-04-24 16:32:28.229] [DEBUG] [QwenClient] 规范化结果 - 面板:6 角色:2 场景:1
+[2026-04-24 16:32:28.230] [INFO] [AnalysisService] Stream completed, processing result...
+[2026-04-24 16:32:28.365] [INFO] [AnalysisService] saveResults called: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=1, panels=6, characters=2, scenes=1
+[2026-04-24 16:32:28.365] [DEBUG] [CharacterExtractor] Parsing character '青柠', role=protagonist, appearance: {"age":"二十岁左右","build":"纤细","clothing":["浅蓝色棉麻围裙","白色短袖衬衫","及膝牛仔裙"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"黑褐色","hairStyle":"齐耳短发，微带自然弧度","height":"中等偏矮"}
+[2026-04-24 16:32:28.365] [DEBUG] [CharacterExtractor] Parsed character '青柠': role=protagonist, gender=女, age=20, hairColor=黑褐色, eyeColor=浅琥珀色, build=纤细
+[2026-04-24 16:32:28.367] [DEBUG] [CharacterExtractor] Enriched from text for '青柠': hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, accessories=
+[2026-04-24 16:32:28.367] [DEBUG] [CharacterExtractor] Parsing character '陈伯', role=supporting_character, appearance: {"age":"七十多岁","build":"瘦削","clothing":["洗得发白的藏青布衫","深灰布裤","旧布鞋"],"distinctiveFeatures":["满头银白短发","眼角皱纹深刻","手指关节粗大微颤"],"eyeColor":"灰褐色","gender":"男","hairColor":"银白","hairStyle":"稀疏短发，略显凌乱","height":"中等偏矮"}
+[2026-04-24 16:32:28.367] [DEBUG] [CharacterExtractor] Parsed character '陈伯': role=supporting_character, gender=男, age=70, hairColor=银白, eyeColor=灰褐色, build=瘦削
+[2026-04-24 16:32:28.367] [DEBUG] [CharacterExtractor] Enriched from text for '陈伯': hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, accessories=
+[2026-04-24 16:32:28.367] [INFO] [CharacterExtractor] Extracted 2 characters from AI response
+[2026-04-24 16:32:28.445] [INFO] [CharacterExtractor] Saved new character: 青柠
+[2026-04-24 16:32:28.479] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=20, hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=
+[2026-04-24 16:32:28.535] [INFO] [CharacterExtractor] Saved new character: 陈伯
+[2026-04-24 16:32:28.549] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:32:28.615] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:32:28.616] [INFO] [CharacterExtractor] Saved 2/2 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:32:28.616] [INFO] [AnalysisService] Saved 2 characters to database
+[2026-04-24 16:32:28.669] [INFO] [SceneExtractor] Saved scene: 拾光书店内景
+[2026-04-24 16:32:28.669] [INFO] [AnalysisService] Saved 1 scenes to database
+[2026-04-24 16:32:28.694] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=20, hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=
+[2026-04-24 16:32:28.695] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=
+[2026-04-24 16:32:29.107] [DEBUG] [Database] Transaction committed successfully
+[2026-04-24 16:32:29.107] [INFO] [AnalysisService] Storyboard saved successfully
+[2026-04-24 16:32:29.107] [DEBUG] [BibleGenerator] Skip character update: 青柠 | gender: 女 [inferred] -> 女 [inferred] || age: 20 [inferred] -> 20 [inferred] || hairColor: 白发 [explicit] -> 白发 [explicit] || hairStyle: 齐耳短发，微带自然弧度 [inferred] -> 齐耳短发，微带自然弧度 [inferred] || eyeColor: 浅琥珀色 [explicit] -> 浅琥珀色 [explicit] || build: 纤细 [inferred] -> 纤细 [inferred] || height: 中等偏矮 [inferred] -> 中等偏矮 [inferred]
+[2026-04-24 16:32:29.108] [DEBUG] [BibleGenerator] Skip character update: 陈伯 | gender: 男 [inferred] -> 男 [inferred] || age: 70 [inferred] -> 70 [inferred] || hairColor: 白发 [explicit] -> 白发 [explicit] || hairStyle: 稀疏短发，略显凌乱 [inferred] -> 稀疏短发，略显凌乱 [inferred] || eyeColor: 灰褐色 [inferred] -> 灰褐色 [inferred] || build: 瘦削 [inferred] -> 瘦削 [inferred] || height: 中等偏矮 [inferred] -> 中等偏矮 [inferred]
+[2026-04-24 16:32:29.108] [INFO] [BibleGenerator] Updated 0 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:32:29.108] [DEBUG] [BibleGenerator] Skip scene update: 拾光书店内景 | description: 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] -> 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] || building: 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] -> 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] || layout: L型空间，入口直通中央通道，两侧书架呈回字形分布，柜台位于东南角，毗邻爬墙虎小窗 [inferred] -> L型空间，入口直通中央通道，两侧书架呈回字形分布，柜台位于东南角，毗邻爬墙虎小窗 [inferred] || atmosphere: 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] -> 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] || type: 室内 [inferred] -> 室内 [inferred] || typeZh: 空 [inferred] -> 空 [inferred] || setting: 空 [inferred] -> 空 [inferred] || timeOfDay: 白天 [inferred] -> 空 [inferred] || weather: 空 [inferred] -> 空 [inferred] || spaceSize: 空 [inferred] -> 空 [inferred] || narrativeRole: 核心叙事空间与情感容器 [inferred] -> 核心叙事空间与情感容器 [inferred] || narrativeRoleZh: 空 [inferred] -> 空 [inferred]
+[2026-04-24 16:32:29.108] [INFO] [BibleGenerator] Updated 0 scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:32:29.173] [INFO] [AnalysisService] Generating images after analysis: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=1
+[2026-04-24 16:32:29.173] [INFO] [AnalysisService] Generating bible images: 2 characters, 1 scenes
+[2026-04-24 16:32:29.173] [INFO] [BibleImageService] Starting combined generation: 2 characters + 1 scenes = 3 total
+[2026-04-24 16:32:29.239] [INFO] [BibleImageService] Generating portrait for: 青柠
+[2026-04-24 16:32:29.239] [DEBUG] [QwenImageClient] === 请求调试信息 ===
+[2026-04-24 16:32:29.239] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+[2026-04-24 16:32:29.239] [DEBUG] [QwenImageClient] Model: z-image-turbo
+[2026-04-24 16:32:29.240] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
+[2026-04-24 16:32:29.240] [DEBUG] [QwenImageClient] Prompt: single character only, one person, protagonist archetype, 青柠, bust portrait, upper body shot, ultra 
+[2026-04-24 16:32:29.240] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"single character only, one person, protagonist archetype, 青柠, bust portrait, upper body shot, ultra detailed manga character portrait, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, front view, facing forward, centered composition, standing pose, upright posture, natural stance, manga style, screentone shading, clean line art, high contrast, illustrated render, 女, 纤细, 白发 齐耳短发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，气质疏离, studio lighting, solid pure white background, plain background, no gradient, no shadow on background, completely empty background, line art with screentone shading, vibrant colors"}],"role":"user"}]},"model":"z-image-turbo","parameters":{"n":1,"prompt_extend":true,"size":"1024*1440","watermark":false}}
+[2026-04-24 16:32:29.240] [DEBUG] [QwenImageClient] Async Mode: false
+[2026-04-24 16:32:29.241] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, panels=6, chars=2, scenes=1
+[2026-04-24 16:32:29.407] [INFO] [BibleImageService] Generating portrait for: 陈伯
+[2026-04-24 16:32:29.407] [DEBUG] [QwenImageClient] === 请求调试信息 ===
+[2026-04-24 16:32:29.407] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+[2026-04-24 16:32:29.408] [DEBUG] [QwenImageClient] Model: z-image-turbo
+[2026-04-24 16:32:29.408] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
+[2026-04-24 16:32:29.408] [DEBUG] [QwenImageClient] Prompt: single character only, one person, supporting_character archetype, 陈伯, bust portrait, upper body sho
+[2026-04-24 16:32:29.408] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"single character only, one person, supporting_character archetype, 陈伯, bust portrait, upper body shot, ultra detailed manga character portrait, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, front view, facing forward, centered composition, standing pose, upright posture, natural stance, manga style, screentone shading, clean line art, high contrast, illustrated render, 男, 瘦削, 白发 稀疏短发，略显凌乱 hair, 灰褐色 eyes, wearing 洗得发白的藏青布衫, 深灰布裤, 旧布鞋, distinctive features: 满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, studio lighting, solid pure white background, plain background, no gradient, no shadow on background, completely empty background, line art with screentone shading, vibrant colors"}],"role":"user"}]},"model":"z-image-turbo","parameters":{"n":1,"prompt_extend":true,"size":"1024*1440","watermark":false}}
+[2026-04-24 16:32:29.408] [DEBUG] [QwenImageClient] Async Mode: false
+[2026-04-24 16:32:29.676] [INFO] [BibleImageService] Generating reference for: 拾光书店内景
+[2026-04-24 16:32:29.676] [DEBUG] [QwenImageClient] === 请求调试信息 ===
+[2026-04-24 16:32:29.676] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+[2026-04-24 16:32:29.676] [DEBUG] [QwenImageClient] Model: z-image-turbo
+[2026-04-24 16:32:29.677] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
+[2026-04-24 16:32:29.677] [DEBUG] [QwenImageClient] Prompt: environment concept art, ultra detailed manga background, empty scene, no characters, use as a stric
+[2026-04-24 16:32:29.677] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"environment concept art, ultra detailed manga background, empty scene, no characters, use as a strict environment reference, preserve architecture and atmosphere, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, scene name: 拾光书店内景, 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。, fixed anchors: 贝壳钥匙风铃, 爬墙虎小窗, signature objects: 粗砺灰砖墙, 温润柚木地板, 磨砂玻璃窗, 粗纤维再生纸, 旧书皮褶皱, fixed color blocks: 木纹褐, 旧纸黄, 青柠绿, 栀子白, time variations: 早晨, 晨光初照，书架镀上金边，咖啡机蒸汽氤氲，读者三两翻书; 下午, 午后斜阳，光斑游移，风铃轻响，最富静谧诗意的时段; 傍晚, 暮色四合，暖黄壁灯次第亮起，窗影拉长，适合独处与书写, weather variations: 雨天, 雨天时玻璃窗蒙雾，风铃声更清越，室内油墨香与湿气交融，更显幽微, high detail, volumetric lighting, cinematic environment, vibrant colors, full color"}],"role":"user"}]},"model":"z-image-turbo","parameters":{"n":1,"prompt_extend":true,"size":"1024*1024","watermark":false}}
+[2026-04-24 16:32:29.677] [DEBUG] [QwenImageClient] Async Mode: false
+[2026-04-24 16:32:29.677] [DEBUG] [BibleImageService] Batch waiting for 3 pending image requests
+[2026-04-24 16:32:29.853] [ERROR] [QwenImageClient] === 错误详情 ===
+[2026-04-24 16:32:29.853] [ERROR] [QwenImageClient] Error: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests
+[2026-04-24 16:32:29.853] [ERROR] [QwenImageClient] HTTP Status Code: 429
+[2026-04-24 16:32:29.853] [ERROR] [QwenImageClient] Response Body: {"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later. For details, see: https://help.aliyun.com/zh/model-studio/error-code#rate-limit","request_id":"90cecaff-e636-9dc2-ad63-8fcdd12e0085"}
+[2026-04-24 16:32:29.853] [ERROR] [QwenImageClient] Network error: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests, HTTP Status: 429
+[2026-04-24 16:32:29.853] [DEBUG] [QwenImageClient] === 响应调试信息 ===
+[2026-04-24 16:32:29.853] [DEBUG] [QwenImageClient] HTTP Status: 429, Content-Type: application/json, Bytes: 0
+[2026-04-24 16:32:29.853] [DEBUG] [QwenImageClient] Response: 
+[2026-04-24 16:32:29.854] [ERROR] [QwenImageClient] Empty response body
+[2026-04-24 16:32:29.854] [WARN] [BibleImageService] Image generation failed (attempt 1/3): Empty response body, retrying...
+[2026-04-24 16:32:29.854] [INFO] [BibleImageService] Retrying image generation (attempt 1/3)
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] === 请求调试信息 ===
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] Model: z-image-turbo
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] Prompt: environment concept art, ultra detailed manga background, empty scene, no characters, use as a stric
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"environment concept art, ultra detailed manga background, empty scene, no characters, use as a strict environment reference, preserve architecture and atmosphere, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, scene name: 拾光书店内景, 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。, fixed anchors: 贝壳钥匙风铃, 爬墙虎小窗, signature objects: 粗砺灰砖墙, 温润柚木地板, 磨砂玻璃窗, 粗纤维再生纸, 旧书皮褶皱, fixed color blocks: 木纹褐, 旧纸黄, 青柠绿, 栀子白, time variations: 早晨, 晨光初照，书架镀上金边，咖啡机蒸汽氤氲，读者三两翻书; 下午, 午后斜阳，光斑游移，风铃轻响，最富静谧诗意的时段; 傍晚, 暮色四合，暖黄壁灯次第亮起，窗影拉长，适合独处与书写, weather variations: 雨天, 雨天时玻璃窗蒙雾，风铃声更清越，室内油墨香与湿气交融，更显幽微, high detail, volumetric lighting, cinematic environment, vibrant colors, full color"}],"role":"user"}]},"model":"z-image-turbo","parameters":{"n":1,"prompt_extend":true,"size":"1024*1024","watermark":false}}
+[2026-04-24 16:32:30.854] [DEBUG] [QwenImageClient] Async Mode: false
+[2026-04-24 16:33:14.055] [DEBUG] [QwenImageClient] === 响应调试信息 ===
+[2026-04-24 16:33:14.055] [DEBUG] [QwenImageClient] HTTP Status: 200, Content-Type: application/json, Bytes: 7395
+[2026-04-24 16:33:14.055] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/4e/20260424/448165f2/455af64c-a55f-9153-b378-f9d910c93a02533533848.png?Expires=1777625393&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=8yzF7e1%2FJgYSX8hWnQF03vvpXCg%3D"},{"text":"上半身肖像，陈伯，一位瘦削的中国男性老人，正面朝前，居中构图，站立姿势，上半身挺直自然。满头银白短发稀疏且略显凌乱，灰??
+[2026-04-24 16:33:14.818] [DEBUG] [JsonRepair] JSON repair successful
+[2026-04-24 16:33:14.818] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/4e/20260424/448165f2/455af64c-a55f-9153-b
+[2026-04-24 16:33:14.818] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/4e/20260424/448165f2/455af64c-a55f-9153-b, requestId=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9
+[2026-04-24 16:33:14.818] [INFO] [QwenImageClient] Download request registered, key=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9_download
+[2026-04-24 16:33:15.260] [INFO] [QwenImageClient] onImageDownloadFinished called
+[2026-04-24 16:33:15.260] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, error=0, errorString=Unknown error
+[2026-04-24 16:33:15.261] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1042220 bytes
+[2026-04-24 16:33:15.261] [INFO] [QwenImageClient] Image downloaded, size: 1042220 bytes
+[2026-04-24 16:33:15.261] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
+[2026-04-24 16:33:15.261] [INFO] [QwenImageClient] emitPendingResult: requestId=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
+[2026-04-24 16:33:15.261] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9
+[2026-04-24 16:33:15.261] [DEBUG] [FileStorage] Created directory: E:/data/comic/characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9
+[2026-04-24 16:33:15.263] [INFO] [FileStorage] Character reference saved: characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:33:15.289] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=
+[2026-04-24 16:33:15.354] [INFO] [CharacterExtractor] Updated character: 陈伯, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:33:15.354] [INFO] [BibleImageService] Portrait saved: characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:33:29.136] [DEBUG] [QwenImageClient] === 响应调试信息 ===
+[2026-04-24 16:33:29.136] [DEBUG] [QwenImageClient] HTTP Status: 200, Content-Type: application/json, Bytes: 8783
+[2026-04-24 16:33:29.136] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/11/20260424/448165f2/04f1f634-ac3f-99fa-9c02-560144bfa9a91503520950.png?Expires=1777625408&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=io0e5dBtIRICSH8VzqzJIIUr8Dk%3D"},{"text":"一位女性角色，名为青柠，上半身肖像，正面朝向，中心构图，站立姿势，身体直立，姿态自然。纤细身材，白色齐耳短发微带自然弧度
+[2026-04-24 16:33:29.896] [DEBUG] [JsonRepair] JSON repair successful
+[2026-04-24 16:33:29.896] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/11/20260424/448165f2/04f1f634-ac3f-99fa-9
+[2026-04-24 16:33:29.896] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/11/20260424/448165f2/04f1f634-ac3f-99fa-9, requestId=d3591d48-5bb3-4e47-900a-a4ff7217b92d
+[2026-04-24 16:33:29.896] [INFO] [QwenImageClient] Download request registered, key=d3591d48-5bb3-4e47-900a-a4ff7217b92d_download
+[2026-04-24 16:33:30.115] [INFO] [QwenImageClient] onImageDownloadFinished called
+[2026-04-24 16:33:30.116] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=d3591d48-5bb3-4e47-900a-a4ff7217b92d, error=0, errorString=Unknown error
+[2026-04-24 16:33:30.116] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1203562 bytes
+[2026-04-24 16:33:30.116] [INFO] [QwenImageClient] Image downloaded, size: 1203562 bytes
+[2026-04-24 16:33:30.116] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
+[2026-04-24 16:33:30.117] [INFO] [QwenImageClient] emitPendingResult: requestId=d3591d48-5bb3-4e47-900a-a4ff7217b92d, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
+[2026-04-24 16:33:30.117] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=d3591d48-5bb3-4e47-900a-a4ff7217b92d
+[2026-04-24 16:33:30.117] [DEBUG] [FileStorage] Created directory: E:/data/comic/characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d
+[2026-04-24 16:33:30.118] [INFO] [FileStorage] Character reference saved: characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:33:30.145] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=20, hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=
+[2026-04-24 16:33:30.225] [INFO] [CharacterExtractor] Updated character: 青柠, gender=女, age=20, hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:33:30.225] [INFO] [BibleImageService] Portrait saved: characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:34:06.173] [DEBUG] [QwenImageClient] === 响应调试信息 ===
+[2026-04-24 16:34:06.173] [DEBUG] [QwenImageClient] HTTP Status: 200, Content-Type: application/json, Bytes: 14413
+[2026-04-24 16:34:06.173] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/d6/20260424/448165f2/51a45e55-dab5-9d91-a6e1-b7cb43c0268b1209242553.png?Expires=1777625445&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=f62ydJJLRLYzQhI707XJAmJgfAc%3D"},{"text":"环境概念艺术，超详细漫画背景，空场景，无角色，日本漫画风格，动漫美学，干净的网点线稿，高对比度，拾光书店内景，一座由岭南
+[2026-04-24 16:34:06.892] [DEBUG] [JsonRepair] JSON repair successful
+[2026-04-24 16:34:06.892] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/d6/20260424/448165f2/51a45e55-dab5-9d91-a
+[2026-04-24 16:34:06.892] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/d6/20260424/448165f2/51a45e55-dab5-9d91-a, requestId=9e443c0a-450b-405d-8142-867da64d9574
+[2026-04-24 16:34:06.893] [INFO] [QwenImageClient] Download request registered, key=9e443c0a-450b-405d-8142-867da64d9574_download
+[2026-04-24 16:34:07.207] [INFO] [QwenImageClient] onImageDownloadFinished called
+[2026-04-24 16:34:07.207] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=9e443c0a-450b-405d-8142-867da64d9574, error=0, errorString=Unknown error
+[2026-04-24 16:34:07.208] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1949093 bytes
+[2026-04-24 16:34:07.208] [INFO] [QwenImageClient] Image downloaded, size: 1949093 bytes
+[2026-04-24 16:34:07.208] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
+[2026-04-24 16:34:07.208] [INFO] [QwenImageClient] emitPendingResult: requestId=9e443c0a-450b-405d-8142-867da64d9574, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
+[2026-04-24 16:34:07.208] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=9e443c0a-450b-405d-8142-867da64d9574
+[2026-04-24 16:34:07.209] [DEBUG] [FileStorage] Created directory: E:/data/comic/scenes/9e443c0a-450b-405d-8142-867da64d9574
+[2026-04-24 16:34:07.211] [INFO] [FileStorage] Scene reference saved: scenes/9e443c0a-450b-405d-8142-867da64d9574/reference.png
+[2026-04-24 16:34:07.302] [INFO] [SceneExtractor] Updated scene: 拾光书店内景
+[2026-04-24 16:34:07.303] [INFO] [BibleImageService] Scene reference saved: scenes/9e443c0a-450b-405d-8142-867da64d9574/reference.png
+[2026-04-24 16:34:07.434] [INFO] [AnalysisJobUtils] Updated job c343277f-9175-48f9-b474-aa99f720c018 status to: completed, progress: 100
+[2026-04-24 16:34:07.501] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:34:07.501] [INFO] [BibleImageService] All Bible images completed: success=3, failed=0
+[2026-04-24 16:34:07.664] [DEBUG] [NovelDetailPage] setNovel: 青柠, id=80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:34:07.835] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:34:07.861] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=20, hairColor=白发, hairStyle=齐耳短发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:34:07.861] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:34:07.888] [INFO] [BibleSectionWidget] Rendering character bible: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist
+[2026-04-24 16:34:07.888] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
+[2026-04-24 16:34:07.892] [INFO] [BibleSectionWidget] Rendering character bible: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character
+[2026-04-24 16:34:07.892] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
+[2026-04-24 16:34:07.902] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 0 -> 2
+[2026-04-24 16:34:07.902] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=0
+[2026-04-24 16:34:07.904] [DEBUG] [NovelDetailPage] onSceneCountChanged: 0 -> 1
+[2026-04-24 16:34:07.904] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:34:07.904] [INFO] [BibleSectionWidget] Refreshed bible: 2 characters, 1 scenes
+[2026-04-24 16:34:08.248] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:34:08.251] [DEBUG] [NovelDetailPage] Defer bible refresh until batch image generation completes
+[2026-04-24 16:34:08.436] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:34:08.588] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:36:05.005] [DEBUG] [NovelDetailPage] setNovel: 青柠, id=80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:36:05.177] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:36:05.181] [INFO] [BibleSectionWidget] Rendering character bible: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist
+[2026-04-24 16:36:05.181] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
+[2026-04-24 16:36:05.184] [INFO] [BibleSectionWidget] Rendering character bible: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character
+[2026-04-24 16:36:05.184] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
+[2026-04-24 16:36:05.191] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 2 -> 2
+[2026-04-24 16:36:05.191] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:36:05.191] [DEBUG] [NovelDetailPage] onSceneCountChanged: 1 -> 1
+[2026-04-24 16:36:05.192] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:36:05.192] [INFO] [BibleSectionWidget] Refreshed bible: 2 characters, 1 scenes
+[2026-04-24 16:36:05.436] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-04-24 16:36:19.087] [INFO] [BibleGenerator] Collected 2 existing characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:36:19.087] [INFO] [BibleGenerator] Collected 1 existing scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:36:19.087] [INFO] [AnalysisService] Starting streaming analysis for novel: 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter: 2
+[2026-04-24 16:36:19.207] [INFO] [AnalysisJobUtils] Created job: 53d639af-a44c-4daa-8c03-019892b16ee4 for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter 2
+[2026-04-24 16:36:19.212] [DEBUG] [QwenPromptBuilder] System prompt length: 14027 chars, example keys: characters, panels, scenes, totalPages
+[2026-04-24 16:36:19.213] [DEBUG] [QwenClient] 发送流式请求
+[2026-04-24 16:36:19.213] [DEBUG] [QwenClient] 请求地址: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+[2026-04-24 16:36:19.213] [DEBUG] [QwenClient] 请求体大小: 62969 bytes
+[2026-04-24 16:38:48.120] [INFO] [QwenClient] 流式响应已累计 21201 字符
+[2026-04-24 16:38:48.121] [DEBUG] [QwenClient] Storyboard shape: panels=6, characters=3, scenes=1
+[2026-04-24 16:38:48.122] [DEBUG] [QwenClient] Extracted chars=2 scenes=0 existingScenes=1
+[2026-04-24 16:38:48.122] [DEBUG] [QwenClient] 规范化结果 - 面板:6 角色:3 场景:1
+[2026-04-24 16:38:48.122] [INFO] [AnalysisService] Stream completed, processing result...
+[2026-04-24 16:38:48.253] [INFO] [AnalysisService] saveResults called: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=2, panels=6, characters=3, scenes=1
+[2026-04-24 16:38:48.253] [DEBUG] [CharacterExtractor] Parsing character '青柠', role=protagonist, appearance: {"age":20,"build":"纤细","clothing":["浅蓝色棉麻围裙","白色短袖衬衫","及膝牛仔裙"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"白发","hairStyle":"齐耳短发，微带自然弧度","height":"中等偏矮"}
+[2026-04-24 16:38:48.254] [DEBUG] [CharacterExtractor] Parsed character '青柠': role=protagonist, gender=女, age=20, hairColor=白发, eyeColor=浅琥珀色, build=纤细
+[2026-04-24 16:38:48.254] [DEBUG] [CharacterExtractor] Enriched from text for '青柠': hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, accessories=
+[2026-04-24 16:38:48.255] [DEBUG] [CharacterExtractor] Parsing character '陈伯', role=supporting_character, appearance: {"age":70,"build":"瘦削","clothing":["洗得发白的藏青布衫","深灰布裤","旧布鞋"],"distinctiveFeatures":["满头银白短发","眼角皱纹深刻","手指关节粗大微颤"],"eyeColor":"灰褐色","gender":"男","hairColor":"白发","hairStyle":"稀疏短发，略显凌乱","height":"中等偏矮"}
+[2026-04-24 16:38:48.255] [DEBUG] [CharacterExtractor] Parsed character '陈伯': role=supporting_character, gender=男, age=70, hairColor=白发, eyeColor=灰褐色, build=瘦削
+[2026-04-24 16:38:48.256] [DEBUG] [CharacterExtractor] Enriched from text for '陈伯': hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, accessories=
+[2026-04-24 16:38:48.256] [DEBUG] [CharacterExtractor] Parsing character '林阿姨', role=supporting_character, appearance: {"age":"五十多岁","build":"中等偏丰腴，身形匀称","clothing":["米白色亚麻阔腿裤","浅灰针织开衫","珍珠耳钉","一枚素银戒指"],"distinctiveFeatures":["温和含笑的眼角纹","一丝不苟的低髻盘发","左手无名指戴婚戒"],"eyeColor":"暖棕色","gender":"女","hairColor":"黑发夹银丝","hairStyle":"低髻盘发，额前留几缕碎发","height":"中等"}
+[2026-04-24 16:38:48.256] [DEBUG] [CharacterExtractor] Parsed character '林阿姨': role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, eyeColor=暖棕色, build=中等偏丰腴，身形匀称
+[2026-04-24 16:38:48.256] [DEBUG] [CharacterExtractor] Enriched from text for '林阿姨': hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, accessories=
+[2026-04-24 16:38:48.256] [INFO] [CharacterExtractor] Extracted 3 characters from AI response
+[2026-04-24 16:38:48.281] [DEBUG] [CharacterExtractor] Character '青柠' matched existing '青柠', merging...
+[2026-04-24 16:38:48.348] [INFO] [CharacterExtractor] Updated character: 青柠, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:38:48.375] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:38:48.376] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=灰褐色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:38:48.376] [DEBUG] [CharacterExtractor] Character '陈伯' matched existing '陈伯', merging...
+[2026-04-24 16:38:48.442] [INFO] [CharacterExtractor] Updated character: 陈伯, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:38:48.468] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:38:48.468] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:38:48.519] [INFO] [CharacterExtractor] Saved new character: 林阿姨
+[2026-04-24 16:38:48.534] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:38:48.600] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:38:48.600] [INFO] [CharacterExtractor] Saved 3/3 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:38:48.600] [INFO] [AnalysisService] Saved 3 characters to database
+[2026-04-24 16:38:48.605] [DEBUG] [SceneExtractor] Scene '拾光书店内景' already exists, updating...
+[2026-04-24 16:38:48.675] [INFO] [SceneExtractor] Updated scene: 拾光书店内景
+[2026-04-24 16:38:48.675] [INFO] [AnalysisService] Saved 1 scenes to database
+[2026-04-24 16:38:48.702] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=
+[2026-04-24 16:38:48.703] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:38:48.703] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:38:49.115] [DEBUG] [Database] Transaction committed successfully
+[2026-04-24 16:38:49.115] [INFO] [AnalysisService] Storyboard saved successfully
+[2026-04-24 16:38:49.115] [DEBUG] [BibleGenerator] Skip character update: 青柠 | gender: 女 [inferred] -> 女 [explicit] || age: 17 [explicit] -> 17 [explicit] || hairColor: 白发 [explicit] -> 白发 [inferred] || hairStyle: 地扎成一个低马尾 [explicit] -> 地扎成一个低马尾 [explicit] || eyeColor: 浅琥珀色 [explicit] -> 浅琥珀色 [explicit] || build: 身形偏瘦却不单薄 [explicit] -> 身形偏瘦却不单薄 [explicit] || height: 中等偏矮 [inferred] -> 中等偏矮 [inferred]
+[2026-04-24 16:38:49.116] [DEBUG] [BibleGenerator] Skip character update: 陈伯 | gender: 男 [inferred] -> 男 [inferred] || age: 70 [inferred] -> 70 [inferred] || hairColor: 白发 [explicit] -> 白发 [inferred] || hairStyle: 稀疏短发，略显凌乱 [inferred] -> 稀疏短发，略显凌乱 [inferred] || eyeColor: 琥珀色 [explicit] -> 琥珀色 [explicit] || build: 瘦削 [inferred] -> 瘦削 [inferred] || height: 中等偏矮 [inferred] -> 中等偏矮 [inferred]
+[2026-04-24 16:38:49.117] [DEBUG] [BibleGenerator] Skip character update: 林阿姨 | gender: 女 [inferred] -> 女 [inferred] || age: 50 [inferred] -> 50 [inferred] || hairColor: 黑发夹银丝 [inferred] -> 黑发夹银丝 [inferred] || hairStyle: 低髻盘发，额前留几缕碎发 [inferred] -> 低髻盘发，额前留几缕碎发 [inferred] || eyeColor: 暖棕色 [inferred] -> 暖棕色 [inferred] || build: 中等偏丰腴，身形匀称 [inferred] -> 中等偏丰腴，身形匀称 [inferred] || height: 中等 [inferred] -> 中等 [inferred]
+[2026-04-24 16:38:49.117] [INFO] [BibleGenerator] Updated 0 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:38:49.117] [DEBUG] [BibleGenerator] Skip scene update: 拾光书店内景 | description: 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] -> 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] || building: 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] -> 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] || layout: L型空间，入口直通中央通道，两侧书架呈回字形分布，柜台位于东南角，毗邻爬墙虎小窗 [inferred] -> L型空间，入口直通中央通道，两侧书架呈回字形分布，柜台位于东南角，毗邻爬墙虎小窗 [inferred] || atmosphere: 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] -> 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] || type: 室内 [inferred] -> 室内 [inferred] || typeZh: 空 [inferred] -> 空 [inferred] || setting: 空 [inferred] -> 空 [inferred] || timeOfDay: 白天 [inferred] -> 空 [inferred] || weather: 空 [inferred] -> 空 [inferred] || spaceSize: 空 [inferred] -> 空 [inferred] || narrativeRole: 核心叙事空间与情感容器 [inferred] -> 核心叙事空间与情感容器 [inferred] || narrativeRoleZh: 空 [inferred] -> 空 [inferred]
+[2026-04-24 16:38:49.117] [INFO] [BibleGenerator] Updated 0 scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:38:49.182] [INFO] [AnalysisService] Generating images after analysis: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=2
+[2026-04-24 16:38:49.182] [INFO] [AnalysisService] Generating bible images: 3 characters, 1 scenes
+[2026-04-24 16:38:49.182] [INFO] [BibleImageService] Starting combined generation: 3 characters + 1 scenes = 4 total
+[2026-04-24 16:38:49.249] [INFO] [BibleImageService] Generating portrait for: 林阿姨
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] === 请求调试信息 ===
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] URL: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] Model: z-image-turbo
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] API Key (前10位): sk-2382a5b...
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] Prompt: single character only, one person, supporting_character archetype, 林阿姨, bust portrait, upper body sh
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] Request Body: {"input":{"messages":[{"content":[{"text":"single character only, one person, supporting_character archetype, 林阿姨, bust portrait, upper body shot, ultra detailed manga character portrait, Japanese manga style, anime aesthetics, clean screentone line art, high contrast, expressive faces, vibrant color palette, front view, facing forward, centered composition, standing pose, upright posture, natural stance, manga style, screentone shading, clean line art, high contrast, illustrated render, 女, 中等偏丰腴，身形匀称, 黑发夹银丝 低髻盘发，额前留几缕碎发 hair, 暖棕色 eyes, wearing 米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, distinctive features: 温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, studio lighting, solid pure white background, plain background, no gradient, no shadow on background, completely empty background, line art with screentone shading, vibrant colors"}],"role":"user"}]},"model":"z-image-turbo","parameters":{"n":1,"prompt_extend":true,"size":"1024*1440","watermark":false}}
+[2026-04-24 16:38:49.249] [DEBUG] [QwenImageClient] Async Mode: false
+[2026-04-24 16:38:49.250] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, panels=6, chars=3, scenes=1
+[2026-04-24 16:38:49.252] [DEBUG] [NovelDetailPage] Defer bible refresh until batch image generation completes
+[2026-04-24 16:38:49.446] [INFO] [BibleImageService] Skipping character 青柠, already has portrait
+[2026-04-24 16:38:49.612] [INFO] [BibleImageService] Skipping character 陈伯, already has portrait
+[2026-04-24 16:38:49.877] [INFO] [BibleImageService] Skipping scene 拾光书店内景, already has reference
+[2026-04-24 16:38:49.877] [DEBUG] [BibleImageService] Batch waiting for 1 pending image requests
+[2026-04-24 16:39:47.159] [DEBUG] [QwenImageClient] === 响应调试信息 ===
+[2026-04-24 16:39:47.159] [DEBUG] [QwenImageClient] HTTP Status: 200, Content-Type: application/json, Bytes: 8263
+[2026-04-24 16:39:47.160] [DEBUG] [QwenImageClient] Response: {"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"image":"https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/15/20260424/448165f2/c0c6254d-2bf3-9c41-a7d8-f3a462e80481547303375.png?Expires=1777625786&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=8N6oX13yhudxYxRhANt1Q6yfaqc%3D"},{"text":"单个角色，仅一人，配角原型，林阿姨，上半身肖像，正面视角，居中构图，站立姿势，直立姿态，自然站姿。日本漫画风格，动漫美学?
+[2026-04-24 16:39:47.882] [DEBUG] [JsonRepair] JSON repair successful
+[2026-04-24 16:39:47.882] [INFO] [QwenImageClient] Found image URL in sync response: https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/15/20260424/448165f2/c0c6254d-2bf3-9c41-a
+[2026-04-24 16:39:47.882] [INFO] [QwenImageClient] downloadImageFromUrl called: url=https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/7d/15/20260424/448165f2/c0c6254d-2bf3-9c41-a, requestId=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8
+[2026-04-24 16:39:47.882] [INFO] [QwenImageClient] Download request registered, key=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8_download
+[2026-04-24 16:39:48.279] [INFO] [QwenImageClient] onImageDownloadFinished called
+[2026-04-24 16:39:48.279] [INFO] [QwenImageClient] onImageDownloadFinished: requestId=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, error=0, errorString=Unknown error
+[2026-04-24 16:39:48.280] [INFO] [QwenImageClient] onImageDownloadFinished: downloaded 1396482 bytes
+[2026-04-24 16:39:48.281] [INFO] [QwenImageClient] Image downloaded, size: 1396482 bytes
+[2026-04-24 16:39:48.281] [INFO] [QwenImageClient] onImageDownloadFinished: calling emitPendingResult, success=1
+[2026-04-24 16:39:48.281] [INFO] [QwenImageClient] emitPendingResult: requestId=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, isGenerate=1, success=1, inGenerateMap=1, inEditMap=0
+[2026-04-24 16:39:48.281] [INFO] [QwenImageClient] emitPendingResult: emitting generateCompleted for requestId=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8
+[2026-04-24 16:39:48.281] [DEBUG] [FileStorage] Created directory: E:/data/comic/characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8
+[2026-04-24 16:39:48.282] [INFO] [FileStorage] Character reference saved: characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:39:48.308] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=
+[2026-04-24 16:39:48.373] [INFO] [CharacterExtractor] Updated character: 林阿姨, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:39:48.373] [INFO] [BibleImageService] Portrait saved: characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:39:48.506] [INFO] [AnalysisJobUtils] Updated job 53d639af-a44c-4daa-8c03-019892b16ee4 status to: completed, progress: 100
+[2026-04-24 16:39:48.572] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:39:48.573] [INFO] [BibleImageService] All Bible images completed: success=4, failed=0
+[2026-04-24 16:39:48.626] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:39:48.626] [DEBUG] [NovelDetailPage] Applying deferred bible refresh after batch image generation
+[2026-04-24 16:39:48.659] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:39:48.659] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:39:48.659] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:39:48.660] [INFO] [BibleSectionWidget] Rendering character bible: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character
+[2026-04-24 16:39:48.660] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
+[2026-04-24 16:39:48.666] [INFO] [BibleSectionWidget] Rendering character bible: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist
+[2026-04-24 16:39:48.666] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
+[2026-04-24 16:39:48.670] [INFO] [BibleSectionWidget] Rendering character bible: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character
+[2026-04-24 16:39:48.670] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
+[2026-04-24 16:39:48.680] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 2 -> 3
+[2026-04-24 16:39:48.680] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=3, scenes=1
+[2026-04-24 16:39:48.680] [DEBUG] [NovelDetailPage] onSceneCountChanged: 1 -> 1
+[2026-04-24 16:39:48.681] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=3, scenes=1
+[2026-04-24 16:39:48.681] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 1 scenes
+[2026-04-24 16:39:48.959] [DEBUG] [NovelDetailPage] Defer bible refresh until batch image generation completes
+[2026-04-24 16:39:49.195] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:39:49.382] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=1
+[2026-04-24 16:40:50.380] [INFO] [BibleGenerator] Collected 3 existing characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:40:50.380] [INFO] [BibleGenerator] Collected 1 existing scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:40:50.380] [INFO] [AnalysisService] Starting streaming analysis for novel: 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter: 3
+[2026-04-24 16:40:50.501] [INFO] [AnalysisJobUtils] Created job: befff6de-c457-4f9e-97ff-9ea9b8fddeff for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter 3
+[2026-04-24 16:40:50.506] [DEBUG] [QwenPromptBuilder] System prompt length: 14027 chars, example keys: characters, panels, scenes, totalPages
+[2026-04-24 16:40:50.507] [DEBUG] [QwenClient] 发送流式请求
+[2026-04-24 16:40:50.507] [DEBUG] [QwenClient] 请求地址: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+[2026-04-24 16:40:50.507] [DEBUG] [QwenClient] 请求体大小: 64563 bytes
+[2026-04-24 16:43:07.531] [INFO] [QwenClient] 流式响应已累计 17848 字符
+[2026-04-24 16:43:07.531] [DEBUG] [QwenClient] Storyboard shape: panels=6, characters=3, scenes=1
+[2026-04-24 16:43:07.532] [DEBUG] [QwenClient] Extracted chars=2 scenes=0 existingScenes=1
+[2026-04-24 16:43:07.532] [DEBUG] [QwenClient] 规范化结果 - 面板:6 角色:3 场景:1
+[2026-04-24 16:43:07.532] [INFO] [AnalysisService] Stream completed, processing result...
+[2026-04-24 16:43:07.662] [INFO] [AnalysisService] saveResults called: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=3, panels=6, characters=3, scenes=1
+[2026-04-24 16:43:07.662] [DEBUG] [CharacterExtractor] Parsing character '林阿姨', role=supporting_character, appearance: {"age":50,"build":"中等偏丰腴，身形匀称","clothing":["米白色亚麻阔腿裤","浅灰针织开衫","珍珠耳钉","一枚素银戒指"],"distinctiveFeatures":["温和含笑的眼角纹","一丝不苟的低髻盘发","左手无名指戴婚戒"],"eyeColor":"暖棕色","gender":"女","hairColor":"黑发夹银丝","hairStyle":"低髻盘发，额前留几缕碎发","height":"中等"}
+[2026-04-24 16:43:07.662] [DEBUG] [CharacterExtractor] Parsed character '林阿姨': role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, eyeColor=暖棕色, build=中等偏丰腴，身形匀称
+[2026-04-24 16:43:07.663] [DEBUG] [CharacterExtractor] Parsing character '青柠', role=protagonist, appearance: {"age":17,"build":"身形偏瘦却不单薄","clothing":["浅蓝色棉麻围裙","白色短袖衬衫","及膝牛仔裙"],"distinctiveFeatures":["浅琥珀色瞳仁","眉眼清浅，气质疏离"],"eyeColor":"浅琥珀色","gender":"女","hairColor":"白发","hairStyle":"地扎成一个低马尾","height":"中等偏矮"}
+[2026-04-24 16:43:07.663] [DEBUG] [CharacterExtractor] Parsed character '青柠': role=protagonist, gender=女, age=17, hairColor=白发, eyeColor=浅琥珀色, build=身形偏瘦却不单薄
+[2026-04-24 16:43:07.664] [DEBUG] [CharacterExtractor] Enriched from text for '青柠': hairColor=白发, hairStyle=雪白的短发, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, accessories=
+[2026-04-24 16:43:07.664] [DEBUG] [CharacterExtractor] Parsing character '陈伯', role=supporting_character, appearance: {"age":72,"build":"瘦削","clothing":["洗得发白的藏青斜襟棉布衫（领口袖口磨损）","深灰色宽松长裤（裤脚挽至脚踝）","黑色手工千层底布鞋","旧银怀表（表链氧化发黑但擦拭洁净）"],"distinctiveFeatures":["满头雪白短发（无杂色，额前碎发贴额）","眼角皱纹深刻","手指关节粗大微颤","鼻梁上一颗小黑痣","深褐色瞳仁（如陈年老茶，浑浊却明亮）"],"eyeColor":"深褐色","gender":"男","hairColor":"白发","hairStyle":"利落短发，额前碎发自然垂落","height":"约165cm"}
+[2026-04-24 16:43:07.664] [DEBUG] [CharacterExtractor] Parsed character '陈伯': role=supporting_character, gender=男, age=72, hairColor=白发, eyeColor=深褐色, build=瘦削
+[2026-04-24 16:43:07.664] [DEBUG] [CharacterExtractor] Enriched from text for '陈伯': hairColor=白发, hairStyle=发型是利落的短发, eyeColor=浅琥珀色, build=体型偏瘦, clothing=洗得发白的藏青斜襟棉布衫（领口袖口磨损）, 深灰色宽松长裤（裤脚挽至脚踝）, 黑色手工千层底布鞋, 旧银怀表（表链氧化发黑但擦拭洁净）, features=满头雪白短发（无杂色，额前碎发贴额）, 眼角皱纹深刻, 手指关节粗大微颤, 鼻梁上一颗小黑痣, 深褐色瞳仁（如陈年老茶，浑浊却明亮）, accessories=
+[2026-04-24 16:43:07.665] [INFO] [CharacterExtractor] Extracted 3 characters from AI response
+[2026-04-24 16:43:07.689] [DEBUG] [CharacterExtractor] Character '林阿姨' matched existing '林阿姨', merging...
+[2026-04-24 16:43:07.756] [INFO] [CharacterExtractor] Updated character: 林阿姨, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:43:07.782] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:43:07.782] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:43:07.782] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:43:07.782] [DEBUG] [CharacterExtractor] Character '青柠' matched existing '青柠', merging...
+[2026-04-24 16:43:07.846] [INFO] [CharacterExtractor] Updated character: 青柠, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:43:07.875] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:43:07.876] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:43:07.876] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=70, hairColor=白发, hairStyle=稀疏短发，略显凌乱, eyeColor=琥珀色, build=瘦削, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:43:07.876] [DEBUG] [CharacterExtractor] Character '陈伯' matched existing '陈伯', merging...
+[2026-04-24 16:43:07.942] [INFO] [CharacterExtractor] Updated character: 陈伯, gender=男, age=72, hairColor=白发, hairStyle=发型是利落的短发, eyeColor=琥珀色, build=体型偏瘦, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:43:07.955] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:43:08.017] [DEBUG] [Database] Transaction completed successfully
+[2026-04-24 16:43:08.017] [INFO] [CharacterExtractor] Saved 3/3 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:43:08.018] [INFO] [AnalysisService] Saved 3 characters to database
+[2026-04-24 16:43:08.022] [DEBUG] [SceneExtractor] Scene '拾光书店内景' already exists, updating...
+[2026-04-24 16:43:08.086] [INFO] [SceneExtractor] Updated scene: 拾光书店内景
+[2026-04-24 16:43:08.087] [INFO] [AnalysisService] Saved 1 scenes to database
+[2026-04-24 16:43:08.112] [DEBUG] [CharacterExtractor] Loaded character row: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character, gender=女, age=50, hairColor=黑发夹银丝, hairStyle=低髻盘发，额前留几缕碎发, eyeColor=暖棕色, build=中等偏丰腴，身形匀称, clothing=米白色亚麻阔腿裤, 浅灰针织开衫, 珍珠耳钉, 一枚素银戒指, features=温和含笑的眼角纹, 一丝不苟的低髻盘发, 左手无名指戴婚戒, personality=温和, 体贴, 干练而不失柔韧, 富有生活智慧, portraitPath=characters/a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8/reference.png
+[2026-04-24 16:43:08.112] [DEBUG] [CharacterExtractor] Loaded character row: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist, gender=女, age=17, hairColor=白发, hairStyle=地扎成一个低马尾, eyeColor=浅琥珀色, build=身形偏瘦却不单薄, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, features=浅琥珀色瞳仁, 眉眼清浅，气质疏离, personality=安静, 细腻, 温柔而克制, 内心执着, portraitPath=characters/d3591d48-5bb3-4e47-900a-a4ff7217b92d/reference.png
+[2026-04-24 16:43:08.112] [DEBUG] [CharacterExtractor] Loaded character row: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character, gender=男, age=72, hairColor=白发, hairStyle=发型是利落的短发, eyeColor=琥珀色, build=体型偏瘦, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 手指关节粗大微颤, personality=慈爱, 急切, 朴实, 略带不安, 温和敦厚, 真诚细腻, 念旧重情, 淳朴善良, 慢条斯理却认真踏实, portraitPath=characters/fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9/reference.png
+[2026-04-24 16:43:08.539] [DEBUG] [Database] Transaction committed successfully
+[2026-04-24 16:43:08.540] [INFO] [AnalysisService] Storyboard saved successfully
+[2026-04-24 16:43:08.540] [DEBUG] [BibleGenerator] Skip character update: 林阿姨 | gender: 女 [inferred] -> 女 [inferred] || age: 50 [inferred] -> 50 [inferred] || hairColor: 黑发夹银丝 [inferred] -> 黑发夹银丝 [inferred] || hairStyle: 低髻盘发，额前留几缕碎发 [inferred] -> 低髻盘发，额前留几缕碎发 [inferred] || eyeColor: 暖棕色 [inferred] -> 暖棕色 [inferred] || build: 中等偏丰腴，身形匀称 [inferred] -> 中等偏丰腴，身形匀称 [inferred] || height: 中等 [inferred] -> 中等 [inferred]
+[2026-04-24 16:43:08.540] [DEBUG] [BibleGenerator] Skip character update: 青柠 | gender: 女 [inferred] -> 女 [inferred] || age: 17 [explicit] -> 17 [inferred] || hairColor: 白发 [explicit] -> 白发 [inferred] || hairStyle: 地扎成一个低马尾 [explicit] -> 雪白的短发 [explicit] || eyeColor: 浅琥珀色 [explicit] -> 浅琥珀色 [explicit] || build: 身形偏瘦却不单薄 [explicit] -> 身形偏瘦却不单薄 [inferred] || height: 中等偏矮 [inferred] -> 中等偏矮 [inferred]
+[2026-04-24 16:43:08.540] [DEBUG] [BibleGenerator] Skip character update: 陈伯 | gender: 男 [inferred] -> 男 [explicit] || age: 72 [explicit] -> 72 [explicit] || hairColor: 白发 [explicit] -> 白发 [inferred] || hairStyle: 发型是利落的短发 [explicit] -> 发型是利落的短发 [explicit] || eyeColor: 琥珀色 [explicit] -> 浅琥珀色 [explicit] || build: 体型偏瘦 [explicit] -> 体型偏瘦 [explicit] || height: 中等偏矮 [inferred] -> 约165cm [inferred]
+[2026-04-24 16:43:08.540] [INFO] [BibleGenerator] Updated 0 characters for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:43:08.540] [DEBUG] [BibleGenerator] Skip scene update: 拾光书店内景 | description: 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] -> 一座保存完好的岭南骑楼改造的独立书店，外立面为灰砖拱廊与彩色玻璃窗，内部为挑高木质结构，三层老式书架环绕中央阅读区，弥漫油墨、旧纸与植物清香。 [inferred] || building: 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] -> 岭南骑楼风格，拱形玻璃窗、木格栅天花、柚木地板、复古铜质五金 [inferred] || layout: L型空间，入口直通中央通道，两侧书架呈回字形分布，柜台位于东南角，毗邻爬墙虎小窗 [inferred] -> 空 [inferred] || atmosphere: 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] -> 沉静、温厚、包容，时间在此处可被触摸与重读 [inferred] || type: 室内 [inferred] -> 室内 [inferred] || typeZh: 空 [inferred] -> 空 [inferred] || setting: 空 [inferred] -> 空 [inferred] || timeOfDay: 白天 [inferred] -> 空 [inferred] || weather: 空 [inferred] -> 空 [inferred] || spaceSize: 空 [inferred] -> 空 [inferred] || narrativeRole: 核心叙事空间与情感容器 [inferred] -> 核心叙事空间与情感容器 [inferred] || narrativeRoleZh: 空 [inferred] -> 空 [inferred]
+[2026-04-24 16:43:08.540] [INFO] [BibleGenerator] Updated 0 scenes for novel 80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:43:08.607] [INFO] [AnalysisService] Generating images after analysis: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, chapter=3
+[2026-04-24 16:43:08.607] [INFO] [AnalysisService] Generating bible images: 3 characters, 1 scenes
+[2026-04-24 16:43:08.608] [INFO] [BibleImageService] Starting combined generation: 3 characters + 1 scenes = 4 total
+[2026-04-24 16:43:08.672] [INFO] [BibleImageService] Skipping character 林阿姨, already has portrait
+[2026-04-24 16:43:08.673] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f, panels=6, chars=3, scenes=1
+[2026-04-24 16:43:08.845] [INFO] [BibleImageService] Skipping character 青柠, already has portrait
+[2026-04-24 16:43:09.011] [INFO] [BibleImageService] Skipping character 陈伯, already has portrait
+[2026-04-24 16:43:09.279] [INFO] [BibleImageService] Skipping scene 拾光书店内景, already has reference
+[2026-04-24 16:43:09.414] [INFO] [AnalysisJobUtils] Updated job befff6de-c457-4f9e-97ff-9ea9b8fddeff status to: completed, progress: 100
+[2026-04-24 16:43:09.481] [INFO] [AnalysisService] Analysis completed: novelId=80cfc2a4-1a0c-4cef-b58c-a4af1243201f
+[2026-04-24 16:43:09.481] [INFO] [BibleImageService] All Bible images completed: success=4, failed=0
+[2026-04-24 16:43:09.541] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:43:09.542] [DEBUG] [NovelDetailPage] Applying deferred bible refresh after batch image generation
+[2026-04-24 16:43:09.549] [INFO] [BibleSectionWidget] Rendering character bible: id=a629d3f0-745c-46ac-b4d3-bfd4bbfdd1a8, name=林阿姨, role=supporting_character
+[2026-04-24 16:43:09.549] [INFO] [BibleSectionWidget] Character bible details lines=9, name=林阿姨
+[2026-04-24 16:43:09.552] [INFO] [BibleSectionWidget] Rendering character bible: id=d3591d48-5bb3-4e47-900a-a4ff7217b92d, name=青柠, role=protagonist
+[2026-04-24 16:43:09.552] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
+[2026-04-24 16:43:09.556] [INFO] [BibleSectionWidget] Rendering character bible: id=fcec10dc-fb31-4bc2-bf01-ba5dbf8b0bd9, name=陈伯, role=supporting_character
+[2026-04-24 16:43:09.556] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
+[2026-04-24 16:43:09.561] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 3 -> 3
+[2026-04-24 16:43:09.561] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=1
+[2026-04-24 16:43:09.562] [DEBUG] [NovelDetailPage] onSceneCountChanged: 1 -> 1
+[2026-04-24 16:43:09.562] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=2, characters=3, scenes=1
+[2026-04-24 16:43:09.562] [INFO] [BibleSectionWidget] Refreshed bible: 3 characters, 1 scenes
+[2026-04-24 16:43:09.836] [DEBUG] [NovelDetailPage] Defer bible refresh until batch image generation completes
+[2026-04-24 16:43:10.068] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-04-24 16:43:10.226] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=3, characters=3, scenes=1

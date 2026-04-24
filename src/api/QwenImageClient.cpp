@@ -1,4 +1,5 @@
 #include "api/QwenImageClient.h"
+#include "api/QwenJsonRepair.h"
 #include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
 #include "utils/Logger.h"
@@ -15,15 +16,16 @@ namespace {
     constexpr int DEFAULT_POLL_INTERVAL = 2000;
     constexpr int DEFAULT_MAX_POLLS = 60;
     constexpr int DOWNLOAD_TIMEOUT = 30000;
-    
-    enum class ApiMode { DashScope, OpenAI };
-    
-    ApiMode getApiMode(const QString& model) {
-        return model.startsWith("qwen-image") ? ApiMode::OpenAI : ApiMode::DashScope;
+
+    bool isDashScopeMultimodalModel(const QString& model)
+    {
+        const QString normalized = model.trimmed().toLower();
+        return normalized.startsWith("qwen-image") || normalized.startsWith("z-image");
     }
-    
-    bool isOpenAIModel(const QString& model) {
-        return model.startsWith("qwen-image");
+
+    bool isWanxModel(const QString& model)
+    {
+        return model.trimmed().toLower().startsWith("wanx");
     }
     
     struct SyncRequestResult {
@@ -154,9 +156,9 @@ QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions&
     QString url;
     QJsonObject payload;
     
-    if (isOpenAIModel(m_config.generateModel)) {
+    if (isDashScopeMultimodalModel(m_config.generateModel)) {
         url = QString("%1/api/v1/services/aigc/multimodal-generation/generation").arg(m_config.baseUrl);
-        payload = buildOpenAIImageRequestBody(options);
+        payload = buildMultimodalRequestBody(options);
     } else {
         url = buildApiUrl("text2image");
         payload = buildGenerateRequestBody(options);
@@ -185,7 +187,7 @@ QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options
         return generatePlaceholder(options.prompt);
     }
     
-    QString url = buildApiUrl("image2image");
+    QString url = buildApiUrl("image2image", m_config.editModel);
     QJsonObject payload = buildEditRequestBody(options);
     QJsonObject response = sendSyncRequest(url, payload);
     
@@ -205,11 +207,13 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
     QString url;
     QJsonObject payload;
     
-    if (isOpenAIModel(m_config.generateModel)) {
+    if (isDashScopeMultimodalModel(m_config.generateModel)) {
         url = QString("%1/api/v1/services/aigc/multimodal-generation/generation").arg(m_config.baseUrl);
-        payload = buildOpenAIImageRequestBody(options);
+        payload = buildMultimodalRequestBody(options);
     } else {
-        url = (type == RequestType::Generate) ? buildApiUrl("text2image") : buildApiUrl("image2image");
+        url = (type == RequestType::Generate)
+            ? buildApiUrl("text2image", m_config.generateModel)
+            : buildApiUrl("image2image", m_config.editModel);
         payload = (type == RequestType::Generate) 
             ? buildGenerateRequestBody(options) 
             : buildEditRequestBody(EditOptions::fromGenerateOptions(options));
@@ -220,7 +224,8 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
     LOG_DEBUG("QwenImageClient", QString("API Key (前10位): %1...").arg(m_config.apiKey.left(10)));
     LOG_DEBUG("QwenImageClient", QString("Prompt: %1").arg(options.prompt.left(100)));
     
-    bool useAsyncMode = !isOpenAIModel(m_config.generateModel);
+    const QString& activeModel = (type == RequestType::Generate) ? m_config.generateModel : m_config.editModel;
+    bool useAsyncMode = isWanxModel(activeModel);
     QNetworkRequest request = createNetworkRequest(url, useAsyncMode);
     QByteArray jsonData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
     
@@ -242,7 +247,7 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
 void QwenImageClient::sendAsyncRequest(const EditOptions& options, RequestType type)
 {
     QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
-    QString url = buildApiUrl("image2image");
+    QString url = buildApiUrl("image2image", m_config.editModel);
     QJsonObject payload = buildEditRequestBody(options);
     
     QNetworkRequest request = createNetworkRequest(url);
@@ -309,8 +314,14 @@ void QwenImageClient::onReplyFinished()
     RequestType type = static_cast<RequestType>(reply->property("requestType").toInt());
     
     QByteArray responseData = reply->readAll();
+    const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QByteArray contentType = reply->header(QNetworkRequest::ContentTypeHeader).toByteArray();
     
     LOG_DEBUG("QwenImageClient", QString("=== 响应调试信息 ==="));
+    LOG_DEBUG("QwenImageClient", QString("HTTP Status: %1, Content-Type: %2, Bytes: %3")
+        .arg(statusCode)
+        .arg(QString::fromUtf8(contentType))
+        .arg(responseData.size()));
     LOG_DEBUG("QwenImageClient", QString("Response: %1").arg(QString::fromUtf8(responseData.left(500))));
     
     cleanupRequest(reply, requestId);
@@ -718,7 +729,7 @@ QJsonObject QwenImageClient::buildGenerateRequestBody(const GenerateOptions& opt
     return body;
 }
 
-QJsonObject QwenImageClient::buildOpenAIImageRequestBody(const GenerateOptions& options)
+QJsonObject QwenImageClient::buildMultimodalRequestBody(const GenerateOptions& options)
 {
     QJsonObject body;
     body["model"] = m_config.generateModel;
@@ -788,7 +799,12 @@ QString QwenImageClient::sizeToString(ImageSize size, int width, int height)
 
 QString QwenImageClient::buildApiUrl(const QString& service) const
 {
-    if (isOpenAIModel(m_config.generateModel)) {
+    return buildApiUrl(service, m_config.generateModel);
+}
+
+QString QwenImageClient::buildApiUrl(const QString& service, const QString& model) const
+{
+    if (isDashScopeMultimodalModel(model)) {
         return QString("%1/api/v1/services/aigc/%2").arg(m_config.baseUrl).arg(service);
     }
     return QString("%1/api/v1/services/aigc/%2/image-synthesis").arg(m_config.baseUrl).arg(service);
@@ -835,11 +851,25 @@ void QwenImageClient::cancelAllRequests()
 
 QJsonObject QwenImageClient::parseJsonResponse(const QByteArray& data)
 {
+    const QByteArray trimmed = data.trimmed();
+    if (trimmed.isEmpty()) {
+        setError("Empty response body");
+        return QJsonObject();
+    }
+
+    const QString rawContent = QString::fromUtf8(trimmed);
+    QJsonObject repaired = QwenJsonRepair::parseWithRepair(rawContent);
+    if (!repaired.isEmpty()) {
+        return repaired;
+    }
+
     QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+    QJsonDocument doc = QJsonDocument::fromJson(trimmed, &parseError);
     
     if (parseError.error != QJsonParseError::NoError) {
-        setError(QString("JSON parse error: %1").arg(parseError.errorString()));
+        const QString preview = rawContent.left(160).replace('\n', ' ');
+        setError(QString("JSON parse error: %1. Response preview: %2")
+            .arg(parseError.errorString(), preview));
         return QJsonObject();
     }
     

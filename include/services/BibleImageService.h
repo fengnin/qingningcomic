@@ -8,11 +8,21 @@
 #include "api/VolcEngineImageClient.h"
 #include "utils/PromptBuilder.h"
 #include <mutex>
+#include <QMap>
 
 namespace BibleImageConstants {
     const QString TYPE_CHARACTER = QStringLiteral("character");
     const QString TYPE_SCENE = QStringLiteral("scene");
 }
+
+struct PendingImageRequest {
+    QString type;
+    Character character;
+    Scene scene;
+    QString prompt;
+    QString negativePrompt;
+    int retryCount = 0;
+};
 
 class BibleImageService : public BatchImageProcessor
 {
@@ -52,15 +62,15 @@ private:
     PromptBuilder::PromptResult buildCharacterPortraitPrompt(const Character& character);
     PromptBuilder::PromptResult buildSceneReferencePrompt(const Scene& scene);
     
-    void handleImageGenerated(const QByteArray& imageData, bool success, const QString& errorMessage);
-    bool validateAndHandleResult(const QString& requestId, const QByteArray& imageData, bool success, const QString& errorMessage);
-    void startImageGeneration(const QString& requestId, const QString& prompt, const QString& negativePrompt = QString());
-    void saveAndEmitResult(const QByteArray& imageData);
-    void retryCurrentItem();
-    void clearCurrentState();
+    void handleImageGenerated(const QString& requestId, const QByteArray& imageData, bool success, const QString& errorMessage);
+    void startImageGeneration(const QString& requestId, const QString& prompt, const QString& negativePrompt, const QString& type, const Character& character, const Scene& scene);
+    void saveAndEmitResult(const QString& requestId, const QByteArray& imageData);
+    void retryRequest(const QString& requestId);
+    void clearPendingRequest(const QString& requestId);
+    bool maybeFinishBatch();
     
-    QString saveCharacterImage(const QByteArray& imageData);
-    QString saveSceneImage(const QByteArray& imageData);
+    QString saveCharacterImage(const QString& requestId, const QByteArray& imageData);
+    QString saveSceneImage(const QString& requestId, const QByteArray& imageData);
     
     bool processNextCharacter();
     bool processNextScene();
@@ -71,20 +81,18 @@ private:
     static BibleImageService* m_instance;
     static std::once_flag m_instanceOnceFlag;
     
+    mutable std::mutex m_stateMutex;
+    
     QList<Character> m_pendingCharacters;
     QList<Scene> m_pendingScenes;
     int m_currentCharIndex;
     int m_currentSceneIndex;
     
     QString m_currentType;
-    Character m_currentCharacter;
-    Scene m_currentScene;
     bool m_combinedMode = false;
     
-    int m_currentRetryCount = 0;
-    QString m_currentPrompt;
-    QString m_currentNegativePrompt;
-    QString m_currentRequestId;
+    QMap<QString, PendingImageRequest> m_pendingRequests;
+    
     static constexpr int MAX_RETRY_COUNT = 3;
 };
 

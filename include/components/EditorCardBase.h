@@ -36,9 +36,6 @@ protected:
     
     QWidget *m_overlayWidget;
     QFrame *m_editorCard;
-    
-private slots:
-    virtual void onCloseButtonClicked() { hideEditorCard(); }
 
 private:
     virtual void setupEditorCard() {}

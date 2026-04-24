@@ -26,7 +26,8 @@ struct ExtractedCharacter {
     QStringList aliases;
     QStringList personality;
     QStringList tags;
-    
+    QJsonObject fieldSources;
+
     QJsonObject toJson() const;
     static ExtractedCharacter fromJson(const QJsonObject& json);
 };
@@ -37,21 +38,21 @@ class CharacterExtractor : public QObject
 
 public:
     static CharacterExtractor* instance();
-    
+
     QList<ExtractedCharacter> extractFromPanels(const QJsonArray& panels);
     QList<ExtractedCharacter> extractFromCharacters(const QJsonArray& characters);
     QList<ExtractedCharacter> extractFromCharacters(const QJsonArray& characters, const QString& sourceText);
-    
+
     bool saveCharacter(const QString& novelId, const ExtractedCharacter& character);
     int saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters);
-    
+
     QList<Character> getCharactersByNovel(const QString& novelId);
     Character getCharacterById(const QString& characterId);
     Character getCharacterByName(const QString& novelId, const QString& name);
     bool updateCharacter(const Character& character);
     bool updateCharacterSilent(const Character& character);
     bool deleteCharacter(const QString& characterId);
-    
+
 signals:
     void characterExtracted(const ExtractedCharacter& character);
     void characterSaved(const QString& characterId);
@@ -68,20 +69,21 @@ private:
     ~CharacterExtractor();
     CharacterExtractor(const CharacterExtractor&) = delete;
     CharacterExtractor& operator=(const CharacterExtractor&) = delete;
-    
+
     ExtractedCharacter parsePanelCharacter(const QJsonValue& charVal);
     ExtractedCharacter parseAICharacter(const QJsonObject& charObj);
     void enrichCharacterFromText(ExtractedCharacter& extracted, const QString& sourceText);
     Character toCharacter(const ExtractedCharacter& extracted, const QString& novelId);
     QVariantMap characterToData(const Character& character) const;
     Character characterFromRow(const QVariantMap& row);
-    
+    bool persistCharacterRecord(const Character& character, bool emitSignals);
+
     // 名称标准化：去除AI生成的常见后缀，如"（本体）"、"（真身）"等
     static QString normalizeCharacterName(const QString& name);
-    
+
     // 合并相关方法
     Character mergeCharacters(const Character& existing, const ExtractedCharacter& incoming) const;
-    
+
     static CharacterExtractor* m_instance;
     static std::once_flag m_instanceOnceFlag;
 };

@@ -1,5 +1,6 @@
 #include "components/BibleItem.h"
 #include "components/EditorStyles.h"
+#include "utils/AnalysisFieldUtils.h"
 #include "utils/BibleUtils.h"
 #include "utils/AsyncImageLoader.h"
 #include "utils/Logger.h"
@@ -17,6 +18,7 @@
 namespace {
     using EditorStyles::TRANSPARENT_BG;
     const QString SEPARATOR_STYLE = "background: #d4d4d4; border: none; max-height: 1px;";
+    const QString MANUAL_SOURCE = QStringLiteral("manual");
     
     // Content boundary helpers
     // direction: 0=top, 1=bottom, 2=left, 3=right
@@ -118,15 +120,36 @@ namespace {
         return match.hasMatch() ? match.captured(1).toInt() : 0;
     }
 
-    void clearSceneMetadata(SceneDetails& details)
+    void markCharacterAppearanceManual(CharacterAppearance& app, const CharacterAppearance& original, bool markAllFields)
     {
-        details.anchorPoints.clear();
-        details.signatureObjects.clear();
-        details.fixedColorBlocks.clear();
-        details.consistencyRules.clear();
-        details.currentInterpretation.clear();
-        details.confidence.clear();
-        details.status.clear();
+        AnalysisFieldUtils::markFieldSources(app.fieldSources, {
+            {"gender", markAllFields || AnalysisFieldUtils::valueChanged(app.gender, original.gender)},
+            {"age", markAllFields || AnalysisFieldUtils::valueChanged(app.age, original.age)},
+            {"hairColor", markAllFields || AnalysisFieldUtils::valueChanged(app.hairColor, original.hairColor)},
+            {"hairStyle", markAllFields || AnalysisFieldUtils::valueChanged(app.hairStyle, original.hairStyle)},
+            {"eyeColor", markAllFields || AnalysisFieldUtils::valueChanged(app.eyeColor, original.eyeColor)},
+            {"build", markAllFields || AnalysisFieldUtils::valueChanged(app.build, original.build)},
+            {"clothing", markAllFields || AnalysisFieldUtils::valueChanged(app.clothing, original.clothing)},
+            {"accessories", markAllFields || AnalysisFieldUtils::valueChanged(app.accessories, original.accessories)},
+            {"distinctiveFeatures", markAllFields || AnalysisFieldUtils::valueChanged(app.distinctiveFeatures, original.distinctiveFeatures)}
+        }, MANUAL_SOURCE);
+    }
+
+    void markSceneDetailsManual(SceneDetails& details, const SceneDetails& original, bool markAllFields)
+    {
+        AnalysisFieldUtils::markFieldSources(details.fieldSources, {
+            {"description", markAllFields || AnalysisFieldUtils::valueChanged(details.description, original.description)},
+            {"building", markAllFields || AnalysisFieldUtils::valueChanged(details.building, original.building)},
+            {"color", markAllFields || AnalysisFieldUtils::valueChanged(details.color, original.color)},
+            {"landmark", markAllFields || AnalysisFieldUtils::valueChanged(details.landmark, original.landmark)},
+            {"layout", markAllFields || AnalysisFieldUtils::valueChanged(details.layout, original.layout)},
+            {"atmosphere", markAllFields || AnalysisFieldUtils::valueChanged(details.atmosphere, original.atmosphere)},
+            {"type", markAllFields || AnalysisFieldUtils::valueChanged(details.type, original.type)},
+            {"setting", markAllFields || AnalysisFieldUtils::valueChanged(details.setting, original.setting)},
+            {"timeOfDay", markAllFields || AnalysisFieldUtils::valueChanged(details.timeOfDay, original.timeOfDay)},
+            {"weather", markAllFields || AnalysisFieldUtils::valueChanged(details.weather, original.weather)},
+            {"narrativeRole", markAllFields || AnalysisFieldUtils::valueChanged(details.narrativeRole, original.narrativeRole)}
+        }, MANUAL_SOURCE);
     }
 }
 BibleItem::BibleItem(const QString &name, const QStringList &details, BibleType type, QWidget *parent)
@@ -330,66 +353,86 @@ QFrame* BibleItem::createEditorCardBase(const QString &title, int height)
 
 QWidget* BibleItem::createInputField(const QString &label, QLineEdit *&edit, const QString &placeholder)
 {
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(6);
-    
-    QLabel *labelWidget = new QLabel(label);
-    labelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
-    layout->addWidget(labelWidget);
-    
+    QWidget *row = createLabeledControl(label, nullptr);
+
     edit = new QLineEdit();
     edit->setPlaceholderText(placeholder);
     edit->setStyleSheet(EditorStyles::inputStyle());
     edit->setMinimumHeight(40);
-    layout->addWidget(edit);
+    qobject_cast<QVBoxLayout*>(row->layout())->addWidget(edit);
     
     return row;
 }
 
 QWidget* BibleItem::createInputField(const QString &label, QTextEdit *&edit, const QString &placeholder, int height)
 {
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(6);
-    
-    QLabel *labelWidget = new QLabel(label);
-    labelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
-    layout->addWidget(labelWidget);
-    
+    QWidget *row = createLabeledControl(label, nullptr);
+
     edit = new QTextEdit();
     edit->setPlaceholderText(placeholder);
     edit->setStyleSheet(EditorStyles::textEditStyle());
     edit->setMinimumHeight(height);
     edit->setMaximumHeight(height);
-    layout->addWidget(edit);
+    qobject_cast<QVBoxLayout*>(row->layout())->addWidget(edit);
     
     return row;
 }
 
 QWidget* BibleItem::createComboBoxField(const QString &label, ModeComboBox *&combo, const QStringList &items)
 {
-    QWidget *row = new QWidget();
-    row->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(6);
-    
-    QLabel *labelWidget = new QLabel(label);
-    labelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
-    layout->addWidget(labelWidget);
-    
+    QWidget *row = createLabeledControl(label, nullptr);
+
     combo = new ModeComboBox();
     combo->setFixedHeight(40);
     for (const QString &item : items) {
         combo->addItem(item);
     }
-    layout->addWidget(combo);
+    qobject_cast<QVBoxLayout*>(row->layout())->addWidget(combo);
     
+    return row;
+}
+
+QWidget* BibleItem::createLabeledControl(const QString& label, QWidget* controlWidget)
+{
+    QWidget *row = new QWidget();
+    row->setStyleSheet(TRANSPARENT_BG);
+    QVBoxLayout *layout = new QVBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+
+    QLabel *labelWidget = new QLabel(label);
+    labelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
+    layout->addWidget(labelWidget);
+
+    if (controlWidget) {
+        layout->addWidget(controlWidget);
+    }
+
+    return row;
+}
+
+QWidget* BibleItem::createSpinBoxField(const QString& label, QSpinBox*& spinBox, int minValue, int maxValue, int defaultValue)
+{
+    QWidget *row = createLabeledControl(label, nullptr);
+    spinBox = new QSpinBox();
+    spinBox->setRange(minValue, maxValue);
+    spinBox->setValue(defaultValue);
+    spinBox->setStyleSheet(EditorStyles::spinBoxStyle());
+    spinBox->setMinimumHeight(40);
+    qobject_cast<QVBoxLayout*>(row->layout())->addWidget(spinBox);
+    return row;
+}
+
+QWidget* BibleItem::createComboBoxField(const QString& label, QComboBox*& combo, const QStringList& items)
+{
+    QWidget *row = createLabeledControl(label, nullptr);
+    combo = new QComboBox();
+    combo->setStyleSheet(EditorStyles::comboBoxStyle());
+    combo->setMinimumHeight(40);
+    for (const QString& item : items) {
+        combo->addItem(item);
+    }
+    qobject_cast<QVBoxLayout*>(row->layout())->addWidget(combo);
     return row;
 }
 
@@ -434,16 +477,8 @@ QWidget* BibleItem::createEditorTitleRow(const QString &title)
     QLabel *titleLabel = new QLabel(title);
     titleLabel->setStyleSheet(EditorStyles::bibleEditorTitleStyle());
     
-    QString closeText = QString::fromUtf8("关闭");
-    QPushButton *closeBtn = new QPushButton(closeText);
-    closeBtn->setFixedSize(28, 28);
-    closeBtn->setStyleSheet(EditorStyles::closeButtonStyle());
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    connect(closeBtn, &QPushButton::clicked, this, &BibleItem::hideEditorCard);
-    
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
-    titleLayout->addWidget(closeBtn);
     
     return titleRow;
 }
@@ -521,37 +556,12 @@ void BibleItem::createCharacterEditorCard()
     QHBoxLayout *row1Layout = new QHBoxLayout(row1);
     row1Layout->setContentsMargins(0, 0, 0, 0);
     row1Layout->setSpacing(12);
-    
-    QWidget *genderGroup = new QWidget();
-    genderGroup->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *genderLayout = new QVBoxLayout(genderGroup);
-    genderLayout->setContentsMargins(0, 0, 0, 0);
-    genderLayout->setSpacing(6);
-    QString genderLabel = QString::fromUtf8("性别");
-    QLabel *genderLabelWidget = new QLabel(genderLabel);
-    genderLabelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
-    m_genderCombo = new QComboBox();
-    m_genderCombo->addItems({QString::fromUtf8("男"), QString::fromUtf8("女")});  // 性别选项
-    m_genderCombo->setStyleSheet(EditorStyles::comboBoxStyle());
-    m_genderCombo->setMinimumHeight(40);
-    genderLayout->addWidget(genderLabelWidget);
-    genderLayout->addWidget(m_genderCombo);
-    
-    QWidget *ageGroup = new QWidget();
-    ageGroup->setStyleSheet(TRANSPARENT_BG);
-    QVBoxLayout *ageLayout = new QVBoxLayout(ageGroup);
-    ageLayout->setContentsMargins(0, 0, 0, 0);
-    ageLayout->setSpacing(6);
-    QString ageLabel = QString::fromUtf8("年龄");
-    QLabel *ageLabelWidget = new QLabel(ageLabel);
-    ageLabelWidget->setStyleSheet(EditorStyles::bibleInputFieldLabelStyle());
-    m_ageSpin = new QSpinBox();
-    m_ageSpin->setRange(0, 200);
-    m_ageSpin->setValue(17);
-    m_ageSpin->setStyleSheet(EditorStyles::spinBoxStyle());
-    m_ageSpin->setMinimumHeight(40);
-    ageLayout->addWidget(ageLabelWidget);
-    ageLayout->addWidget(m_ageSpin);
+    QWidget *genderGroup = createComboBoxField(
+        QString::fromUtf8("性别"),
+        m_genderCombo,
+        {QString::fromUtf8("男"), QString::fromUtf8("女")}
+    );
+    QWidget *ageGroup = createSpinBoxField(QString::fromUtf8("年龄"), m_ageSpin, 0, 200, 17);
     
     QString eyeColorLabel = QString::fromUtf8("瞳色");
     QString eyeColorPlaceholder = QString::fromUtf8("输入瞳色");
@@ -731,29 +741,34 @@ void BibleItem::onAsyncImageLoaded(const QString& id, const QString& cacheKey, c
 
 void BibleItem::displayProcessedImage(const QPixmap& pixmap)
 {
-    using namespace BibleItemConstants;
-    
     QPixmap displayPixmap = trimWhiteBorders(pixmap);
     
     if (displayPixmap.isNull()) {
         return;
     }
-    
-    // 计算填充模式：保持比例填满容器，允许轻微裁剪
-    QSize targetSize = LABEL_SIZE;
-    qreal scaleX = (qreal)targetSize.width() / displayPixmap.width();
-    qreal scaleY = (qreal)targetSize.height() / displayPixmap.height();
-    qreal scale = qMax(scaleX, scaleY);
-    
-    int newWidth = qRound(displayPixmap.width() * scale);
-    int newHeight = qRound(displayPixmap.height() * scale);
-    displayPixmap = displayPixmap.scaled(newWidth, newHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    
-    // 居中裁剪到目标尺寸
-    int cropX = (newWidth - targetSize.width()) / 2;
-    int cropY = (newHeight - targetSize.height()) / 2;
-    displayPixmap = displayPixmap.copy(cropX, cropY, targetSize.width(), targetSize.height());
-    
+
+    if (m_bibleType == BibleType::Character) {
+        displayPixmap = displayPixmap.scaled(
+            BibleItemConstants::LABEL_SIZE,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation);
+        m_imageLabel->setAlignment(Qt::AlignCenter);
+    } else {
+        displayPixmap = displayPixmap.scaled(
+            BibleItemConstants::LABEL_SIZE,
+            Qt::KeepAspectRatioByExpanding,
+            Qt::SmoothTransformation);
+
+        const int cropX = qMax(0, (displayPixmap.width() - BibleItemConstants::LABEL_WIDTH) / 2);
+        const int cropY = qMax(0, (displayPixmap.height() - BibleItemConstants::LABEL_HEIGHT) / 2);
+        displayPixmap = displayPixmap.copy(
+            cropX,
+            cropY,
+            BibleItemConstants::LABEL_WIDTH,
+            BibleItemConstants::LABEL_HEIGHT);
+        m_imageLabel->setAlignment(Qt::AlignCenter);
+    }
+
     m_imageLabel->setPixmap(displayPixmap);
     m_imageLabel->setStyleSheet(EditorStyles::bibleImageHasImageStyle());
     m_imageLabel->setText("");
@@ -1092,6 +1107,9 @@ void BibleItem::saveCharacterData()
     if (!m_hasCharacterData) {
         updated.setId(m_itemId);
     }
+    const bool isNewCharacter = !m_hasCharacterData;
+    const CharacterAppearance originalApp = updated.appearance();
+    const QStringList originalPersonality = updated.personality();
     
     CharacterAppearance app = updated.appearance();
     
@@ -1105,10 +1123,13 @@ void BibleItem::saveCharacterData()
     app.clothing = BibleUtils::splitCommaSeparatedList(m_clothingEdit->text());
     
     app.distinctiveFeatures = BibleUtils::splitCommaSeparatedList(m_featuresEdit->text());
-    
+    const QStringList personality = BibleUtils::splitCommaSeparatedList(m_personalityEdit->text());
+    updated.setPersonality(personality);
+    markCharacterAppearanceManual(app, originalApp, isNewCharacter);
+    if (isNewCharacter || personality != originalPersonality) {
+        app.fieldSources["personality"] = MANUAL_SOURCE;
+    }
     updated.setAppearance(app);
-    
-    updated.setPersonality(BibleUtils::splitCommaSeparatedList(m_personalityEdit->text()));
     
     m_characterData = updated;
     m_hasCharacterData = true;
@@ -1132,10 +1153,12 @@ void BibleItem::saveSceneData()
     if (!m_hasSceneData) {
         updated.setId(m_itemId);
     }
+    const bool isNewScene = !m_hasSceneData;
     updated.setName(m_name);
+    const SceneDetails originalDetails = updated.details();
     
     SceneDetails det = collectSceneDetailsFromEditors();
-    
+    markSceneDetailsManual(det, originalDetails, isNewScene);
     updated.setDetails(det);
     
     m_sceneData = updated;
@@ -1164,8 +1187,6 @@ SceneDetails BibleItem::collectSceneDetailsFromEditors() const
     if (m_timeOfDayCombo) det.timeOfDay = m_timeOfDayCombo->currentText();
     if (m_weatherCombo) det.weather = m_weatherCombo->currentText();
     if (m_narrativeRoleEdit) det.narrativeRole = m_narrativeRoleEdit->text().trimmed();
-
-    clearSceneMetadata(det);
     return det;
 }
 

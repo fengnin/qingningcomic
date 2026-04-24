@@ -9,8 +9,6 @@
 #include "components/EditorStyles.h"
 #include "components/ChapterSelectDialog.h"
 #include <QFileDialog>
-#include <QFile>
-#include <QTextStream>
 #include <QFileInfo>
 #include <QUuid>
 #include <QGraphicsDropShadowEffect>
@@ -370,15 +368,13 @@ void NovelUploadPage::onSelectFileClicked()
     
     if (fileName.isEmpty()) return;
 
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        showError(QString::fromUtf8("无法打开文件: ") + file.errorString());
+    const QString content = EncodingUtils::readFile(fileName);
+    if (content.isEmpty()) {
+        showError(QString::fromUtf8("无法读取文件或文件内容为空"));
         return;
     }
 
-    QTextStream in(&file);
-    m_textEdit->setPlainText(in.readAll());
-    file.close();
+    m_textEdit->setPlainText(content);
 
     if (m_titleEdit->text().isEmpty()) {
         m_titleEdit->setText(QFileInfo(fileName).completeBaseName());

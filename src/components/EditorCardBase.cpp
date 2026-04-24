@@ -119,14 +119,6 @@ QWidget* EditorCardBase::createTitleRow(const QString &title)
     layout->addWidget(titleLabel);
     layout->addStretch();
     
-    QString closeText = QStringLiteral("×");
-    QPushButton *closeBtn = new QPushButton(closeText);
-    closeBtn->setFixedSize(28, 28);
-    closeBtn->setStyleSheet(EditorStyles::closeButtonStyle());
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    connect(closeBtn, &QPushButton::clicked, this, &EditorCardBase::onCloseButtonClicked);
-    layout->addWidget(closeBtn);
-    
     return row;
 }
 

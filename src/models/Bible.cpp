@@ -18,6 +18,13 @@ void fillIfEmpty(int& target, int incoming)
     }
 }
 
+void appendDisplayLine(QStringList& lines, const QString& label, const QString& value)
+{
+    if (!value.isEmpty()) {
+        lines << QString::fromUtf8("%1：%2").arg(label, value);
+    }
+}
+
 bool hasMeaningfulAppearance(const CharacterAppearance& appearance)
 {
     return !appearance.gender.trimmed().isEmpty() ||
@@ -153,41 +160,21 @@ BibleEntry::BibleEntry(const QString& id, const QString& novelId, const QString&
 QStringList BibleEntry::toDisplayDetails() const
 {
     QStringList details;
-    
+
     if (m_type == BibleType::Character) {
-        if (!m_characterAppearance.gender.isEmpty()) {
-            details << QString::fromUtf8("\u6027\u522b\uff1a%1").arg(m_characterAppearance.gender);
-        }
+        appendDisplayLine(details, QString::fromUtf8("\u6027\u522b"), m_characterAppearance.gender);
         if (m_characterAppearance.age > 0) {
-            details << QString::fromUtf8("\u5e74\u9f84\uff1a%1\u5c81").arg(m_characterAppearance.age);
+            appendDisplayLine(details, QString::fromUtf8("\u5e74\u9f84"), QString::fromUtf8("%1\u5c81").arg(m_characterAppearance.age));
         }
-        if (!m_characterAppearance.hairColor.isEmpty()) {
-            details << QString::fromUtf8("\u53d1\u8272\uff1a%1").arg(m_characterAppearance.hairColor);
-        }
-        if (!m_characterAppearance.hairStyle.isEmpty()) {
-            details << QString::fromUtf8("\u53d1\u578b\uff1a%1").arg(m_characterAppearance.hairStyle);
-        }
-        if (!m_characterAppearance.eyeColor.isEmpty()) {
-            details << QString::fromUtf8("\u773c\u775b\uff1a%1").arg(m_characterAppearance.eyeColor);
-        }
-        if (!m_characterAppearance.height.isEmpty()) {
-            details << QString::fromUtf8("\u8eab\u9ad8\uff1a%1").arg(m_characterAppearance.height);
-        }
-        if (!m_characterAppearance.build.isEmpty()) {
-            details << QString::fromUtf8("\u4f53\u578b\uff1a%1").arg(m_characterAppearance.build);
-        }
-        if (!m_characterAppearance.clothing.isEmpty()) {
-            details << QString::fromUtf8("\u670d\u9970\uff1a%1").arg(m_characterAppearance.clothing.join(", "));
-        }
-        if (!m_characterAppearance.accessories.isEmpty()) {
-            details << QString::fromUtf8("\u914d\u9970\uff1a%1").arg(m_characterAppearance.accessories.join(", "));
-        }
-        if (!m_characterAppearance.distinctiveFeatures.isEmpty()) {
-            details << QString::fromUtf8("\u7279\u5f81\uff1a%1").arg(m_characterAppearance.distinctiveFeatures.join(", "));
-        }
-        if (!m_personality.isEmpty()) {
-            details << QString::fromUtf8("\u6027\u683c\uff1a%1").arg(m_personality.join(", "));
-        }
+        appendDisplayLine(details, QString::fromUtf8("\u53d1\u8272"), m_characterAppearance.hairColor);
+        appendDisplayLine(details, QString::fromUtf8("\u53d1\u578b"), m_characterAppearance.hairStyle);
+        appendDisplayLine(details, QString::fromUtf8("\u773c\u775b"), m_characterAppearance.eyeColor);
+        appendDisplayLine(details, QString::fromUtf8("\u8eab\u9ad8"), m_characterAppearance.height);
+        appendDisplayLine(details, QString::fromUtf8("\u4f53\u578b"), m_characterAppearance.build);
+        appendDisplayLine(details, QString::fromUtf8("\u670d\u9970"), m_characterAppearance.clothing.join(", "));
+        appendDisplayLine(details, QString::fromUtf8("\u914d\u9970"), m_characterAppearance.accessories.join(", "));
+        appendDisplayLine(details, QString::fromUtf8("\u7279\u5f81"), m_characterAppearance.distinctiveFeatures.join(", "));
+        appendDisplayLine(details, QString::fromUtf8("\u6027\u683c"), m_personality.join(", "));
     } else {
         details = m_sceneDetails.toDisplayStrings();
     }
@@ -232,26 +219,16 @@ BibleEntry BibleEntry::fromJson(const QJsonObject& json)
     entry.m_type = (typeStr == "scene") ? BibleType::Scene : BibleType::Character;
     
     QJsonArray tagsArray = json["tags"].toArray();
-    for (const QJsonValue& v : tagsArray) {
-        entry.m_tags << v.toString();
-    }
-    
     QJsonArray imagesArray = json["referenceImages"].toArray();
-    for (const QJsonValue& v : imagesArray) {
-        entry.m_referenceImages << v.toString();
-    }
-    
+    entry.m_tags = JsonUtils::jsonArrayToStringList(tagsArray);
+    entry.m_referenceImages = JsonUtils::jsonArrayToStringList(imagesArray);
     entry.m_createdAt = QDateTime::fromString(json["createdAt"].toString(), Qt::ISODate);
     entry.m_updatedAt = QDateTime::fromString(json["updatedAt"].toString(), Qt::ISODate);
     entry.m_updatedBy = json["updatedBy"].toString();
     
     if (entry.m_type == BibleType::Character) {
         entry.m_characterAppearance = CharacterAppearance::fromJson(json["appearance"].toObject());
-        
-        QJsonArray personalityArray = json["personality"].toArray();
-        for (const QJsonValue& v : personalityArray) {
-            entry.m_personality << v.toString();
-        }
+        entry.m_personality = JsonUtils::jsonArrayToStringList(json["personality"].toArray());
     } else {
         entry.m_sceneDetails = SceneDetails::fromJson(json["sceneDetails"].toObject());
     }

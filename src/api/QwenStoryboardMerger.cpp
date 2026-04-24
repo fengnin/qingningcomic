@@ -1,4 +1,6 @@
 #include "api/QwenStoryboardMerger.h"
+#include "utils/BibleUtils.h"
+#include "utils/JsonUtils.h"
 #include <QMap>
 #include <QSet>
 
@@ -10,6 +12,20 @@ static QString getStringValue(const QJsonObject& obj, const QString& key)
 static QJsonArray getArrayValue(const QJsonObject& obj, const QString& key)
 {
     return obj.value(key).toArray();
+}
+
+static bool isBlankValue(const QJsonValue& value)
+{
+    if (value.isNull() || value.isUndefined()) {
+        return true;
+    }
+    if (value.isString()) {
+        return value.toString().trimmed().isEmpty();
+    }
+    if (value.isDouble()) {
+        return value.toDouble() == 0.0;
+    }
+    return false;
 }
 
 QJsonObject QwenStoryboardMerger::normalizePanel(const QJsonObject& panel, int index)
@@ -72,9 +88,28 @@ QJsonObject QwenStoryboardMerger::mergeCharacter(const QJsonObject& existing, co
         QJsonObject newApp = newChar["appearance"].toObject();
         QJsonObject existingApp = merged["appearance"].toObject();
         QJsonObject mergedApp = existingApp;
+        static const QSet<QString> arrayFields = {
+            QStringLiteral("clothing"),
+            QStringLiteral("distinctiveFeatures"),
+            QStringLiteral("accessories"),
+            QStringLiteral("aliases")
+        };
         
         for (auto it = newApp.begin(); it != newApp.end(); ++it) {
-            if (!existingApp.contains(it.key())) {
+            const QString key = it.key();
+            const QJsonValue existingValue = mergedApp.value(key);
+            const QJsonValue incomingValue = it.value();
+
+            if (arrayFields.contains(key) && incomingValue.isArray()) {
+                QStringList mergedValues = JsonUtils::jsonArrayToStringList(existingValue.toArray());
+                mergedValues = BibleUtils::mergeStringLists(mergedValues, JsonUtils::jsonArrayToStringList(incomingValue.toArray()));
+                if (!mergedValues.isEmpty()) {
+                    mergedApp[key] = QJsonArray::fromStringList(mergedValues);
+                }
+                continue;
+            }
+
+            if (isBlankValue(existingValue)) {
                 mergedApp[it.key()] = it.value();
             }
         }
@@ -158,4 +193,3 @@ QJsonObject QwenStoryboardMerger::merge(const QList<QJsonObject>& storyboards)
     
     return result;
 }
-

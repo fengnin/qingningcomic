@@ -78,7 +78,6 @@ ImageViewerDialog::ImageViewerDialog(QWidget *parent)
     , m_resetBtn(nullptr)
     , m_rotateLeftBtn(nullptr)
     , m_rotateRightBtn(nullptr)
-    , m_closeBtn(nullptr)
     , m_zoomLabel(nullptr)
     , m_scaleFactor(1.0)
     , m_rotation(0)
@@ -173,13 +172,6 @@ void ImageViewerDialog::setupUI()
     toolbarLayout->addWidget(m_zoomLabel);
     toolbarLayout->addStretch();
     
-    m_closeBtn = new QPushButton(QString::fromUtf8("\u5173\u95ed"));
-    m_closeBtn->setFixedSize(60, BUTTON_SIZE);
-    m_closeBtn->setStyleSheet(BUTTON_STYLE + "QPushButton { color: #ef4444; }");
-    m_closeBtn->setCursor(Qt::PointingHandCursor);
-    m_closeBtn->setToolTip(QString::fromUtf8("\u5173\u95ed\u7a97\u53e3"));
-    toolbarLayout->addWidget(m_closeBtn);
-    
     mainLayout->addWidget(m_scrollArea, 1);
     mainLayout->addWidget(toolbar);
 }
@@ -191,7 +183,6 @@ void ImageViewerDialog::setupConnections()
     connect(m_resetBtn, &QPushButton::clicked, this, &ImageViewerDialog::resetZoom);
     connect(m_rotateLeftBtn, &QPushButton::clicked, this, &ImageViewerDialog::rotateLeft);
     connect(m_rotateRightBtn, &QPushButton::clicked, this, &ImageViewerDialog::rotateRight);
-    connect(m_closeBtn, &QPushButton::clicked, this, &QDialog::close);
 }
 
 void ImageViewerDialog::setImage(const QString &imagePath)
@@ -341,11 +332,6 @@ void ImageViewerDialog::rotateRight()
 {
     m_rotation = (m_rotation + 90) % 360;
     updateImage();
-}
-
-void ImageViewerDialog::closeDialog()
-{
-    close();
 }
 
 void ImageViewerDialog::wheelEvent(QWheelEvent *event)

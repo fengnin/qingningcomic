@@ -1,17 +1,12 @@
 #include "utils/FileManager.h"
+#include "utils/EncodingUtils.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
 
 QString FileManager::readTextFile(const QString& filePath)
 {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return QString();
-    }
-    QString content = QString::fromUtf8(file.readAll());
-    file.close();
-    return content;
+    return EncodingUtils::readFile(filePath);
 }
 
 bool FileManager::writeTextFile(const QString& filePath, const QString& content)

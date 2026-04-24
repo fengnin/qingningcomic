@@ -94,7 +94,10 @@ private:
     // UI 辅助方法
     QWidget* createInputField(const QString &label, QLineEdit *&edit, const QString &placeholder);
     QWidget* createInputField(const QString &label, QTextEdit *&edit, const QString &placeholder, int height = 80);
+    QWidget* createLabeledControl(const QString &label, QWidget* controlWidget);
+    QWidget* createSpinBoxField(const QString &label, QSpinBox *&spinBox, int minValue, int maxValue, int defaultValue);
     QWidget* createComboBoxField(const QString &label, ModeComboBox *&combo, const QStringList &items);
+    QWidget* createComboBoxField(const QString &label, QComboBox *&combo, const QStringList &items);
     QWidget* createButtonRow();
     QWidget* createEditorTitleRow(const QString &title);
     QWidget* createEditorOverlay();

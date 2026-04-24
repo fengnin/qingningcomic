@@ -43,6 +43,8 @@ private:
     QStringList buildCharacterDetails(const Character& character) const;
     void populateCharacterBible(QVBoxLayout* layout, const QList<Character>& characters);
     void populateSceneBible(QVBoxLayout* layout, const QList<Scene>& scenes);
+    void updateCountLabels();
+    void clearBibleContents();
 
     QString m_novelId;
     QWidget* m_characterContainer = nullptr;

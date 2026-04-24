@@ -141,6 +141,8 @@ HEADERS += \
     include/viewmodels/BaseViewModel.h \
     include/viewmodels/NovelViewModel.h \
     include/viewmodels/StoryboardViewModel.h \
+    include/utils/AnalysisTextUtils.h \
+    include/utils/AnalysisFieldUtils.h \
     include/services/NovelService.h \
     include/services/StoryboardService.h \
     include/services/AnalysisService.h \

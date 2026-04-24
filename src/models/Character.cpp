@@ -1,7 +1,7 @@
 
 #include "models/Character.h"
 #include "utils/JsonUtils.h"
-#include <QJsonDocument>
+#include "utils/BibleUtils.h"
 
 Character::Character()
 {
@@ -11,6 +11,34 @@ Character::Character()
 static const int s_characterMetaType = qRegisterMetaType<Character>();
 static const int s_appearanceMetaType = qRegisterMetaType<CharacterAppearance>();
 static const int s_configMetaType = qRegisterMetaType<CharacterConfiguration>();
+
+namespace {
+
+QJsonObject readJsonObjectVariant(const QVariant& value)
+{
+    return JsonUtils::variantToJson(value);
+}
+
+QStringList readStringListVariant(const QVariant& value)
+{
+    return JsonUtils::variantToStringList(value);
+}
+
+void applyTopLevelAppearanceFallback(CharacterAppearance& appearance, const QVariantMap& map)
+{
+    if (appearance.gender.isEmpty()) {
+        appearance.gender = map["gender"].toString();
+    }
+
+    if (appearance.age <= 0) {
+        const int mappedAge = map["age"].toInt();
+        if (mappedAge > 0) {
+            appearance.age = mappedAge;
+        }
+    }
+}
+
+} // namespace
 
 QJsonObject CharacterAppearance::toJson() const
 {
@@ -26,6 +54,10 @@ QJsonObject CharacterAppearance::toJson() const
     json["accessories"] = JsonUtils::stringListToJsonArray(accessories);
     json["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(distinctiveFeatures);
     json["aliases"] = JsonUtils::stringListToJsonArray(aliases);
+    if (!fieldSources.isEmpty()) {
+        json["fieldSources"] = fieldSources;
+    }
+    json["fieldSourcePolicyVersion"] = BibleUtils::BibleUpdateStrategy::fieldSourcePolicyVersion();
     return json;
 }
 
@@ -43,6 +75,21 @@ CharacterAppearance CharacterAppearance::fromJson(const QJsonObject& json)
     app.accessories = JsonUtils::jsonArrayToStringList(json["accessories"].toArray());
     app.distinctiveFeatures = JsonUtils::jsonArrayToStringList(json["distinctiveFeatures"].toArray());
     app.aliases = JsonUtils::jsonArrayToStringList(json["aliases"].toArray());
+    app.fieldSources = json["fieldSources"].toObject();
+    const int sourcePolicyVersion = json.value(QStringLiteral("fieldSourcePolicyVersion")).toInt(0);
+    if (sourcePolicyVersion < BibleUtils::BibleUpdateStrategy::fieldSourcePolicyVersion()) {
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("gender"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("age"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("hairColor"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("hairStyle"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("eyeColor"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("height"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("build"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("clothing"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("accessories"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("distinctiveFeatures"));
+        BibleUtils::BibleUpdateStrategy::downgradeLegacyFieldSource(app.fieldSources, QStringLiteral("aliases"));
+    }
     return app;
 }
 
@@ -73,99 +120,20 @@ Character Character::fromVariantMap(const QVariantMap& map)
     c.m_novelId = map["novel_id"].toString();
     c.m_name = map["name"].toString();
     c.m_role = map["role"].toString();
-    
-    QVariant appearanceVariant = map["appearance"];
-    qDebug() << "[Character] name:" << c.m_name 
-             << ", appearance type:" << appearanceVariant.typeName() 
-             << ", isNull:" << appearanceVariant.isNull() 
-             << ", isValid:" << appearanceVariant.isValid()
-             << ", canConvert<QString>:" << appearanceVariant.canConvert<QString>();
-    
+
+    const QVariant appearanceVariant = map["appearance"];
     if (appearanceVariant.isValid() && !appearanceVariant.isNull()) {
-        QString appearanceStr;
-        if (appearanceVariant.type() == QVariant::ByteArray) {
-            appearanceStr = QString::fromUtf8(appearanceVariant.toByteArray());
-            qDebug() << "[Character] appearance is ByteArray, converted to:" << appearanceStr.left(200);
-        } else if (appearanceVariant.type() == QVariant::String) {
-            appearanceStr = appearanceVariant.toString();
-            qDebug() << "[Character] appearance is String:" << appearanceStr.left(200);
-        } else {
-            appearanceStr = appearanceVariant.toString();
-            qDebug() << "[Character] appearance is other type, toString:" << appearanceStr.left(200);
-        }
-        
-        if (!appearanceStr.isEmpty() && appearanceStr != "{}" && appearanceStr != "null") {
-            QJsonParseError parseError;
-            QJsonDocument doc = QJsonDocument::fromJson(appearanceStr.toUtf8(), &parseError);
-            if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
-                QJsonObject appearanceJson = doc.object();
-                qDebug() << "[Character] Parsed appearance JSON:" << appearanceJson;
-                c.m_appearance = CharacterAppearance::fromJson(appearanceJson);
-            } else {
-                qDebug() << "[Character] JSON parse error:" << parseError.errorString();
-            }
-        }
+        c.m_appearance = CharacterAppearance::fromJson(readJsonObjectVariant(appearanceVariant));
     }
-    
-    if (c.m_appearance.gender.isEmpty()) {
-        c.m_appearance.gender = map["gender"].toString();
-    }
+    applyTopLevelAppearanceFallback(c.m_appearance, map);
 
-    if (c.m_appearance.age <= 0) {
-        const int mappedAge = map["age"].toInt();
-        if (mappedAge > 0) {
-            c.m_appearance.age = mappedAge;
-        }
+    c.m_aliases = readStringListVariant(map["aliases"]);
+    if (c.m_aliases.isEmpty()) {
+        c.m_aliases = c.m_appearance.aliases;
     }
+    c.m_appearance.aliases = c.m_aliases;
 
-    if (!c.m_appearance.gender.isEmpty() || c.m_appearance.age > 0) {
-        qDebug() << "[Character] Top-level appearance fallback applied:"
-                 << "gender=" << c.m_appearance.gender
-                 << "age=" << c.m_appearance.age;
-    }
-
-    QVariant aliasesVariant = map["aliases"];
-    if (aliasesVariant.isValid() && !aliasesVariant.isNull()) {
-        QString aliasesStr;
-        if (aliasesVariant.type() == QVariant::ByteArray) {
-            aliasesStr = QString::fromUtf8(aliasesVariant.toByteArray());
-        } else {
-            aliasesStr = aliasesVariant.toString();
-        }
-
-        if (!aliasesStr.isEmpty() && aliasesStr != "null") {
-            QJsonParseError parseError;
-            QJsonDocument doc = QJsonDocument::fromJson(aliasesStr.toUtf8(), &parseError);
-            if (parseError.error == QJsonParseError::NoError && doc.isArray()) {
-                c.m_appearance.aliases = JsonUtils::jsonArrayToStringList(doc.array());
-            }
-        }
-    }
-    c.m_aliases = c.m_appearance.aliases;
-    
-    QVariant personalitiesVariant = map["personalities"];
-    qDebug() << "[Character] personalities type:" << personalitiesVariant.typeName()
-             << ", isNull:" << personalitiesVariant.isNull()
-             << ", isValid:" << personalitiesVariant.isValid();
-    
-    if (personalitiesVariant.isValid() && !personalitiesVariant.isNull()) {
-        QString personalitiesStr;
-        if (personalitiesVariant.type() == QVariant::ByteArray) {
-            personalitiesStr = QString::fromUtf8(personalitiesVariant.toByteArray());
-        } else {
-            personalitiesStr = personalitiesVariant.toString();
-        }
-        
-        if (!personalitiesStr.isEmpty() && personalitiesStr != "null") {
-            QJsonParseError parseError;
-            QJsonDocument doc = QJsonDocument::fromJson(personalitiesStr.toUtf8(), &parseError);
-            if (parseError.error == QJsonParseError::NoError && doc.isArray()) {
-                c.m_personality = JsonUtils::jsonArrayToStringList(doc.array());
-                qDebug() << "[Character] Parsed personalities:" << c.m_personality;
-            }
-        }
-    }
-    
+    c.m_personality = readStringListVariant(map["personalities"]);
     c.m_portraitPath = map["portrait_path"].toString();
     return c;
 }
@@ -197,9 +165,8 @@ Character Character::fromJson(const QJsonObject& json)
     c.m_aliases = JsonUtils::jsonArrayToStringList(json["aliases"].toArray());
     if (c.m_aliases.isEmpty()) {
         c.m_aliases = c.m_appearance.aliases;
-    } else {
-        c.m_appearance.aliases = c.m_aliases;
     }
+    c.m_appearance.aliases = c.m_aliases;
     c.m_personality = JsonUtils::jsonArrayToStringList(json["personality"].toArray());
     c.m_portraitPath = json["portraitPath"].toString();
     return c;

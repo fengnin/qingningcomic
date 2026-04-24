@@ -1,6 +1,7 @@
 #include "services/SceneExtractor.h"
 #include "models/Scene.h"
 #include "data/DatabaseManager.h"
+#include "utils/AnalysisFieldUtils.h"
 #include "utils/Logger.h"
 #include "utils/BibleCache.h"
 #include "utils/BibleUtils.h"
@@ -20,6 +21,25 @@ int calculateSceneSimilarity(const QString& name1, const QString& desc1,
                              const QString& name2, const QString& desc2);
 bool shouldMergeScenes(const QString& name1, const QString& desc1,
                        const QString& name2, const QString& desc2, int threshold = 50);
+QString inferSceneType(const QString& description, const QString& name);
+QString inferTimeOfDay(const QString& text);
+QString inferWeather(const QString& text);
+template<typename KeywordMatcher>
+QStringList buildConcreteSceneList(const ExtractedScene& scene,
+                                   const QStringList& baseTokens,
+                                   const QStringList& keywords,
+                                   int limit,
+                                   KeywordMatcher matcher)
+{
+    QStringList items = baseTokens;
+    for (const QString& keyword : keywords) {
+        if (matcher(scene, keyword)) {
+            items << keyword;
+        }
+    }
+    return deduplicateList(items).mid(0, limit);
+}
+
 const int SCENE_MERGE_THRESHOLD = 65;
 
 bool isDrawableSceneToken(const QString& text)
@@ -91,6 +111,15 @@ Scene findMatchingScene(const QList<Scene>& candidates, const Scene& incoming)
     }
 
     return Scene();
+}
+
+bool appendExtractedScene(QList<ExtractedScene>& result, const ExtractedScene& scene)
+{
+    if (scene.name.isEmpty()) {
+        return false;
+    }
+    result << scene;
+    return true;
 }
 
 QStringList collectSceneTokens(const QString& name, const QString& desc)
@@ -235,7 +264,6 @@ QStringList buildConcreteAnchors(const ExtractedScene& scene)
     anchors << extractStaticSceneTokens(scene.layout);
     anchors << extractStaticSceneTokens(scene.building);
     anchors << extractStaticSceneTokens(scene.description);
-
     anchors = deduplicateList(anchors);
 
     if (anchors.size() < 3) {
@@ -255,9 +283,8 @@ QStringList buildConcreteAnchors(const ExtractedScene& scene)
 
 QStringList buildConcreteSignatureObjects(const ExtractedScene& scene)
 {
-    QStringList objects;
-    objects << extractStaticSceneTokens(scene.landmark);
-    objects << extractStaticSceneTokens(scene.description);
+    QStringList baseTokens = extractStaticSceneTokens(scene.landmark)
+        + extractStaticSceneTokens(scene.description);
 
     static const QStringList objectKeywords = {
         QString::fromUtf8("门牌"),
@@ -290,19 +317,19 @@ QStringList buildConcreteSignatureObjects(const ExtractedScene& scene)
         QString::fromUtf8("幡")
     };
 
-    for (const QString& keyword : objectKeywords) {
-        if (scene.description.contains(keyword) || scene.landmark.contains(keyword)) {
-            objects << keyword;
-        }
-    }
-
-    return deduplicateList(objects).mid(0, 5);
+    return buildConcreteSceneList(
+        scene,
+        baseTokens,
+        objectKeywords,
+        5,
+        [](const ExtractedScene& current, const QString& keyword) {
+            return current.description.contains(keyword) || current.landmark.contains(keyword);
+        });
 }
 
 QStringList buildConcreteColorBlocks(const ExtractedScene& scene)
 {
-    QStringList blocks;
-    blocks << extractStaticSceneTokens(scene.color);
+    QStringList baseTokens = extractStaticSceneTokens(scene.color);
 
     static const QStringList colorKeywords = {
         QString::fromUtf8("红"),
@@ -326,13 +353,14 @@ QStringList buildConcreteColorBlocks(const ExtractedScene& scene)
         QString::fromUtf8("土黄")
     };
 
-    for (const QString& color : colorKeywords) {
-        if (scene.description.contains(color) || scene.atmosphere.contains(color)) {
-            blocks << color;
-        }
-    }
-
-    return deduplicateList(blocks).mid(0, 4);
+    return buildConcreteSceneList(
+        scene,
+        baseTokens,
+        colorKeywords,
+        4,
+        [](const ExtractedScene& current, const QString& color) {
+            return current.description.contains(color) || current.atmosphere.contains(color);
+        });
 }
 
 QStringList buildConcreteConsistencyRules(const ExtractedScene& scene)
@@ -364,10 +392,16 @@ QStringList buildConcreteConsistencyRules(const ExtractedScene& scene)
         QString::fromUtf8("庄严")
     };
 
-    for (const QString& keyword : ruleKeywords) {
-        if (scene.description.contains(keyword) || scene.atmosphere.contains(keyword)) {
-            rules << QString::fromUtf8("整体感觉: %1").arg(keyword);
-        }
+    QStringList keywordRules = buildConcreteSceneList(
+        scene,
+        QStringList(),
+        ruleKeywords,
+        4,
+        [](const ExtractedScene& current, const QString& keyword) {
+            return current.description.contains(keyword) || current.atmosphere.contains(keyword);
+        });
+    for (const QString& keyword : keywordRules) {
+        rules << QString::fromUtf8("整体感觉: %1").arg(keyword);
     }
 
     return deduplicateList(rules).mid(0, 4);
@@ -523,24 +557,20 @@ SceneExtractor* SceneExtractor::instance()
     return m_instance;
 }
 
-QList<ExtractedScene> SceneExtractor::extractFromScenes(const QJsonArray& scenes)
+QList<ExtractedScene> SceneExtractor::extractFromScenes(const QJsonArray& scenes, const QString& sourceText)
 {
     QList<ExtractedScene> result;
     for (const QJsonValue& val : scenes) {
-        ExtractedScene scene = parseAIScene(val.toObject());
-        if (!scene.name.isEmpty()) {
-            result << scene;
+        ExtractedScene scene = ExtractedScene::fromJson(val.toObject(), sourceText);
+        if (appendExtractedScene(result, scene)) {
+            emit sceneExtracted(scene);
         }
     }
+    emit extractionCompleted(result.size());
     return result;
 }
 
-ExtractedScene SceneExtractor::parseAIScene(const QJsonObject& sceneObj)
-{
-    return ExtractedScene::fromJson(sceneObj);
-}
-
-ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
+ExtractedScene ExtractedScene::fromJson(const QJsonObject& json, const QString& sourceText)
 {
     ExtractedScene scene;
     scene.name = json["name"].toString();
@@ -551,30 +581,78 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
     scene.atmosphere = json["atmosphere"].toString();
     scene.color = json["color"].toString();
     scene.type = json["type"].toString();
+    scene.typeZh = json["typeZh"].toString();
     scene.setting = json["setting"].toString();
     scene.timeOfDay = json["timeOfDay"].toString();
     scene.weather = json["weather"].toString();
+    scene.spaceSize = json["spaceSize"].toString();
     scene.narrativeRole = json["narrativeRole"].toString();
+    scene.narrativeRoleZh = json["narrativeRoleZh"].toString();
+    scene.fieldSources = json["fieldSources"].toObject();
+    AnalysisFieldUtils::markFieldSources(scene.fieldSources, {
+        {"description", !scene.description.isEmpty()},
+        {"building", !scene.building.isEmpty()},
+        {"landmark", !scene.landmark.isEmpty()},
+        {"layout", !scene.layout.isEmpty()},
+        {"atmosphere", !scene.atmosphere.isEmpty()},
+        {"color", !scene.color.isEmpty()},
+        {"type", !scene.type.isEmpty()},
+        {"typeZh", !scene.typeZh.isEmpty()},
+        {"setting", !scene.setting.isEmpty()},
+        {"timeOfDay", !scene.timeOfDay.isEmpty()},
+        {"weather", !scene.weather.isEmpty()},
+        {"spaceSize", !scene.spaceSize.isEmpty()},
+        {"narrativeRole", !scene.narrativeRole.isEmpty()},
+        {"narrativeRoleZh", !scene.narrativeRoleZh.isEmpty()}
+    }, QStringLiteral("inferred"));
+
+    const bool hasSourceText = !sourceText.trimmed().isEmpty();
+    if (hasSourceText) {
+        scene.fieldSources["description"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.description);
+        scene.fieldSources["building"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.building);
+        scene.fieldSources["color"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.color);
+        scene.fieldSources["landmark"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.landmark);
+        scene.fieldSources["layout"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.layout);
+        scene.fieldSources["atmosphere"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.atmosphere);
+        scene.fieldSources["anchorPoints"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.anchorPoints);
+        scene.fieldSources["signatureObjects"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.signatureObjects);
+        scene.fieldSources["fixedColorBlocks"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.fixedColorBlocks);
+        scene.fieldSources["consistencyRules"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.consistencyRules);
+        scene.fieldSources["type"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.type, inferSceneType(sourceText, scene.name));
+        scene.fieldSources["typeZh"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.typeZh);
+        scene.fieldSources["setting"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.setting);
+        scene.fieldSources["timeOfDay"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.timeOfDay, inferTimeOfDay(sourceText));
+        scene.fieldSources["weather"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.weather, inferWeather(sourceText));
+        scene.fieldSources["spaceSize"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.spaceSize);
+        scene.fieldSources["narrativeRole"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.narrativeRole);
+        scene.fieldSources["narrativeRoleZh"] = BibleUtils::BibleUpdateStrategy::sourceFromTextEvidence(sourceText, scene.narrativeRoleZh);
+    }
     
     if (json.contains("visualCharacteristics")) {
         QJsonObject visual = json["visualCharacteristics"].toObject();
         if (scene.building.isEmpty()) {
             scene.building = visual["architecture"].toString();
+            if (!scene.building.isEmpty()) scene.fieldSources["building"] = QStringLiteral("inferred");
         }
         if (scene.atmosphere.isEmpty()) {
             scene.atmosphere = visual["atmosphere"].toString();
+            if (!scene.atmosphere.isEmpty()) scene.fieldSources["atmosphere"] = QStringLiteral("inferred");
         }
         if (scene.color.isEmpty()) {
             scene.color = visual["colorScheme"].toString();
+            if (!scene.color.isEmpty()) scene.fieldSources["color"] = QStringLiteral("inferred");
         }
         if (scene.anchorPoints.isEmpty() && visual.contains("keyLandmarks")) {
             scene.anchorPoints = JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray());
+            if (!scene.anchorPoints.isEmpty()) scene.fieldSources["anchorPoints"] = QStringLiteral("inferred");
         }
         if (scene.landmark.isEmpty() && visual.contains("keyLandmarks")) {
             scene.landmark = JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray()).join("、");
+            if (!scene.landmark.isEmpty()) scene.fieldSources["landmark"] = QStringLiteral("inferred");
         }
         if (scene.signatureObjects.isEmpty() && visual.contains("textures")) {
             scene.signatureObjects = JsonUtils::jsonArrayToStringList(visual["textures"].toArray());
+            if (!scene.signatureObjects.isEmpty()) scene.fieldSources["signatureObjects"] = QStringLiteral("inferred");
         }
     }
     
@@ -582,20 +660,25 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
         QJsonObject spatial = json["spatialLayout"].toObject();
         if (scene.layout.isEmpty()) {
             scene.layout = spatial["layout"].toString();
+            if (!scene.layout.isEmpty()) scene.fieldSources["layout"] = QStringLiteral("inferred");
         }
     }
     
     if (json.contains("anchorPoints")) {
         scene.anchorPoints = JsonUtils::jsonArrayToStringList(json["anchorPoints"].toArray());
+        if (!scene.anchorPoints.isEmpty()) scene.fieldSources["anchorPoints"] = QStringLiteral("inferred");
     }
     if (json.contains("signatureObjects")) {
         scene.signatureObjects = JsonUtils::jsonArrayToStringList(json["signatureObjects"].toArray());
+        if (!scene.signatureObjects.isEmpty()) scene.fieldSources["signatureObjects"] = QStringLiteral("inferred");
     }
     if (json.contains("fixedColorBlocks")) {
         scene.fixedColorBlocks = JsonUtils::jsonArrayToStringList(json["fixedColorBlocks"].toArray());
+        if (!scene.fixedColorBlocks.isEmpty()) scene.fieldSources["fixedColorBlocks"] = QStringLiteral("inferred");
     }
     if (json.contains("consistencyRules")) {
         scene.consistencyRules = JsonUtils::jsonArrayToStringList(json["consistencyRules"].toArray());
+        if (!scene.consistencyRules.isEmpty()) scene.fieldSources["consistencyRules"] = QStringLiteral("inferred");
     }
     if (json.contains("details")) {
         scene.details = JsonUtils::jsonArrayToStringList(json["details"].toArray());
@@ -606,7 +689,6 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json)
     if (json.contains("weatherVariations")) {
         scene.weatherVariations = json["weatherVariations"].toArray();
     }
-
     return scene;
 }
 
@@ -621,10 +703,13 @@ QJsonObject ExtractedScene::toJson() const
     json["atmosphere"] = atmosphere;
     json["color"] = color;
     json["type"] = type;
+    json["typeZh"] = typeZh;
     json["setting"] = setting;
     json["timeOfDay"] = timeOfDay;
     json["weather"] = weather;
+    json["spaceSize"] = spaceSize;
     json["narrativeRole"] = narrativeRole;
+    json["narrativeRoleZh"] = narrativeRoleZh;
     
     if (!anchorPoints.isEmpty()) {
         json["anchorPoints"] = QJsonArray::fromStringList(anchorPoints);
@@ -646,6 +731,9 @@ QJsonObject ExtractedScene::toJson() const
     }
     if (!weatherVariations.isEmpty()) {
         json["weatherVariations"] = weatherVariations;
+    }
+    if (!fieldSources.isEmpty()) {
+        json["fieldSources"] = fieldSources;
     }
 
     return json;
@@ -720,6 +808,40 @@ Scene SceneExtractor::toScene(const ExtractedScene& extracted, const QString& no
     details.history = extracted.history;
     details.timeVariations = extracted.timeVariations;
     details.weatherVariations = extracted.weatherVariations;
+    details.fieldSources = extracted.fieldSources;
+    if (extracted.type.isEmpty() && !details.type.isEmpty()) {
+        details.fieldSources["type"] = QStringLiteral("inferred");
+    }
+    if (extracted.timeOfDay.isEmpty() && !details.timeOfDay.isEmpty()) {
+        details.fieldSources["timeOfDay"] = QStringLiteral("inferred");
+    }
+    if (extracted.weather.isEmpty() && !details.weather.isEmpty()) {
+        details.fieldSources["weather"] = QStringLiteral("inferred");
+    }
+
+    AnalysisFieldUtils::markFieldSources(details.fieldSources, {
+        {"description", !details.description.isEmpty()},
+        {"building", !details.building.isEmpty()},
+        {"landmark", !details.landmark.isEmpty()},
+        {"layout", !details.layout.isEmpty()},
+        {"atmosphere", !details.atmosphere.isEmpty()},
+        {"color", !details.color.isEmpty()},
+        {"type", !details.type.isEmpty()},
+        {"typeZh", !details.typeZh.isEmpty()},
+        {"setting", !details.setting.isEmpty()},
+        {"timeOfDay", !details.timeOfDay.isEmpty()},
+        {"weather", !details.weather.isEmpty()},
+        {"spaceSize", !details.spaceSize.isEmpty()},
+        {"currentInterpretation", !details.currentInterpretation.isEmpty()},
+        {"confidence", !details.confidence.isEmpty()},
+        {"status", !details.status.isEmpty()},
+        {"narrativeRole", !details.narrativeRole.isEmpty()},
+        {"narrativeRoleZh", !details.narrativeRoleZh.isEmpty()},
+        {"anchorPoints", !details.anchorPoints.isEmpty()},
+        {"signatureObjects", !details.signatureObjects.isEmpty()},
+        {"fixedColorBlocks", !details.fixedColorBlocks.isEmpty()},
+        {"consistencyRules", !details.consistencyRules.isEmpty()}
+    }, QStringLiteral("inferred"));
 
     scene.setDetails(details);
     return scene;
@@ -727,6 +849,10 @@ Scene SceneExtractor::toScene(const ExtractedScene& extracted, const QString& no
 
 QList<Scene> SceneExtractor::getScenesByNovel(const QString& novelId)
 {
+    if (BibleCache::instance()->hasScenes(novelId)) {
+        return BibleCache::instance()->getScenes(novelId);
+    }
+
     QList<Scene> scenes;
     QList<QVariantMap> rows = DatabaseManager::instance()->selectAll(
         "scenes", "novel_id = ?", QVariantList() << novelId);
@@ -734,6 +860,8 @@ QList<Scene> SceneExtractor::getScenesByNovel(const QString& novelId)
     for (const QVariantMap& row : rows) {
         scenes << Scene::fromVariantMap(row);
     }
+
+    BibleCache::instance()->setScenes(novelId, scenes);
 
     return scenes;
 }
@@ -802,6 +930,7 @@ bool SceneExtractor::saveScene(const QString& novelId, const ExtractedScene& ext
     
     if (result > 0) {
         LOG_INFO("SceneExtractor", QString("Saved scene: %1").arg(scene.name()));
+        BibleCache::instance()->invalidateScenes(novelId);
         emit sceneSaved(scene.id(), scene.name());
     } else {
         LOG_ERROR("SceneExtractor", QString("Failed to save scene: %1").arg(scene.name()));
@@ -853,63 +982,9 @@ Scene SceneExtractor::mergeScenes(const Scene& existing, const ExtractedScene& i
 {
     Scene merged = existing;
     SceneDetails details = merged.details();
-    
-    auto updateField = [](const QString& incoming, QString& existing) {
-        if (existing.isEmpty() && !incoming.isEmpty()) {
-            existing = incoming;
-        }
-    };
+    const QJsonObject incomingJson = incoming.toJson();
 
-    auto mergeDescription = [](const QString& incoming, QString& existing) {
-        if (existing.isEmpty()) {
-            existing = incoming;
-        } else if (!incoming.isEmpty() && !existing.contains(incoming)) {
-            if (existing.length() < 300) {
-                existing = existing + "；" + incoming;
-            }
-        }
-    };
-
-    mergeDescription(incoming.description, details.description);
-    updateField(incoming.building, details.building);
-    updateField(incoming.landmark, details.landmark);
-    updateField(incoming.layout, details.layout);
-    updateField(incoming.atmosphere, details.atmosphere);
-    updateField(incoming.color, details.color);
-    updateField(incoming.type, details.type);
-    updateField(incoming.typeZh, details.typeZh);
-    updateField(incoming.setting, details.setting);
-    updateField(incoming.timeOfDay, details.timeOfDay);
-    updateField(incoming.weather, details.weather);
-    updateField(incoming.spaceSize, details.spaceSize);
-    updateField(incoming.currentInterpretation, details.currentInterpretation);
-    updateField(incoming.confidence, details.confidence);
-    updateField(incoming.status, details.status);
-    updateField(incoming.narrativeRole, details.narrativeRole);
-    updateField(incoming.narrativeRoleZh, details.narrativeRoleZh);
-
-    if (!incoming.anchorPoints.isEmpty()) {
-        details.anchorPoints = BibleUtils::mergeStringLists(details.anchorPoints, incoming.anchorPoints);
-    }
-    if (!incoming.signatureObjects.isEmpty()) {
-        details.signatureObjects = BibleUtils::mergeStringLists(details.signatureObjects, incoming.signatureObjects);
-    }
-    if (!incoming.fixedColorBlocks.isEmpty()) {
-        details.fixedColorBlocks = BibleUtils::mergeStringLists(details.fixedColorBlocks, incoming.fixedColorBlocks);
-    }
-    if (!incoming.consistencyRules.isEmpty()) {
-        details.consistencyRules = BibleUtils::mergeStringLists(details.consistencyRules, incoming.consistencyRules);
-    }
-    if (!incoming.details.isEmpty()) {
-        details.details = BibleUtils::mergeStringLists(details.details, incoming.details);
-    }
-    if (!incoming.evidence.isEmpty()) {
-        details.evidence = BibleUtils::mergeStringLists(details.evidence, incoming.evidence);
-    }
-    if (!incoming.history.isEmpty()) {
-        details.history = BibleUtils::mergeStringLists(details.history, incoming.history);
-    }
-    details.aliases = BibleUtils::mergeStringLists(details.aliases, incoming.aliases);
+    BibleUtils::BibleUpdateStrategy::updateSceneDetails(details, incomingJson);
     details.aliases = BibleUtils::mergeStringLists(details.aliases, buildSceneAliasKeys(merged.name(), details));
     
     details.anchorPoints = deduplicateList(details.anchorPoints, 5);

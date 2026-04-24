@@ -16,6 +16,14 @@
 namespace {
 const QString COLOR_HINT = "#6B7280";
 
+QLabel* createEmptyStateLabel(const QString& text, QWidget* parent)
+{
+    QLabel* label = new QLabel(text, parent);
+    label->setStyleSheet(QString("font-size: 14px; color: %1; border: none; background: transparent;").arg(COLOR_HINT));
+    label->setAlignment(Qt::AlignCenter);
+    return label;
+}
+
 inline void connectBibleItemSignals(BibleSectionWidget* widget, BibleItem* item, const Character&)
 {
     QObject::connect(item, &BibleItem::characterDataChanged, widget, 
@@ -44,10 +52,7 @@ void populateBibleItems(BibleSectionWidget* widget, QVBoxLayout* layout, const Q
     }
 
     if (items.isEmpty()) {
-        QLabel *emptyLabel = new QLabel(emptyText);
-        emptyLabel->setStyleSheet(QString("font-size: 14px; color: %1; border: none; background: transparent;").arg(COLOR_HINT));
-        emptyLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(emptyLabel);
+        layout->addWidget(createEmptyStateLabel(emptyText, widget));
         layout->addStretch();
         return;
     }
@@ -188,24 +193,10 @@ void BibleSectionWidget::refreshBible()
     }
 
     setUpdatesEnabled(false);
-    
-    LayoutUtils::clearContainerLayout(m_characterContainer);
-    LayoutUtils::clearContainerLayout(m_sceneContainer);
+    clearBibleContents();
 
     const QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(m_novelId);
     const QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(m_novelId);
-
-    if (characters.isEmpty() && scenes.isEmpty() && (m_characterCount > 0 || m_sceneCount > 0)) {
-        setUpdatesEnabled(true);
-        if (m_characterScrollArea) {
-            m_characterScrollArea->verticalScrollBar()->setValue(characterScrollPos);
-        }
-        if (m_sceneScrollArea) {
-            m_sceneScrollArea->verticalScrollBar()->setValue(sceneScrollPos);
-        }
-        LOG_WARNING("BibleSectionWidget", QString("Ignoring transient empty bible refresh for novel %1").arg(m_novelId));
-        return;
-    }
 
     m_characterCount = characters.size();
     m_sceneCount = scenes.size();
@@ -217,13 +208,7 @@ void BibleSectionWidget::refreshBible()
         populateSceneBible(qobject_cast<QVBoxLayout*>(m_sceneContainer->layout()), scenes);
     }
 
-    if (m_characterCountLabel) {
-        m_characterCountLabel->setText(tr("角色: %1").arg(m_characterCount));
-    }
-    if (m_sceneCountLabel) {
-        m_sceneCountLabel->setText(tr("场景: %1").arg(m_sceneCount));
-    }
-    
+    updateCountLabels();
     setUpdatesEnabled(true);
 
     if (m_characterScrollArea) {
@@ -242,18 +227,10 @@ void BibleSectionWidget::refreshBible()
 
 void BibleSectionWidget::clearBible()
 {
-    LayoutUtils::clearContainerLayout(m_characterContainer);
-    LayoutUtils::clearContainerLayout(m_sceneContainer);
-
     m_characterCount = 0;
     m_sceneCount = 0;
-
-    if (m_characterCountLabel) {
-        m_characterCountLabel->setText(tr("角色: %1").arg(m_characterCount));
-    }
-    if (m_sceneCountLabel) {
-        m_sceneCountLabel->setText(tr("场景: %1").arg(m_sceneCount));
-    }
+    clearBibleContents();
+    updateCountLabels();
 }
 
 void BibleSectionWidget::populateCharacterBible(QVBoxLayout* layout, const QList<Character>& characters)
@@ -315,4 +292,20 @@ void BibleSectionWidget::populateSceneBible(QVBoxLayout* layout, const QList<Sce
         [this](const QString& id, const QString& imagePath, BibleType type) { emit bibleItemImageUpdated(id, imagePath, type); },
         [this](const QString& id, BibleType type) { emit bibleItemImageUpdated(id, QString(), type); },
         [this](const QString& id, BibleType type) { emit bibleItemDeleteRequested(id, type); });
+}
+
+void BibleSectionWidget::updateCountLabels()
+{
+    if (m_characterCountLabel) {
+        m_characterCountLabel->setText(tr("角色: %1").arg(m_characterCount));
+    }
+    if (m_sceneCountLabel) {
+        m_sceneCountLabel->setText(tr("场景: %1").arg(m_sceneCount));
+    }
+}
+
+void BibleSectionWidget::clearBibleContents()
+{
+    LayoutUtils::clearContainerLayout(m_characterContainer);
+    LayoutUtils::clearContainerLayout(m_sceneContainer);
 }

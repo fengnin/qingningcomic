@@ -144,8 +144,10 @@ private:
     // 请求构建
     QJsonObject buildCommonParameters(ImageSize size, int seed);
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
-    QJsonObject buildOpenAIImageRequestBody(const GenerateOptions& options);
+    QJsonObject buildMultimodalRequestBody(const GenerateOptions& options);
     QJsonObject buildEditRequestBody(const EditOptions& options);
+    QString buildApiUrl(const QString& service) const;
+    QString buildApiUrl(const QString& service, const QString& model) const;
 
     // 异步请求发送
     void sendAsyncRequest(const GenerateOptions& options, RequestType type);
@@ -165,7 +167,6 @@ private:
     QString extractImageUrl(const QJsonObject& output) const;
     
     // 辅助方法
-    QString buildApiUrl(const QString& service) const;
     QNetworkRequest createNetworkRequest(const QString& url, bool async = true) const;
     void registerRequest(const QString& requestId, QNetworkReply* reply, RequestType type);
     void cleanupRequest(QNetworkReply* reply, const QString& key);

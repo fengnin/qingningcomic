@@ -157,6 +157,9 @@ private:
     void createRunningJobRecord(int chapterNumber);
     
     bool isBibleGenerating() const;
+    void refreshBibleSection();
+    void beginBibleImageGeneration();
+    void endBibleImageGeneration();
     void requestBibleRefresh();
     void applyDeferredBibleRefresh();
     

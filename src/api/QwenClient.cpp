@@ -76,6 +76,82 @@ QJsonObject mergeSceneObjects(const QJsonObject& existing, const QJsonObject& in
 QStringList buildSceneDisplayNameCandidates(const QJsonObject& scene);
 bool shouldSkipSceneExtraction(const QString& sceneId, const QString& sceneName, const QString& sceneText);
 QJsonObject buildExtractedSceneObject(const QString& sceneId, const QString& sceneName, const QString& sceneText);
+QString findSceneMergeKey(const QMap<QString, QJsonObject>& sceneMap, const QString& incomingKey)
+{
+    if (incomingKey.isEmpty()) {
+        return QString();
+    }
+
+    if (sceneMap.contains(incomingKey)) {
+        return incomingKey;
+    }
+
+    for (auto it = sceneMap.constBegin(); it != sceneMap.constEnd(); ++it) {
+        const QString existingKey = buildSceneMergeKey(it.value());
+        if (!existingKey.isEmpty() && existingKey.compare(incomingKey, Qt::CaseInsensitive) == 0) {
+            return it.key();
+        }
+    }
+
+    return QString();
+}
+bool shouldAdoptMergedValue(const QJsonValue& existing, const QJsonValue& incoming, const QString& key)
+{
+    if (incoming.isNull() || incoming.isUndefined()) {
+        return false;
+    }
+    if (!existing.isNull() && !existing.isUndefined()) {
+        if (key == QStringLiteral("age")) {
+            return existing.toInt() <= 0 && incoming.toInt() > 0;
+        }
+        if (incoming.isString()) {
+            return existing.toString().trimmed().isEmpty() && !incoming.toString().trimmed().isEmpty();
+        }
+        if (incoming.isArray()) {
+            return existing.toArray().isEmpty() && !incoming.toArray().isEmpty();
+        }
+        return false;
+    }
+    return true;
+}
+
+QJsonArray mapValuesToJsonArray(const QMap<QString, QJsonObject>& items)
+{
+    QJsonArray result;
+    for (const QJsonObject& item : items.values()) {
+        result.append(item);
+    }
+    return result;
+}
+
+void mergeAppearanceObject(QJsonObject& target, const QJsonObject& source)
+{
+    static const QSet<QString> arrayFields = {
+        QStringLiteral("clothing"),
+        QStringLiteral("distinctiveFeatures"),
+        QStringLiteral("accessories"),
+        QStringLiteral("aliases")
+    };
+
+    for (auto it = source.begin(); it != source.end(); ++it) {
+        const QString key = it.key();
+        const QJsonValue incomingValue = it.value();
+        const QJsonValue existingValue = target.value(key);
+
+        if (arrayFields.contains(key) && incomingValue.isArray()) {
+            QStringList mergedValues = JsonUtils::jsonArrayToStringList(existingValue.toArray());
+            mergedValues = BibleUtils::mergeStringLists(mergedValues, JsonUtils::jsonArrayToStringList(incomingValue.toArray()));
+            if (!mergedValues.isEmpty()) {
+                target[key] = QJsonArray::fromStringList(mergedValues);
+            }
+            continue;
+        }
+
+        if (shouldAdoptMergedValue(existingValue, incomingValue, key)) {
+            target[key] = incomingValue;
+        }
+    }
+}
 }
 
 DEFINE_SINGLETON_INSTANCE_SIMPLE(QwenClient)
@@ -144,6 +220,19 @@ QJsonArray QwenClient::buildMessages(const QString& systemPrompt, const QString&
     messages.append(userMsg);
     
     return messages;
+}
+
+QwenClient::StoryboardPromptContext QwenClient::buildStoryboardPromptContext(
+    const QString& text,
+    const QJsonArray& existingCharacters,
+    const QJsonArray& existingScenes,
+    int chapterNumber) const
+{
+    StoryboardPromptContext context;
+    context.systemPrompt = QwenPromptBuilder::buildSystemPrompt();
+    context.userMessage = QwenPromptBuilder::buildUserMessageWithBible(
+        text, existingCharacters, existingScenes, chapterNumber);
+    return context;
 }
 
 
@@ -275,16 +364,12 @@ QJsonObject QwenClient::parseChangeRequest(
     
     QString userPrompt = QString("自然语言修改需求：\n%1\n%2\n\n请输出符合 CR-DSL JSON 的内容。").arg(naturalLanguage, contextInfo);
 
-    
-    QJsonObject payload = buildSimplePayload(
-        QwenPromptBuilder::buildChangeRequestPrompt(), userPrompt, 0.2, 2000);
-    
-    QJsonObject response = sendApiRequest(payload);
-    if (response.isEmpty()) {
+    QJsonObject result = sendPromptRequest(
+        buildSimplePayload(QwenPromptBuilder::buildChangeRequestPrompt(), userPrompt, 0.2, 2000));
+    if (result.isEmpty()) {
         return QJsonObject();
     }
-    
-    QJsonObject result = extractApiResponse(response);
+
     return QwenJsonRepair::parseWithRepair(result["content"].toString());
 }
 
@@ -299,15 +384,12 @@ QString QwenClient::rewriteDialogue(const QString& originalDialogue, const QStri
     QString userPrompt = QString("原对白：\n%1\n\n修改要求：\n%2\n\n请直接返回改写后的对白。")
         .arg(originalDialogue, instruction);
 
-    QJsonObject payload = buildSimplePayload(
-        QwenPromptBuilder::buildDialogueRewritePrompt(), userPrompt, 0.5, 200);
-
-    QJsonObject response = sendApiRequest(payload);
-    if (response.isEmpty()) {
+    QJsonObject result = sendPromptRequest(
+        buildSimplePayload(QwenPromptBuilder::buildDialogueRewritePrompt(), userPrompt, 0.5, 200));
+    if (result.isEmpty()) {
         return QString();
     }
 
-    QJsonObject result = extractApiResponse(response);
     return result["content"].toString().trimmed();
 }
 
@@ -328,14 +410,10 @@ QJsonObject QwenClient::correctJson(const QJsonObject& invalidJson, const QStrin
 
     QString systemPrompt = tr("你是一个 JSON 修复助手，只输出可解析的 JSON。");
 
-    QJsonObject payload = buildSimplePayload(systemPrompt, userPrompt, 0.1, 8000);
-
-    QJsonObject response = sendApiRequest(payload);
-    if (response.isEmpty()) {
+    QJsonObject result = sendPromptRequest(buildSimplePayload(systemPrompt, userPrompt, 0.1, 8000));
+    if (result.isEmpty()) {
         return QJsonObject();
     }
-
-    QJsonObject result = extractApiResponse(response);
     QString content = result["content"].toString();
 
     QRegularExpression codeBlockRegex("```json\\s*([\\s\\S]*?)\\s*```");
@@ -453,24 +531,6 @@ QJsonObject QwenClient::mergeStoryboards(const QList<QJsonObject>& storyboards)
 
 void QwenClient::mergeCharacters(QMap<QString, QJsonObject>& charMap, const QJsonArray& characters)
 {
-    auto shouldReplaceValue = [](const QJsonValue& existing, const QJsonValue& incoming, const QString& key) {
-        if (incoming.isNull() || incoming.isUndefined()) {
-            return false;
-        }
-        if (!existing.isNull() && !existing.isUndefined()) {
-            if (key == QStringLiteral("age")) {
-                return existing.toInt() <= 0 && incoming.toInt() > 0;
-            }
-            if (incoming.isString()) {
-                return existing.toString().trimmed().isEmpty() && !incoming.toString().trimmed().isEmpty();
-            }
-            if (incoming.isArray()) {
-                return existing.toArray().isEmpty() && !incoming.toArray().isEmpty();
-            }
-        }
-        return true;
-    };
-
     for (const QJsonValue& charVal : characters) {
         QJsonObject character = charVal.toObject();
         QString name = character["name"].toString();
@@ -486,16 +546,8 @@ void QwenClient::mergeCharacters(QMap<QString, QJsonObject>& charMap, const QJso
 
             if (character.contains("appearance")) {
                 QJsonObject incomingAppearance = character["appearance"].toObject();
-                QJsonObject existingAppearance = existing["appearance"].toObject();
-                QJsonObject mergedAppearance = existingAppearance;
-
-                for (auto it = incomingAppearance.begin(); it != incomingAppearance.end(); ++it) {
-                    const QString key = it.key();
-                    if (shouldReplaceValue(mergedAppearance.value(key), it.value(), key)) {
-                        mergedAppearance[key] = it.value();
-                    }
-                }
-
+                QJsonObject mergedAppearance = existing["appearance"].toObject();
+                mergeAppearanceObject(mergedAppearance, incomingAppearance);
                 existing["appearance"] = mergedAppearance;
             }
 
@@ -524,21 +576,7 @@ void QwenClient::mergeScenes(QMap<QString, QJsonObject>& sceneMap, const QJsonAr
     for (const QJsonValue& sceneVal : scenes) {
         QJsonObject scene = sceneVal.toObject();
         const QString incomingKey = buildSceneMergeKey(scene);
-        QString matchedKey;
-
-        if (!incomingKey.isEmpty() && sceneMap.contains(incomingKey)) {
-            matchedKey = incomingKey;
-        }
-
-        if (matchedKey.isEmpty() && !incomingKey.isEmpty()) {
-            for (auto it = sceneMap.constBegin(); it != sceneMap.constEnd(); ++it) {
-                const QString existingKey = buildSceneMergeKey(it.value());
-                if (!existingKey.isEmpty() && existingKey.compare(incomingKey, Qt::CaseInsensitive) == 0) {
-                    matchedKey = it.key();
-                    break;
-                }
-            }
-        }
+        const QString matchedKey = findSceneMergeKey(sceneMap, incomingKey);
 
         if (!matchedKey.isEmpty()) {
             sceneMap[matchedKey] = mergeSceneObjects(sceneMap[matchedKey], scene);
@@ -570,15 +608,15 @@ QJsonObject QwenClient::callStoryboardApi(
     int chapterNumber)
 {
     QString lastErrorMsg;
-    QString systemPrompt = QwenPromptBuilder::buildSystemPrompt();
-    QString userMessage = QwenPromptBuilder::buildUserMessageWithBible(text, existingCharacters, existingScenes, chapterNumber);
+    const StoryboardPromptContext promptContext = buildStoryboardPromptContext(
+        text, existingCharacters, existingScenes, chapterNumber);
     
-    logRequest(m_config.model, text, systemPrompt, userMessage);
+    logRequest(m_config.model, text, promptContext.systemPrompt, promptContext.userMessage);
     
     for (int attempt = 0; attempt < m_config.maxRetries; ++attempt) {
         try {
             QJsonObject payload = buildJsonSchemaPayload(
-                systemPrompt, userMessage, schema, strictMode, "storyboard");
+                promptContext.systemPrompt, promptContext.userMessage, schema, strictMode, "storyboard");
             
             qint64 startTime = QDateTime::currentMSecsSinceEpoch();
             QJsonObject response = sendApiRequest(payload);
@@ -596,7 +634,7 @@ QJsonObject QwenClient::callStoryboardApi(
             logResponse(content, finishReason, usage, elapsedMs);
             
             if (finishReason == "length") {
-            LOG_WARNING("QwenClient", QStringLiteral("模型输出长度达到上限"));
+                LOG_WARNING("QwenClient", QStringLiteral("模型输出长度达到上限"));
             }
             
             QJsonObject parsedJson = QwenJsonRepair::parseWithRepair(result["content"].toString());
@@ -707,12 +745,10 @@ QJsonObject QwenClient::buildJsonSchemaPayload(
     bool strictMode,
     const QString& schemaName)
 {
-    Q_UNUSED(schemaName);
-    Q_UNUSED(strictMode);
-    
-    QJsonObject payload;
-    payload["model"] = m_config.model;
-    payload["messages"] = buildMessages(systemPrompt, userMessage);
+    const int maxTokens = (m_config.model.contains("plus") || m_config.model.contains("max"))
+        ? 32768
+        : 16384;
+    QJsonObject payload = buildBasePayload(systemPrompt, userMessage, 0.3, maxTokens);
     
     bool supportsJsonSchema = (m_config.model.contains("plus") || m_config.model.contains("max"));
     
@@ -727,20 +763,10 @@ QJsonObject QwenClient::buildJsonSchemaPayload(
         payload["response_format"] = responseFormat;
     }
     
-    payload["temperature"] = 0.3;
-    
-    int maxTokens = 16384;
-    if (m_config.model.contains("plus")) {
-        maxTokens = 32768;
-    } else if (m_config.model.contains("max")) {
-        maxTokens = 32768;
-    }
-    payload["max_tokens"] = maxTokens;
-    
     return payload;
 }
 
-QJsonObject QwenClient::buildSimplePayload(
+QJsonObject QwenClient::buildBasePayload(
     const QString& systemPrompt,
     const QString& userMessage,
     double temperature,
@@ -752,6 +778,24 @@ QJsonObject QwenClient::buildSimplePayload(
     payload["temperature"] = temperature;
     payload["max_tokens"] = maxTokens;
     return payload;
+}
+
+QJsonObject QwenClient::buildSimplePayload(
+    const QString& systemPrompt,
+    const QString& userMessage,
+    double temperature,
+    int maxTokens)
+{
+    return buildBasePayload(systemPrompt, userMessage, temperature, maxTokens);
+}
+
+QJsonObject QwenClient::sendPromptRequest(const QJsonObject& payload)
+{
+    QJsonObject response = sendApiRequest(payload);
+    if (response.isEmpty()) {
+        return QJsonObject();
+    }
+    return extractApiResponse(response);
 }
 
 QJsonObject QwenClient::extractApiResponse(const QJsonObject& response)
@@ -899,16 +943,8 @@ QJsonObject mergeCharacterObjects(const QJsonObject& existing, const QJsonObject
 
     if (incoming.contains("appearance")) {
         QJsonObject incomingAppearance = incoming["appearance"].toObject();
-        QJsonObject existingAppearance = merged["appearance"].toObject();
-        QJsonObject mergedAppearance = existingAppearance;
-
-        for (auto it = incomingAppearance.begin(); it != incomingAppearance.end(); ++it) {
-            const QString key = it.key();
-            if (!mergedAppearance.contains(key) || mergedAppearance.value(key).isNull() || mergedAppearance.value(key).isUndefined()) {
-                mergedAppearance[key] = it.value();
-            }
-        }
-
+        QJsonObject mergedAppearance = merged["appearance"].toObject();
+        mergeAppearanceObject(mergedAppearance, incomingAppearance);
         merged["appearance"] = mergedAppearance;
     }
 
@@ -1248,16 +1284,10 @@ QJsonObject QwenClient::ensureStoryboardShape(const QJsonObject& storyboard)
     QSet<QString> seenCharNames = extractKeysFromArray(characters, "name");
     QSet<QString> seenSceneIds = extractKeysFromArray(scenes, "id");
     
-    QJsonArray extractedCharsArray;
-    for (const QJsonObject& c : extractedChars.values()) {
-        extractedCharsArray.append(c);
-    }
+    QJsonArray extractedCharsArray = mapValuesToJsonArray(extractedChars);
     characters = mergeJsonArrays(characters, extractedCharsArray, "name", seenCharNames);
     
-    QJsonArray extractedScenesArray;
-    for (const QJsonObject& s : extractedScenes.values()) {
-        extractedScenesArray.append(s);
-    }
+    QJsonArray extractedScenesArray = mapValuesToJsonArray(extractedScenes);
     scenes = mergeJsonArrays(scenes, extractedScenesArray, "id", seenSceneIds);
     
     result["characters"] = characters;
@@ -1401,13 +1431,14 @@ void QwenClient::generateStoryboardStream(
     
     log(QString("Streaming storyboard generation started, text: %1 chars").arg(text.length()));
     
-    QString systemPrompt = QwenPromptBuilder::buildSystemPrompt();
-    QString userMessage = QwenPromptBuilder::buildUserMessageWithBible(text, existingCharacters, existingScenes, chapterNumber);
+    const StoryboardPromptContext promptContext = buildStoryboardPromptContext(
+        text, existingCharacters, existingScenes, chapterNumber);
     
-    QJsonObject payload = buildJsonSchemaPayload(systemPrompt, userMessage, jsonSchema, strictMode, "storyboard");
+    QJsonObject payload = buildJsonSchemaPayload(
+        promptContext.systemPrompt, promptContext.userMessage, jsonSchema, strictMode, "storyboard");
     payload["stream"] = true;
     
-    logRequest(m_config.model, text, systemPrompt, userMessage);
+    logRequest(m_config.model, text, promptContext.systemPrompt, promptContext.userMessage);
     
     sendApiRequestStream(payload);
 }
@@ -1542,5 +1573,3 @@ void QwenClient::handleStreamTimeout(QNetworkReply* reply, QNetworkAccessManager
     
     reply->abort();
 }
-
-

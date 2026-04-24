@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QFile>
 #include <QTextStream>
+#include <QTextCodec>
 #include <utility>
 
 namespace Enc {
@@ -76,14 +77,42 @@ namespace Enc {
     inline QString readFile(const QString& path)
     {
         QFile file(path);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (!file.open(QIODevice::ReadOnly)) {
             return QString();
         }
-        QTextStream in(&file);
-        in.setCodec("UTF-8");
-        QString content = in.readAll();
+
+        QByteArray data = file.readAll();
         file.close();
-        return content;
+
+        if (data.isEmpty()) {
+            return QString();
+        }
+
+        if (hasBom(data)) {
+            return QString::fromUtf8(removeBom(data));
+        }
+
+        if (isValidUtf8(data)) {
+            return QString::fromUtf8(data);
+        }
+
+        QTextCodec* gbkCodec = QTextCodec::codecForName("GBK");
+        if (gbkCodec) {
+            QString gbkText = gbkCodec->toUnicode(data);
+            if (containsChinese(gbkText)) {
+                return gbkText;
+            }
+        }
+
+        QTextCodec* gb18030Codec = QTextCodec::codecForName("GB18030");
+        if (gb18030Codec) {
+            QString gbText = gb18030Codec->toUnicode(data);
+            if (containsChinese(gbText)) {
+                return gbText;
+            }
+        }
+
+        return QString::fromLocal8Bit(data);
     }
     
     inline bool writeFile(const QString& path, const QString& content)

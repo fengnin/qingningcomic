@@ -7,15 +7,159 @@
 #include "services/NovelService.h"
 #include "services/BibleContextInjector.h"
 #include "api/QwenPromptBuilder.h"
+#include "utils/SchemaFileUtils.h"
+#include "utils/AnalysisTextUtils.h"
+#include "utils/JsonUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/AnalysisJobUtils.h"
 #include "data/DatabaseManager.h"
+#include "utils/SceneKeyUtils.h"
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
 #include <QCoreApplication>
 #include <QUuid>
+
+namespace {
+
+QMap<QString, QString> buildCharacterLookup(const QList<Character>& characters)
+{
+    QMap<QString, QString> lookup;
+    for (const Character& character : characters) {
+        const QString id = character.id().trimmed();
+        if (id.isEmpty()) {
+            continue;
+        }
+
+        for (const QString& key : CharacterExtractor::buildIdentityKeys(character)) {
+            const QString trimmed = key.trimmed();
+            if (!trimmed.isEmpty()) {
+                lookup[trimmed] = id;
+            }
+        }
+    }
+    return lookup;
+}
+
+QMap<QString, QString> buildSceneLookup(const QList<Scene>& scenes)
+{
+    QJsonArray sceneArray;
+    for (const Scene& scene : scenes) {
+        sceneArray.append(scene.toJson());
+    }
+    return SceneKeyUtils::buildSceneLookupMap(sceneArray);
+}
+
+QString resolveCharacterId(const QMap<QString, QString>& lookup, const QJsonObject& charObj)
+{
+    Character probe;
+    probe.setName(charObj["name"].toString());
+    probe.setRole(charObj["role"].toString());
+    probe.setAliases(JsonUtils::jsonArrayToStringList(charObj["aliases"].toArray()));
+
+    for (const QString& key : CharacterExtractor::buildIdentityKeys(probe)) {
+        const QString trimmed = key.trimmed();
+        if (!trimmed.isEmpty() && lookup.contains(trimmed)) {
+            return lookup.value(trimmed);
+        }
+    }
+    return QString();
+}
+
+QString resolveSceneId(const QMap<QString, QString>& lookup, const QJsonObject& background, const QString& panelSceneText)
+{
+    const QStringList candidates = {
+        background.value("sceneId").toString(),
+        background.value("setting").toString(),
+        panelSceneText,
+        SceneKeyUtils::normalizeSceneLabel(background.value("setting").toString()),
+        SceneKeyUtils::normalizeSceneLabel(panelSceneText)
+    };
+    return SceneKeyUtils::resolveSceneLookupId(lookup, candidates);
+}
+
+QwenClient::StoryboardResult buildStoryboardResultFromJson(const QJsonObject& result)
+{
+    QwenClient::StoryboardResult storyboardResult;
+    storyboardResult.panels = result["panels"].toArray();
+    storyboardResult.characters = result["characters"].toArray();
+    storyboardResult.scenes = result["scenes"].toArray();
+    storyboardResult.totalPages = result["totalPages"].toInt();
+    storyboardResult.success = true;
+    return storyboardResult;
+}
+
+QJsonArray toJsonArray(const QList<ExtractedCharacter>& characters)
+{
+    QJsonArray result;
+    for (const ExtractedCharacter& character : characters) {
+        result.append(character.toJson());
+    }
+    return result;
+}
+
+QJsonArray toJsonArray(const QList<ExtractedScene>& scenes)
+{
+    QJsonArray result;
+    for (const ExtractedScene& scene : scenes) {
+        result.append(scene.toJson());
+    }
+    return result;
+}
+
+void attachCharacterIds(QJsonArray& panels, const QMap<QString, QString>& charNameToId)
+{
+    for (int i = 0; i < panels.size(); ++i) {
+        QJsonObject panel = panels[i].toObject();
+
+        if (panel.contains("characters") && panel["characters"].isArray()) {
+            QJsonArray characters = panel["characters"].toArray();
+            QJsonArray updatedCharacters;
+
+            for (int j = 0; j < characters.size(); ++j) {
+                QJsonObject charObj = characters[j].toObject();
+                const QString charId = resolveCharacterId(charNameToId, charObj);
+                if (!charId.isEmpty()) {
+                    charObj["charId"] = charId;
+                }
+                updatedCharacters.append(charObj);
+            }
+            panel["characters"] = updatedCharacters;
+        }
+
+        panels[i] = panel;
+    }
+}
+
+void attachSceneIds(QJsonArray& panels, const QMap<QString, QString>& sceneNameToId)
+{
+    for (int i = 0; i < panels.size(); ++i) {
+        QJsonObject panel = panels[i].toObject();
+        if (panel.contains("background")) {
+            QJsonObject background = panel["background"].toObject();
+            const QString sceneId = resolveSceneId(sceneNameToId, background, panel["scene"].toString());
+            if (!sceneId.isEmpty()) {
+                panel["sceneId"] = sceneId;
+                background["sceneId"] = sceneId;
+                panel["background"] = background;
+            }
+        }
+        panels[i] = panel;
+    }
+}
+
+QJsonObject buildStoryboardData(const QJsonArray& panels, const QJsonArray& characters, const QJsonArray& scenes, int totalPages)
+{
+    QJsonObject storyboardData;
+    storyboardData["panels"] = panels;
+    storyboardData["characters"] = characters;
+    storyboardData["scenes"] = scenes;
+    storyboardData["totalPages"] = totalPages;
+    return storyboardData;
+}
+
+} // namespace
 
 AnalysisService* AnalysisService::m_instance = nullptr;
 std::once_flag AnalysisService::m_instanceOnceFlag;
@@ -26,7 +170,7 @@ AnalysisService::AnalysisService(QObject* parent)
     , m_storyboardService(StoryboardService::instance())
 {
     qRegisterMetaType<AnalysisResult>("AnalysisResult");
-    
+
     connect(m_qwen, &QwenClient::progressChanged, this, &AnalysisService::onQwenProgress);
     connect(m_qwen, &QwenClient::errorOccurred, this, &AnalysisService::onQwenError);
     connect(m_qwen, &QwenClient::streamProgress, this, &AnalysisService::onQwenStreamProgress);
@@ -72,29 +216,24 @@ QJsonObject AnalysisService::loadJsonSchema()
     if (!m_cachedSchema.isEmpty()) {
         return m_cachedSchema;
     }
-    
-    QString appDir = QCoreApplication::applicationDirPath();
-    
-    QStringList schemaPaths = {
-        appDir + "/schemas/storyboard.json",
-        appDir + "/../schemas/storyboard.json"
+
+    const QStringList schemaPaths = {
+        QStringLiteral("schemas/storyboard.json"),
+        QStringLiteral("../schemas/storyboard.json")
     };
-    
-    for (const QString& path : schemaPaths) {
-        QFile file(path);
-        if (file.open(QIODevice::ReadOnly)) {
-            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-            file.close();
-            
-            if (!doc.isNull() && doc.isObject()) {
-                LOG_INFO("AnalysisService", QString("Loaded schema from %1").arg(path));
-                m_cachedSchema = doc.object();
-                return m_cachedSchema;
-            }
+
+    for (const QString& schemaPath : schemaPaths) {
+        const QString resolvedPath = SchemaFileUtils::resolveSchemaPath(schemaPath);
+        QJsonObject schema = SchemaFileUtils::readJsonObjectFile(resolvedPath);
+        if (!schema.isEmpty()) {
+            LOG_INFO("AnalysisService", QString("Loaded schema from %1").arg(resolvedPath));
+            m_cachedSchema = schema;
+            return m_cachedSchema;
         }
     }
     
-    LOG_ERROR("AnalysisService", QString("Failed to load JSON Schema. AppDir: %1").arg(appDir));
+    LOG_ERROR("AnalysisService", QString("Failed to load JSON Schema. AppDir: %1")
+        .arg(QCoreApplication::applicationDirPath()));
     return QJsonObject();
 }
 
@@ -124,8 +263,15 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
     LOG_INFO("AnalysisService", QString("Starting streaming analysis for novel: %1, chapter: %2")
         .arg(novelId).arg(chapterNumber));
     
+    if (m_processing) {
+        LOG_WARNING("AnalysisService", QString("Analysis already in progress for novel: %1, rejecting new request for: %2")
+            .arg(m_currentNovelId).arg(novelId));
+        emit analysisFailed(novelId, tr("已有分析任务正在进行中，请稍后再试"));
+        return;
+    }
     m_currentNovelId = novelId;
     m_currentChapterNumber = chapterNumber;
+    m_currentSourceText = text;
     m_lastResult = AnalysisResult();
     m_processing = true;
     
@@ -141,11 +287,8 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
         return;
     }
 
-    BibleContextInjector::FilteredContext context = 
-        BibleContextInjector::instance()->filterRelevantContext(text, existingCharacters, existingScenes);
-    
     const QString userMessage = QwenPromptBuilder::buildUserMessageWithBible(
-        text, context.characters, context.scenes, chapterNumber);
+        text, existingCharacters, existingScenes, chapterNumber);
     const int estimatedBytes = userMessage.toUtf8().size();
     const bool shouldUseTaskQueue =
         text.length() > m_qwen->maxChunkLength() || estimatedBytes > 30000;
@@ -156,8 +299,8 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
         task.novelId = novelId;
         task.chapterNumber = chapterNumber;
         task.text = text;
-        task.params["existingCharacters"] = context.characters;
-        task.params["existingScenes"] = context.scenes;
+        task.params["existingCharacters"] = existingCharacters;
+        task.params["existingScenes"] = existingScenes;
         task.total = 100;
         
         m_currentTaskId = TaskQueue::instance()->enqueue(task);
@@ -170,7 +313,7 @@ void AnalysisService::analyzeNovelWithBible(const QString& novelId, const QStrin
     }
 
     m_currentTaskId.clear();
-    m_qwen->generateStoryboardStream(text, schema, true, context.characters, context.scenes, chapterNumber);
+    m_qwen->generateStoryboardStream(text, schema, true, existingCharacters, existingScenes, chapterNumber);
 }
 
 void AnalysisService::processTask(TaskData& task)
@@ -195,87 +338,53 @@ void AnalysisService::processTask(TaskData& task)
         throw std::runtime_error(result.errorMessage.toStdString());
     }
     
-    saveResults(task.novelId, task.chapterNumber, result);
+    saveResults(task.novelId, task.chapterNumber, result, task.text);
     
     task.result["panelCount"] = result.panels.size();
     task.result["characterCount"] = result.characters.size();
     task.result["sceneCount"] = result.scenes.size();
 }
 
-void AnalysisService::saveResults(const QString& novelId, int chapterNumber, const QwenClient::StoryboardResult& result)
+void AnalysisService::saveResults(const QString& novelId, int chapterNumber, const QwenClient::StoryboardResult& result, const QString& sourceText)
 {
     LOG_INFO("AnalysisService", QString("saveResults called: novelId=%1, chapter=%2, panels=%3, characters=%4, scenes=%5")
         .arg(novelId).arg(chapterNumber).arg(result.panels.size()).arg(result.characters.size()).arg(result.scenes.size()));
-    
-    QList<ExtractedCharacter> extractedChars = CharacterExtractor::instance()->extractFromCharacters(result.characters, NovelService::instance()->loadText(novelId));
-    int savedCharCount = CharacterExtractor::instance()->saveCharacters(novelId, extractedChars);
+
+    CharacterExtractor* characterExtractor = CharacterExtractor::instance();
+    SceneExtractor* sceneExtractor = SceneExtractor::instance();
+
+    QList<ExtractedCharacter> extractedChars = characterExtractor->extractFromCharacters(result.characters, sourceText);
+    int savedCharCount = characterExtractor->saveCharacters(novelId, extractedChars);
     LOG_INFO("AnalysisService", QString("Saved %1 characters to database").arg(savedCharCount));
-    
-    QList<ExtractedScene> extractedScenes = SceneExtractor::instance()->extractFromScenes(result.scenes);
-    int savedSceneCount = SceneExtractor::instance()->saveScenes(novelId, extractedScenes);
+
+    QList<ExtractedScene> extractedScenes = sceneExtractor->extractFromScenes(result.scenes, sourceText);
+    int savedSceneCount = sceneExtractor->saveScenes(novelId, extractedScenes);
     LOG_INFO("AnalysisService", QString("Saved %1 scenes to database").arg(savedSceneCount));
-    
-    QMap<QString, QString> charNameToId;
-    QList<Character> savedCharacters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
-    for (const Character& c : savedCharacters) {
-        charNameToId[c.name()] = c.id();
-    }
-    
-    QMap<QString, QString> sceneNameToId;
-    QList<Scene> savedScenes = SceneExtractor::instance()->getScenesByNovel(novelId);
-    for (const Scene& s : savedScenes) {
-        sceneNameToId[s.name()] = s.id();
-    }
-    
+
+    const QJsonArray bibleCharacters = toJsonArray(extractedChars);
+    const QJsonArray bibleScenes = toJsonArray(extractedScenes);
+
+    QList<Character> savedCharacters = characterExtractor->getCharactersByNovel(novelId);
+    QMap<QString, QString> charNameToId = buildCharacterLookup(savedCharacters);
+
+    QList<Scene> savedScenes = sceneExtractor->getScenesByNovel(novelId);
+    QMap<QString, QString> sceneNameToId = buildSceneLookup(savedScenes);
+
     QJsonArray panelsWithIds = result.panels;
-    for (int i = 0; i < panelsWithIds.size(); ++i) {
-        QJsonObject panel = panelsWithIds[i].toObject();
-        
-        if (panel.contains("characters") && panel["characters"].isArray()) {
-            QJsonArray characters = panel["characters"].toArray();
-            QJsonArray updatedCharacters;
-            
-            for (int j = 0; j < characters.size(); ++j) {
-                QJsonObject charObj = characters[j].toObject();
-                QString charName = charObj["name"].toString();
-                
-                if (charNameToId.contains(charName)) {
-                    charObj["charId"] = charNameToId[charName];
-                }
-                updatedCharacters.append(charObj);
-            }
-            panel["characters"] = updatedCharacters;
-        }
-        
-        // Background scene mapping
-        if (panel.contains("background")) {
-            QJsonObject background = panel["background"].toObject();
-            QString sceneName = background["setting"].toString();
-            if (!sceneName.isEmpty() && sceneNameToId.contains(sceneName)) {
-                panel["sceneId"] = sceneNameToId[sceneName];
-                // 同步更新 background.sceneId
-                background["sceneId"] = sceneNameToId[sceneName];
-                panel["background"] = background;
-            }
-        }
-        
-        panelsWithIds[i] = panel;
-    }
-    
-    QJsonObject storyboardData;
-    storyboardData["panels"] = panelsWithIds;
-    storyboardData["characters"] = result.characters;
-    storyboardData["scenes"] = result.scenes;
-    storyboardData["totalPages"] = result.totalPages;
-    
+    attachCharacterIds(panelsWithIds, charNameToId);
+    attachSceneIds(panelsWithIds, sceneNameToId);
+
+    QJsonObject storyboardData = buildStoryboardData(
+        panelsWithIds, result.characters, result.scenes, result.totalPages);
+
     if (!m_storyboardService->saveStoryboard(novelId, storyboardData, chapterNumber, false)) {
         LOG_ERROR("AnalysisService", "Failed to save storyboard");
-        return;
+        throw std::runtime_error(tr("保存分镜数据失败").toStdString());
     }
     LOG_INFO("AnalysisService", "Storyboard saved successfully");
     
-    BibleGenerator::instance()->updateExistingCharacters(novelId, result.characters);
-    BibleGenerator::instance()->updateExistingScenes(novelId, result.scenes);
+    BibleGenerator::instance()->updateExistingCharacters(novelId, bibleCharacters);
+    BibleGenerator::instance()->updateExistingScenes(novelId, bibleScenes);
 }
 
 void AnalysisService::setResultSuccess(int chapterNumber, int panelCount, int characterCount, int sceneCount)
@@ -313,6 +422,8 @@ void AnalysisService::handleAnalysisFailure(const QString& novelId, const QStrin
         NovelService::instance()->updateStatus(novelId, NovelStatus::Error);
         emit analysisFailed(novelId, errorMessage);
     }
+
+    m_currentSourceText.clear();
 }
 
 void AnalysisService::onQwenProgress(int current, int total, const QString& message)
@@ -398,40 +509,22 @@ void AnalysisService::onQwenStreamProgress(const QString& partialContent)
 void AnalysisService::onQwenStreamCompleted(const QJsonObject& result)
 {
     LOG_INFO("AnalysisService", QString("Stream completed, processing result..."));
-    
+
     if (result.isEmpty()) {
         handleAnalysisFailure(m_currentNovelId, tr("流式输出结果为空"));
         return;
     }
-    
-    updateProgress(45, tr("正在解析分镜数据..."));
-    
-    QwenClient::StoryboardResult storyboardResult;
-    storyboardResult.panels = result["panels"].toArray();
-    storyboardResult.characters = result["characters"].toArray();
-    storyboardResult.scenes = result["scenes"].toArray();
-    storyboardResult.totalPages = result["totalPages"].toInt();
-    storyboardResult.success = true;
-    
-    updateProgress(47, tr("正在保存分镜数据..."));
-    saveResults(m_currentNovelId, m_currentChapterNumber, storyboardResult);
-    
-    updateProgress(50, tr("正在生成角色和场景图片..."));
-    
-    setResultSuccess(m_currentChapterNumber,
-                     storyboardResult.panels.size(),
-                     storyboardResult.characters.size(),
-                     storyboardResult.scenes.size());
-    
-    generateImagesAfterAnalysis(m_currentNovelId, m_currentChapterNumber);
-    
-    emit streamCompleted(m_currentNovelId, result);
-    
-    LOG_INFO("AnalysisService", QString("Stream analysis completed: novelId=%1, panels=%2, chars=%3, scenes=%4")
-        .arg(m_currentNovelId)
-        .arg(storyboardResult.panels.size())
-        .arg(storyboardResult.characters.size())
-        .arg(storyboardResult.scenes.size()));
+
+    try {
+        handleGeneratedStoryboard(
+            m_currentNovelId,
+            m_currentChapterNumber,
+            buildStoryboardResultFromJson(result),
+            result);
+    } catch (const std::exception& e) {
+        handleAnalysisFailure(m_currentNovelId, QString::fromUtf8(e.what()));
+        return;
+    }
 }
 
 void AnalysisService::updateProgress(int progress, const QString& message)
@@ -449,7 +542,7 @@ void AnalysisService::handleGeneratedStoryboard(const QString& novelId, int chap
 {
     updateProgress(45, tr("正在解析分镜数据..."));
     updateProgress(47, tr("正在保存分镜数据..."));
-    saveResults(novelId, chapterNumber, storyboardResult);
+    saveResults(novelId, chapterNumber, storyboardResult, m_currentSourceText);
     updateProgress(50, tr("正在生成角色和场景图片..."));
 
     setResultSuccess(chapterNumber,
@@ -534,6 +627,7 @@ void AnalysisService::finalizeAnalysis()
     }
     
     finishProcessing();
+    m_currentSourceText.clear();
     
     emit analysisCompleted(m_currentNovelId, m_lastResult);
     

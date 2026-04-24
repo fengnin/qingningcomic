@@ -2,6 +2,7 @@
 #include "utils/JsonUtils.h"
 #include "utils/BibleUtils.h"
 #include "utils/Logger.h"
+#include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSet>
 
@@ -10,6 +11,30 @@ using namespace BibleUtils::BibleContextConstants;
 namespace {
 constexpr int kMaxContextItemsPerType = 8;
 constexpr int kMaxContextPromptChars = 9000;
+
+struct ContextMatchResult
+{
+    bool matched = false;
+    QString matchedBy;
+};
+
+static const QRegularExpression& getSplitLookupRegex()
+{
+    static const QRegularExpression regex(QString::fromUtf8("[,，;；、/\\\\\\|\\n\\r。！？!?]+"));
+    return regex;
+}
+
+static const QRegularExpression& getNormalizeLookupRegex()
+{
+    static const QRegularExpression regex(QString::fromUtf8("[\\s\\t\\r\\n\\x{200B}\\x{200C}\\x{200D}\\x{FEFF}·•，。！？!?,；;：:\"""''（）()【】\\[\\]《》<>、/\\\\-]"));
+    return regex;
+}
+
+static const QRegularExpression& getShortHanPatternRegex()
+{
+    static const QRegularExpression regex(QStringLiteral(R"([\p{Han}]{0,2})"));
+    return regex;
+}
 
 QStringList buildCharacterMentionVariants(const QString& candidate)
 {
@@ -53,6 +78,25 @@ QStringList buildCharacterMentionVariants(const QString& candidate)
         }
     }
 
+    static const QStringList honorificSuffixes = {
+        QString::fromUtf8("阿姨"),
+        QString::fromUtf8("叔叔"),
+        QString::fromUtf8("伯伯"),
+        QString::fromUtf8("姑姑"),
+        QString::fromUtf8("舅舅"),
+        QString::fromUtf8("婶婶")
+    };
+
+    for (const QString& suffix : honorificSuffixes) {
+        if (trimmed.endsWith(suffix) && trimmed.size() > suffix.size()) {
+            variants << suffix;
+            const QString abbreviated = trimmed.left(trimmed.size() - suffix.size()) + suffix.right(1);
+            if (!abbreviated.isEmpty()) {
+                variants << abbreviated;
+            }
+        }
+    }
+
     variants.removeDuplicates();
     return variants;
 }
@@ -81,6 +125,156 @@ QString truncateWithEllipsis(const QString& text, int maxChars)
     }
     return text.left(cut).trimmed() + QStringLiteral("...");
 }
+
+void appendSummaryPart(QStringList& parts, const QString& label, const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    if (!trimmed.isEmpty()) {
+        parts << QString::fromUtf8("%1=%2").arg(label, trimmed);
+    }
+}
+
+void appendSummaryValue(QStringList& parts, const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    if (!trimmed.isEmpty()) {
+        parts << trimmed;
+    }
+}
+
+QString previewArrayValues(const QJsonArray& array, int limit)
+{
+    QStringList items;
+    for (int i = 0; i < array.size() && i < limit; ++i) {
+        const QString value = array.at(i).toString().trimmed();
+        if (!value.isEmpty()) {
+            items << value;
+        }
+    }
+    return items.join(QString::fromUtf8("、"));
+}
+
+QStringList buildCharacterSummaryParts(const QJsonObject& character)
+{
+    QStringList parts;
+    const QString name = character["name"].toString().trimmed();
+    QJsonArray aliases = character["aliases"].toArray();
+    if (aliases.isEmpty()) {
+        aliases = character["appearance"].toObject()["aliases"].toArray();
+    }
+    const QString role = character["role"].toString().trimmed();
+    appendSummaryPart(parts, QString::fromUtf8("角色"), name);
+    appendSummaryPart(parts, QString::fromUtf8("别名"), previewArrayValues(aliases, 3));
+    appendSummaryPart(parts, QString::fromUtf8("定位"), role);
+
+    const QJsonObject appearance = character["appearance"].toObject();
+    if (!appearance.isEmpty()) {
+        QStringList appearanceParts;
+        appendSummaryValue(appearanceParts, appearance["gender"].toString());
+        appendSummaryValue(appearanceParts, appearance["build"].toString());
+        appendSummaryValue(appearanceParts, appearance["hairStyle"].toString());
+        const QString clothing = previewArrayValues(appearance["clothing"].toArray(), 3);
+        if (!clothing.isEmpty()) appearanceParts << QString::fromUtf8("服装:%1").arg(clothing);
+        if (!appearanceParts.isEmpty()) {
+            parts << QString::fromUtf8("外观=%1").arg(appearanceParts.join(QString::fromUtf8("，")));
+        }
+    }
+
+    appendSummaryPart(parts, QString::fromUtf8("性格"), previewArrayValues(character["personality"].toArray(), 3));
+    return parts;
+}
+
+QStringList buildSceneSummaryParts(const QJsonObject& scene)
+{
+    QStringList parts;
+    appendSummaryPart(parts, QString::fromUtf8("场景"), scene["name"].toString());
+    appendSummaryPart(parts, QString::fromUtf8("类型"), scene["type"].toString());
+
+    QStringList staticParts;
+    const QString description = scene["description"].toString().trimmed();
+    if (!description.isEmpty()) staticParts << description.left(80);
+
+    const QJsonObject visual = scene["visualCharacteristics"].toObject();
+    appendSummaryValue(staticParts, visual["architecture"].toString());
+    const QString landmarks = previewArrayValues(visual["keyLandmarks"].toArray(), 3);
+    if (!landmarks.isEmpty()) staticParts << QString::fromUtf8("地标:%1").arg(landmarks);
+
+    const QJsonObject spatial = scene["spatialLayout"].toObject();
+    const QString layout = spatial["layout"].toString().trimmed();
+    if (!layout.isEmpty()) staticParts << QString::fromUtf8("布局:%1").arg(layout.left(50));
+
+    const QString anchors = previewArrayValues(scene["anchorPoints"].toArray(), 3);
+    if (!anchors.isEmpty()) staticParts << QString::fromUtf8("锚点:%1").arg(anchors);
+
+    if (!staticParts.isEmpty()) {
+        parts << QString::fromUtf8("静态设定=%1").arg(staticParts.join(QString::fromUtf8("；")));
+    }
+
+    return parts;
+}
+
+template <typename MatchFn>
+QJsonArray filterContextItems(const QString& text,
+                              const QJsonArray& items,
+                              int limit,
+                              const QString& itemLabel,
+                              bool logSkipped,
+                              MatchFn matchFn)
+{
+    const QString normalizedText = BibleContextInjector::instance()->normalizeLookupText(text);
+    QJsonArray filtered;
+
+    for (const QJsonValue& value : items) {
+        if (filtered.size() >= limit) {
+            break;
+        }
+
+        const QJsonObject item = value.toObject();
+        const QString name = item["name"].toString().trimmed();
+        const ContextMatchResult match = matchFn(normalizedText, item);
+
+        if (match.matched) {
+            LOG_DEBUG("BibleContextInjector", QString("Matched %1 context '%2' by %3")
+                .arg(itemLabel, name.isEmpty() ? QString::fromUtf8("未命名") : name,
+                     match.matchedBy.isEmpty() ? QStringLiteral("unknown") : match.matchedBy));
+            filtered.append(item);
+        } else if (logSkipped && !name.isEmpty()) {
+            LOG_DEBUG("BibleContextInjector", QString("Skipped %1 context '%2' because it is not mentioned in current chapter text")
+                .arg(itemLabel, name));
+        }
+    }
+
+    return filtered;
+}
+
+template <typename SummarizeFn>
+void appendContextSection(QString& userMessage,
+                          const QString& title,
+                          const QJsonArray& items,
+                          int maxItems,
+                          SummarizeFn summarizeFn)
+{
+    if (items.isEmpty()) {
+        return;
+    }
+
+    userMessage += title + "\n";
+    int appended = 0;
+    for (const QJsonValue& value : items) {
+        if (appended >= maxItems) {
+            break;
+        }
+
+        const QString summary = summarizeFn(value.toObject());
+        if (summary.isEmpty()) {
+            continue;
+        }
+
+        userMessage += QString::fromUtf8("- ") + summary + "\n";
+        ++appended;
+    }
+    userMessage += "\n\n";
+}
 }
 
 BibleContextInjector* BibleContextInjector::m_instance = nullptr;
@@ -97,7 +291,7 @@ BibleContextInjector* BibleContextInjector::instance()
 QString BibleContextInjector::normalizeLookupText(const QString& text) const
 {
     QString result = text.trimmed();
-    result.remove(QRegularExpression(QString::fromUtf8("[\\s\\t\\r\\n·•，。！？!?,；;：:\"""''（）()【】\\[\\]《》<>、/\\\\-]")));
+    result.remove(getNormalizeLookupRegex());
     return result;
 }
 
@@ -123,6 +317,11 @@ bool BibleContextInjector::textContainsMention(const QString& normalizedText, co
         return false;
     }
 
+    const QString normalizedCandidate = normalizeLookupText(candidate);
+    if (!normalizedCandidate.isEmpty() && !candidates.contains(normalizedCandidate)) {
+        candidates.prepend(normalizedCandidate);
+    }
+
     for (const QString& normalizedCandidate : candidates) {
         if (normalizedCandidate.size() < 1) {
             continue;
@@ -132,20 +331,25 @@ bool BibleContextInjector::textContainsMention(const QString& normalizedText, co
         }
 
         if (normalizedCandidate.size() <= 2) {
-            const QRegularExpression regex(QStringLiteral(R"([\p{Han}]{0,2}%1)").arg(QRegularExpression::escape(normalizedCandidate)));
+            const QRegularExpression regex(getShortHanPatternRegex().pattern() +
+                QRegularExpression::escape(normalizedCandidate));
             if (regex.isValid() && normalizedText.contains(regex)) {
                 return true;
             }
         }
     }
+
+    LOG_DEBUG("BibleContextInjector", QString("Mention check failed: candidate='%1', variants='%2', textHead='%3', textTail='%4'")
+        .arg(candidate.trimmed(),
+             candidates.join(QStringLiteral(" | ")),
+             normalizedText.left(120),
+             normalizedText.right(120)));
     return false;
 }
 
 QStringList BibleContextInjector::splitLookupPhrases(const QString& text) const
 {
-    return deduplicateKeys(text.split(
-        QRegularExpression(QString::fromUtf8("[,，;；、/\\\\\\|\\n\\r。！？!?]+")),
-        Qt::SkipEmptyParts));
+    return deduplicateKeys(text.split(getSplitLookupRegex(), Qt::SkipEmptyParts));
 }
 
 bool BibleContextInjector::isLikelySceneLookupKey(const QString& text) const
@@ -249,95 +453,14 @@ QStringList BibleContextInjector::collectSceneLookupKeys(const QJsonObject& scen
     return deduplicateKeys(keys);
 }
 
-QString BibleContextInjector::joinArrayPreview(const QJsonArray& array, int limit) const
-{
-    QStringList items;
-    for (int i = 0; i < array.size() && i < limit; ++i) {
-        const QString value = array.at(i).toString().trimmed();
-        if (!value.isEmpty()) {
-            items << value;
-        }
-    }
-    return items.join(QString::fromUtf8("、"));
-}
-
 QString BibleContextInjector::summarizeCharacter(const QJsonObject& character) const
 {
-    QStringList parts;
-    const QString name = character["name"].toString().trimmed();
-    QJsonArray aliases = character["aliases"].toArray();
-    if (aliases.isEmpty()) {
-        aliases = character["appearance"].toObject()["aliases"].toArray();
-    }
-    const QString role = character["role"].toString().trimmed();
-    if (!name.isEmpty()) {
-        parts << QString::fromUtf8("角色=%1").arg(name);
-    }
-    if (!aliases.isEmpty()) {
-        parts << QString::fromUtf8("别名=%1").arg(joinArrayPreview(aliases, 3));
-    }
-    if (!role.isEmpty()) {
-        parts << QString::fromUtf8("定位=%1").arg(role);
-    }
-
-    const QJsonObject appearance = character["appearance"].toObject();
-    if (!appearance.isEmpty()) {
-        QStringList appearanceParts;
-        const QString gender = appearance["gender"].toString().trimmed();
-        const QString build = appearance["build"].toString().trimmed();
-        const QString hair = appearance["hairStyle"].toString().trimmed();
-        const QString clothing = joinArrayPreview(appearance["clothing"].toArray(), 3);
-        if (!gender.isEmpty()) appearanceParts << gender;
-        if (!build.isEmpty()) appearanceParts << build;
-        if (!hair.isEmpty()) appearanceParts << hair;
-        if (!clothing.isEmpty()) appearanceParts << QString::fromUtf8("服装:%1").arg(clothing);
-        if (!appearanceParts.isEmpty()) {
-            parts << QString::fromUtf8("外观=%1").arg(appearanceParts.join(QString::fromUtf8("，")));
-        }
-    }
-
-    const QString personality = joinArrayPreview(character["personality"].toArray(), 3);
-    if (!personality.isEmpty()) {
-        parts << QString::fromUtf8("性格=%1").arg(personality);
-    }
-
-    return parts.join(QString::fromUtf8("；"));
+    return buildCharacterSummaryParts(character).join(QString::fromUtf8("；"));
 }
 
 QString BibleContextInjector::summarizeScene(const QJsonObject& scene) const
 {
-    QStringList parts;
-    const QString name = scene["name"].toString().trimmed();
-    const QString type = scene["type"].toString().trimmed();
-    const QString description = scene["description"].toString().trimmed();
-    if (!name.isEmpty()) {
-        parts << QString::fromUtf8("场景=%1").arg(name);
-    }
-    if (!type.isEmpty()) {
-        parts << QString::fromUtf8("类型=%1").arg(type);
-    }
-
-    QStringList staticParts;
-    if (!description.isEmpty()) staticParts << description.left(80);
-
-    const QJsonObject visual = scene["visualCharacteristics"].toObject();
-    const QString architecture = visual["architecture"].toString().trimmed();
-    const QString landmarks = joinArrayPreview(visual["keyLandmarks"].toArray(), 3);
-    if (!architecture.isEmpty()) staticParts << architecture;
-    if (!landmarks.isEmpty()) staticParts << QString::fromUtf8("地标:%1").arg(landmarks);
-
-    const QJsonObject spatial = scene["spatialLayout"].toObject();
-    const QString layout = spatial["layout"].toString().trimmed();
-    if (!layout.isEmpty()) staticParts << QString::fromUtf8("布局:%1").arg(layout.left(50));
-
-    const QString anchors = joinArrayPreview(scene["anchorPoints"].toArray(), 3);
-    if (!anchors.isEmpty()) staticParts << QString::fromUtf8("锚点:%1").arg(anchors);
-
-    if (!staticParts.isEmpty()) {
-        parts << QString::fromUtf8("静态设定=%1").arg(staticParts.join(QString::fromUtf8("；")));
-    }
-
-    return parts.join(QString::fromUtf8("；"));
+    return buildSceneSummaryParts(scene).join(QString::fromUtf8("；"));
 }
 
 BibleContextInjector::FilteredContext BibleContextInjector::filterRelevantContext(
@@ -346,6 +469,7 @@ BibleContextInjector::FilteredContext BibleContextInjector::filterRelevantContex
     const QJsonArray& existingScenes)
 {
     FilteredContext result;
+    LOG_INFO("BibleContextInjector", QString("Filtering bible context from text length %1").arg(text.length()));
     result.characters = filterCharacters(text, existingCharacters);
     result.scenes = filterScenes(text, existingScenes);
     
@@ -367,105 +491,71 @@ QString BibleContextInjector::buildContextPrompt(
     if (characters.isEmpty() && scenes.isEmpty()) {
         return text;
     }
-    
+
     QString userMessage = QString::fromUtf8("以下是第%1章的设定资料：\n\n")
-        .arg(chapterNumber > 0 ? QString::number(chapterNumber) : "?");
-    
+        .arg(chapterNumber > 0 ? QString::number(chapterNumber) : QString::fromUtf8("?"));
+
     if (!characters.isEmpty()) {
-        userMessage += QString::fromUtf8("【角色设定】\n");
-        int appended = 0;
-        for (const QJsonValue& value : characters) {
-            if (appended >= kMaxContextItemsPerType) {
-                break;
-            }
-            const QString summary = summarizeCharacter(value.toObject());
-            if (!summary.isEmpty()) {
-                userMessage += QString::fromUtf8("- ") + summary + "\n";
-                ++appended;
-            }
-        }
-        userMessage += "\n\n";
+        userMessage += QString::fromUtf8("【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：\n");
+        userMessage += QString::fromUtf8(QJsonDocument(characters).toJson(QJsonDocument::Indented));
+        userMessage += QString::fromUtf8("\n\n");
     }
-    
+
     if (!scenes.isEmpty()) {
-        userMessage += QString::fromUtf8("【场景设定】\n");
-        int appended = 0;
-        for (const QJsonValue& value : scenes) {
-            if (appended >= kMaxContextItemsPerType) {
-                break;
-            }
-            const QString summary = summarizeScene(value.toObject());
-            if (!summary.isEmpty()) {
-                userMessage += QString::fromUtf8("- ") + summary + "\n";
-                ++appended;
-            }
-        }
-        userMessage += "\n\n";
+        userMessage += QString::fromUtf8("【现有场景圣经】请在生成的 scenes 数组中包含以下所有场景，并保持其 visualCharacteristics 不变。在 panel.background.sceneId 中优先使用这些场景ID：\n");
+        userMessage += QString::fromUtf8(QJsonDocument(scenes).toJson(QJsonDocument::Indented));
+        userMessage += QString::fromUtf8("\n\n");
     }
-    
-    userMessage += QString::fromUtf8("【正文内容】\n") + text;
-    userMessage = truncateWithEllipsis(userMessage, kMaxContextPromptChars);
-    
-    return userMessage;
+
+    userMessage += QString::fromUtf8("【新章节文本】\n") + text;
+    return truncateWithEllipsis(userMessage, kMaxContextPromptChars);
 }
 
 QJsonArray BibleContextInjector::filterCharacters(const QString& text, const QJsonArray& characters)
 {
-    const QString normalizedText = normalizeLookupText(text);
-    QJsonArray filtered;
-    for (const QJsonValue& value : characters) {
-        if (filtered.size() >= kMaxContextItemsPerType) {
-            break;
-        }
-        const QJsonObject character = value.toObject();
-        const QString name = character["name"].toString().trimmed();
-        QJsonArray aliases = character["aliases"].toArray();
-        QJsonObject appearance = character["appearance"].toObject();
-        if (aliases.isEmpty()) {
-            aliases = appearance["aliases"].toArray();
-        }
+    return filterContextItems(text, characters, kMaxContextItemsPerType, QStringLiteral("character"), true,
+        [this](const QString& normalizedText, const QJsonObject& character) {
+            QJsonArray aliases = character["aliases"].toArray();
+            QJsonObject appearance = character["appearance"].toObject();
+            if (aliases.isEmpty()) {
+                aliases = appearance["aliases"].toArray();
+            }
 
-        bool matched = textContainsMention(normalizedText, name);
-        if (!matched) {
+            const QString name = character["name"].toString().trimmed();
+            if (textContainsMention(normalizedText, name)) {
+                ContextMatchResult match;
+                match.matched = true;
+                match.matchedBy = QStringLiteral("name");
+                return match;
+            }
+
             for (const QJsonValue& aliasValue : aliases) {
-                if (textContainsMention(normalizedText, aliasValue.toString().trimmed())) {
-                    matched = true;
-                    break;
+                const QString alias = aliasValue.toString().trimmed();
+                if (textContainsMention(normalizedText, alias)) {
+                    ContextMatchResult match;
+                    match.matched = true;
+                    match.matchedBy = QStringLiteral("alias:%1").arg(alias);
+                    return match;
                 }
             }
-        }
 
-        if (matched) {
-            filtered.append(character);
-        }
-    }
-    return filtered;
+            return ContextMatchResult{};
+        });
 }
 
 QJsonArray BibleContextInjector::filterScenes(const QString& text, const QJsonArray& scenes)
 {
-    const QString normalizedText = normalizeLookupText(text);
-    QJsonArray filtered;
-    for (const QJsonValue& value : scenes) {
-        if (filtered.size() >= kMaxContextItemsPerType) {
-            break;
-        }
-        const QJsonObject scene = value.toObject();
-        const QStringList keys = collectSceneLookupKeys(scene);
-        bool matched = false;
-        QString matchedKey;
-        for (const QString& key : keys) {
-            if (textContainsMention(normalizedText, key)) {
-                matched = true;
-                matchedKey = key;
-                break;
+    return filterContextItems(text, scenes, kMaxContextItemsPerType, QStringLiteral("scene"), false,
+        [this](const QString& normalizedText, const QJsonObject& scene) {
+            const QStringList keys = collectSceneLookupKeys(scene);
+            for (const QString& key : keys) {
+                if (textContainsMention(normalizedText, key)) {
+                    ContextMatchResult match;
+                    match.matched = true;
+                    match.matchedBy = key;
+                    return match;
+                }
             }
-        }
-        if (matched) {
-            LOG_DEBUG("BibleContextInjector", QString("Matched scene context '%1' by key '%2'")
-                .arg(scene["name"].toString(), matchedKey));
-            filtered.append(scene);
-        }
-    }
-    return filtered;
+            return ContextMatchResult{};
+        });
 }

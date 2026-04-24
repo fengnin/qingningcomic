@@ -91,25 +91,6 @@ void PanelEditorWidget::setupUI()
     
     topLayout->addWidget(infoWidget, 1);
     
-    QPushButton *closeBtn = new QPushButton(QString::fromUtf8("关闭"));
-    closeBtn->setFixedSize(60, 32);
-    closeBtn->setStyleSheet(R"(
-        QPushButton {
-            background: #F3F4F6;
-            color: #6B7280;
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-        }
-        QPushButton:hover {
-            background: #E5E7EB;
-            color: #374151;
-        }
-    )");
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    connect(closeBtn, &QPushButton::clicked, this, &PanelEditorWidget::closed);
-    topLayout->addWidget(closeBtn, 0, Qt::AlignTop);
-    
     mainLayout->addWidget(topRow);
 
     QWidget *bodyRow = new QWidget();
