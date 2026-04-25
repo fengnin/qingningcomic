@@ -593,10 +593,11 @@ void NovelDetailPage::setupConnections()
             this, &NovelDetailPage::onAnalysisStarted, Qt::QueuedConnection);
     connect(vm, &StoryboardViewModel::analysisProgress,
             this, [this](const QString& stage, int progress) {
+                Q_UNUSED(stage)
                 if (m_analysisProgress) {
                     m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
                     m_analysisProgress->setProgress(progress);
-                    m_analysisProgress->setProgressText(stage);
+                    m_analysisProgress->setProgressText(QString::fromUtf8("正在生成内容..."));
                 }
             }, Qt::QueuedConnection);
     
@@ -1682,7 +1683,8 @@ void NovelDetailPage::onAnalysisStarted(const QString& novelId)
     
     if (m_analysisProgress && m_analysisProgress->currentState() == AnalysisProgressWidget::State::Idle) {
         m_analysisProgress->reset();
-        m_analysisProgress->setState(AnalysisProgressWidget::State::Connecting);
+        m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_analysisProgress->setProgressText(QString::fromUtf8("正在生成内容..."));
     }
     
     if (m_analysisResult) {
@@ -1726,7 +1728,8 @@ void NovelDetailPage::onAnalyzeClicked()
     
     if (m_analysisProgress) {
         m_analysisProgress->reset();
-        m_analysisProgress->setState(AnalysisProgressWidget::State::Connecting);
+        m_analysisProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_analysisProgress->setProgressText(QString::fromUtf8("正在生成内容..."));
     }
     
     if (m_analysisResult) {

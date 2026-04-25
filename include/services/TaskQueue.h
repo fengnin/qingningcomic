@@ -45,8 +45,6 @@ signals:
     void taskCompleted(const QString& taskId, const QJsonObject& result);
     void taskFailed(const QString& taskId, const QString& error);
     void taskCancelled(const QString& taskId);
-    
-    void workerWakeAll();
 
 private slots:
     void onTaskProgress(const QString& taskId, int progress, const QString& message);
@@ -54,35 +52,11 @@ private slots:
 private:
     TaskQueue();
     ~TaskQueue();
-    
-    template<typename Func>
-    auto withLock(Func&& func) const -> decltype(func())
-    {
-        QMutexLocker locker(&m_mutex);
-        return func();
-    }
-    
-    template<typename Func>
-    auto withLock(Func&& func) -> decltype(func())
-    {
-        QMutexLocker locker(&m_mutex);
-        return func();
-    }
-    
+
     void saveTaskToDatabase(const TaskData& task);
     void loadTasksFromDatabase();
-    QString getNovelText(const QString& novelId) const;
-    
-    QList<TaskData> findTasks(TaskPredicate predicate) const;
-    QList<TaskData> findTasksByStatus(TaskStatus status) const;
-    bool hasTasks(TaskPredicate predicate) const;
-    bool hasTasksByStatus(TaskStatus status) const;
-    
-    bool updateTaskStatus(const QString& taskId, TaskStatus newStatus);
     TaskData* getTaskRef(const QString& taskId);
-    
-    void wakeWorkers();
-    
+
     static TaskQueue* m_instance;
     static QMutex m_instanceMutex;
     
@@ -103,9 +77,8 @@ class TaskWorker : public QThread
 public:
     explicit TaskWorker(TaskQueue* queue, QObject* parent = nullptr);
     ~TaskWorker() = default;
-    
+
     void stop();
-    void wake();
 
 signals:
     void taskStarted(const QString& taskId);
@@ -117,18 +90,23 @@ protected:
     void run() override;
 
 private:
+    enum class DequeueStatus {
+        Dequeued,
+        NoTaskAvailable,
+        Stopped
+    };
+
     struct TaskResult {
         bool success = false;
         QJsonObject result;
         QString errorMessage;
     };
     
-    bool tryDequeueTask(QString& outTaskId, TaskData& outTask);
+    DequeueStatus tryDequeueTask(QString& outTaskId, TaskData& outTask);
     TaskResult executeTask(TaskData& task);
     void finalizeTask(const QString& taskId, const TaskResult& result);
     
     TaskQueue* m_queue;
     QMutex m_workerMutex;
-    QWaitCondition m_workerCondition;
     bool m_running = false;
 };

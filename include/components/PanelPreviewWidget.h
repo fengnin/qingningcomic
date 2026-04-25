@@ -38,17 +38,23 @@ private slots:
 
 private:
     void setupUI();
+    void resetPanelView();
     void populateWithPanels(const QList<Panel>& panels);
     void populateEmptyState();
     void finishPopulate(int actualCount);
-    PanelCard* createPanelCard(int panelNum, const QString& description, 
-                                const QString& panelId = QString(), 
-                                const QString& previewUrl = QString());
+    QString panelDescription(const Panel& panel) const;
+    int panelNumberFor(const Panel& panel) const;
+    PanelCard* createPanelCard(int panelNum, const QString& description,
+                               const QString& panelId = QString(),
+                               const QString& previewUrl = QString());
+    PanelCard* panelCardForId(const QString& panelId) const;
+    void syncPanelPreview(const QString& panelId, const QString& previewUrl, int width = 0, int height = 0);
+    bool savePanelDescription(const QString& panelId, const QString& description);
 
     QLabel* m_titleLabel = nullptr;
     QLabel* m_countLabel = nullptr;
-    QWidget* m_container = nullptr;
-    QHBoxLayout* m_containerLayout = nullptr;
+    QWidget* m_panelContainer = nullptr;
+    QHBoxLayout* m_panelLayout = nullptr;
     
     int m_currentChapter = 1;
     int m_panelCount = 0;

@@ -5,12 +5,12 @@
 #include "models/Storyboard.h"
 #include "models/Panel.h"
 #include "services/AnalysisService.h"
+#include "services/ImageService.h"
 #include "utils/SingletonUtils.h"
 #include <QList>
 #include <QMap>
 
 class StoryboardService;
-class ImageService;
 
 class StoryboardViewModel : public BaseViewModel
 {
@@ -90,6 +90,9 @@ private slots:
 private:
     void connectServiceSignals();
     void resetAnalysisState();
+    bool isPresetMode(const QString& mode) const;
+    ImageService::BatchPresetMode batchPresetModeFromMode(const QString& mode) const;
+    ImageService::GenerateMode generateModeFromMode(const QString& mode) const;
     
     StoryboardService* m_storyboardService;
     AnalysisService* m_analysisService;
@@ -102,8 +105,8 @@ private:
     QString m_cachedNovelId;
     int m_cachedChapterNumber = 0;
     QMap<QString, QList<Panel>> m_panelsCache;
-    int m_storyboardsLoadToken = 0;
-    int m_storyboardLoadToken = 0;
+    int m_storyboardsRequestToken = 0;
+    int m_storyboardRequestToken = 0;
     bool m_storyboardsLoading = false;
     bool m_storyboardLoading = false;
     

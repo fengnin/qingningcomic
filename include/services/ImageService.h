@@ -8,10 +8,6 @@
 #include <QJsonObject>
 #include <QByteArray>
 #include <QMutex>
-#include <QTimer>
-#include <QFuture>
-#include <QFutureWatcher>
-#include <QtConcurrent>
 
 class Character;
 class Scene;

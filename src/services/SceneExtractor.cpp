@@ -407,6 +407,38 @@ QStringList buildConcreteConsistencyRules(const ExtractedScene& scene)
     return deduplicateList(rules).mid(0, 4);
 }
 
+void assignSceneStringField(ExtractedScene& scene, const QString& key, QString& field, const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+
+    field = trimmed;
+    scene.fieldSources[key] = QStringLiteral("inferred");
+}
+
+void assignSceneListField(ExtractedScene& scene, const QString& key, QStringList& field, const QStringList& values)
+{
+    const QStringList cleaned = deduplicateList(values);
+    if (cleaned.isEmpty()) {
+        return;
+    }
+
+    field = cleaned;
+    scene.fieldSources[key] = QStringLiteral("inferred");
+}
+
+void assignSceneArrayField(ExtractedScene& scene, const QString& key, QJsonArray& field, const QJsonArray& values)
+{
+    if (values.isEmpty()) {
+        return;
+    }
+
+    field = values;
+    scene.fieldSources[key] = QStringLiteral("inferred");
+}
+
 QString inferSceneType(const QString& description, const QString& name)
 {
     static const QStringList indoorKeywords = {
@@ -574,20 +606,20 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json, const QString& 
 {
     ExtractedScene scene;
     scene.name = json["name"].toString();
-    scene.description = json["description"].toString();
-    scene.building = json["building"].toString();
-    scene.landmark = json["landmark"].toString();
-    scene.layout = json["layout"].toString();
-    scene.atmosphere = json["atmosphere"].toString();
-    scene.color = json["color"].toString();
-    scene.type = json["type"].toString();
-    scene.typeZh = json["typeZh"].toString();
-    scene.setting = json["setting"].toString();
-    scene.timeOfDay = json["timeOfDay"].toString();
-    scene.weather = json["weather"].toString();
-    scene.spaceSize = json["spaceSize"].toString();
-    scene.narrativeRole = json["narrativeRole"].toString();
-    scene.narrativeRoleZh = json["narrativeRoleZh"].toString();
+    assignSceneStringField(scene, "description", scene.description, json["description"].toString());
+    assignSceneStringField(scene, "building", scene.building, json["building"].toString());
+    assignSceneStringField(scene, "landmark", scene.landmark, json["landmark"].toString());
+    assignSceneStringField(scene, "layout", scene.layout, json["layout"].toString());
+    assignSceneStringField(scene, "atmosphere", scene.atmosphere, json["atmosphere"].toString());
+    assignSceneStringField(scene, "color", scene.color, json["color"].toString());
+    assignSceneStringField(scene, "type", scene.type, json["type"].toString());
+    assignSceneStringField(scene, "typeZh", scene.typeZh, json["typeZh"].toString());
+    assignSceneStringField(scene, "setting", scene.setting, json["setting"].toString());
+    assignSceneStringField(scene, "timeOfDay", scene.timeOfDay, json["timeOfDay"].toString());
+    assignSceneStringField(scene, "weather", scene.weather, json["weather"].toString());
+    assignSceneStringField(scene, "spaceSize", scene.spaceSize, json["spaceSize"].toString());
+    assignSceneStringField(scene, "narrativeRole", scene.narrativeRole, json["narrativeRole"].toString());
+    assignSceneStringField(scene, "narrativeRoleZh", scene.narrativeRoleZh, json["narrativeRoleZh"].toString());
     scene.fieldSources = json["fieldSources"].toObject();
     AnalysisFieldUtils::markFieldSources(scene.fieldSources, {
         {"description", !scene.description.isEmpty()},
@@ -643,7 +675,7 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json, const QString& 
             if (!scene.color.isEmpty()) scene.fieldSources["color"] = QStringLiteral("inferred");
         }
         if (scene.anchorPoints.isEmpty() && visual.contains("keyLandmarks")) {
-            scene.anchorPoints = JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray());
+            scene.anchorPoints = deduplicateList(JsonUtils::jsonArrayToStringList(visual["keyLandmarks"].toArray()));
             if (!scene.anchorPoints.isEmpty()) scene.fieldSources["anchorPoints"] = QStringLiteral("inferred");
         }
         if (scene.landmark.isEmpty() && visual.contains("keyLandmarks")) {
@@ -665,29 +697,29 @@ ExtractedScene ExtractedScene::fromJson(const QJsonObject& json, const QString& 
     }
     
     if (json.contains("anchorPoints")) {
-        scene.anchorPoints = JsonUtils::jsonArrayToStringList(json["anchorPoints"].toArray());
-        if (!scene.anchorPoints.isEmpty()) scene.fieldSources["anchorPoints"] = QStringLiteral("inferred");
+        assignSceneListField(scene, "anchorPoints", scene.anchorPoints,
+                             JsonUtils::jsonArrayToStringList(json["anchorPoints"].toArray()));
     }
     if (json.contains("signatureObjects")) {
-        scene.signatureObjects = JsonUtils::jsonArrayToStringList(json["signatureObjects"].toArray());
-        if (!scene.signatureObjects.isEmpty()) scene.fieldSources["signatureObjects"] = QStringLiteral("inferred");
+        assignSceneListField(scene, "signatureObjects", scene.signatureObjects,
+                             JsonUtils::jsonArrayToStringList(json["signatureObjects"].toArray()));
     }
     if (json.contains("fixedColorBlocks")) {
-        scene.fixedColorBlocks = JsonUtils::jsonArrayToStringList(json["fixedColorBlocks"].toArray());
-        if (!scene.fixedColorBlocks.isEmpty()) scene.fieldSources["fixedColorBlocks"] = QStringLiteral("inferred");
+        assignSceneListField(scene, "fixedColorBlocks", scene.fixedColorBlocks,
+                             JsonUtils::jsonArrayToStringList(json["fixedColorBlocks"].toArray()));
     }
     if (json.contains("consistencyRules")) {
-        scene.consistencyRules = JsonUtils::jsonArrayToStringList(json["consistencyRules"].toArray());
-        if (!scene.consistencyRules.isEmpty()) scene.fieldSources["consistencyRules"] = QStringLiteral("inferred");
+        assignSceneListField(scene, "consistencyRules", scene.consistencyRules,
+                             JsonUtils::jsonArrayToStringList(json["consistencyRules"].toArray()));
     }
     if (json.contains("details")) {
         scene.details = JsonUtils::jsonArrayToStringList(json["details"].toArray());
     }
     if (json.contains("timeVariations")) {
-        scene.timeVariations = json["timeVariations"].toArray();
+        assignSceneArrayField(scene, "timeVariations", scene.timeVariations, json["timeVariations"].toArray());
     }
     if (json.contains("weatherVariations")) {
-        scene.weatherVariations = json["weatherVariations"].toArray();
+        assignSceneArrayField(scene, "weatherVariations", scene.weatherVariations, json["weatherVariations"].toArray());
     }
     return scene;
 }

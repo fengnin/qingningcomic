@@ -121,11 +121,18 @@ private:
 
     // 请求构建
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
+    QJsonObject buildReferenceSubmitPayload(const GenerateOptions& options);
+    QJsonObject buildReferenceQueryPayload(const QString& taskId) const;
     
     // 图生图 API
     GenerateResult generateWithReference(const GenerateOptions& options);
     GenerateResult pollTaskResult(const QString& taskId, const GenerateOptions& options);
     GenerateResult handleTaskDone(const QJsonObject& data, const GenerateOptions& options);
+    GenerateResult buildImageResult(const QString& requestId,
+                                    const QByteArray& imageData,
+                                    const QString& imageUrl = QString()) const;
+    QString extractResponseImageUrl(const QJsonObject& data) const;
+    QString extractResponseErrorMessage(const QJsonObject& response) const;
     
     // 网络请求
     QNetworkRequest createNetworkRequest(const QString& url, const QString& body);

@@ -41,8 +41,8 @@ void PanelPreviewWidget::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(12);
     
-    QWidget *headerRow = new QWidget();
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
+    QWidget* headerRow = new QWidget();
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerRow);
     headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->setSpacing(8);
     
@@ -71,12 +71,12 @@ void PanelPreviewWidget::setupUI()
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setFixedHeight(470);
     
-    m_container = new QWidget();
-    m_containerLayout = new QHBoxLayout(m_container);
-    m_containerLayout->setContentsMargins(16, 16, 16, 16);
-    m_containerLayout->setSpacing(16);
-    
-    scrollArea->setWidget(m_container);
+    m_panelContainer = new QWidget();
+    m_panelLayout = new QHBoxLayout(m_panelContainer);
+    m_panelLayout->setContentsMargins(16, 16, 16, 16);
+    m_panelLayout->setSpacing(16);
+
+    scrollArea->setWidget(m_panelContainer);
     mainLayout->addWidget(scrollArea);
     populateEmptyState();
 }
@@ -102,8 +102,7 @@ void PanelPreviewWidget::clear()
     m_panels.clear();
     m_panelCount = 0;
     m_storyboardId.clear();
-    m_panelCards.clear();
-    resetPanelLayout(m_containerLayout);
+    resetPanelView();
     populateEmptyState();
     updateCountLabel(m_countLabel, 0);
     emit panelCountChanged(0);
@@ -111,8 +110,7 @@ void PanelPreviewWidget::clear()
 
 void PanelPreviewWidget::refresh()
 {
-    m_panelCards.clear();
-    resetPanelLayout(m_containerLayout);
+    resetPanelView();
     
     if (!m_storyboardId.isEmpty()) {
         QList<Panel> freshPanels = StoryboardService::instance()->getPanels(m_storyboardId);
@@ -137,16 +135,8 @@ void PanelPreviewWidget::populateWithPanels(const QList<Panel>& panels)
     m_panelCount = 0;
     
     for (const Panel& panel : panels) {
-        QString desc = panel.scene();
-        if (desc.isEmpty()) {
-            desc = panel.visualPrompt();
-        }
-        
-        int panelNum = (panel.page() - 1) * 6 + panel.index() + 1;
-        QString previewUrl = panel.previewUrl();
-        
-        PanelCard *panelCard = createPanelCard(panelNum, desc, panel.id(), previewUrl);
-        m_containerLayout->addWidget(panelCard);
+        PanelCard* panelCard = createPanelCard(panelNumberFor(panel), panelDescription(panel), panel.id(), panel.previewUrl());
+        m_panelLayout->addWidget(panelCard);
         m_panelCount++;
     }
     
@@ -158,16 +148,16 @@ void PanelPreviewWidget::populateWithPanels(const QList<Panel>& panels)
 
 void PanelPreviewWidget::populateEmptyState()
 {
-    QLabel *emptyLabel = new QLabel(tr("暂无面板数据"));
+    QLabel* emptyLabel = new QLabel(tr("暂无面板数据"));
     emptyLabel->setAlignment(Qt::AlignCenter);
     emptyLabel->setStyleSheet("font-size: 14px; color: #9CA3AF; padding: 32px 0;");
-    m_containerLayout->addWidget(emptyLabel);
+    m_panelLayout->addWidget(emptyLabel);
     finishPopulate(0);
 }
 
 void PanelPreviewWidget::finishPopulate(int actualCount)
 {
-    m_containerLayout->addStretch();
+    m_panelLayout->addStretch();
     
     updateCountLabel(m_countLabel, actualCount);
     
@@ -176,10 +166,27 @@ void PanelPreviewWidget::finishPopulate(int actualCount)
     }
 }
 
-PanelCard* PanelPreviewWidget::createPanelCard(int panelNum, const QString& description, 
-                                                const QString& panelId, const QString& previewUrl)
+void PanelPreviewWidget::resetPanelView()
 {
-    PanelCard *panelCard = new PanelCard(m_currentChapter, panelNum, description);
+    m_panelCards.clear();
+    resetPanelLayout(m_panelLayout);
+}
+
+QString PanelPreviewWidget::panelDescription(const Panel& panel) const
+{
+    const QString sceneDescription = panel.scene();
+    return sceneDescription.isEmpty() ? panel.visualPrompt() : sceneDescription;
+}
+
+int PanelPreviewWidget::panelNumberFor(const Panel& panel) const
+{
+    return (panel.page() - 1) * 6 + panel.index() + 1;
+}
+
+PanelCard* PanelPreviewWidget::createPanelCard(int panelNum, const QString& description,
+                                               const QString& panelId, const QString& previewUrl)
+{
+    PanelCard* panelCard = new PanelCard(m_currentChapter, panelNum, description);
     
     if (!panelId.isEmpty()) {
         panelCard->setPanelId(panelId);
@@ -198,9 +205,63 @@ PanelCard* PanelPreviewWidget::createPanelCard(int panelNum, const QString& desc
     return panelCard;
 }
 
+PanelCard* PanelPreviewWidget::panelCardForId(const QString& panelId) const
+{
+    return m_panelCards.value(panelId, nullptr);
+}
+
+void PanelPreviewWidget::syncPanelPreview(const QString& panelId, const QString& previewUrl, int width, int height)
+{
+    PanelCard* card = panelCardForId(panelId);
+    if (card && !previewUrl.isEmpty()) {
+        card->setPreviewUrl(previewUrl);
+        card->setImageSize(width, height);
+        LOG_INFO("PanelPreviewWidget", QString("Updated panel card: %1 -> %2, size: %3x%4")
+            .arg(panelId).arg(previewUrl).arg(width).arg(height));
+    } else if (card) {
+        LOG_DEBUG("PanelPreviewWidget", QString("Panel card %1 found but preview url is empty").arg(panelId));
+    } else {
+        LOG_DEBUG("PanelPreviewWidget", QString("panelId %1 not found in m_panelCards").arg(panelId));
+    }
+
+    for (Panel& panel : m_panels) {
+        if (panel.id() == panelId && !previewUrl.isEmpty()) {
+            panel.setPreviewUrl(previewUrl);
+            break;
+        }
+    }
+}
+
+bool PanelPreviewWidget::savePanelDescription(const QString& panelId, const QString& description)
+{
+    for (Panel& panel : m_panels) {
+        if (panel.id() != panelId) {
+            continue;
+        }
+
+        QJsonObject content = panel.rawContent();
+        content["scene"] = description;
+        panel.setContent(content);
+
+        if (StoryboardService::instance()->updatePanel(panelId, content)) {
+            LOG_INFO("PanelPreviewWidget", QString("Saved panel description to database: %1").arg(panelId));
+            if (!m_storyboardId.isEmpty()) {
+                StoryboardViewModel::instance()->invalidatePanelsCache(m_storyboardId);
+            }
+            return true;
+        }
+
+        LOG_ERROR("PanelPreviewWidget", QString("Failed to save panel description: %1").arg(panelId));
+        return false;
+    }
+
+    LOG_WARNING("PanelPreviewWidget", QString("Panel not found for description save: %1").arg(panelId));
+    return false;
+}
+
 void PanelPreviewWidget::onPanelCardClicked(int panelNumber)
 {
-    PanelCard *card = qobject_cast<PanelCard*>(sender());
+    PanelCard* card = qobject_cast<PanelCard*>(sender());
     if (card) {
         emit panelClicked(panelNumber, card->panelId());
     }
@@ -216,46 +277,29 @@ void PanelPreviewWidget::onPanelGenerated(const ImageService::GenerateResult& re
         return;
     }
     
-    QString panelId = result.panelId;
+    const QString panelId = result.panelId;
     if (panelId.isEmpty()) {
         LOG_DEBUG("PanelPreviewWidget", "PanelId is empty, ignoring");
         return;
     }
-    
+
     LOG_DEBUG("PanelPreviewWidget", QString("m_panelCards contains %1 entries, checking for panelId: %2")
         .arg(m_panelCards.size()).arg(panelId));
-    
-    if (m_panelCards.contains(panelId)) {
-        PanelCard* card = m_panelCards[panelId];
-        if (card && !result.imageUrl.isEmpty()) {
-            card->setPreviewUrl(result.imageUrl);
-            card->setImageSize(result.width, result.height);
-            LOG_INFO("PanelPreviewWidget", QString("Updated panel card: %1 -> %2, size: %3x%4")
-                .arg(panelId).arg(result.imageUrl).arg(result.width).arg(result.height));
-        }
-    } else {
-        LOG_DEBUG("PanelPreviewWidget", QString("panelId %1 not found in m_panelCards").arg(panelId));
-    }
-    
-    for (int i = 0; i < m_panels.size(); ++i) {
-        if (m_panels[i].id() == panelId && !result.imageUrl.isEmpty()) {
-            m_panels[i].setPreviewUrl(result.imageUrl);
-            break;
-        }
-    }
+
+    syncPanelPreview(panelId, result.imageUrl, result.width, result.height);
 }
 
 void PanelPreviewWidget::onPanelDescriptionChanged(int panelNumber, const QString& description)
 {
     Q_UNUSED(panelNumber);
     
-    PanelCard *card = qobject_cast<PanelCard*>(sender());
+    PanelCard* card = qobject_cast<PanelCard*>(sender());
     if (!card) {
         LOG_WARNING("PanelPreviewWidget", "onPanelDescriptionChanged: sender is not a PanelCard");
         return;
     }
     
-    QString panelId = card->panelId();
+    const QString panelId = card->panelId();
     if (panelId.isEmpty()) {
         LOG_WARNING("PanelPreviewWidget", "onPanelDescriptionChanged: panelId is empty");
         return;
@@ -263,22 +307,6 @@ void PanelPreviewWidget::onPanelDescriptionChanged(int panelNumber, const QStrin
     
     LOG_INFO("PanelPreviewWidget", QString("Panel description changed: panelId=%1, description=%2")
         .arg(panelId).arg(description.left(50)));
-    
-    for (int i = 0; i < m_panels.size(); ++i) {
-        if (m_panels[i].id() == panelId) {
-            QJsonObject content = m_panels[i].rawContent();
-            content["scene"] = description;
-            m_panels[i].setContent(content);
-            
-            if (StoryboardService::instance()->updatePanel(panelId, content)) {
-                LOG_INFO("PanelPreviewWidget", QString("Saved panel description to database: %1").arg(panelId));
-                if (!m_storyboardId.isEmpty()) {
-                    StoryboardViewModel::instance()->invalidatePanelsCache(m_storyboardId);
-                }
-            } else {
-                LOG_ERROR("PanelPreviewWidget", QString("Failed to save panel description: %1").arg(panelId));
-            }
-            break;
-        }
-    }
+
+    savePanelDescription(panelId, description);
 }

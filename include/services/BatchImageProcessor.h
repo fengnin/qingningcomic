@@ -39,13 +39,15 @@ protected:
     void recordSuccess();
     void recordFailure();
     bool isCancelled() const { return m_batchState.cancelled; }
-    bool hasMore() const { return m_batchState.currentIndex < m_batchState.totalCount; }
     bool shouldContinue() const;
     void scheduleNext(std::function<void()> callback, int delayMs = 100);
     
     void setGenerating(bool generating);
     void setError(const QString& message);
     void clearError();
+
+private:
+    void resetBatchState(int totalCount);
     
     BatchState m_batchState;
     bool m_generating = false;

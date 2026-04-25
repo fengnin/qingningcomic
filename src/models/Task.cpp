@@ -1,41 +1,134 @@
 #include "models/Task.h"
 #include "utils/JsonUtils.h"
 #include <QJsonDocument>
+#include <initializer_list>
+
+namespace {
+
+struct TaskTypeEntry {
+    TaskType type;
+    const char* canonicalName;
+    std::initializer_list<const char*> aliases;
+};
+
+const TaskTypeEntry kTaskTypeEntries[] = {
+    {TaskType::GenerateStoryboard, "GenerateStoryboard", {"generatestoryboard", "generate_storyboard"}},
+    {TaskType::GeneratePanels, "GeneratePanels", {"generatepanels", "generate_panels"}},
+    {TaskType::GeneratePanelImage, "GeneratePanelImage", {"generatepanelimage", "generate_panel_image"}},
+    {TaskType::ExportPdf, "ExportPdf", {"exportpdf", "export_pdf"}}
+};
+
+QString normalizeTaskToken(const QString& value)
+{
+    return value.trimmed().toLower();
+}
+
+bool matchesAny(const QString& value, std::initializer_list<const char*> candidates)
+{
+    const QString normalized = normalizeTaskToken(value);
+    for (const char* candidate : candidates) {
+        if (normalized == QString::fromLatin1(candidate)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool matchesTaskTypeEntry(const QString& normalized, const TaskTypeEntry& entry)
+{
+    if (normalized == QString::fromLatin1(entry.canonicalName).toLower()) {
+        return true;
+    }
+    for (const char* alias : entry.aliases) {
+        if (normalized == QString::fromLatin1(alias)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QJsonObject parseJsonObject(const QVariant& value)
+{
+    return JsonUtils::toObject(value);
+}
+
+void loadTaskCommonFromJson(TaskData& task, const QJsonObject& json)
+{
+    task.id = JsonUtils::get<QString>(json, "id");
+    task.type = TaskHelper::typeFromString(JsonUtils::get<QString>(json, "type"));
+    task.status = TaskHelper::statusFromString(JsonUtils::get<QString>(json, "status"));
+    task.novelId = JsonUtils::get<QString>(json, "novelId");
+    task.storyboardId = JsonUtils::get<QString>(json, "storyboardId");
+    task.panelId = JsonUtils::get<QString>(json, "panelId");
+    task.chapterNumber = JsonUtils::get<int>(json, "chapterNumber", 1);
+    task.text = JsonUtils::get<QString>(json, "text");
+    task.params = JsonUtils::getObject(json, "params");
+    task.total = JsonUtils::get<int>(json, "total");
+    task.completed = JsonUtils::get<int>(json, "completed");
+    task.errorMessage = JsonUtils::get<QString>(json, "errorMessage");
+    task.result = JsonUtils::getObject(json, "result");
+    task.retryCount = JsonUtils::get<int>(json, "retryCount");
+    task.maxRetries = JsonUtils::get<int>(json, "maxRetries", 3);
+    task.createdAt = JsonUtils::getDateTime(json, "createdAt");
+    task.startedAt = JsonUtils::getDateTime(json, "startedAt");
+    task.completedAt = JsonUtils::getDateTime(json, "completedAt");
+}
+
+void loadTaskCommonFromDatabase(TaskData& task, const QVariantMap& row)
+{
+    task.id = row.value("id").toString();
+    task.novelId = row.value("novel_id").toString();
+    task.storyboardId = row.value("storyboard_id").toString();
+    task.panelId = row.value("panel_id").toString();
+    task.total = row.value("total_tasks").toInt();
+    task.completed = row.value("completed_tasks").toInt();
+    task.errorMessage = row.value("error_message").toString();
+    task.result = parseJsonObject(row.value("result"));
+    task.type = TaskHelper::typeFromString(row.value("type").toString());
+    task.status = TaskHelper::statusFromString(row.value("status").toString());
+    task.params = parseJsonObject(row.value("params"));
+    if (task.params.contains("chapterNumber")) {
+        task.chapterNumber = task.params.value("chapterNumber").toInt(1);
+    }
+}
+
+void writeTaskDates(QJsonObject& json, const TaskData& task)
+{
+    JsonUtils::set(json, QStringLiteral("createdAt"), task.createdAt);
+    JsonUtils::set(json, QStringLiteral("startedAt"), task.startedAt);
+    JsonUtils::set(json, QStringLiteral("completedAt"), task.completedAt);
+}
+
+} // namespace
 
 namespace TaskHelper {
 
 TaskType typeFromString(const QString& str)
 {
-    if (str == "GenerateStoryboard" || str == "generate_storyboard") {
-        return TaskType::GenerateStoryboard;
-    }
-    if (str == "GeneratePanels" || str == "generate_panels") {
-        return TaskType::GeneratePanels;
-    }
-    if (str == "GeneratePanelImage" || str == "generate_panel_image") {
-        return TaskType::GeneratePanelImage;
-    }
-    if (str == "ExportPdf" || str == "export_pdf") {
-        return TaskType::ExportPdf;
+    const QString normalized = normalizeTaskToken(str);
+    for (const TaskTypeEntry& entry : kTaskTypeEntries) {
+        if (matchesTaskTypeEntry(normalized, entry)) {
+            return entry.type;
+        }
     }
     return TaskType::GenerateStoryboard;
 }
 
 TaskStatus statusFromString(const QString& str)
 {
-    if (str == "Pending" || str == "pending") {
+    if (matchesAny(str, {"pending"})) {
         return TaskStatus::Pending;
     }
-    if (str == "Running" || str == "running") {
+    if (matchesAny(str, {"running"})) {
         return TaskStatus::Running;
     }
-    if (str == "Completed" || str == "completed") {
+    if (matchesAny(str, {"completed"})) {
         return TaskStatus::Completed;
     }
-    if (str == "Failed" || str == "failed") {
+    if (matchesAny(str, {"failed"})) {
         return TaskStatus::Failed;
     }
-    if (str == "Cancelled" || str == "cancelled") {
+    if (matchesAny(str, {"cancelled"})) {
         return TaskStatus::Cancelled;
     }
     return TaskStatus::Pending;
@@ -43,11 +136,10 @@ TaskStatus statusFromString(const QString& str)
 
 QString typeToString(TaskType type)
 {
-    switch (type) {
-        case TaskType::GenerateStoryboard: return "GenerateStoryboard";
-        case TaskType::GeneratePanels: return "GeneratePanels";
-        case TaskType::GeneratePanelImage: return "GeneratePanelImage";
-        case TaskType::ExportPdf: return "ExportPdf";
+    for (const TaskTypeEntry& entry : kTaskTypeEntries) {
+        if (entry.type == type) {
+            return QString::fromLatin1(entry.canonicalName);
+        }
     }
     return "GenerateStoryboard";
 }
@@ -64,25 +156,13 @@ QString statusToString(TaskStatus status)
     return "Pending";
 }
 
-}
+} // namespace TaskHelper
 
 namespace {
 
 QString toCompactJson(const QJsonObject& object)
 {
     return QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact));
-}
-
-QDateTime readDateTime(const QJsonObject& json, const QString& key)
-{
-    return QDateTime::fromString(json.value(key).toString(), Qt::ISODate);
-}
-
-void writeDateTime(QJsonObject& json, const QString& key, const QDateTime& value)
-{
-    if (value.isValid()) {
-        json[key] = value.toString(Qt::ISODate);
-    }
 }
 
 } // namespace
@@ -126,9 +206,7 @@ QJsonObject TaskData::toJson() const
     json["result"] = result;
     json["retryCount"] = retryCount;
     json["maxRetries"] = maxRetries;
-    writeDateTime(json, QStringLiteral("createdAt"), createdAt);
-    writeDateTime(json, QStringLiteral("startedAt"), startedAt);
-    writeDateTime(json, QStringLiteral("completedAt"), completedAt);
+    writeTaskDates(json, *this);
     
     return json;
 }
@@ -136,25 +214,7 @@ QJsonObject TaskData::toJson() const
 TaskData TaskData::fromJson(const QJsonObject& json)
 {
     TaskData task;
-    task.id = json["id"].toString();
-    task.type = TaskHelper::typeFromString(json["type"].toString());
-    task.status = TaskHelper::statusFromString(json["status"].toString());
-    task.novelId = json["novelId"].toString();
-    task.storyboardId = json["storyboardId"].toString();
-    task.panelId = json["panelId"].toString();
-    task.chapterNumber = json["chapterNumber"].toInt(1);
-    task.text = json["text"].toString();
-    task.params = json["params"].toObject();
-    task.total = json["total"].toInt();
-    task.completed = json["completed"].toInt();
-    task.errorMessage = json["errorMessage"].toString();
-    task.result = json["result"].toObject();
-    task.retryCount = json["retryCount"].toInt();
-    task.maxRetries = json["maxRetries"].toInt(3);
-    
-    task.createdAt = readDateTime(json, QStringLiteral("createdAt"));
-    task.startedAt = readDateTime(json, QStringLiteral("startedAt"));
-    task.completedAt = readDateTime(json, QStringLiteral("completedAt"));
+    loadTaskCommonFromJson(task, json);
     
     return task;
 }
@@ -162,32 +222,7 @@ TaskData TaskData::fromJson(const QJsonObject& json)
 TaskData TaskData::fromDatabaseRow(const QVariantMap& row)
 {
     TaskData task;
-    task.id = row["id"].toString();
-    task.novelId = row["novel_id"].toString();
-    task.storyboardId = row["storyboard_id"].toString();
-    task.panelId = row["panel_id"].toString();
-    task.total = row["total_tasks"].toInt();
-    task.completed = row["completed_tasks"].toInt();
-    task.errorMessage = row["error_message"].toString();
-    
-    if (row.contains("result") && !row["result"].isNull()) {
-        QJsonDocument resultDoc = QJsonDocument::fromJson(row["result"].toString().toUtf8());
-        if (!resultDoc.isNull() && resultDoc.isObject()) {
-            task.result = resultDoc.object();
-        }
-    }
-    
-    task.type = TaskHelper::typeFromString(row["type"].toString());
-    task.status = TaskHelper::statusFromString(row["status"].toString());
-    
-    if (row.contains("params") && !row["params"].isNull()) {
-        QJsonDocument paramsDoc = QJsonDocument::fromJson(row["params"].toString().toUtf8());
-        if (!paramsDoc.isNull() && paramsDoc.isObject()) {
-            task.params = paramsDoc.object();
-            task.chapterNumber = task.params["chapterNumber"].toInt();
-        }
-    }
-    
+    loadTaskCommonFromDatabase(task, row);
     return task;
 }
 

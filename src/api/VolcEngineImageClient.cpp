@@ -132,31 +132,8 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generateWithReferen
 {
     LOG_INFO("VolcEngineImageClient", "Using img2img API with reference image");
     
-        // 任务提交地址
     QString submitUrl = QString("%1?Action=CVSync2AsyncSubmitTask&Version=2022-08-31").arg(m_config.baseUrl);
-    
-    QJsonObject payload;
-    payload["req_key"] = m_config.img2imgReqKey;
-    payload["prompt"] = options.prompt;
-    
-    if (!options.negativePrompt.isEmpty()) {
-        payload["negative_prompt"] = options.negativePrompt;
-    }
-    
-        // 附加参考图二进制
-    QJsonArray imageDataArray;
-    imageDataArray.append(QString(options.referenceImage.toBase64()));
-    payload["binary_data_base64"] = imageDataArray;
-    
-    if (options.seed >= 0) {
-        payload["seed"] = options.seed;
-    }
-    
-        // 附加尺寸参数
-    if (options.width > 0 && options.height > 0) {
-        payload["width"] = options.width;
-        payload["height"] = options.height;
-    }
+    QJsonObject payload = buildReferenceSubmitPayload(options);
     
     LOG_INFO("VolcEngineImageClient", QString("Submitting img2img task to: %1").arg(submitUrl));
     
@@ -183,40 +160,19 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generateWithReferen
 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::handleTaskDone(const QJsonObject& data, const GenerateOptions& options)
 {
-    QJsonArray imageUrls = data["image_urls"].toArray();
-    if (!imageUrls.isEmpty()) {
-        QString imageUrl = imageUrls[0].toString();
+    const QString imageUrl = extractResponseImageUrl(data);
+    if (!imageUrl.isEmpty()) {
         LOG_INFO("VolcEngineImageClient", QString("Got image URL: %1").arg(imageUrl.left(100)));
-        
-        QByteArray imageData = downloadImage(imageUrl);
-        
-        GenerateResult result;
-        result.success = !imageData.isEmpty();
-        result.imageUrl = imageUrl;
-        result.imageData = imageData;
-        result.requestId = options.requestId;
-        result.timestamp = QDateTime::currentMSecsSinceEpoch();
-        
-        if (imageData.isEmpty()) {
-            result.errorMessage = "Failed to download image";
-        }
-        
-        return result;
+        const QByteArray imageData = downloadImage(imageUrl);
+        return buildImageResult(options.requestId, imageData, imageUrl);
     }
     
     QJsonArray binaryData = data["binary_data_base64"].toArray();
     if (!binaryData.isEmpty()) {
-        QByteArray imageData = QByteArray::fromBase64(binaryData[0].toString().toUtf8());
-        
-        GenerateResult result;
-        result.success = !imageData.isEmpty();
-        result.imageData = imageData;
-        result.requestId = options.requestId;
-        result.timestamp = QDateTime::currentMSecsSinceEpoch();
-        
-        return result;
+        QByteArray imageData = QByteArray::fromBase64(binaryData.first().toString().toUtf8());
+        return buildImageResult(options.requestId, imageData);
     }
-    
+
     return createErrorResult(options.requestId, "No image in response");
 }
 
@@ -231,11 +187,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
         .arg(taskId).arg(maxAttempts));
     
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
-        QJsonObject queryPayload;
-        queryPayload["req_key"] = m_config.img2imgReqKey;
-        queryPayload["task_id"] = taskId;
-        
-        QJsonObject response = sendSyncRequest(queryUrl, queryPayload);
+        QJsonObject response = sendSyncRequest(queryUrl, buildReferenceQueryPayload(taskId));
         
         if (response.isEmpty()) {
             LOG_WARNING("VolcEngineImageClient", QString("Query attempt %1 failed: %2")
@@ -497,6 +449,40 @@ QJsonObject VolcEngineImageClient::buildGenerateRequestBody(const GenerateOption
     return body;
 }
 
+QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOptions& options)
+{
+    QJsonObject payload;
+    payload["req_key"] = m_config.img2imgReqKey;
+    payload["prompt"] = options.prompt;
+
+    if (!options.negativePrompt.isEmpty()) {
+        payload["negative_prompt"] = options.negativePrompt;
+    }
+
+    QJsonArray imageDataArray;
+    imageDataArray.append(QString(options.referenceImage.toBase64()));
+    payload["binary_data_base64"] = imageDataArray;
+
+    if (options.seed >= 0) {
+        payload["seed"] = options.seed;
+    }
+
+    if (options.width > 0 && options.height > 0) {
+        payload["width"] = options.width;
+        payload["height"] = options.height;
+    }
+
+    return payload;
+}
+
+QJsonObject VolcEngineImageClient::buildReferenceQueryPayload(const QString& taskId) const
+{
+    QJsonObject payload;
+    payload["req_key"] = m_config.img2imgReqKey;
+    payload["task_id"] = taskId;
+    return payload;
+}
+
 QString VolcEngineImageClient::buildApiUrl() const
 {
     return QString("%1?Action=CVProcess&Version=2022-08-31").arg(m_config.baseUrl);
@@ -554,40 +540,30 @@ QNetworkRequest VolcEngineImageClient::createNetworkRequest(const QString& url, 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::parseResponse(const QJsonObject& response)
 {
     GenerateResult result;
-    
-        // 二进制数据兜底
-    if (response.contains("code") && response["code"].toInt() != 10000) {
+
+    QString errorMessage = extractResponseErrorMessage(response);
+    if (!errorMessage.isEmpty()) {
         result.success = false;
-        result.errorMessage = response["message"].toString();
+        result.errorMessage = errorMessage;
         result.requestId = response["request_id"].toString();
         LOG_ERROR("VolcEngineImageClient", QString("API error: %1").arg(result.errorMessage));
         return result;
     }
     
     QJsonObject data = response["data"].toObject();
-    
-        // 请求注册与清理
-    QJsonArray imageUrls = data["image_urls"].toArray();
-    if (!imageUrls.isEmpty()) {
-        result.imageUrl = imageUrls.first().toString();
-        result.success = !result.imageUrl.isEmpty();
+    QString imageUrl = extractResponseImageUrl(data);
+    if (!imageUrl.isEmpty()) {
+        result.imageUrl = imageUrl;
+        result.success = true;
         LOG_INFO("VolcEngineImageClient", QString("Got image URL: %1").arg(result.imageUrl.left(100)));
-    }
-    
-        // 占位图兜底
-    if (!result.success) {
+    } else {
         QJsonArray binaryData = data["binary_data_base64"].toArray();
         if (!binaryData.isEmpty()) {
-            QString base64Data = binaryData.first().toString();
-            if (!base64Data.isEmpty()) {
-                result.imageData = QByteArray::fromBase64(base64Data.toLatin1());
-                result.success = !result.imageData.isEmpty();
-                result.mimeType = "image/png";
-                LOG_INFO("VolcEngineImageClient", QString("Got base64 image, size: %1 bytes").arg(result.imageData.size()));
-            }
+            QByteArray imageData = QByteArray::fromBase64(binaryData.first().toString().toLatin1());
+            result = buildImageResult(response["request_id"].toString(), imageData);
         }
     }
-    
+
     result.requestId = response["request_id"].toString();
     if (result.requestId.isEmpty()) {
         result.requestId = data["request_id"].toString();
@@ -595,6 +571,52 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::parseResponse(const
     result.timestamp = QDateTime::currentMSecsSinceEpoch();
     
     return result;
+}
+
+VolcEngineImageClient::GenerateResult VolcEngineImageClient::buildImageResult(const QString& requestId,
+                                                                              const QByteArray& imageData,
+                                                                              const QString& imageUrl) const
+{
+    GenerateResult result;
+    result.success = !imageData.isEmpty();
+    result.imageData = imageData;
+    result.imageUrl = imageUrl;
+    result.mimeType = imageData.isEmpty() ? QString() : QStringLiteral("image/png");
+    result.requestId = requestId;
+    result.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+    if (result.success && !imageUrl.isEmpty()) {
+        LOG_INFO("VolcEngineImageClient", QString("Built image result from URL: %1").arg(imageUrl.left(100)));
+    }
+    return result;
+}
+
+QString VolcEngineImageClient::extractResponseImageUrl(const QJsonObject& data) const
+{
+    QJsonArray imageUrls = data["image_urls"].toArray();
+    if (!imageUrls.isEmpty()) {
+        return imageUrls.first().toString();
+    }
+    return QString();
+}
+
+QString VolcEngineImageClient::extractResponseErrorMessage(const QJsonObject& response) const
+{
+    if (response.contains("code") && response["code"].toInt() != 10000) {
+        return response["message"].toString();
+    }
+
+    QJsonObject metadata = response["ResponseMetadata"].toObject();
+    QJsonObject error = metadata["Error"].toObject();
+    if (!error.isEmpty()) {
+        const QString errorCode = error["Code"].toString();
+        const QString errorMessage = error["Message"].toString();
+        return errorCode.isEmpty()
+            ? errorMessage
+            : QString("%1: %2").arg(errorCode, errorMessage);
+    }
+
+    return QString();
 }
 
     // 请求注册与清理

@@ -3,6 +3,7 @@
 #include "utils/SingletonUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
+#include <algorithm>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>
@@ -11,9 +12,86 @@
 #include <QMessageAuthenticationCode>
 #include <QUrl>
 #include <QDateTime>
+#include <QList>
+#include <QPair>
 #include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
+
+namespace {
+const int kStorageRequestTimeoutMs = 60000;
+
+QUrl buildObjectUrl(const StorageClient::Config& config, const QString& key)
+{
+    return QUrl(QString("%1/%2").arg(config.endpoint).arg(key));
+}
+
+void applyObjectRequestHeaders(QNetworkRequest& request, const QUrl& url, const QString& date)
+{
+    request.setRawHeader("Host", url.host().toUtf8());
+    request.setRawHeader("Date", date.toUtf8());
+}
+
+bool waitForReply(QNetworkReply* reply, int timeoutMs, const QString& timeoutErrorMessage, QString* errorMessage)
+{
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    timer.start(timeoutMs);
+    loop.exec();
+
+    if (!timer.isActive()) {
+        reply->abort();
+        if (errorMessage != nullptr) {
+            *errorMessage = timeoutErrorMessage;
+        }
+        reply->deleteLater();
+        return false;
+    }
+
+    timer.stop();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        if (errorMessage != nullptr) {
+            *errorMessage = reply->errorString();
+        }
+        reply->deleteLater();
+        return false;
+    }
+
+    return true;
+}
+
+bool parsePresignedResponse(const QByteArray& responseData, StorageClient::PresignedUrlResponse& response, QString* errorMessage)
+{
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    if (doc.isNull() || !doc.isObject()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = TR("预签名接口返回无效");
+        }
+        return false;
+    }
+
+    QJsonObject obj = doc.object();
+    response.putUrl = obj["putUrl"].toString();
+    response.getUrl = obj["getUrl"].toString();
+    response.key = obj["key"].toString();
+    response.expiresIn = obj["expiresIn"].toInt();
+    response.success = true;
+    return true;
+}
+
+QString strippedQueryUrl(const QString& presignedUrl)
+{
+    QUrl url(presignedUrl);
+    url.setQuery(QString());
+    return url.toString();
+}
+}
 
 StorageClient* StorageClient::m_instance = nullptr;
 QMutex StorageClient::m_instanceMutex;
@@ -59,6 +137,56 @@ bool StorageClient::init(const Config& config)
     return true;
 }
 
+bool StorageClient::ensureInitialized(const QString& operation, const QString& errorMessage, bool emitSignal)
+{
+    if (m_initialized) {
+        return true;
+    }
+
+    setLastError(errorMessage, operation, emitSignal);
+    return false;
+}
+
+bool StorageClient::ensureKey(const QString& key, const QString& errorMessage)
+{
+    if (!key.isEmpty()) {
+        return true;
+    }
+
+    setLastError(errorMessage);
+    return false;
+}
+
+void StorageClient::setLastError(const QString& message, const QString& operation, bool emitSignal)
+{
+    m_lastError = message;
+    if (!operation.isEmpty() && emitSignal) {
+        emit errorOccurred(operation, message);
+    }
+}
+
+bool StorageClient::waitForNetworkReply(QNetworkReply* reply, int timeoutMs, const QString& timeoutErrorMessage)
+{
+    QString errorMessage;
+    if (::waitForReply(reply, timeoutMs, timeoutErrorMessage, &errorMessage)) {
+        return true;
+    }
+
+    m_lastError = errorMessage;
+    return false;
+}
+
+bool StorageClient::parsePresignedUrlResponse(const QByteArray& responseData, PresignedUrlResponse& response)
+{
+    QString errorMessage;
+    if (parsePresignedResponse(responseData, response, &errorMessage)) {
+        return true;
+    }
+
+    m_lastError = errorMessage;
+    return false;
+}
+
     // ==================== 存储相关 ====================
 
 StorageClient::UploadResult StorageClient::upload(const QString& key, const QByteArray& data,
@@ -67,70 +195,39 @@ StorageClient::UploadResult StorageClient::upload(const QString& key, const QByt
 {
     UploadResult result;
     
-    if (!m_initialized) {
-        result.errorMessage = TR("存储客户端未初始化");
-        m_lastError = result.errorMessage;
-        emit errorOccurred("upload", result.errorMessage);
+    if (!ensureInitialized("upload", TR("存储客户端未初始化"), true)) {
+        result.errorMessage = m_lastError;
         return result;
     }
     
-    if (key.isEmpty()) {
-        result.errorMessage = TR("上传路径不能为空");
-        m_lastError = result.errorMessage;
+    if (!ensureKey(key, TR("上传路径不能为空"))) {
+        result.errorMessage = m_lastError;
         return result;
     }
     
-    QString date = formatDateHeader();
-    
-    // 构建请求 URL
-    QUrl url(QString("%1/%2").arg(m_config.endpoint).arg(key));
+    const QString date = formatDateHeader();
+    const QUrl url = buildObjectUrl(m_config, key);
     QNetworkRequest request(url);
-    
-    // 设置请求头
     request.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
-    request.setRawHeader("Host", url.host().toUtf8());
-    request.setRawHeader("Date", date.toUtf8());
+    applyObjectRequestHeaders(request, url, date);
     request.setRawHeader("Content-Length", QByteArray::number(data.size()));
-    // 添加自定义元数据
-    
+
     QMap<QString, QString> headers;
     for (auto it = metadata.begin(); it != metadata.end(); ++it) {
-        QString headerName = QString("x-amz-meta-%1").arg(it.key().toLower());
+        const QString headerName = QString("x-amz-meta-%1").arg(it.key().toLower());
         request.setRawHeader(headerName.toUtf8(), it.value().toUtf8());
         headers[headerName] = it.value();
     }
-    // 生成签名
-    
-    QByteArray authHeader = buildAuthorizationHeader("PUT", key, contentType, headers, date);
+
+    const QByteArray authHeader = buildAuthorizationHeader("PUT", key, contentType, headers, date);
     request.setRawHeader("Authorization", authHeader);
-    
-    // 发送请求
+
     QNetworkReply* reply = m_networkManager->put(request, data);
-    
-    QEventLoop loop;
-    QTimer timer;
-    timer.setSingleShot(true);
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    timer.start(60000); // 60 秒超时
-    loop.exec();
-    
-    if (!timer.isActive()) {
-        reply->abort();
-        reply->deleteLater();
-        result.errorMessage = TR("上传超时");
-        m_lastError = result.errorMessage;
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("上传超时"))) {
+        result.errorMessage = m_lastError;
         return result;
     }
-    timer.stop();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        result.errorMessage = reply->errorString();
-        m_lastError = result.errorMessage;
-        reply->deleteLater();
-        return result;
-    }
-    
+
     reply->deleteLater();
     
     result.success = true;
@@ -144,58 +241,30 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
 {
     DownloadResult result;
     
-    if (!m_initialized) {
-        result.errorMessage = TR("下载客户端未初始化");
-        m_lastError = result.errorMessage;
-        emit errorOccurred("download", result.errorMessage);
+    if (!ensureInitialized("download", TR("下载客户端未初始化"), true)) {
+        result.errorMessage = m_lastError;
         return result;
     }
     
-    if (key.isEmpty()) {
-        result.errorMessage = TR("下载路径不能为空");
-        m_lastError = result.errorMessage;
+    if (!ensureKey(key, TR("下载路径不能为空"))) {
+        result.errorMessage = m_lastError;
         return result;
     }
     
-    QString date = formatDateHeader();
-    
-    // 构建请求 URL
-    QUrl url(QString("%1/%2").arg(m_config.endpoint).arg(key));
+    const QString date = formatDateHeader();
+    const QUrl url = buildObjectUrl(m_config, key);
     QNetworkRequest request(url);
-    
-    request.setRawHeader("Host", url.host().toUtf8());
-    request.setRawHeader("Date", date.toUtf8());
-    
-    // 生成签名
-    QByteArray authHeader = buildAuthorizationHeader("GET", key, "", QMap<QString, QString>(), date);
+    applyObjectRequestHeaders(request, url, date);
+
+    const QByteArray authHeader = buildAuthorizationHeader("GET", key, "", QMap<QString, QString>(), date);
     request.setRawHeader("Authorization", authHeader);
-    
+
     QNetworkReply* reply = m_networkManager->get(request);
-    
-    QEventLoop loop;
-    QTimer timer;
-    timer.setSingleShot(true);
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    timer.start(60000);
-    loop.exec();
-    
-    if (!timer.isActive()) {
-        reply->abort();
-        reply->deleteLater();
-        result.errorMessage = TR("下载超时");
-        m_lastError = result.errorMessage;
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("下载超时"))) {
+        result.errorMessage = m_lastError;
         return result;
     }
-    timer.stop();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        result.errorMessage = reply->errorString();
-        m_lastError = result.errorMessage;
-        reply->deleteLater();
-        return result;
-    }
-    
+
     result.success = true;
     result.data = reply->readAll();
     result.contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
@@ -207,48 +276,35 @@ StorageClient::DownloadResult StorageClient::download(const QString& key)
 
 bool StorageClient::remove(const QString& key)
 {
-    if (!m_initialized) {
-        m_lastError = TR("存储客户端未初始化");
-        emit errorOccurred("remove", m_lastError);
+    if (!ensureInitialized("remove", TR("存储客户端未初始化"), true)) {
         return false;
     }
     
-    if (key.isEmpty()) {
-        m_lastError = TR("删除路径不能为空");
+    if (!ensureKey(key, TR("删除路径不能为空"))) {
         return false;
     }
     
-    QString date = formatDateHeader();
-    
-    QUrl url(QString("%1/%2").arg(m_config.endpoint).arg(key));
+    const QString date = formatDateHeader();
+    const QUrl url = buildObjectUrl(m_config, key);
     QNetworkRequest request(url);
-    
-    request.setRawHeader("Host", url.host().toUtf8());
-    request.setRawHeader("Date", date.toUtf8());
-    
-    QByteArray authHeader = buildAuthorizationHeader("DELETE", key, "", QMap<QString, QString>(), date);
+    applyObjectRequestHeaders(request, url, date);
+
+    const QByteArray authHeader = buildAuthorizationHeader("DELETE", key, "", QMap<QString, QString>(), date);
     request.setRawHeader("Authorization", authHeader);
-    
+
     QNetworkReply* reply = m_networkManager->deleteResource(request);
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    bool success = (reply->error() == QNetworkReply::NoError);
-    if (!success) {
-        m_lastError = reply->errorString();
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("删除超时"))) {
+        return false;
     }
     
     reply->deleteLater();
-    
-    return success;
+
+    return true;
 }
 
 QString StorageClient::getPresignedUrl(const QString& key, int expiresIn)
 {
-    if (!m_initialized) {
-        m_lastError = TR("存储客户端未初始化");
+    if (!ensureInitialized("getPresignedUrl", TR("存储客户端未初始化"), false)) {
         return QString();
     }
     
@@ -262,63 +318,51 @@ bool StorageClient::exists(const QString& key)
         return false;
     }
     
-    QString date = formatDateHeader();
-    
-    QUrl url(QString("%1/%2").arg(m_config.endpoint).arg(key));
+    const QString date = formatDateHeader();
+    const QUrl url = buildObjectUrl(m_config, key);
     QNetworkRequest request(url);
-    
-    request.setRawHeader("Host", url.host().toUtf8());
-    request.setRawHeader("Date", date.toUtf8());
-    
-    QByteArray authHeader = buildAuthorizationHeader("HEAD", key, "", QMap<QString, QString>(), date);
+    applyObjectRequestHeaders(request, url, date);
+
+    const QByteArray authHeader = buildAuthorizationHeader("HEAD", key, "", QMap<QString, QString>(), date);
     request.setRawHeader("Authorization", authHeader);
-    
+
     QNetworkReply* reply = m_networkManager->head(request);
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    bool exists = (reply->error() == QNetworkReply::NoError);
+
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("检查对象是否存在超时"))) {
+        return false;
+    }
+
     reply->deleteLater();
-    
-    return exists;
+
+    return true;
 }
 
 bool StorageClient::copy(const QString& sourceKey, const QString& destKey)
 {
-    if (!m_initialized) {
-        m_lastError = TR("存储客户端未初始化");
+    if (!ensureInitialized("copy", TR("存储客户端未初始化"), false)) {
         return false;
     }
     
-    QString date = formatDateHeader();
-    
-    QUrl url(QString("%1/%2").arg(m_config.endpoint).arg(destKey));
+    const QString date = formatDateHeader();
+    const QUrl url = buildObjectUrl(m_config, destKey);
     QNetworkRequest request(url);
-    
-    request.setRawHeader("Host", url.host().toUtf8());
-    request.setRawHeader("Date", date.toUtf8());
-    request.setRawHeader("x-amz-copy-source", QString("%1/%2").arg(m_config.bucket).arg(sourceKey).toUtf8());
-    
-    QByteArray authHeader = buildAuthorizationHeader("PUT", destKey, "", 
-        {{"x-amz-copy-source", QString("%1/%2").arg(m_config.bucket).arg(sourceKey)}}, date);
+    applyObjectRequestHeaders(request, url, date);
+
+    const QString copySource = QString("%1/%2").arg(m_config.bucket).arg(sourceKey);
+    request.setRawHeader("x-amz-copy-source", copySource.toUtf8());
+
+    const QByteArray authHeader = buildAuthorizationHeader("PUT", destKey, "",
+        {{"x-amz-copy-source", copySource}}, date);
     request.setRawHeader("Authorization", authHeader);
-    
+
     QNetworkReply* reply = m_networkManager->put(request, QByteArray());
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    bool success = (reply->error() == QNetworkReply::NoError);
-    if (!success) {
-        m_lastError = reply->errorString();
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("复制对象超时"))) {
+        return false;
     }
     
     reply->deleteLater();
-    
-    return success;
+
+    return true;
 }
 
 QString StorageClient::getS3Uri(const QString& key) const
@@ -356,7 +400,7 @@ StorageClient::PresignedUrlResponse StorageClient::fetchPresignedUrlFromApi(
     
     if (m_config.presignApiEndpoint.isEmpty()) {
         response.errorMessage = TR("预签名接口地址不能为空");
-        m_lastError = response.errorMessage;
+        setLastError(response.errorMessage);
         LOG_ERROR("StorageClient", response.errorMessage);
         return response;
     }
@@ -380,36 +424,22 @@ StorageClient::PresignedUrlResponse StorageClient::fetchPresignedUrlFromApi(
     }
     
     QNetworkReply* reply = m_networkManager->get(request);
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        response.errorMessage = reply->errorString();
-        m_lastError = response.errorMessage;
+
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("获取预签名地址超时"))) {
+        response.errorMessage = m_lastError;
         LOG_ERROR("StorageClient", QString("Failed to fetch presigned URL: %1").arg(response.errorMessage));
-        reply->deleteLater();
         return response;
     }
-    
+
     QByteArray responseData = reply->readAll();
     reply->deleteLater();
-    
-    QJsonDocument doc = QJsonDocument::fromJson(responseData);
-    if (doc.isNull() || !doc.isObject()) {
-        response.errorMessage = TR("预签名接口返回无效");
-        m_lastError = response.errorMessage;
+
+    if (!parsePresignedUrlResponse(responseData, response)) {
+        response.errorMessage = m_lastError;
+        LOG_ERROR("StorageClient", QString("Failed to parse presigned URL response: %1").arg(response.errorMessage));
         return response;
     }
-    
-    QJsonObject obj = doc.object();
-    response.putUrl = obj["putUrl"].toString();
-    response.getUrl = obj["getUrl"].toString();
-    response.key = obj["key"].toString();
-    response.expiresIn = obj["expiresIn"].toInt();
-    response.success = true;
-    
+
     return response;
 }
 
@@ -422,7 +452,7 @@ StorageClient::UploadResult StorageClient::uploadWithPresignedUrl(
     
     if (presignedUrl.isEmpty()) {
         result.errorMessage = TR("获取预签名地址失败");
-        m_lastError = result.errorMessage;
+        setLastError(result.errorMessage);
         return result;
     }
     
@@ -432,20 +462,15 @@ StorageClient::UploadResult StorageClient::uploadWithPresignedUrl(
     request.setRawHeader("Content-Length", QByteArray::number(data.size()));
     
     QNetworkReply* reply = m_networkManager->put(request, data);
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        result.errorMessage = reply->errorString();
-        m_lastError = result.errorMessage;
+
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("预签名上传超时"))) {
+        result.errorMessage = m_lastError;
         LOG_ERROR("StorageClient", QString("Upload failed: %1").arg(result.errorMessage));
-    } else {
-        result.success = true;
-        result.url = presignedUrl.left(presignedUrl.indexOf("?"));
+        return result;
     }
-    
+
+    result.success = true;
+    result.url = strippedQueryUrl(presignedUrl);
     reply->deleteLater();
     return result;
 }
@@ -456,7 +481,7 @@ StorageClient::DownloadResult StorageClient::downloadWithPresignedUrl(const QStr
     
     if (presignedUrl.isEmpty()) {
         result.errorMessage = TR("获取预签名地址失败");
-        m_lastError = result.errorMessage;
+        setLastError(result.errorMessage);
         return result;
     }
     
@@ -464,21 +489,16 @@ StorageClient::DownloadResult StorageClient::downloadWithPresignedUrl(const QStr
     QNetworkRequest request(url);
     
     QNetworkReply* reply = m_networkManager->get(request);
-    
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        result.errorMessage = reply->errorString();
-        m_lastError = result.errorMessage;
+
+    if (!waitForNetworkReply(reply, kStorageRequestTimeoutMs, TR("预签名下载超时"))) {
+        result.errorMessage = m_lastError;
         LOG_ERROR("StorageClient", QString("Download failed: %1").arg(result.errorMessage));
-    } else {
-        result.success = true;
-        result.data = reply->readAll();
-        result.contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
+        return result;
     }
-    
+
+    result.success = true;
+    result.data = reply->readAll();
+    result.contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
     reply->deleteLater();
     return result;
 }
@@ -496,55 +516,53 @@ QByteArray StorageClient::buildAuthorizationHeader(const QString& method, const 
     
     QString dateStamp = date.left(8); // YYYYMMDD
     
-    // 构建规范请求
-    QStringList signedHeadersList;
-    QStringList canonicalHeaders;
-    
-    // 添加 host
     QUrl endpointUrl(m_config.endpoint);
-    canonicalHeaders << QString("host:%1").arg(endpointUrl.host());
-    signedHeadersList << "host";
-    
-    // 添加 date
-    canonicalHeaders << QString("x-amz-date:%1").arg(date);
-    signedHeadersList << "x-amz-date";
-    
-    // 添加 content-type (用于 PUT 请求)
+    QList<QPair<QString, QString> > canonicalHeaders;
+    canonicalHeaders.append(qMakePair(QString("host"), QString("host:%1").arg(endpointUrl.host())));
+    canonicalHeaders.append(qMakePair(QString("x-amz-date"), QString("x-amz-date:%1").arg(date)));
+
     if (!contentType.isEmpty() && method == "PUT") {
-        canonicalHeaders << QString("content-type:%1").arg(contentType);
-        signedHeadersList << "content-type";
+        canonicalHeaders.append(qMakePair(QString("content-type"), QString("content-type:%1").arg(contentType)));
     }
-    
-    // 添加自定义头
+
     for (auto it = headers.begin(); it != headers.end(); ++it) {
-        canonicalHeaders << QString("%1:%2").arg(it.key().toLower()).arg(it.value());
-        signedHeadersList << it.key().toLower();
+        const QString headerName = it.key().toLower();
+        canonicalHeaders.append(qMakePair(headerName, QString("%1:%2").arg(headerName).arg(it.value())));
     }
-    
-    std::sort(signedHeadersList.begin(), signedHeadersList.end());
-    QString signedHeaders = signedHeadersList.join(";");
-    
-    // 构建待签名字符串
+
+    std::sort(canonicalHeaders.begin(), canonicalHeaders.end(),
+              [](const QPair<QString, QString>& left, const QPair<QString, QString>& right) {
+                  return left.first < right.first;
+              });
+
+    QStringList signedHeadersList;
+    QStringList canonicalHeaderLines;
+    for (const auto& header : canonicalHeaders) {
+        signedHeadersList << header.first;
+        canonicalHeaderLines << header.second;
+    }
+
+    const QString signedHeaders = signedHeadersList.join(";");
+
     QString canonicalRequest = QString("%1\n/%2\n\n%3\n\n%4\nUNSIGNED-PAYLOAD")
         .arg(method)
         .arg(key)
-        .arg(canonicalHeaders.join("\n"))
+        .arg(canonicalHeaderLines.join("\n"))
         .arg(signedHeaders);
-    
+
     QString stringToSign = QString("AWS4-HMAC-SHA256\n%1\n%2/%3/s3/aws4_request\n%4")
         .arg(date)
         .arg(dateStamp)
         .arg(m_config.region)
         .arg(sha256Hash(canonicalRequest.toUtf8()));
-    
-    // 计算签名
+
     QByteArray kSecret = QString("AWS4%1").arg(m_config.secretKey).toUtf8();
     QByteArray kDate = hmacSha256(kSecret, dateStamp.toUtf8());
     QByteArray kRegion = hmacSha256(kDate, m_config.region.toUtf8());
     QByteArray kService = hmacSha256(kRegion, "s3");
     QByteArray kSigning = hmacSha256(kService, "aws4_request");
     QByteArray signature = hmacSha256(kSigning, stringToSign.toUtf8());
-    
+
     QString authHeader = QString("AWS4-HMAC-SHA256 Credential=%1/%2/%3/s3/aws4_request,"
                                  "SignedHeaders=%4,Signature=%5")
         .arg(m_config.accessKey)
@@ -552,37 +570,33 @@ QByteArray StorageClient::buildAuthorizationHeader(const QString& method, const 
         .arg(m_config.region)
         .arg(signedHeaders)
         .arg(QString::fromLatin1(signature.toHex()));
-    
+
     return authHeader.toUtf8();
 }
 
 QString StorageClient::generatePresignedUrl(const QString& key, int expiresIn, const QString& method)
 {
-    // 生成预签名 URL
     QString date = QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmssZ");
     QString dateStamp = date.left(8);
-    
-    // 构建规范请求
+
     QString canonicalRequest = QString("%1\n/%2\n\nhost:%3\n\nhost\nUNSIGNED-PAYLOAD")
         .arg(method)
         .arg(key)
         .arg(QUrl(m_config.endpoint).host());
-    
+
     QString stringToSign = QString("AWS4-HMAC-SHA256\n%1\n%2/%3/s3/aws4_request\n%4")
         .arg(date)
         .arg(dateStamp)
         .arg(m_config.region)
         .arg(sha256Hash(canonicalRequest.toUtf8()));
-    
-    // 计算签名
+
     QByteArray kSecret = QString("AWS4%1").arg(m_config.secretKey).toUtf8();
     QByteArray kDate = hmacSha256(kSecret, dateStamp.toUtf8());
     QByteArray kRegion = hmacSha256(kDate, m_config.region.toUtf8());
     QByteArray kService = hmacSha256(kRegion, "s3");
     QByteArray kSigning = hmacSha256(kService, "aws4_request");
     QByteArray signature = hmacSha256(kSigning, stringToSign.toUtf8());
-    
-    // 构建预签名 URL
+
     QString presignedUrl = QString("%1/%2?"
         "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
         "X-Amz-Credential=%3/%4/%5/s3/aws4_request&"
@@ -598,7 +612,7 @@ QString StorageClient::generatePresignedUrl(const QString& key, int expiresIn, c
         .arg(date)
         .arg(expiresIn)
         .arg(QString::fromLatin1(signature.toHex()));
-    
+
     return presignedUrl;
 }
 

@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QByteArray>
 #include <QString>
 #include <QMap>
@@ -194,6 +195,11 @@ private:
                                          const QString& date);
     QString formatDateHeader();
     QString generatePresignedUrl(const QString& key, int expiresIn, const QString& method = "GET");
+    bool waitForNetworkReply(QNetworkReply* reply, int timeoutMs, const QString& timeoutErrorMessage);
+    bool ensureInitialized(const QString& operation, const QString& errorMessage, bool emitSignal = true);
+    bool ensureKey(const QString& key, const QString& errorMessage);
+    void setLastError(const QString& message, const QString& operation = QString(), bool emitSignal = false);
+    bool parsePresignedUrlResponse(const QByteArray& responseData, PresignedUrlResponse& response);
     QByteArray hmacSha256(const QByteArray& key, const QByteArray& data);
     QString sha256Hash(const QByteArray& data);
     QString urlEncode(const QString& str, bool encodeSlash = true);

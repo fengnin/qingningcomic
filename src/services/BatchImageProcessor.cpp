@@ -26,11 +26,15 @@ void BatchImageProcessor::clearError()
     m_lastError.clear();
 }
 
-void BatchImageProcessor::startBatch(int totalCount)
+void BatchImageProcessor::resetBatchState(int totalCount)
 {
     m_batchState = BatchState();
     m_batchState.totalCount = totalCount;
-    m_batchState.cancelled = false;
+}
+
+void BatchImageProcessor::startBatch(int totalCount)
+{
+    resetBatchState(totalCount);
     setGenerating(true);
     clearError();
 }
@@ -65,9 +69,10 @@ bool BatchImageProcessor::shouldContinue() const
 
 void BatchImageProcessor::scheduleNext(std::function<void()> callback, int delayMs)
 {
-    if (shouldContinue()) {
-        QTimer::singleShot(delayMs, callback);
-    } else {
+    if (!shouldContinue()) {
         finishBatch();
+        return;
     }
+
+    QTimer::singleShot(delayMs, callback);
 }

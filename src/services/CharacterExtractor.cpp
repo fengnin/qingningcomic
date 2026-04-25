@@ -19,6 +19,7 @@ QString matchFirstCapture(const QString& text, const QList<QRegularExpression>& 
 QStringList collectKeywords(const QString& text, const QStringList& keywords);
 bool isPronounLikeCharacter(const QString& name);
 bool isGenericHairColor(const QString& hairColor);
+bool isVariantCharacterName(const QString& name);
 bool isGenericCharacterName(const QString& name);
 int purgeGenericCharacterRows(const QString& novelId);
 
@@ -48,6 +49,26 @@ const QStringList& getCharacterNameSuffixes()
 QString normalizedCharacterKey(const QString& name)
 {
     return normalizeExtractedName(name).trimmed();
+}
+
+QString composeCharacterFeatureText(const QString& expression, const QString& pose)
+{
+    QStringList parts;
+    if (!expression.isEmpty()) {
+        parts << expression;
+    }
+    if (!pose.isEmpty()) {
+        parts << pose;
+    }
+    return parts.join(" ").trimmed();
+}
+
+void normalizeAndFilterExtractedName(ExtractedCharacter& extracted)
+{
+    extracted.name = normalizeExtractedName(extracted.name);
+    if (isVariantCharacterName(extracted.name) || isGenericCharacterName(extracted.name)) {
+        extracted.name.clear();
+    }
 }
 
 void appendUnique(QStringList& list, const QString& value)
@@ -962,6 +983,134 @@ void applyCharacterFields(ExtractedCharacter& extracted,
     }
 }
 
+void enrichCharacterAppearanceFromText(ExtractedCharacter& extracted, const QString& context)
+{
+    static const QList<QRegularExpression> hairColorPatterns = {
+        QRegularExpression(QString::fromUtf8("((?:白发|银发|灰发|花白发|黑发|金发|栗发|白色头发|黑色头发)|(?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?)[^，。；\\n]{0,8}(?:低马尾|高马尾|马尾|短发|长发|卷发|碎发|头发|发丝|鬓发)")),
+        QRegularExpression(QString::fromUtf8("(?:发色|头发|发丝|鬓发)[^，。；\\n]{0,6}(?:是|为|呈|染成)?((?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?|白发|银发|灰发|花白发)")),
+        QRegularExpression(QString::fromUtf8("(浅亚麻色|亚麻色|浅棕色|深棕色|棕褐色|黑褐色|黑色|乌黑|灰白色|花白|银白|银灰色|金色|栗色|纯白|雪白|白色|白发|银发|灰发|花白发)"))
+    };
+
+    static const QList<QRegularExpression> hairStylePatterns = {
+        QRegularExpression(QString::fromUtf8("(低马尾|高马尾|马尾|短发|长发|卷发|齐肩短发|齐耳短发|碎发|丸子头)")),
+        QRegularExpression(QString::fromUtf8("([一-龥]{0,6}(?:马尾|短发|长发))"))
+    };
+
+    static const QList<QRegularExpression> eyeColorPatterns = {
+        QRegularExpression(QString::fromUtf8("((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)[^，。；\\n]{0,6}(?:的)?(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)")),
+        QRegularExpression(QString::fromUtf8("(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)[^，。；\\n]{0,6}(?:是|为|呈|带着|透着)?((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)")),
+        QRegularExpression(QString::fromUtf8("(浅琥珀色|深琥珀色|琥珀色|浅褐色|深褐色|棕色|黑色|灰色|蓝色|绿色|金色|银色|茶色|墨色|琉璃色)"))
+    };
+
+    static const QList<QRegularExpression> bodyTypePatterns = {
+        QRegularExpression(QString::fromUtf8("((?:身形|体型|身材|身躯)[^，。；\\n]{0,6}(?:纤细|偏瘦|清瘦|瘦削|瘦高|高挑|苗条|单薄|健壮|结实|修长|偏高|偏矮))")),
+        QRegularExpression(QString::fromUtf8("((?:纤细|偏瘦|清瘦|瘦削|瘦高|高挑|苗条|单薄|健壮|结实|修长)[^，。；\\n]{0,6}(?:身形|体型|身材|身躯)?)"))
+    };
+
+    static const QStringList clothingKeywords = {
+        QString::fromUtf8("白色T恤"),
+        QString::fromUtf8("白T恤"),
+        QString::fromUtf8("白色T"),
+        QString::fromUtf8("纯白T恤"),
+        QString::fromUtf8("白色短袖衬衫"),
+        QString::fromUtf8("浅青色小领结"),
+        QString::fromUtf8("浅灰色百褶短裙"),
+        QString::fromUtf8("浅蓝色牛仔裤"),
+        QString::fromUtf8("浅蓝牛仔裤"),
+        QString::fromUtf8("牛仔裤"),
+        QString::fromUtf8("白色帆布鞋"),
+        QString::fromUtf8("帆布鞋"),
+        QString::fromUtf8("围裙"),
+        QString::fromUtf8("衬衫"),
+        QString::fromUtf8("长裙"),
+        QString::fromUtf8("藏青色斜襟棉布衫"),
+        QString::fromUtf8("深灰色宽松长裤"),
+        QString::fromUtf8("黑色千层底布鞋")
+    };
+
+    static const QStringList distinctiveFeaturesKeywords = {
+        QString::fromUtf8("虎牙"),
+        QString::fromUtf8("酒窝"),
+        QString::fromUtf8("泪痣"),
+        QString::fromUtf8("小雀斑"),
+        QString::fromUtf8("雀斑"),
+        QString::fromUtf8("伤痕"),
+        QString::fromUtf8("疤痕"),
+        QString::fromUtf8("眼镜"),
+        QString::fromUtf8("黑痣"),
+        QString::fromUtf8("皱纹")
+    };
+
+    static const QStringList accessoriesKeywords = {
+        QString::fromUtf8("凉茶"),
+        QString::fromUtf8("旧诗集")
+    };
+
+    const QString textHairColor = matchFirstCapture(context, hairColorPatterns);
+    if (!textHairColor.isEmpty() && (extracted.hairColor.isEmpty() || isGenericHairColor(extracted.hairColor))) {
+        assignTextMatchedStringField(extracted, QStringLiteral("hairColor"), extracted.hairColor,
+                                     textHairColor,
+                                     true,
+                                     QStringLiteral("explicit"));
+    }
+    assignTextMatchedStringField(extracted, QStringLiteral("hairStyle"), extracted.hairStyle,
+                                 matchFirstCapture(context, hairStylePatterns),
+                                 false,
+                                 QStringLiteral("explicit"));
+    assignTextMatchedStringField(extracted, QStringLiteral("eyeColor"), extracted.eyeColor,
+                                 matchFirstCapture(context, eyeColorPatterns),
+                                 false,
+                                 QStringLiteral("explicit"));
+    assignTextMatchedStringField(extracted, QStringLiteral("build"), extracted.bodyType,
+                                 matchFirstCapture(context, bodyTypePatterns),
+                                 false,
+                                 QStringLiteral("explicit"));
+
+    if (extracted.clothing.isEmpty()) {
+        extracted.clothing = collectKeywords(context, clothingKeywords);
+    }
+
+    if (extracted.distinctiveFeatures.isEmpty()) {
+        extracted.distinctiveFeatures = collectKeywords(context, distinctiveFeaturesKeywords);
+    }
+    if (extracted.accessories.isEmpty()) {
+        extracted.accessories = collectKeywords(context, accessoriesKeywords);
+    }
+}
+
+void enrichCharacterCoreIdentityFromText(ExtractedCharacter& extracted, const QString& context)
+{
+    const QString directGender = detectGenderFromText(context);
+    if (!directGender.isEmpty()) {
+        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
+                                     directGender, false, QStringLiteral("explicit"));
+    } else {
+        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
+                                     inferGenderFromContext(context));
+    }
+
+    const QString ageSource = extracted.fieldSources.value(QStringLiteral("age")).toString();
+    const int explicitAge = parseAgeText(context);
+    if (explicitAge > 0 &&
+        BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("explicit"))) {
+        extracted.age = explicitAge;
+        setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("explicit"));
+    } else if (extracted.age <= 0 &&
+               BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("inferred"))) {
+        const int inferredAge = inferAgeFromContext(context);
+        if (inferredAge > 0) {
+            extracted.age = inferredAge;
+            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
+        }
+    }
+}
+
+void enrichCharacterFromContext(ExtractedCharacter& extracted, const QString& context)
+{
+    enrichCharacterAppearanceFromText(extracted, context);
+    enrichCharacterCoreIdentityFromText(extracted, context);
+}
+
 }
 
 CharacterExtractor* CharacterExtractor::m_instance = nullptr;
@@ -1081,27 +1230,15 @@ ExtractedCharacter CharacterExtractor::parsePanelCharacter(const QJsonValue& cha
     } else if (charVal.isObject()) {
         QJsonObject charObj = charVal.toObject();
         extracted.name = normalizeExtractedName(charObj.value("name").toString());
-        QString expression = charObj["expression"].toString();
-        QString pose = charObj["pose"].toString();
-        QString featureStr;
-        if (!expression.isEmpty()) {
-            featureStr = expression;
-        }
-        if (!pose.isEmpty()) {
-            if (!featureStr.isEmpty()) {
-                featureStr += " ";
-            }
-            featureStr += pose;
-        }
+        const QString featureStr = composeCharacterFeatureText(charObj["expression"].toString(),
+                                                              charObj["pose"].toString());
         if (!featureStr.isEmpty()) {
             extracted.distinctiveFeatures << featureStr;
         }
     }
 
-    extracted.name = normalizeExtractedName(extracted.name);
-
-    if (isVariantCharacterName(extracted.name) || isGenericCharacterName(extracted.name)) {
-        extracted.name.clear();
+    normalizeAndFilterExtractedName(extracted);
+    if (extracted.name.isEmpty()) {
         return extracted;
     }
 
@@ -1141,7 +1278,8 @@ QList<ExtractedCharacter> CharacterExtractor::extractFromCharacters(const QJsonA
 ExtractedCharacter CharacterExtractor::parseAICharacter(const QJsonObject& charObj)
 {
     ExtractedCharacter extracted;
-    extracted.name = normalizeExtractedName(EncodingUtils::fixGarbledString(charObj["name"].toString()));
+    const QString originalName = EncodingUtils::fixGarbledString(charObj["name"].toString());
+    extracted.name = normalizeExtractedName(originalName);
     extracted.role = charObj.value("role").toString();
     extracted.role = EncodingUtils::fixGarbledString(extracted.role);
 
@@ -1149,9 +1287,9 @@ ExtractedCharacter CharacterExtractor::parseAICharacter(const QJsonObject& charO
         return extracted;
     }
 
-    if (isVariantCharacterName(extracted.name) || isGenericCharacterName(extracted.name)) {
-        LOG_DEBUG("CharacterExtractor", QString("Skipping non-specific character: %1").arg(extracted.name));
-        extracted.name.clear();
+    normalizeAndFilterExtractedName(extracted);
+    if (extracted.name.isEmpty()) {
+        LOG_DEBUG("CharacterExtractor", QString("Skipping non-specific character: %1").arg(originalName));
         return extracted;
     }
 
@@ -1187,122 +1325,7 @@ void CharacterExtractor::enrichCharacterFromText(ExtractedCharacter& extracted, 
     if (context.isEmpty()) {
         return;
     }
-
-    static const QList<QRegularExpression> hairColorPatterns = {
-        QRegularExpression(QString::fromUtf8("((?:白发|银发|灰发|花白发|黑发|金发|栗发|白色头发|黑色头发)|(?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?)[^，。；\\n]{0,8}(?:低马尾|高马尾|马尾|短发|长发|卷发|碎发|头发|发丝|鬓发)")),
-        QRegularExpression(QString::fromUtf8("(?:发色|头发|发丝|鬓发)[^，。；\\n]{0,6}(?:是|为|呈|染成)?((?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?|白发|银发|灰发|花白发)")),
-        QRegularExpression(QString::fromUtf8("(浅亚麻色|亚麻色|浅棕色|深棕色|棕褐色|黑褐色|黑色|乌黑|灰白色|花白|银白|银灰色|金色|栗色|纯白|雪白|白色|白发|银发|灰发|花白发)"))
-    };
-
-    static const QList<QRegularExpression> hairStylePatterns = {
-        QRegularExpression(QString::fromUtf8("(低马尾|高马尾|马尾|短发|长发|卷发|齐肩短发|齐耳短发|碎发|丸子头)")),
-        QRegularExpression(QString::fromUtf8("([一-龥]{0,6}(?:马尾|短发|长发))"))
-    };
-
-    static const QList<QRegularExpression> eyeColorPatterns = {
-        QRegularExpression(QString::fromUtf8("((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)[^，。；\\n]{0,6}(?:的)?(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)")),
-        QRegularExpression(QString::fromUtf8("(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)[^，。；\\n]{0,6}(?:是|为|呈|带着|透着)?((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)")),
-        QRegularExpression(QString::fromUtf8("(浅琥珀色|深琥珀色|琥珀色|浅褐色|深褐色|棕色|黑色|灰色|蓝色|绿色|金色|银色|茶色|墨色|琉璃色)"))
-    };
-
-    static const QList<QRegularExpression> bodyTypePatterns = {
-        QRegularExpression(QString::fromUtf8("((?:身形|体型|身材|身躯)[^，。；\\n]{0,6}(?:纤细|偏瘦|清瘦|瘦削|瘦高|高挑|苗条|单薄|健壮|结实|修长|偏高|偏矮))")),
-        QRegularExpression(QString::fromUtf8("((?:纤细|偏瘦|清瘦|瘦削|瘦高|高挑|苗条|单薄|健壮|结实|修长)[^，。；\\n]{0,6}(?:身形|体型|身材|身躯)?)"))
-    };
-
-    static const QStringList clothingKeywords = {
-        QString::fromUtf8("白色T恤"),
-        QString::fromUtf8("白T恤"),
-        QString::fromUtf8("白色T"),
-        QString::fromUtf8("纯白T恤"),
-        QString::fromUtf8("白色短袖衬衫"),
-        QString::fromUtf8("浅青色小领结"),
-        QString::fromUtf8("浅灰色百褶短裙"),
-        QString::fromUtf8("浅蓝色牛仔裤"),
-        QString::fromUtf8("浅蓝牛仔裤"),
-        QString::fromUtf8("牛仔裤"),
-        QString::fromUtf8("白色帆布鞋"),
-        QString::fromUtf8("帆布鞋"),
-        QString::fromUtf8("围裙"),
-        QString::fromUtf8("衬衫"),
-        QString::fromUtf8("长裙"),
-        QString::fromUtf8("藏青色斜襟棉布衫"),
-        QString::fromUtf8("深灰色宽松长裤"),
-        QString::fromUtf8("黑色千层底布鞋")
-    };
-
-    static const QStringList distinctiveFeaturesKeywords = {
-        QString::fromUtf8("虎牙"),
-        QString::fromUtf8("酒窝"),
-        QString::fromUtf8("泪痣"),
-        QString::fromUtf8("小雀斑"),
-        QString::fromUtf8("雀斑"),
-        QString::fromUtf8("伤痕"),
-        QString::fromUtf8("疤痕"),
-        QString::fromUtf8("眼镜"),
-        QString::fromUtf8("黑痣"),
-        QString::fromUtf8("皱纹")
-    };
-
-    static const QStringList accessoriesKeywords = {
-        QString::fromUtf8("凉茶"),
-        QString::fromUtf8("旧诗集")
-    };
-
-    const QString textHairColor = matchFirstCapture(context, hairColorPatterns);
-    if (!textHairColor.isEmpty() && (extracted.hairColor.isEmpty() || isGenericHairColor(extracted.hairColor))) {
-        assignTextMatchedStringField(extracted, QStringLiteral("hairColor"), extracted.hairColor,
-                                     textHairColor,
-                                     true,
-                                     QStringLiteral("explicit"));
-    }
-    assignTextMatchedStringField(extracted, QStringLiteral("hairStyle"), extracted.hairStyle,
-                                 matchFirstCapture(context, hairStylePatterns),
-                                 false,
-                                 QStringLiteral("explicit"));
-    assignTextMatchedStringField(extracted, QStringLiteral("eyeColor"), extracted.eyeColor,
-                                 matchFirstCapture(context, eyeColorPatterns),
-                                 false,
-                                 QStringLiteral("explicit"));
-    assignTextMatchedStringField(extracted, QStringLiteral("build"), extracted.bodyType,
-                                 matchFirstCapture(context, bodyTypePatterns),
-                                 false,
-                                 QStringLiteral("explicit"));
-
-    if (extracted.clothing.isEmpty()) {
-        extracted.clothing = collectKeywords(context, clothingKeywords);
-    }
-
-    const QString directGender = detectGenderFromText(context);
-    if (!directGender.isEmpty()) {
-        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
-                                     directGender, false, QStringLiteral("explicit"));
-    } else {
-        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
-                                     inferGenderFromContext(context));
-    }
-
-    const QString ageSource = extracted.fieldSources.value(QStringLiteral("age")).toString();
-    const int explicitAge = parseAgeText(context);
-    if (explicitAge > 0 &&
-        BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("explicit"))) {
-        extracted.age = explicitAge;
-        setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("explicit"));
-    } else if (extracted.age <= 0 &&
-               BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("inferred"))) {
-        const int inferredAge = inferAgeFromContext(context);
-        if (inferredAge > 0) {
-            extracted.age = inferredAge;
-            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
-        }
-    }
-
-    if (extracted.distinctiveFeatures.isEmpty()) {
-        extracted.distinctiveFeatures = collectKeywords(context, distinctiveFeaturesKeywords);
-    }
-    if (extracted.accessories.isEmpty()) {
-        extracted.accessories = collectKeywords(context, accessoriesKeywords);
-    }
+    enrichCharacterFromContext(extracted, context);
 
     LOG_DEBUG("CharacterExtractor", QString("Enriched from text for '%1': hairColor=%2, hairStyle=%3, eyeColor=%4, build=%5, clothing=%6, features=%7, accessories=%8")
         .arg(extracted.name)

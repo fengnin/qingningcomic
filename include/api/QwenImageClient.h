@@ -146,12 +146,20 @@ private:
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
     QJsonObject buildMultimodalRequestBody(const GenerateOptions& options);
     QJsonObject buildEditRequestBody(const EditOptions& options);
+    QJsonObject applyCustomSize(QJsonObject parameters, ImageSize size, int width, int height) const;
+    QString resolveRequestModel(RequestType type) const;
+    QString resolveRequestService(RequestType type) const;
+    QString resolveRequestUrl(RequestType type) const;
     QString buildApiUrl(const QString& service) const;
     QString buildApiUrl(const QString& service, const QString& model) const;
 
     // 异步请求发送
     void sendAsyncRequest(const GenerateOptions& options, RequestType type);
     void sendAsyncRequest(const EditOptions& options, RequestType type);
+    void dispatchAsyncRequest(const QString& requestId, const QNetworkRequest& request,
+                              const QJsonObject& payload, RequestType type);
+    void storePendingRequest(const QString& requestId, const GenerateOptions& options);
+    void storePendingRequest(const QString& requestId, const EditOptions& options);
     void pollTaskStatus(const QString& taskId, const QString& requestId);
     void downloadImageFromUrl(const QString& url, const QString& requestId);
     
@@ -165,7 +173,10 @@ private:
     GenerateResult parseSyncResponse(const QJsonObject& response);
     GenerateResult parseAsyncResponse(const QJsonObject& response);
     QString extractImageUrl(const QJsonObject& output) const;
-    
+    QString extractInlineImageUrl(const QJsonObject& response) const;
+    QString extractTaskId(const QJsonObject& response) const;
+    QString extractResponseErrorMessage(const QJsonObject& response) const;
+
     // 辅助方法
     QNetworkRequest createNetworkRequest(const QString& url, bool async = true) const;
     void registerRequest(const QString& requestId, QNetworkReply* reply, RequestType type);

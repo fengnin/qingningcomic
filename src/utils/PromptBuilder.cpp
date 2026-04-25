@@ -79,7 +79,26 @@ namespace {
         {"retro", "retro anime style, 80s-90s aesthetic, classic cel animation look"}
     });
 
-    QString normalizeCharacterNameLocal(const QString& name)
+    const QMap<QString, QString> SHOT_TYPE_MAPPING = buildMapping({
+        {"close-up", "close-up shot"},
+        {"extreme-close-up", "extreme close-up shot"},
+        {"medium", "medium shot"},
+        {"medium-close-up", "medium close-up shot"},
+        {"full", "full shot"},
+        {"wide", "wide shot"},
+        {"extreme-wide", "extreme wide shot"},
+        {"establishing", "establishing shot"},
+        {"over-the-shoulder", "over-the-shoulder shot"},
+        {"point-of-view", "POV shot"},
+        {QString::fromUtf8("\u7279\u5199"), "close-up shot"},
+        {QString::fromUtf8("\u8fd1\u666f"), "medium close-up shot"},
+        {QString::fromUtf8("\u4e2d\u666f"), "medium shot"},
+        {QString::fromUtf8("\u5168\u666f"), "full shot"},
+        {QString::fromUtf8("\u8fdc\u666f"), "wide shot"},
+        {QString::fromUtf8("\u5927\u8fdc\u666f"), "extreme wide shot"}
+    });
+
+    QString normalizeCharacterNameForRefs(const QString& name)
     {
         if (name.isEmpty()) {
             return name;
@@ -114,6 +133,159 @@ namespace {
 
         return normalized;
     }
+
+    bool isSceneFocusedPrompt(const QString& text);
+    bool isCharacterFocusedPrompt(const QString& text);
+    QString formatCharacterDescriptorLocal(const QString& name,
+                                           const QString& pose,
+                                           const QString& expression);
+    QString buildCharacterAppearanceLocal(const QJsonObject& appearance);
+    QString firstNonEmptyPortrait(const QStringList& portraitPaths);
+    QStringList normalizeListLocal(const QJsonValue& value);
+    QString formatHairLocal(const QJsonObject& appearance);
+    void addIfNotEmpty(QStringList& parts, const QString& value);
+    void addIfContains(QStringList& parts, const QJsonObject& obj, const QString& key, const QString& format = QString());
+
+    QString resolvePanelPromptTarget(const QJsonObject& options,
+                                     const QString& editPrompt,
+                                     const QString& panelSceneText)
+    {
+        QString promptTarget = options.value("promptTarget").toString().trimmed().toLower();
+        if (!promptTarget.isEmpty()) {
+            return promptTarget;
+        }
+
+        const bool sceneFocused = isSceneFocusedPrompt(editPrompt) || isSceneFocusedPrompt(panelSceneText);
+        const bool characterFocused = isCharacterFocusedPrompt(editPrompt);
+        if (sceneFocused && !characterFocused) {
+            return QStringLiteral("scene");
+        }
+        if (characterFocused && !sceneFocused) {
+            return QStringLiteral("character");
+        }
+        return QString();
+    }
+
+    QString buildPanelCharacterDescription(const QString& name,
+                                           const QString& pose,
+                                           const QString& expression,
+                                           const QJsonObject& appearance)
+    {
+        QString description = formatCharacterDescriptorLocal(name, pose, expression);
+        const QString appearanceDescription = buildCharacterAppearanceLocal(appearance);
+        if (!description.isEmpty() && !appearanceDescription.isEmpty()) {
+            description += ", " + appearanceDescription;
+        } else if (description.isEmpty()) {
+            description = appearanceDescription;
+        }
+        return description;
+    }
+
+    void collectPanelCharacterPrompts(const QJsonArray& characters,
+                                      const QMap<QString, QJsonObject>& characterRefs,
+                                      const QStringList& dialogueSpeakers,
+                                      QStringList& panelCharNames,
+                                      QStringList& characterDescriptions,
+                                      QString& primaryCharacterRef)
+    {
+        for (const auto& charVal : characters) {
+            const QJsonObject charObj = charVal.toObject();
+            const QString charName = charObj["name"].toString();
+            panelCharNames.append(charName);
+
+            QString matchedName = charName;
+            if (!characterRefs.contains(charName)) {
+                const QString normalized = normalizeCharacterNameForRefs(charName);
+                if (characterRefs.contains(normalized)) {
+                    matchedName = normalized;
+                }
+            }
+
+            const QString pose = charObj["pose"].toString();
+            const QString expression = charObj["expression"].toString();
+
+            if (!characterRefs.contains(matchedName)) {
+                const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, QJsonObject());
+                if (!charDesc.isEmpty()) {
+                    characterDescriptions.append(charDesc);
+                }
+                continue;
+            }
+
+            const QJsonObject fullChar = characterRefs.value(matchedName);
+            const QJsonObject appearance = fullChar["appearance"].toObject();
+            const QStringList portraitPaths = normalizeListLocal(fullChar["portraitPaths"].toArray());
+
+            const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, appearance);
+            if (!charDesc.isEmpty()) {
+                characterDescriptions.append(charDesc);
+            }
+
+            const QString role = fullChar["role"].toString().trimmed();
+            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedName);
+            const bool isCoreRole = role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
+                || role.contains(QString::fromUtf8("\u4e3b\u89d2"), Qt::CaseInsensitive);
+
+            if (primaryCharacterRef.isEmpty() && (isDialogSpeaker || isCoreRole)) {
+                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
+            }
+            if (primaryCharacterRef.isEmpty()) {
+                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
+            }
+        }
+    }
+
+    void appendPanelVisualDescriptors(const QJsonObject& panel, QStringList& parts)
+    {
+        const QString shotType = panel["shotType"].toString();
+        if (!shotType.isEmpty()) {
+            parts.append(SHOT_TYPE_MAPPING.value(shotType, QString("%1 shot").arg(shotType)));
+        }
+
+        const QString cameraAngle = panel["cameraAngle"].toString();
+        addIfNotEmpty(parts, cameraAngle.isEmpty() ? QString() : QString("camera angle %1").arg(cameraAngle));
+        addIfContains(parts, panel["atmosphere"].toObject(), "mood", "mood %1");
+
+        const QJsonObject composition = panel["composition"].toObject();
+        if (!composition.isEmpty()) {
+            addIfContains(parts, composition, "focusPoint", "focus on %1");
+            addIfContains(parts, composition, "rule", "%1 composition");
+            addIfContains(parts, composition, "depthOfField", "%1 depth of field");
+        }
+
+        const QJsonObject artStyle = panel["artStyle"].toObject();
+        if (!artStyle.isEmpty()) {
+            addIfContains(parts, artStyle, "genre");
+            addIfContains(parts, artStyle, "lineWeight", "%1 line weight");
+            addIfContains(parts, artStyle, "shading", "%1 shading");
+            addIfContains(parts, artStyle, "colorPalette", "%1 palette");
+        }
+    }
+
+    QString selectPanelReference(const QString& promptTarget,
+                                 const QString& primaryCharacterRef,
+                                 const QString& primarySceneRef,
+                                 QString& selectedRefType)
+    {
+        QString selectedRef = primaryCharacterRef;
+        selectedRefType = QStringLiteral("character");
+
+        if (!primarySceneRef.isEmpty() && (promptTarget == QStringLiteral("scene") || primaryCharacterRef.isEmpty())
+            && promptTarget != QStringLiteral("character")) {
+            selectedRef = primarySceneRef;
+            selectedRefType = QStringLiteral("scene");
+        }
+
+        if (selectedRef.isEmpty() && !primarySceneRef.isEmpty()) {
+            selectedRef = primarySceneRef;
+            selectedRefType = QStringLiteral("scene");
+        }
+
+        return selectedRef;
+    }
     
     const QMap<QString, QString> EXPRESSION_MAPPING = buildMapping({
         {"neutral", "neutral expression, calm face"},
@@ -126,25 +298,6 @@ namespace {
         {"confused", "confused expression, tilted head, questioning look"},
         {"embarrassed", "embarrassed expression, blushing, averted eyes"},
         {"smirking", "smirking expression, slight grin, confident look"}
-    });
-
-    const QMap<QString, QString> SHOT_TYPE_MAPPING = buildMapping({
-        {"close-up", "close-up shot"},
-        {"extreme-close-up", "extreme close-up shot"},
-        {"medium", "medium shot"},
-        {"medium-close-up", "medium close-up shot"},
-        {"full", "full shot"},
-        {"wide", "wide shot"},
-        {"extreme-wide", "extreme wide shot"},
-        {"establishing", "establishing shot"},
-        {"over-the-shoulder", "over-the-shoulder shot"},
-        {"point-of-view", "POV shot"},
-        {QString::fromUtf8("\u7279\u5199"), "close-up shot"},
-        {QString::fromUtf8("\u8fd1\u666f"), "medium close-up shot"},
-        {QString::fromUtf8("\u4e2d\u666f"), "medium shot"},
-        {QString::fromUtf8("\u5168\u666f"), "full shot"},
-        {QString::fromUtf8("\u8fdc\u666f"), "wide shot"},
-        {QString::fromUtf8("\u5927\u8fdc\u666f"), "extreme wide shot"}
     });
 
     const QMap<QString, QString> TIME_OF_DAY_MAPPING = buildMapping({
@@ -182,7 +335,7 @@ namespace {
         }
     }
     
-    void addIfContains(QStringList& parts, const QJsonObject& obj, const QString& key, const QString& format = QString()) {
+    void addIfContains(QStringList& parts, const QJsonObject& obj, const QString& key, const QString& format) {
         if (obj.contains(key)) {
             QString value = obj[key].isString() ? obj[key].toString() : QString::number(obj[key].toInt());
             parts.append(format.isEmpty() ? value : QString(format).arg(value));
@@ -297,11 +450,95 @@ namespace {
         }
         return QString();
     }
-    
-    bool isNumeric(const QString &text) {
-        bool ok = false;
-        text.toInt(&ok);
-        return ok;
+
+    QStringList normalizeListLocal(const QJsonValue &value) {
+        if (value.isNull() || value.isUndefined()) {
+            return {};
+        }
+        if (value.isArray()) {
+            QStringList result;
+            for (const auto &v : value.toArray()) {
+                if (!v.toString().isEmpty()) {
+                    result.append(v.toString());
+                }
+            }
+            return result;
+        }
+        QString str = value.toString();
+        return str.isEmpty() ? QStringList{} : QStringList{str};
+    }
+
+    QString formatHairLocal(const QJsonObject &appearance) {
+        QString hairColor = appearance["hairColor"].toString();
+        QString hairStyle = appearance["hairStyle"].toString();
+
+        if (hairColor.isEmpty() && hairStyle.isEmpty()) {
+            return QString();
+        }
+        if (!hairColor.isEmpty() && !hairStyle.isEmpty()) {
+            return QString("%1 %2 hair").arg(hairColor, hairStyle);
+        }
+        return hairColor.isEmpty()
+            ? QString("%1 hair").arg(hairStyle)
+            : QString("%1 hair").arg(hairColor);
+    }
+
+    QString formatCharacterDescriptorLocal(const QString &name,
+                                           const QString &pose,
+                                           const QString &expression)
+    {
+        QStringList segments;
+        if (!name.isEmpty()) {
+            segments.append(name);
+        }
+        if (!pose.isEmpty()) {
+            segments.append(POSE_MAPPING.value(pose, QString("%1 pose").arg(pose)));
+        }
+        if (!expression.isEmpty()) {
+            segments.append(EXPRESSION_MAPPING.value(expression, QString("%1 expression").arg(expression)));
+        }
+        return segments.isEmpty() ? QString() : segments.join(", ");
+    }
+
+    QString buildCharacterAppearanceLocal(const QJsonObject &appearance)
+    {
+        if (appearance.isEmpty()) {
+            return QString();
+        }
+
+        QStringList parts;
+
+        addIfNotEmpty(parts, appearance["gender"].toString());
+        QString age = appearance["age"].toString();
+        if (!age.isEmpty() && age != "0") {
+            bool ok = false;
+            age.toInt(&ok);
+            if (ok) {
+                parts.append(QString("%1 years old").arg(age));
+            } else {
+                parts.append(age);
+            }
+        }
+        addIfNotEmpty(parts, appearance["build"].toString());
+        addIfNotEmpty(parts, formatHairLocal(appearance));
+        addIfContains(parts, appearance, "eyeColor", "%1 eyes");
+
+        QStringList clothing = normalizeListLocal(appearance["clothing"]);
+        if (!clothing.isEmpty()) {
+            parts.append(QString("wearing %1").arg(clothing.join(", ")));
+        }
+
+        QStringList accessories = normalizeListLocal(appearance["accessories"]);
+        if (!accessories.isEmpty()) {
+            parts.append(QString("accessories: %1").arg(accessories.join(", ")));
+        }
+
+        QStringList features = normalizeListLocal(appearance["distinctiveFeatures"]);
+        if (!features.isEmpty()) {
+            parts.append(QString("distinctive features: %1").arg(features.join(", ")));
+        }
+
+        return parts.join(", ");
     }
     
     QString truncatePrompt(const QStringList &parts, int maxLength) {
@@ -327,92 +564,24 @@ namespace {
 
 QStringList PromptBuilder::normalizeList(const QJsonValue &value)
 {
-    if (value.isNull() || value.isUndefined()) {
-        return {};
-    }
-    if (value.isArray()) {
-        QStringList result;
-        for (const auto &v : value.toArray()) {
-            if (!v.toString().isEmpty()) {
-                result.append(v.toString());
-            }
-        }
-        return result;
-    }
-    QString str = value.toString();
-    return str.isEmpty() ? QStringList{} : QStringList{str};
+    return normalizeListLocal(value);
 }
 
 QString PromptBuilder::formatHair(const QJsonObject &appearance)
 {
-    QString hairColor = appearance["hairColor"].toString();
-    QString hairStyle = appearance["hairStyle"].toString();
-    
-    if (hairColor.isEmpty() && hairStyle.isEmpty()) {
-        return QString();
-    }
-    if (!hairColor.isEmpty() && !hairStyle.isEmpty()) {
-        return QString("%1 %2 hair").arg(hairColor, hairStyle);
-    }
-    return hairColor.isEmpty() 
-        ? QString("%1 hair").arg(hairStyle)
-        : QString("%1 hair").arg(hairColor);
+    return formatHairLocal(appearance);
 }
 
 QString PromptBuilder::formatCharacterDescriptor(const QString &name, 
                                                    const QString &pose, 
                                                    const QString &expression)
 {
-    QStringList segments;
-    if (!name.isEmpty()) {
-        segments.append(name);
-    }
-    if (!pose.isEmpty()) {
-        segments.append(POSE_MAPPING.value(pose, QString("%1 pose").arg(pose)));
-    }
-    if (!expression.isEmpty()) {
-        segments.append(EXPRESSION_MAPPING.value(expression, QString("%1 expression").arg(expression)));
-    }
-    return segments.isEmpty() ? QString() : segments.join(", ");
+    return formatCharacterDescriptorLocal(name, pose, expression);
 }
 
 QString PromptBuilder::buildCharacterAppearance(const QJsonObject &appearance)
 {
-    if (appearance.isEmpty()) {
-        return QString();
-    }
-    
-    QStringList parts;
-    
-    addIfNotEmpty(parts, appearance["gender"].toString());
-    QString age = appearance["age"].toString();
-    if (!age.isEmpty() && age != "0") {
-        if (isNumeric(age)) {
-            parts.append(QString("%1 years old").arg(age));
-        } else {
-            parts.append(age);
-        }
-    }
-    addIfNotEmpty(parts, appearance["build"].toString());
-    addIfNotEmpty(parts, formatHair(appearance));
-    addIfContains(parts, appearance, "eyeColor", "%1 eyes");
-    
-    QStringList clothing = normalizeList(appearance["clothing"]);
-    if (!clothing.isEmpty()) {
-        parts.append(QString("wearing %1").arg(clothing.join(", ")));
-    }
-    
-    QStringList accessories = normalizeList(appearance["accessories"]);
-    if (!accessories.isEmpty()) {
-        parts.append(QString("accessories: %1").arg(accessories.join(", ")));
-    }
-    
-    QStringList features = normalizeList(appearance["distinctiveFeatures"]);
-    if (!features.isEmpty()) {
-        parts.append(QString("distinctive features: %1").arg(features.join(", ")));
-    }
-    
-    return parts.join(", ");
+    return buildCharacterAppearanceLocal(appearance);
 }
 
 QString PromptBuilder::filterHumanKeywords(const QString &text)
@@ -662,16 +831,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QString visualPromptEn = panel["visualPromptEn"].toString().trimmed();
     QString editPrompt = combineEditPrompt(visualPrompt, visualPromptEn);
     QString panelSceneText = panel["scene"].toString();
-    QString promptTarget = options.value("promptTarget").toString().trimmed().toLower();
-    if (promptTarget.isEmpty()) {
-        bool sceneFocused = isSceneFocusedPrompt(editPrompt) || isSceneFocusedPrompt(panelSceneText);
-        bool characterFocused = isCharacterFocusedPrompt(editPrompt);
-        if (sceneFocused && !characterFocused) {
-            promptTarget = "scene";
-        } else if (characterFocused && !sceneFocused) {
-            promptTarget = "character";
-        }
-    }
+    QString promptTarget = resolvePanelPromptTarget(options, editPrompt, panelSceneText);
 
     if (!editPrompt.isEmpty()) {
         parts.append(buildEditDirective(editPrompt, promptTarget));
@@ -680,27 +840,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     addIfNotEmpty(parts, matchSceneDetails(sceneRefs, sceneId, sceneName));
     addIfNotEmpty(parts, panelSceneText);
 
-    QString shotType = panel["shotType"].toString();
-    if (!shotType.isEmpty()) {
-        parts.append(SHOT_TYPE_MAPPING.value(shotType, QString("%1 shot").arg(shotType)));
-    }
-    addIfNotEmpty(parts, panel["cameraAngle"].toString().isEmpty() ? QString() : QString("camera angle %1").arg(panel["cameraAngle"].toString()));
-    addIfContains(parts, panel["atmosphere"].toObject(), "mood", "mood %1");
-    
-    QJsonObject composition = panel["composition"].toObject();
-    if (!composition.isEmpty()) {
-        addIfContains(parts, composition, "focusPoint", "focus on %1");
-        addIfContains(parts, composition, "rule", "%1 composition");
-        addIfContains(parts, composition, "depthOfField", "%1 depth of field");
-    }
-    
-    QJsonObject artStyle = panel["artStyle"].toObject();
-    if (!artStyle.isEmpty()) {
-        addIfContains(parts, artStyle, "genre");
-        addIfContains(parts, artStyle, "lineWeight", "%1 line weight");
-        addIfContains(parts, artStyle, "shading", "%1 shading");
-        addIfContains(parts, artStyle, "colorPalette", "%1 palette");
-    }
+    appendPanelVisualDescriptors(panel, parts);
     
     QStringList dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
     QString primarySceneRef = resolveSceneRefPath(sceneRefs, sceneId, sceneName);
@@ -708,77 +848,21 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QStringList characterDescriptions;
     QString primaryCharacterRef;
     QStringList panelCharNames;
-    
-    for (const auto& charVal : panel["characters"].toArray()) {
-        QJsonObject charObj = charVal.toObject();
-        QString charName = charObj["name"].toString();
-        panelCharNames.append(charName);
-        
-        QString matchedName = charName;
-        if (!characterRefs.contains(charName)) {
-            QString normalized = normalizeCharacterNameLocal(charName);
-            if (characterRefs.contains(normalized)) {
-                matchedName = normalized;
-            }
-        }
-        
-        if (characterRefs.contains(matchedName)) {
-            QJsonObject fullChar = characterRefs.value(matchedName);
-            QJsonObject appearance = fullChar["appearance"].toObject();
-            
-            QStringList portraitPaths = normalizeList(fullChar["portraitPaths"].toArray());
-            
-            QString charDesc = formatCharacterDescriptor(charName, charObj["pose"].toString(), charObj["expression"].toString());
-            QString appearanceDesc = buildCharacterAppearance(appearance);
-            
-            if (!charDesc.isEmpty() && !appearanceDesc.isEmpty()) {
-                charDesc += ", " + appearanceDesc;
-            } else if (!appearanceDesc.isEmpty()) {
-                charDesc = appearanceDesc;
-            }
-            
-            if (!charDesc.isEmpty()) {
-                characterDescriptions.append(charDesc);
-            }
-            
-            QString role = fullChar["role"].toString().trimmed();
-            bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedName);
-            bool isCoreRole = role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
-                || role.contains(QString::fromUtf8("\u4e3b\u89d2"), Qt::CaseInsensitive);
-
-            if (primaryCharacterRef.isEmpty() && (isDialogSpeaker || isCoreRole)) {
-                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
-            }
-            if (primaryCharacterRef.isEmpty()) {
-                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
-            }
-        } else {
-            QString charDesc = formatCharacterDescriptor(charName, charObj["pose"].toString(), charObj["expression"].toString());
-            if (!charDesc.isEmpty()) {
-                characterDescriptions.append(charDesc);
-            }
-        }
-    }
+    collectPanelCharacterPrompts(panel["characters"].toArray(),
+                                 characterRefs,
+                                 dialogueSpeakers,
+                                 panelCharNames,
+                                 characterDescriptions,
+                                 primaryCharacterRef);
     
     if (!characterDescriptions.isEmpty()) {
         parts.append(QString("character identity lock: %1").arg(characterDescriptions.join("; ")));
     }
 
-    QString selectedRef = primaryCharacterRef;
-    QString selectedRefType = "character";
-    if (!primarySceneRef.isEmpty() && (promptTarget == "scene" || primaryCharacterRef.isEmpty()) && promptTarget != "character") {
-        selectedRef = primarySceneRef;
-        selectedRefType = "scene";
-    }
-    if (selectedRef.isEmpty() && !primarySceneRef.isEmpty()) {
-        selectedRef = primarySceneRef;
-        selectedRefType = "scene";
-    }
+    QString selectedRefType;
+    QString selectedRef = selectPanelReference(promptTarget, primaryCharacterRef, primarySceneRef, selectedRefType);
 
-    if (selectedRefType == "scene") {
+    if (selectedRefType == QStringLiteral("scene")) {
         parts.append("use the scene reference as the environment anchor");
     } else if (!selectedRef.isEmpty()) {
         parts.append("use the character reference as the identity anchor");

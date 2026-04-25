@@ -26,9 +26,147 @@
 #include <cmath>
 
 namespace {
-QByteArray normalizePresetMode(const QString& presetMode)
+bool isPresetModeString(const QString& mode)
 {
-    return presetMode.trimmed().toLower().toUtf8();
+    return mode == QLatin1String("1x1") || mode == QLatin1String("1:1")
+        || mode == QLatin1String("3x2") || mode == QLatin1String("3:2")
+        || mode == QLatin1String("16x9") || mode == QLatin1String("16:9");
+}
+
+ImageService::GenerateMode generateModeFromString(const QString& mode)
+{
+    return (mode == QLatin1String("hd")) ? ImageService::GenerateMode::HD : ImageService::GenerateMode::Preview;
+}
+
+ImageService::BatchPresetMode presetModeFromStringValue(const QString& mode)
+{
+    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
+        return ImageService::BatchPresetMode::Standard_3x2;
+    }
+    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
+        return ImageService::BatchPresetMode::Widescreen_16x9;
+    }
+    return ImageService::BatchPresetMode::Square_1x1;
+}
+
+QString generateModeString(ImageService::GenerateMode mode)
+{
+    return (mode == ImageService::GenerateMode::HD) ? QStringLiteral("hd") : QStringLiteral("preview");
+}
+
+QString presetModeString(ImageService::BatchPresetMode presetMode)
+{
+    switch (presetMode) {
+        case ImageService::BatchPresetMode::Square_1x1: return QStringLiteral("1x1");
+        case ImageService::BatchPresetMode::Standard_3x2: return QStringLiteral("3x2");
+        case ImageService::BatchPresetMode::Widescreen_16x9: return QStringLiteral("16x9");
+    }
+    return QStringLiteral("1x1");
+}
+
+QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
+{
+    QJsonObject json;
+    json["success"] = result.success;
+    json["panelId"] = result.panelId;
+    json["imageUrl"] = result.imageUrl;
+    json["s3Key"] = result.s3Key;
+    json["errorMessage"] = result.errorMessage;
+    json["width"] = result.width;
+    json["height"] = result.height;
+    json["timestamp"] = result.timestamp;
+    return json;
+}
+
+TaskData createPanelTask(const QString& panelId, TaskType type, const QString& modeValue, int total)
+{
+    TaskData task;
+    task.type = type;
+    task.panelId = panelId;
+    task.total = total;
+
+    QJsonObject params;
+    params["mode"] = modeValue;
+    task.params = params;
+    return task;
+}
+
+QJsonArray panelIdsToJsonArray(const QStringList& panelIds)
+{
+    QJsonArray panelIdArray;
+    for (const QString& id : panelIds) {
+        panelIdArray.append(id);
+    }
+    return panelIdArray;
+}
+
+QStringList panelIdsFromPanels(const QList<Panel>& panels)
+{
+    QStringList panelIds;
+    panelIds.reserve(panels.size());
+    for (const Panel& panel : panels) {
+        panelIds.append(panel.id());
+    }
+    return panelIds;
+}
+
+struct RequestedResolution
+{
+    int width = 0;
+    int height = 0;
+    bool isPreset = false;
+};
+
+RequestedResolution requestedResolution(const QString& presetMode,
+                                        ImageService::GenerateMode mode,
+                                        const QString& providerName,
+                                        int previewWidth,
+                                        int previewHeight,
+                                        int hdWidth,
+                                        int hdHeight)
+{
+    RequestedResolution resolution;
+    resolution.isPreset = !presetMode.isEmpty();
+    if (resolution.isPreset) {
+        const ImageService::BatchPresetMode batchPresetMode = presetModeFromStringValue(presetMode);
+        if (providerName == QLatin1String("volcengine")) {
+            switch (batchPresetMode) {
+                case ImageService::BatchPresetMode::Square_1x1:
+                    resolution.width = 1328;
+                    resolution.height = 1328;
+                    break;
+                case ImageService::BatchPresetMode::Standard_3x2:
+                    resolution.width = 1584;
+                    resolution.height = 1056;
+                    break;
+                case ImageService::BatchPresetMode::Widescreen_16x9:
+                    resolution.width = 1664;
+                    resolution.height = 936;
+                    break;
+            }
+            return resolution;
+        }
+
+        switch (batchPresetMode) {
+            case ImageService::BatchPresetMode::Square_1x1:
+                resolution.width = 1024;
+                resolution.height = 1024;
+                break;
+            case ImageService::BatchPresetMode::Standard_3x2:
+                resolution.width = 1536;
+                resolution.height = 1024;
+                break;
+            case ImageService::BatchPresetMode::Widescreen_16x9:
+                resolution.width = 1280;
+                resolution.height = 720;
+                break;
+        }
+        return resolution;
+    }
+
+    resolution.width = (mode == ImageService::GenerateMode::HD) ? hdWidth : previewWidth;
+    resolution.height = (mode == ImageService::GenerateMode::HD) ? hdHeight : previewHeight;
+    return resolution;
 }
 
 QString classifyPanelPromptTarget(const QJsonObject& panelJson)
@@ -169,7 +307,7 @@ void ImageService::cancelCurrentBatch()
     m_currentProcessIndex = 0;
     m_currentPresetMode.clear();
     
-    m_generating = false;
+    setGenerating(false);
     m_batchResult = BatchResult();
     
     emit batchGenerationCancelled();
@@ -332,12 +470,7 @@ void ImageService::generateStoryboardImages(const QString& storyboardId, Generat
         return;
     }
 
-    QStringList panelIds;
-    for (const Panel& panel : panels) {
-        panelIds.append(panel.id());
-    }
-
-    generatePanelImages(panelIds, mode);
+    generatePanelImages(panelIdsFromPanels(panels), mode);
 }
 
 void ImageService::generateStoryboardImages(const QString& storyboardId, BatchPresetMode presetMode)
@@ -361,12 +494,7 @@ void ImageService::generateStoryboardImages(const QString& storyboardId, BatchPr
         return;
     }
 
-    QStringList panelIds;
-    for (const Panel& panel : panels) {
-        panelIds.append(panel.id());
-    }
-
-    generatePanelImages(panelIds, presetMode);
+    generatePanelImages(panelIdsFromPanels(panels), presetMode);
 }
 
 ImageService::GenerateResult ImageService::regeneratePanelImage(const QString& panelId, GenerateMode mode)
@@ -477,16 +605,19 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     }
     
     ProviderConfig config = getProviderConfig();
+    const RequestedResolution resolution = requestedResolution(ctx.presetMode,
+                                                               ctx.mode,
+                                                               QStringLiteral("volcengine"),
+                                                               config.previewWidth,
+                                                               config.previewHeight,
+                                                               config.hdWidth,
+                                                               config.hdHeight);
     
     VolcEngineImageClient::GenerateOptions options;
     options.prompt = ctx.prompt;
     options.negativePrompt = ctx.negativePrompt;
-    if (!ctx.presetMode.isEmpty()) {
-        getPresetResolution(ctx.presetMode, options.width, options.height);
-    } else {
-        options.width = (ctx.mode == GenerateMode::HD) ? config.hdWidth : config.previewWidth;
-        options.height = (ctx.mode == GenerateMode::HD) ? config.hdHeight : config.previewHeight;
-    }
+    options.width = resolution.width;
+    options.height = resolution.height;
     options.seed = -1;
     options.returnUrl = true;
     
@@ -519,19 +650,25 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
 bool ImageService::executeWithQwen(GenerationContext& ctx)
 {
     QwenImageClient::GenerateResult result;
+    const ProviderConfig config = getProviderConfig();
+    const RequestedResolution resolution = requestedResolution(ctx.presetMode,
+                                                               ctx.mode,
+                                                               QStringLiteral("qwen"),
+                                                               config.previewWidth,
+                                                               config.previewHeight,
+                                                               config.hdWidth,
+                                                               config.hdHeight);
+    const bool useCustomSize = resolution.isPreset;
     
     if (!ctx.refImageData.isEmpty()) {
         QwenImageClient::EditOptions options;
         options.prompt = ctx.prompt;
         options.sourceImage = ctx.refImageData;
         options.negativePrompt = ctx.negativePrompt;
-        if (!ctx.presetMode.isEmpty()) {
-            int width = 0;
-            int height = 0;
-            getPresetResolution(ctx.presetMode, width, height);
+        if (useCustomSize) {
             options.size = QwenImageClient::ImageSize::Custom;
-            options.width = width;
-            options.height = height;
+            options.width = resolution.width;
+            options.height = resolution.height;
         } else {
             options.size = (ctx.mode == GenerateMode::HD)
                 ? QwenImageClient::ImageSize::Square
@@ -542,13 +679,10 @@ bool ImageService::executeWithQwen(GenerationContext& ctx)
         QwenImageClient::GenerateOptions options;
         options.prompt = ctx.prompt;
         options.negativePrompt = ctx.negativePrompt;
-        if (!ctx.presetMode.isEmpty()) {
-            int width = 0;
-            int height = 0;
-            getPresetResolution(ctx.presetMode, width, height);
+        if (useCustomSize) {
             options.size = QwenImageClient::ImageSize::Custom;
-            options.width = width;
-            options.height = height;
+            options.width = resolution.width;
+            options.height = resolution.height;
         } else {
             options.size = (ctx.mode == GenerateMode::HD)
                 ? QwenImageClient::ImageSize::Square
@@ -1017,24 +1151,12 @@ ImageService::GenerateResult ImageService::createErrorResult(const QString& pane
 
 QString ImageService::presetModeToString(BatchPresetMode presetMode) const
 {
-    switch (presetMode) {
-        case BatchPresetMode::Square_1x1: return "1x1";
-        case BatchPresetMode::Standard_3x2: return "3x2";
-        case BatchPresetMode::Widescreen_16x9: return "16x9";
-    }
-    return "1x1";
+    return presetModeString(presetMode);
 }
 
 ImageService::BatchPresetMode ImageService::presetModeFromString(const QString& presetMode) const
 {
-    const QByteArray mode = normalizePresetMode(presetMode);
-    if (mode == "3x2") {
-        return BatchPresetMode::Standard_3x2;
-    }
-    if (mode == "16x9") {
-        return BatchPresetMode::Widescreen_16x9;
-    }
-    return BatchPresetMode::Square_1x1;
+    return presetModeFromStringValue(presetMode);
 }
 
 void ImageService::getPresetResolution(BatchPresetMode presetMode, int& width, int& height) const
@@ -1082,34 +1204,14 @@ void ImageService::getPresetResolution(const QString& presetMode, int& width, in
 
 QString ImageService::enqueuePanelImageGeneration(const QString& panelId, GenerateMode mode)
 {
-    TaskData task;
-    task.type = TaskType::GeneratePanelImage;
-    task.panelId = panelId;
-    task.total = 1;
-
-    QJsonObject params;
-    params["mode"] = (mode == GenerateMode::HD) ? "hd" : "preview";
-    task.params = params;
-
-    QString taskId = TaskQueue::instance()->enqueue(task);
-
-    return taskId;
+    return TaskQueue::instance()->enqueue(
+        createPanelTask(panelId, TaskType::GeneratePanelImage, generateModeString(mode), 1));
 }
 
 QString ImageService::enqueuePanelImageGeneration(const QString& panelId, BatchPresetMode presetMode)
 {
-    TaskData task;
-    task.type = TaskType::GeneratePanelImage;
-    task.panelId = panelId;
-    task.total = 1;
-
-    QJsonObject params;
-    params["mode"] = presetModeToString(presetMode);
-    task.params = params;
-
-    QString taskId = TaskQueue::instance()->enqueue(task);
-
-    return taskId;
+    return TaskQueue::instance()->enqueue(
+        createPanelTask(panelId, TaskType::GeneratePanelImage, presetModeString(presetMode), 1));
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, GenerateMode mode)
@@ -1117,24 +1219,11 @@ QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelI
     if (panelIds.isEmpty()) {
         return QString();
     }
-    
-    TaskData task;
-    task.type = TaskType::GeneratePanels;
-    task.total = panelIds.size();
+
+    TaskData task = createPanelTask(QString(), TaskType::GeneratePanels, generateModeString(mode), panelIds.size());
+    task.params["panelIds"] = panelIdsToJsonArray(panelIds);
     task.completed = 0;
-
-    QJsonObject params;
-    params["mode"] = (mode == GenerateMode::HD) ? "hd" : "preview";
-    QJsonArray panelIdArray;
-    for (const QString& id : panelIds) {
-        panelIdArray.append(id);
-    }
-    params["panelIds"] = panelIdArray;
-    task.params = params;
-
-    QString taskId = TaskQueue::instance()->enqueue(task);
-
-    return taskId;
+    return TaskQueue::instance()->enqueue(task);
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, BatchPresetMode presetMode)
@@ -1143,23 +1232,10 @@ QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelI
         return QString();
     }
 
-    TaskData task;
-    task.type = TaskType::GeneratePanels;
-    task.total = panelIds.size();
+    TaskData task = createPanelTask(QString(), TaskType::GeneratePanels, presetModeString(presetMode), panelIds.size());
+    task.params["panelIds"] = panelIdsToJsonArray(panelIds);
     task.completed = 0;
-
-    QJsonObject params;
-    params["mode"] = presetModeToString(presetMode);
-    QJsonArray panelIdArray;
-    for (const QString& id : panelIds) {
-        panelIdArray.append(id);
-    }
-    params["panelIds"] = panelIdArray;
-    task.params = params;
-
-    QString taskId = TaskQueue::instance()->enqueue(task);
-
-    return taskId;
+    return TaskQueue::instance()->enqueue(task);
 }
 
 QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelIds, GenerateMode mode)
@@ -1190,26 +1266,16 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
 {
     TaskData task = TaskData::fromJson(taskJson);
 
-    GenerateMode mode = GenerateMode::Preview;
-    if (task.params.contains("mode") && task.params["mode"].toString() == "hd") {
-        mode = GenerateMode::HD;
+    const QString modeStr = task.params.value("mode").toString();
+    if (modeStr.isEmpty() || modeStr == QLatin1String("preview") || modeStr == QLatin1String("hd")) {
+        return generateResultToJson(generatePanelImage(task.panelId, generateModeFromString(modeStr)));
     }
-    QString modeStr = task.params.contains("mode") ? task.params["mode"].toString() : QString();
-    GenerateResult result = (!modeStr.isEmpty() && modeStr != "preview" && modeStr != "hd")
-        ? generatePanelImage(task.panelId, presetModeFromString(modeStr))
-        : generatePanelImage(task.panelId, mode);
 
-    QJsonObject resultJson;
-    resultJson["success"] = result.success;
-    resultJson["panelId"] = result.panelId;
-    resultJson["imageUrl"] = result.imageUrl;
-    resultJson["s3Key"] = result.s3Key;
-    resultJson["errorMessage"] = result.errorMessage;
-    resultJson["width"] = result.width;
-    resultJson["height"] = result.height;
-    resultJson["timestamp"] = result.timestamp;
+    if (isPresetModeString(modeStr)) {
+        return generateResultToJson(generatePanelImage(task.panelId, presetModeFromStringValue(modeStr)));
+    }
 
-    return resultJson;
+    return generateResultToJson(generatePanelImage(task.panelId, generateModeFromString(modeStr)));
 }
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)

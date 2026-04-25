@@ -64,7 +64,7 @@ struct TaskData {
     
     void resetForRetry();
     void markAsStarted();
-    void markAsCompleted(const QJsonObject& result);
-    void markAsFailed(const QString& error);
+    void markAsCompleted(const QJsonObject& resultData);
+    void markAsFailed(const QString& errorMessage);
     void markAsCancelled();
 };

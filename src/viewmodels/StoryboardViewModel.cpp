@@ -18,7 +18,22 @@
 
 IMPLEMENT_SINGLETON(StoryboardViewModel)
 
+class StoryboardViewModel;
+
 namespace {
+struct StoryboardsLoadResult
+{
+    QList<Storyboard> storyboards;
+    QString error;
+};
+
+struct StoryboardPanelsLoadResult
+{
+    Storyboard storyboard;
+    QList<Panel> panels;
+    QString error;
+};
+
 QList<QVariantMap> queryAllRows(QSqlDatabase& db, const QString& sql, const QVariantList& binds, bool* ok, QString* error)
 {
     QList<QVariantMap> rows;
@@ -165,6 +180,48 @@ bool loadStoryboardAndPanelsFromDatabase(const AsyncDbHelper::DatabaseConnection
     AsyncDbHelper::closeTemporaryConnection(db, connectionName);
     return ok;
 }
+
+template<typename ResultType, typename Loader, typename Validator, typename Applier>
+void loadAsyncResult(StoryboardViewModel* self,
+                     const AsyncDbHelper::DatabaseConnectionInfo& dbInfo,
+                     const QString& novelId,
+                     int token,
+                     Loader loader,
+                     Validator validator,
+                     Applier applier)
+{
+    QPointer<StoryboardViewModel> guard(self);
+
+    QtConcurrent::run([guard, dbInfo, novelId, token, loader, validator, applier]() {
+        const ResultType result = loader(dbInfo, novelId);
+
+        if (!guard) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(guard.data(), [guard, novelId, token, result, validator, applier]() {
+            if (!guard || !validator(*guard, token, novelId, result)) {
+                return;
+            }
+            applier(*guard, token, novelId, result);
+        }, Qt::QueuedConnection);
+    });
+}
+
+StoryboardsLoadResult loadStoryboardsResult(const AsyncDbHelper::DatabaseConnectionInfo& info, const QString& novelId)
+{
+    StoryboardsLoadResult result;
+    result.storyboards = loadStoryboardsFromDatabase(info, novelId, &result.error);
+    return result;
+}
+
+StoryboardPanelsLoadResult loadStoryboardPanelsResult(const AsyncDbHelper::DatabaseConnectionInfo& info,
+                                                      const QString& novelId, int chapterNumber)
+{
+    StoryboardPanelsLoadResult result;
+    loadStoryboardAndPanelsFromDatabase(info, novelId, chapterNumber, &result.storyboard, &result.panels, &result.error);
+    return result;
+}
 } // namespace
 
 StoryboardViewModel::StoryboardViewModel(QObject* parent)
@@ -244,6 +301,31 @@ void StoryboardViewModel::resetAnalysisState()
     setBusy(true);
 }
 
+bool StoryboardViewModel::isPresetMode(const QString& mode) const
+{
+    return mode == QLatin1String("1x1") || mode == QLatin1String("1:1")
+        || mode == QLatin1String("3x2") || mode == QLatin1String("3:2")
+        || mode == QLatin1String("16x9") || mode == QLatin1String("16:9");
+}
+
+ImageService::BatchPresetMode StoryboardViewModel::batchPresetModeFromMode(const QString& mode) const
+{
+    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
+        return ImageService::BatchPresetMode::Standard_3x2;
+    }
+    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
+        return ImageService::BatchPresetMode::Widescreen_16x9;
+    }
+    return ImageService::BatchPresetMode::Square_1x1;
+}
+
+ImageService::GenerateMode StoryboardViewModel::generateModeFromMode(const QString& mode) const
+{
+    return (mode == QLatin1String("hd"))
+        ? ImageService::GenerateMode::HD
+        : ImageService::GenerateMode::Preview;
+}
+
 bool StoryboardViewModel::hasCachedStoryboards(const QString& novelId) const
 {
     return !m_storyboards.isEmpty() && m_cachedNovelId == novelId;
@@ -282,26 +364,24 @@ void StoryboardViewModel::loadStoryboards(const QString& novelId, bool forceRelo
     emit storyboardsLoaded(novelId, m_storyboards);
     m_storyboardsLoading = true;
 
-    const int token = ++m_storyboardsLoadToken;
+    const int token = ++m_storyboardsRequestToken;
     const AsyncDbHelper::DatabaseConnectionInfo dbInfo = AsyncDbHelper::snapshotConnection();
-    QPointer<StoryboardViewModel> self(this);
 
-    QtConcurrent::run([self, dbInfo, novelId, token]() {
-        QString error;
-        const QList<Storyboard> storyboards = loadStoryboardsFromDatabase(dbInfo, novelId, &error);
-        const bool success = error.isEmpty();
-
-        if (!self) {
-            return;
-        }
-
-        QMetaObject::invokeMethod(self.data(), [self, novelId, token, storyboards, success, error]() {
-            if (!self || token != self->m_storyboardsLoadToken || self->m_cachedNovelId != novelId) {
-                return;
-            }
-            self->applyStoryboardsLoaded(token, novelId, storyboards, success, error);
-        }, Qt::QueuedConnection);
-    });
+    loadAsyncResult<StoryboardsLoadResult>(
+        this,
+        dbInfo,
+        novelId,
+        token,
+        [](const AsyncDbHelper::DatabaseConnectionInfo& info, const QString& novel) {
+            return loadStoryboardsResult(info, novel);
+        },
+        [](StoryboardViewModel& vm, int requestToken, const QString& requestedNovelId, const StoryboardsLoadResult& result) {
+            Q_UNUSED(result)
+            return requestToken == vm.m_storyboardsRequestToken && vm.m_cachedNovelId == requestedNovelId;
+        },
+        [](StoryboardViewModel& vm, int requestToken, const QString& novel, const StoryboardsLoadResult& result) {
+            vm.applyStoryboardsLoaded(requestToken, novel, result.storyboards, result.error.isEmpty(), result.error);
+        });
 }
 
 void StoryboardViewModel::loadStoryboard(const QString& novelId, int chapterNumber, bool forceReload)
@@ -326,30 +406,26 @@ void StoryboardViewModel::loadStoryboard(const QString& novelId, int chapterNumb
     emit panelsLoaded(novelId, chapterNumber, m_currentPanels);
     m_storyboardLoading = true;
 
-    const int token = ++m_storyboardLoadToken;
+    const int token = ++m_storyboardRequestToken;
     const AsyncDbHelper::DatabaseConnectionInfo dbInfo = AsyncDbHelper::snapshotConnection();
-    QPointer<StoryboardViewModel> self(this);
 
-    QtConcurrent::run([self, dbInfo, novelId, chapterNumber, token]() {
-        Storyboard storyboard;
-        QList<Panel> panels;
-        QString error;
-        const bool success = loadStoryboardAndPanelsFromDatabase(dbInfo, novelId, chapterNumber,
-                                                                 &storyboard, &panels, &error);
-
-        if (!self) {
-            return;
-        }
-
-        QMetaObject::invokeMethod(self.data(), [self, novelId, chapterNumber, token, storyboard, panels, success, error]() {
-            if (!self || token != self->m_storyboardLoadToken
-                || self->m_cachedNovelId != novelId
-                || self->m_cachedChapterNumber != chapterNumber) {
-                return;
-            }
-            self->applyStoryboardLoaded(token, novelId, chapterNumber, storyboard, panels, success, error);
-        }, Qt::QueuedConnection);
-    });
+    loadAsyncResult<StoryboardPanelsLoadResult>(
+        this,
+        dbInfo,
+        novelId,
+        token,
+        [chapterNumber](const AsyncDbHelper::DatabaseConnectionInfo& info, const QString& novel) {
+            return loadStoryboardPanelsResult(info, novel, chapterNumber);
+        },
+        [chapterNumber](StoryboardViewModel& vm, int requestToken, const QString& requestedNovelId, const StoryboardPanelsLoadResult& result) {
+            Q_UNUSED(result)
+            return requestToken == vm.m_storyboardRequestToken
+                && vm.m_cachedNovelId == requestedNovelId
+                && vm.m_cachedChapterNumber == chapterNumber;
+        },
+        [chapterNumber](StoryboardViewModel& vm, int requestToken, const QString& novel, const StoryboardPanelsLoadResult& result) {
+            vm.applyStoryboardLoaded(requestToken, novel, chapterNumber, result.storyboard, result.panels, result.error.isEmpty(), result.error);
+        });
 }
 
 void StoryboardViewModel::loadPanels(const QString& storyboardId)
@@ -394,35 +470,21 @@ void StoryboardViewModel::generatePanelImages(const QStringList& panelIds, const
 {
     if (!m_imageService || panelIds.isEmpty()) { return; }
 
-    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
-        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Square_1x1);
-    } else if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
-        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Standard_3x2);
-    } else if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
-        m_imageService->generatePanelImages(panelIds, ImageService::BatchPresetMode::Widescreen_16x9);
+    if (isPresetMode(mode)) {
+        m_imageService->generatePanelImages(panelIds, batchPresetModeFromMode(mode));
     } else {
-        ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
-            ? ImageService::GenerateMode::HD
-            : ImageService::GenerateMode::Preview;
-        m_imageService->generatePanelImages(panelIds, genMode);
+        m_imageService->generatePanelImages(panelIds, generateModeFromMode(mode));
     }
 }
 
 void StoryboardViewModel::generateAllPanelImages(const QString& storyboardId, const QString& mode)
 {
-    if (!m_imageService || !m_storyboardService) { return; }
+    if (!m_imageService) { return; }
 
-    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
-        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Square_1x1);
-    } else if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
-        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Standard_3x2);
-    } else if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
-        m_imageService->generateStoryboardImages(storyboardId, ImageService::BatchPresetMode::Widescreen_16x9);
+    if (isPresetMode(mode)) {
+        m_imageService->generateStoryboardImages(storyboardId, batchPresetModeFromMode(mode));
     } else {
-        ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
-            ? ImageService::GenerateMode::HD
-            : ImageService::GenerateMode::Preview;
-        m_imageService->generateStoryboardImages(storyboardId, genMode);
+        m_imageService->generateStoryboardImages(storyboardId, generateModeFromMode(mode));
     }
 }
 
@@ -430,20 +492,11 @@ QString StoryboardViewModel::enqueueBatchPanelImageGeneration(const QStringList&
 {
     if (!m_imageService || panelIds.isEmpty()) { return QString(); }
 
-    if (mode == QLatin1String("1x1") || mode == QLatin1String("1:1")) {
-        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Square_1x1);
-    }
-    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
-        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Standard_3x2);
-    }
-    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
-        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageService::BatchPresetMode::Widescreen_16x9);
+    if (isPresetMode(mode)) {
+        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, batchPresetModeFromMode(mode));
     }
 
-    ImageService::GenerateMode genMode = (mode == QLatin1String("hd"))
-        ? ImageService::GenerateMode::HD
-        : ImageService::GenerateMode::Preview;
-    return m_imageService->enqueueBatchPanelImageGeneration(panelIds, genMode);
+    return m_imageService->enqueueBatchPanelImageGeneration(panelIds, generateModeFromMode(mode));
 }
 
 bool StoryboardViewModel::createEmptyStoryboard(const QString& novelId, int chapterNumber)
