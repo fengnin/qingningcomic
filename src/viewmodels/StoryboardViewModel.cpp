@@ -3,6 +3,7 @@
 #include "services/StoryboardService.h"
 #include "services/AnalysisService.h"
 #include "services/ImageService.h"
+#include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/AsyncDbHelper.h"
@@ -301,31 +302,6 @@ void StoryboardViewModel::resetAnalysisState()
     setBusy(true);
 }
 
-bool StoryboardViewModel::isPresetMode(const QString& mode) const
-{
-    return mode == QLatin1String("1x1") || mode == QLatin1String("1:1")
-        || mode == QLatin1String("3x2") || mode == QLatin1String("3:2")
-        || mode == QLatin1String("16x9") || mode == QLatin1String("16:9");
-}
-
-ImageService::BatchPresetMode StoryboardViewModel::batchPresetModeFromMode(const QString& mode) const
-{
-    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
-        return ImageService::BatchPresetMode::Standard_3x2;
-    }
-    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
-        return ImageService::BatchPresetMode::Widescreen_16x9;
-    }
-    return ImageService::BatchPresetMode::Square_1x1;
-}
-
-ImageService::GenerateMode StoryboardViewModel::generateModeFromMode(const QString& mode) const
-{
-    return (mode == QLatin1String("hd"))
-        ? ImageService::GenerateMode::HD
-        : ImageService::GenerateMode::Preview;
-}
-
 bool StoryboardViewModel::hasCachedStoryboards(const QString& novelId) const
 {
     return !m_storyboards.isEmpty() && m_cachedNovelId == novelId;
@@ -470,10 +446,10 @@ void StoryboardViewModel::generatePanelImages(const QStringList& panelIds, const
 {
     if (!m_imageService || panelIds.isEmpty()) { return; }
 
-    if (isPresetMode(mode)) {
-        m_imageService->generatePanelImages(panelIds, batchPresetModeFromMode(mode));
+    if (ImageModeUtils::isPresetModeString(mode)) {
+        m_imageService->generatePanelImages(panelIds, ImageModeUtils::presetModeFromString(mode));
     } else {
-        m_imageService->generatePanelImages(panelIds, generateModeFromMode(mode));
+        m_imageService->generatePanelImages(panelIds, ImageModeUtils::generateModeFromString(mode));
     }
 }
 
@@ -481,10 +457,10 @@ void StoryboardViewModel::generateAllPanelImages(const QString& storyboardId, co
 {
     if (!m_imageService) { return; }
 
-    if (isPresetMode(mode)) {
-        m_imageService->generateStoryboardImages(storyboardId, batchPresetModeFromMode(mode));
+    if (ImageModeUtils::isPresetModeString(mode)) {
+        m_imageService->generateStoryboardImages(storyboardId, ImageModeUtils::presetModeFromString(mode));
     } else {
-        m_imageService->generateStoryboardImages(storyboardId, generateModeFromMode(mode));
+        m_imageService->generateStoryboardImages(storyboardId, ImageModeUtils::generateModeFromString(mode));
     }
 }
 
@@ -492,11 +468,11 @@ QString StoryboardViewModel::enqueueBatchPanelImageGeneration(const QStringList&
 {
     if (!m_imageService || panelIds.isEmpty()) { return QString(); }
 
-    if (isPresetMode(mode)) {
-        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, batchPresetModeFromMode(mode));
+    if (ImageModeUtils::isPresetModeString(mode)) {
+        return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageModeUtils::presetModeFromString(mode));
     }
 
-    return m_imageService->enqueueBatchPanelImageGeneration(panelIds, generateModeFromMode(mode));
+    return m_imageService->enqueueBatchPanelImageGeneration(panelIds, ImageModeUtils::generateModeFromString(mode));
 }
 
 bool StoryboardViewModel::createEmptyStoryboard(const QString& novelId, int chapterNumber)

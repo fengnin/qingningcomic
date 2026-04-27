@@ -3,6 +3,7 @@
 
 #include "services/BatchImageProcessor.h"
 #include "models/Panel.h"
+#include "api/QwenImageClient.h"
 #include "utils/RetryPolicy.h"
 #include "utils/SingletonUtils.h"
 #include <QJsonObject>
@@ -94,6 +95,7 @@ private:
         QString panelId;
         GenerateMode mode;
         QString presetMode;
+        bool allowReferenceEdit = true;
         ResolutionConfig resolution;
         Panel panel;
         QString prompt;
@@ -154,6 +156,14 @@ private:
     bool executeWithVolcEngine(GenerationContext& ctx);
     bool executeWithQwen(GenerationContext& ctx);
     bool executeImageGeneration(GenerationContext& ctx);
+    QwenImageClient::GenerateOptions buildQwenGenerateOptions(const GenerationContext& ctx,
+                                                              const ResolutionConfig& resolution) const;
+    QwenImageClient::EditOptions buildQwenEditOptions(const GenerationContext& ctx,
+                                                      const ResolutionConfig& resolution) const;
+    QJsonObject buildPanelPromptOptions(const GenerationContext& ctx, const QJsonObject& panelJson) const;
+    void appendUniqueReferenceImages(QStringList& target, const QStringList& source) const;
+    bool shouldAdvanceToNextBatchItem() const;
+    void queueNextBatchItemProcessing();
 
     mutable QMutex m_mutex;
     QString m_currentPanelId;

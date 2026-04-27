@@ -242,6 +242,10 @@ bool AnalysisService::isTaskMatch(const QString& taskId, const TaskData& task) c
     if (taskId.isEmpty()) {
         return false;
     }
+
+    if (task.type != TaskType::GenerateStoryboard) {
+        return false;
+    }
     
     if (task.id.isEmpty()) {
         return taskId == m_currentTaskId;
@@ -442,6 +446,11 @@ void AnalysisService::onQwenError(const QString& operation, const QString& messa
 
 void AnalysisService::onTaskStarted(const QString& taskId)
 {
+    TaskData task = TaskQueue::instance()->getTask(taskId);
+    if (task.type != TaskType::GenerateStoryboard) {
+        return;
+    }
+
     if (taskId == m_currentTaskId) {
         LOG_INFO("AnalysisService", QString("Task started: %1").arg(taskId));
     }
@@ -449,6 +458,11 @@ void AnalysisService::onTaskStarted(const QString& taskId)
 
 void AnalysisService::onTaskProgress(const QString& taskId, int progress, const QString& message)
 {
+    TaskData task = TaskQueue::instance()->getTask(taskId);
+    if (task.type != TaskType::GenerateStoryboard) {
+        return;
+    }
+
     if (taskId == m_currentTaskId) {
         updateProgress(progress, message);
     }
@@ -459,6 +473,11 @@ void AnalysisService::onTaskCompleted(const QString& taskId, const QJsonObject& 
     LOG_INFO("AnalysisService", QString("onTaskCompleted: taskId=%1").arg(taskId));
     
     TaskData task = TaskQueue::instance()->getTask(taskId);
+    if (task.type != TaskType::GenerateStoryboard) {
+        LOG_DEBUG("AnalysisService", QString("Ignoring non-storyboard task completion: taskId=%1, type=%2")
+            .arg(taskId, task.typeString()));
+        return;
+    }
     
     if (!isTaskMatch(taskId, task)) {
         LOG_WARNING("AnalysisService", QString("Task not matched: taskId=%1, currentTaskId=%2")
@@ -486,6 +505,9 @@ void AnalysisService::onTaskFailed(const QString& taskId, const QString& error)
     LOG_INFO("AnalysisService", QString("onTaskFailed: taskId=%1, error=%2").arg(taskId, error));
     
     TaskData task = TaskQueue::instance()->getTask(taskId);
+    if (task.type != TaskType::GenerateStoryboard) {
+        return;
+    }
     
     if (!isTaskMatch(taskId, task)) {
         return;

@@ -9,6 +9,26 @@
 
 namespace {
     constexpr int SHORT_TEXT_THRESHOLD = 10000;
+
+    QString buildPanelRelativePath(const QString& panelId, const QString& mode)
+    {
+        return QString("panels/%1/%2.png").arg(panelId.left(8), mode);
+    }
+
+    QString buildReferenceRelativePath(const QString& folder, const QString& entityId, const QString& fileName)
+    {
+        return QString("%1/%2/%3").arg(folder, entityId.left(8), fileName);
+    }
+
+    QString buildExportRelativePath(const QString& exportId, const QString& extension)
+    {
+        return QString("exports/%1.%2").arg(exportId, extension);
+    }
+
+    QString buildNovelTextRelativePath(const QString& novelId)
+    {
+        return QString("novels/%1/text.txt").arg(novelId);
+    }
 }
 
 FileStorage* FileStorage::m_instance = nullptr;
@@ -142,7 +162,7 @@ QString FileStorage::saveNovelText(const QString& novelId, const QString& text)
         return QString();
     }
     
-    QString relativePath = QString("novels/%1/text.txt").arg(novelId);
+    QString relativePath = buildNovelTextRelativePath(novelId);
     QString fullPath = buildFullPath(relativePath);
     ensureDirectoryExists(QFileInfo(fullPath).absolutePath());
     
@@ -191,7 +211,7 @@ QString FileStorage::savePanelImage(const QString& panelId, const QByteArray& im
         return QString();
     }
     
-    QString relativePath = QString("panels/%1/%2.png").arg(panelId.left(8), mode);
+    QString relativePath = buildPanelRelativePath(panelId, mode);
     return saveBinaryFile(relativePath, imageData, "Panel image");
 }
 
@@ -202,13 +222,13 @@ QByteArray FileStorage::loadPanelImage(const QString& path)
 
 bool FileStorage::deletePanelImage(const QString& panelId, const QString& mode)
 {
-    QString relativePath = QString("panels/%1/%2.png").arg(panelId.left(8), mode);
+    QString relativePath = buildPanelRelativePath(panelId, mode);
     return deleteFile(relativePath, "Panel image");
 }
 
 QString FileStorage::getPanelImagePath(const QString& panelId, const QString& mode)
 {
-    QString relativePath = QString("panels/%1/%2.png").arg(panelId.left(8), mode);
+    QString relativePath = buildPanelRelativePath(panelId, mode);
     return buildFullPath(relativePath);
 }
 
@@ -220,13 +240,13 @@ QString FileStorage::saveCharacterReference(const QString& characterId, const QB
         return QString();
     }
     
-    QString relativePath = QString("characters/%1/reference.png").arg(characterId);
+    QString relativePath = buildReferenceRelativePath("characters", characterId, "reference.png");
     return saveBinaryFile(relativePath, imageData, "Character reference");
 }
 
 bool FileStorage::deleteCharacterReference(const QString& characterId)
 {
-    QString relativePath = QString("characters/%1/reference.png").arg(characterId);
+    QString relativePath = buildReferenceRelativePath("characters", characterId, "reference.png");
     return deleteFile(relativePath, "Character reference");
 }
 
@@ -238,13 +258,13 @@ QString FileStorage::saveSceneReference(const QString& sceneId, const QByteArray
         return QString();
     }
     
-    QString relativePath = QString("scenes/%1/reference.png").arg(sceneId);
+    QString relativePath = buildReferenceRelativePath("scenes", sceneId, "reference.png");
     return saveBinaryFile(relativePath, imageData, "Scene reference");
 }
 
 bool FileStorage::deleteSceneReference(const QString& sceneId)
 {
-    QString relativePath = QString("scenes/%1/reference.png").arg(sceneId);
+    QString relativePath = buildReferenceRelativePath("scenes", sceneId, "reference.png");
     return deleteFile(relativePath, "Scene reference");
 }
 
@@ -276,7 +296,7 @@ QString FileStorage::saveReferenceImage(const QString& sourceFilePath, const QSt
     }
     
     QString fileName = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    QString relativePath = QString("references/%1/%2.%3").arg(novelId.left(8), fileName, ext);
+    QString relativePath = buildReferenceRelativePath("references", novelId, QString("%1.%2").arg(fileName, ext));
     
     QString result = saveBinaryFile(relativePath, imageData, "Reference image");
     if (!result.isEmpty()) {
@@ -302,7 +322,7 @@ QString FileStorage::saveExportFile(const QString& exportId, const QByteArray& d
     }
     
     QString extension = formatToExtension(format);
-    QString relativePath = QString("exports/%1.%2").arg(exportId, extension);
+    QString relativePath = buildExportRelativePath(exportId, extension);
     return saveBinaryFile(relativePath, data, "Export file");
 }
 
@@ -314,7 +334,7 @@ QByteArray FileStorage::loadExportFile(const QString& path)
 QString FileStorage::getExportFilePath(const QString& exportId, const QString& format)
 {
     QString extension = formatToExtension(format);
-    QString relativePath = QString("exports/%1.%2").arg(exportId, extension);
+    QString relativePath = buildExportRelativePath(exportId, extension);
     return buildFullPath(relativePath);
 }
 

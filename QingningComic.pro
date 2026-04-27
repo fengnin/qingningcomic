@@ -86,9 +86,11 @@ SOURCES += \
     src/utils/JsonRepairAdapter.cpp \
     src/utils/PromptBuilder.cpp \
     src/utils/AsyncImageLoader.cpp \
+    src/utils/ImageModeUtils.cpp \
     src/utils/RetryPolicy.cpp \
     src/components/SuccessDialog.cpp \
     src/components/ConfirmDialog.cpp \
+    src/components/DeleteConfirmDialog.cpp \
     src/utils/SchemaToPrompt.cpp \
     src/components/ChapterSpinBox.cpp \
     src/components/ChapterSelectDialog.cpp \
@@ -176,9 +178,11 @@ HEADERS += \
     include/utils/UserSession.h \
     include/components/SuccessDialog.h \
     include/components/ConfirmDialog.h \
+    include/components/DeleteConfirmDialog.h \
     include/utils/SchemaToPrompt.h \
     include/utils/JsonRepairAdapter.h \
     include/utils/PromptBuilder.h \
+    include/utils/ImageModeUtils.h \
     include/utils/RetryPolicy.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \

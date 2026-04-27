@@ -4,15 +4,25 @@
 #include "services/ImageService.h"
 #include "services/StoryboardService.h"
 #include "viewmodels/StoryboardViewModel.h"
+#include "data/FileStorage.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
+#include "utils/AsyncImageLoader.h"
 #include "utils/LayoutUtils.h"
 #include <QLabel>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QCryptographicHash>
+#include <QFileInfo>
+#include <QPixmap>
+#include <QWheelEvent>
+#include <QScrollBar>
 
 namespace {
+constexpr int kPreviewWidth = 180;
+constexpr int kPreviewHeight = 190;
+
 void resetPanelLayout(QHBoxLayout* layout)
 {
     LayoutUtils::clearLayout(layout);
@@ -22,6 +32,121 @@ void updateCountLabel(QLabel* label, int count)
 {
     if (label) {
         label->setText(QObject::tr("共 %1 个面板").arg(count));
+    }
+}
+
+void updatePanelContainerGeometry(QWidget* container, QHBoxLayout* layout)
+{
+    if (!container || !layout) {
+        return;
+    }
+
+    container->setMinimumWidth(layout->sizeHint().width());
+    container->adjustSize();
+    container->updateGeometry();
+}
+
+void configurePanelContainer(QWidget* container, QHBoxLayout* layout)
+{
+    if (!container || !layout) {
+        return;
+    }
+
+    layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+    container->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    updatePanelContainerGeometry(container, layout);
+}
+
+QString resolvePreviewPath(const QString& previewUrl)
+{
+    if (previewUrl.isEmpty()) {
+        return QString();
+    }
+
+    if (previewUrl.startsWith(QLatin1String("http://")) || previewUrl.startsWith(QLatin1String("https://"))) {
+        return previewUrl;
+    }
+
+    const QFileInfo relativeInfo(previewUrl);
+    if (relativeInfo.exists()) {
+        return previewUrl;
+    }
+
+    if (FileStorage::instance()) {
+        const QString fullPath = FileStorage::instance()->getFullPath(previewUrl);
+        if (QFileInfo(fullPath).exists()) {
+            return fullPath;
+        }
+    }
+
+    return previewUrl;
+}
+
+bool isRemotePreviewUrl(const QString& previewUrl)
+{
+    return previewUrl.startsWith(QLatin1String("http://"))
+        || previewUrl.startsWith(QLatin1String("https://"));
+}
+
+QPixmap loadPreviewPixmap(const QString& path, const QSize& targetSize)
+{
+    QPixmap pixmap;
+    if (!pixmap.load(path)) {
+        return QPixmap();
+    }
+
+    if (pixmap.width() > targetSize.width() || pixmap.height() > targetSize.height()) {
+        pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    return pixmap;
+}
+
+int panelNumberForCache(const Panel& panel)
+{
+    return (panel.page() - 1) * 6 + panel.index() + 1;
+}
+
+QString panelCacheId(int chapterNumber, const Panel& panel)
+{
+    const QString loadPath = resolvePreviewPath(panel.previewUrl());
+    if (loadPath.isEmpty()) {
+        return QString();
+    }
+
+    const QString hash = QString(QCryptographicHash::hash(loadPath.toUtf8(), QCryptographicHash::Md5).toHex());
+    return QStringLiteral("panel_%1_%2_%3")
+        .arg(chapterNumber)
+        .arg(panelNumberForCache(panel))
+        .arg(hash);
+}
+
+void preloadPanelPreviewCache(int chapterNumber, const QList<Panel>& panels)
+{
+    AsyncImageLoader* loader = AsyncImageLoader::instance();
+    if (!loader) {
+        return;
+    }
+
+    const QSize targetSize(kPreviewWidth, kPreviewHeight);
+
+    for (const Panel& panel : panels) {
+        const QString loadPath = resolvePreviewPath(panel.previewUrl());
+        if (loadPath.isEmpty() || isRemotePreviewUrl(loadPath)) {
+            continue;
+        }
+
+        const QString id = panelCacheId(chapterNumber, panel);
+        if (id.isEmpty()) {
+            continue;
+        }
+
+        const QString cacheKey = AsyncImageLoader::makeCacheKey(id, targetSize);
+        const QPixmap pixmap = loadPreviewPixmap(loadPath, targetSize);
+        if (pixmap.isNull()) {
+            continue;
+        }
+
+        loader->insertCache(cacheKey, pixmap);
     }
 }
 }
@@ -58,7 +183,7 @@ void PanelPreviewWidget::setupUI()
     mainLayout->addWidget(headerRow);
     
     QScrollArea *scrollArea = new QScrollArea();
-    scrollArea->setWidgetResizable(true);
+    scrollArea->setWidgetResizable(false);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setStyleSheet(R"(
         QScrollArea {
@@ -70,11 +195,15 @@ void PanelPreviewWidget::setupUI()
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setFixedHeight(470);
+    scrollArea->viewport()->installEventFilter(this);
+    scrollArea->installEventFilter(this);
+    m_scrollArea = scrollArea;
     
     m_panelContainer = new QWidget();
     m_panelLayout = new QHBoxLayout(m_panelContainer);
     m_panelLayout->setContentsMargins(16, 16, 16, 16);
     m_panelLayout->setSpacing(16);
+    configurePanelContainer(m_panelContainer, m_panelLayout);
 
     scrollArea->setWidget(m_panelContainer);
     mainLayout->addWidget(scrollArea);
@@ -108,6 +237,19 @@ void PanelPreviewWidget::clear()
     emit panelCountChanged(0);
 }
 
+void PanelPreviewWidget::beginBatchRefresh()
+{
+    m_deferLiveUpdates = true;
+}
+
+void PanelPreviewWidget::endBatchRefresh(bool refreshNow)
+{
+    m_deferLiveUpdates = false;
+    if (refreshNow) {
+        refresh();
+    }
+}
+
 void PanelPreviewWidget::refresh()
 {
     resetPanelView();
@@ -126,7 +268,8 @@ void PanelPreviewWidget::refresh()
         emit panelCountChanged(0);
         return;
     }
-    
+
+    preloadPanelPreviewCache(m_currentChapter, m_panels);
     populateWithPanels(m_panels);
 }
 
@@ -158,6 +301,7 @@ void PanelPreviewWidget::populateEmptyState()
 void PanelPreviewWidget::finishPopulate(int actualCount)
 {
     m_panelLayout->addStretch();
+    updatePanelContainerGeometry(m_panelContainer, m_panelLayout);
     
     updateCountLabel(m_countLabel, actualCount);
     
@@ -170,6 +314,7 @@ void PanelPreviewWidget::resetPanelView()
 {
     m_panelCards.clear();
     resetPanelLayout(m_panelLayout);
+    configurePanelContainer(m_panelContainer, m_panelLayout);
 }
 
 QString PanelPreviewWidget::panelDescription(const Panel& panel) const
@@ -283,10 +428,36 @@ void PanelPreviewWidget::onPanelGenerated(const ImageService::GenerateResult& re
         return;
     }
 
+    if (m_deferLiveUpdates) {
+        LOG_DEBUG("PanelPreviewWidget", QString("Batch refresh active, deferring panelId=%1").arg(panelId));
+        return;
+    }
+
     LOG_DEBUG("PanelPreviewWidget", QString("m_panelCards contains %1 entries, checking for panelId: %2")
         .arg(m_panelCards.size()).arg(panelId));
 
     syncPanelPreview(panelId, result.imageUrl, result.width, result.height);
+}
+
+bool PanelPreviewWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    if (m_scrollArea && (watched == m_scrollArea || watched == m_scrollArea->viewport())) {
+        if (event->type() == QEvent::Wheel) {
+            QWheelEvent* wheelEvent = static_cast<QWheelEvent*>(event);
+            const QPoint delta = wheelEvent->angleDelta();
+            const int horizontalDelta = !delta.x() ? delta.y() : delta.x();
+            if (horizontalDelta != 0 && m_scrollArea->horizontalScrollBar()) {
+                const int step = qAbs(horizontalDelta) / 120;
+                const int direction = horizontalDelta > 0 ? -1 : 1;
+                m_scrollArea->horizontalScrollBar()->setValue(
+                    m_scrollArea->horizontalScrollBar()->value() + direction * step * 120);
+                wheelEvent->accept();
+                return true;
+            }
+        }
+    }
+
+    return QWidget::eventFilter(watched, event);
 }
 
 void PanelPreviewWidget::onPanelDescriptionChanged(int panelNumber, const QString& description)

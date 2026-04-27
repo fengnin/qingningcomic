@@ -2,6 +2,7 @@
 #include "data/DatabaseManager.h"
 #include "utils/Logger.h"
 #include <QUuid>
+#include <mutex>
 
 namespace {
 constexpr const char* kJobsTable = "jobs";
@@ -59,7 +60,7 @@ void markInterruptedTaskAsFailed(const QString& taskId)
 } // namespace
 
 TaskQueue* TaskQueue::m_instance = nullptr;
-QMutex TaskQueue::m_instanceMutex;
+std::once_flag TaskQueue::m_instanceOnceFlag;
 
 TaskQueue::TaskQueue()
 {
@@ -72,12 +73,9 @@ TaskQueue::~TaskQueue()
 
 TaskQueue* TaskQueue::instance()
 {
-    if (!m_instance) {
-        QMutexLocker locker(&m_instanceMutex);
-        if (!m_instance) {
-            m_instance = new TaskQueue();
-        }
-    }
+    std::call_once(m_instanceOnceFlag, []() {
+        m_instance = new TaskQueue();
+    });
     return m_instance;
 }
 

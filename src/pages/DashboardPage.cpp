@@ -4,6 +4,7 @@
 #include "utils/StatusHelper.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
+#include "services/TaskQueue.h"
 #include "components/EditorStyles.h"
 #include "utils/EncodingUtils.h"
 #include "utils/UserSession.h"
@@ -114,6 +115,7 @@ void DashboardPage::setupConnections()
 {
     StoryboardViewModel* vm = StoryboardViewModel::instance();
     NovelViewModel* novelVm = NovelViewModel::instance();
+    TaskQueue* taskQueue = TaskQueue::instance();
     
     connect(vm, &StoryboardViewModel::storyboardsLoaded,
             this, [this](const QString&, const QList<Storyboard>&) { refresh(); }, Qt::QueuedConnection);
@@ -123,9 +125,28 @@ void DashboardPage::setupConnections()
             this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
     connect(vm, &StoryboardViewModel::analysisFailed,
             this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
+
+    if (taskQueue) {
+        connect(taskQueue, &TaskQueue::taskEnqueued,
+                this, [this](const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(taskQueue, &TaskQueue::taskStarted,
+                this, [this](const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(taskQueue, &TaskQueue::taskProgress,
+                this, [this](const QString&, int, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(taskQueue, &TaskQueue::taskCompleted,
+                this, [this](const QString&, const QJsonObject&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(taskQueue, &TaskQueue::taskFailed,
+                this, [this](const QString&, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(taskQueue, &TaskQueue::taskCancelled,
+                this, [this](const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+    }
     
     m_refreshTimer = new QTimer(this);
     connect(m_refreshTimer, &QTimer::timeout, this, &DashboardPage::refreshActiveJobs);
+
+    m_syncRefreshTimer = new QTimer(this);
+    m_syncRefreshTimer->setSingleShot(true);
+    connect(m_syncRefreshTimer, &QTimer::timeout, this, &DashboardPage::refresh);
     
     connect(vm, &StoryboardViewModel::analysisStarted,
             this, [this]() { startPolling(); }, Qt::QueuedConnection);
@@ -147,6 +168,21 @@ void DashboardPage::setupConnections()
 DashboardPage::~DashboardPage()
 {
     stopPolling();
+}
+
+void DashboardPage::scheduleRefresh(int delayMs)
+{
+    if (!m_syncRefreshTimer) {
+        refresh();
+        return;
+    }
+
+    m_syncRefreshTimer->start(qMax(0, delayMs));
+}
+
+void DashboardPage::onTaskQueueChanged()
+{
+    scheduleRefresh(150);
 }
 
 void DashboardPage::startPolling()
@@ -482,26 +518,25 @@ QWidget* DashboardPage::createJobOverviewCard()
 
 void DashboardPage::populateJobOverviewList()
 {
-    populateJobList(m_jobOverviewLayout, QString(), QVariantList(), 
-                    EMPTY_JOBS_TEXT, "created_at DESC", 
-                    Constants::DASHBOARD_MAX_OVERVIEW_JOBS, false);
+    const QList<QVariantMap> jobs = loadDashboardJobs(QString(), QVariantList(),
+                                                      "created_at DESC",
+                                                      Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    renderJobList(m_jobOverviewLayout, jobs, EMPTY_JOBS_TEXT, false);
 }
 
 void DashboardPage::populateActiveJobsList()
 {
-    populateJobList(m_activeJobsLayout, ACTIVE_JOBS_WHERE, QVariantList(),
-                    EMPTY_ACTIVE_JOBS_TEXT, "created_at DESC", 
-                    Constants::DASHBOARD_MAX_ACTIVE_JOBS, true);
+    const QList<QVariantMap> jobs = loadDashboardJobs(ACTIVE_JOBS_WHERE, QVariantList(),
+                                                      "created_at DESC",
+                                                      Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    renderJobList(m_activeJobsLayout, jobs, EMPTY_ACTIVE_JOBS_TEXT, true);
 }
 
-void DashboardPage::populateJobList(QVBoxLayout *layout, const QString &whereClause,
-                                     const QVariantList &whereValues, const QString &emptyText,
-                                     const QString &orderBy, int limit, bool showProgress)
+QList<QVariantMap> DashboardPage::loadDashboardJobs(const QString &whereClause,
+                                                    const QVariantList &whereValues,
+                                                    const QString &orderBy,
+                                                    int limit) const
 {
-    if (!layout) return;
-    
-    clearLayout(layout);
-    
     DatabaseManager* db = DatabaseManager::instance();
     QString userId = UserSession::instance()->currentUserId();
     
@@ -513,30 +548,44 @@ void DashboardPage::populateJobList(QVBoxLayout *layout, const QString &whereCla
         finalValues.append(whereValues);
     }
     
-    QList<QVariantMap> jobs = db->selectAll("jobs", finalWhere, finalValues, orderBy, limit);
-    
+    return db->selectAll("jobs", finalWhere, finalValues, orderBy, limit);
+}
+
+void DashboardPage::renderJobList(QVBoxLayout *layout, const QList<QVariantMap> &jobs,
+                                  const QString &emptyText, bool showProgress)
+{
+    if (!layout) return;
+
+    clearLayout(layout);
+
     if (jobs.isEmpty()) {
         QLabel *emptyLabel = createLabel(emptyText, dashboardEmptyStateStyle());
         emptyLabel->setAlignment(Qt::AlignCenter);
         emptyLabel->setMinimumHeight(60);
         layout->addWidget(emptyLabel);
-    } else {
-        for (const QVariantMap& job : jobs) {
-            JobItemData data;
-            data.type = StatusHelper::Job::typeLabel(job.value("type").toString());
-            data.status = StatusHelper::Job::statusLabel(job.value("status").toString());
-            data.time = job.value("created_at").toString();
-            data.progress = job.value("progress").toInt();
-            data.showProgress = showProgress;
-            
-            layout->addWidget(createJobItem(data));
-        }
+        layout->addStretch();
+        return;
     }
-    
+
+    for (const QVariantMap& job : jobs) {
+        layout->addWidget(createJobItemWidget(buildJobItemData(job, showProgress)));
+    }
+
     layout->addStretch();
 }
 
-QWidget* DashboardPage::createJobItem(const JobItemData &data)
+DashboardPage::JobItemData DashboardPage::buildJobItemData(const QVariantMap &job, bool showProgress) const
+{
+    JobItemData data;
+    data.type = StatusHelper::Job::typeLabel(job.value("type").toString());
+    data.status = StatusHelper::Job::statusLabel(job.value("status").toString());
+    data.time = job.value("created_at").toString();
+    data.progress = job.value("progress").toInt();
+    data.showProgress = showProgress;
+    return data;
+}
+
+QWidget* DashboardPage::createJobItemWidget(const JobItemData &data)
 {
     return data.showProgress 
         ? createTimelineJobItem(data.type, data.status, data.time, data.progress)

@@ -17,7 +17,6 @@ public:
 private:
     static QString tryFixMissingColon(const QString& content, int errorOffset);
     static int findLastCompleteBrace(const QString& json);
-    static QString closeOpenBrackets(const QString& json);
     
     QwenJsonRepair() = delete;
 };

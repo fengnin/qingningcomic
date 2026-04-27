@@ -68,9 +68,13 @@ private:
     void retryRequest(const QString& requestId);
     void clearPendingRequest(const QString& requestId);
     bool maybeFinishBatch();
+    void scheduleNextItem();
+    void handleRetryExhausted(const QString& requestId, const QString& errorMessage);
     
-    QString saveCharacterImage(const QString& requestId, const QByteArray& imageData);
-    QString saveSceneImage(const QString& requestId, const QByteArray& imageData);
+    QString saveCharacterImage(const PendingImageRequest& request, const QByteArray& imageData);
+    QString saveSceneImage(const PendingImageRequest& request, const QByteArray& imageData);
+    bool updateCharacterPortraitRecord(Character character, const QString& imagePath);
+    bool updateSceneReferenceRecord(Scene scene, const QString& imagePath);
     
     bool processNextCharacter();
     bool processNextScene();

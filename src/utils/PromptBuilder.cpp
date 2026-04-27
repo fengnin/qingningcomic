@@ -145,6 +145,7 @@ namespace {
     QString formatHairLocal(const QJsonObject& appearance);
     void addIfNotEmpty(QStringList& parts, const QString& value);
     void addIfContains(QStringList& parts, const QJsonObject& obj, const QString& key, const QString& format = QString());
+    QString optionOrDefault(const QJsonObject& options, const QString& key, const QString& fallback);
 
     QString resolvePanelPromptTarget(const QJsonObject& options,
                                      const QString& editPrompt,
@@ -340,6 +341,12 @@ namespace {
             QString value = obj[key].isString() ? obj[key].toString() : QString::number(obj[key].toInt());
             parts.append(format.isEmpty() ? value : QString(format).arg(value));
         }
+    }
+
+    QString optionOrDefault(const QJsonObject& options, const QString& key, const QString& fallback)
+    {
+        const QString value = options.value(key).toString().trimmed();
+        return value.isEmpty() ? fallback : value;
     }
     
     void addListIfNotEmpty(QStringList& parts, const QStringList& list, const QString& prefix) {
@@ -770,6 +777,40 @@ void PromptBuilder::appendVariationDescs(QStringList &parts,
     }
 }
 
+void PromptBuilder::appendScenePromptDetails(QStringList& parts, const QJsonObject& scene)
+{
+    addIfNotEmpty(parts, sanitizeSceneText(scene["description"].toString()));
+
+    appendVisualCharacteristics(parts, scene["visualCharacteristics"].toObject());
+    appendSpatialLayout(parts, scene["spatialLayout"].toObject());
+    addListIfNotEmpty(parts, normalizeList(scene["anchorPoints"]), "fixed anchors:");
+    addListIfNotEmpty(parts, normalizeList(scene["signatureObjects"]), "signature objects:");
+    addListIfNotEmpty(parts, normalizeList(scene["fixedColorBlocks"]), "fixed color blocks:");
+    addListIfNotEmpty(parts, normalizeList(scene["consistencyRules"]), "consistency rules:");
+
+    const QString currentInterpretation = scene["currentInterpretation"].toString().trimmed();
+    if (!currentInterpretation.isEmpty()) {
+        parts.append(QString("current interpretation: %1").arg(currentInterpretation));
+    }
+
+    const QString status = scene["status"].toString().trimmed();
+    if (!status.isEmpty()) {
+        parts.append(QString("status: %1").arg(status));
+    }
+
+    const QString confidence = scene["confidence"].toString().trimmed();
+    if (!confidence.isEmpty()) {
+        parts.append(QString("confidence: %1").arg(confidence));
+    }
+
+    addListIfNotEmpty(parts, normalizeList(scene["evidence"]), "evidence:");
+    addListIfNotEmpty(parts, normalizeList(scene["aliases"]), "aliases:");
+    addListIfNotEmpty(parts, normalizeList(scene["history"]), "history:");
+    appendVariationDescs(parts, scene["timeVariations"].toArray(), TIME_OF_DAY_MAPPING, "timeOfDay", "time variations");
+    appendVariationDescs(parts, scene["weatherVariations"].toArray(), WEATHER_MAPPING, "weather", "weather variations");
+    addIfNotEmpty(parts, sanitizeSceneText(scene["narrativeRole"].toString()));
+}
+
 PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObject &character,
                                                                   const QJsonObject &options)
 {
@@ -778,10 +819,10 @@ PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObjec
     QJsonObject appearance = character["appearance"].toObject();
     QStringList tags = normalizeList(character["tags"]);
     
-    QString view = options.value("view").toString("front");
-    QString pose = options.value("pose").toString("standing");
-    QString style = options.value("style").toString("manga");
-    QString mode = options.value("mode").toString("preview");
+    QString view = optionOrDefault(options, "view", "front");
+    QString pose = optionOrDefault(options, "pose", "standing");
+    QString style = optionOrDefault(options, "style", "manga");
+    QString mode = optionOrDefault(options, "mode", "preview");
     
     bool isFullBodyPose = (pose == "running" || pose == "walking" || pose == "action" || pose == "fighting");
     
@@ -817,7 +858,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                                                               const QMap<QString, QJsonObject> &sceneRefs,
                                                               const QJsonObject &options)
 {
-    QString mode = options.value("mode").toString("preview");
+    QString mode = optionOrDefault(options, "mode", "preview");
     
     QStringList parts;
     parts << "manga panel illustration";
@@ -884,6 +925,12 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         .arg(primarySceneRef.isEmpty() ? "(none)" : primarySceneRef.left(30))
         .arg(primaryCharacterRef.isEmpty() ? "(none)" : primaryCharacterRef.left(30)));
 
+    LOG_INFO("PromptBuilder", QString("buildPanelPrompt selection: promptTarget=%1, selectedRefType=%2, selectedRef=%3, dialogueSpeakers=[%4]")
+        .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
+        .arg(selectedRefType.isEmpty() ? "(none)" : selectedRefType)
+        .arg(selectedRef.isEmpty() ? "(none)" : selectedRef.left(30))
+        .arg(dialogueSpeakers.join(", ")));
+
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
     return { prompt, DEFAULT_NEGATIVE_PROMPT + PANEL_NEGATIVE_EXTRA, refUris };
 }
@@ -910,33 +957,7 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
         parts.append(QString("scene edit only, preserve layout and atmosphere, apply this edit strictly: %1")
             .arg(editPrompt));
     }
-    addIfNotEmpty(parts, sanitizeSceneText(scene["description"].toString()));
-    
-    appendVisualCharacteristics(parts, scene["visualCharacteristics"].toObject());
-    appendSpatialLayout(parts, scene["spatialLayout"].toObject());
-    addListIfNotEmpty(parts, normalizeList(scene["anchorPoints"]), "fixed anchors:");
-    addListIfNotEmpty(parts, normalizeList(scene["signatureObjects"]), "signature objects:");
-    addListIfNotEmpty(parts, normalizeList(scene["fixedColorBlocks"]), "fixed color blocks:");
-    addListIfNotEmpty(parts, normalizeList(scene["consistencyRules"]), "consistency rules:");
-    QString currentInterpretation = scene["currentInterpretation"].toString().trimmed();
-    if (!currentInterpretation.isEmpty()) {
-        parts.append(QString("current interpretation: %1").arg(currentInterpretation));
-    }
-    QString status = scene["status"].toString().trimmed();
-    if (!status.isEmpty()) {
-        parts.append(QString("status: %1").arg(status));
-    }
-    QString confidence = scene["confidence"].toString().trimmed();
-    if (!confidence.isEmpty()) {
-        parts.append(QString("confidence: %1").arg(confidence));
-    }
-    addListIfNotEmpty(parts, normalizeList(scene["evidence"]), "evidence:");
-    addListIfNotEmpty(parts, normalizeList(scene["aliases"]), "aliases:");
-    addListIfNotEmpty(parts, normalizeList(scene["history"]), "history:");
-    appendVariationDescs(parts, scene["timeVariations"].toArray(), TIME_OF_DAY_MAPPING, "timeOfDay", "time variations");
-    appendVariationDescs(parts, scene["weatherVariations"].toArray(), WEATHER_MAPPING, "weather", "weather variations");
-    
-    addIfNotEmpty(parts, sanitizeSceneText(scene["narrativeRole"].toString()));
+    appendScenePromptDetails(parts, scene);
     
     parts << "high detail, volumetric lighting, cinematic environment, vibrant colors, full color";
     

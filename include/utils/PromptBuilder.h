@@ -47,6 +47,7 @@ private:
                                       const QMap<QString, QString> &mapping,
                                       const QString &keyField,
                                       const QString &label);
+    static void appendScenePromptDetails(QStringList &parts, const QJsonObject &scene);
     static void appendSpatialLayout(QStringList &parts, const QJsonObject &spatialLayout);
     static void appendVisualCharacteristics(QStringList &parts, const QJsonObject &visual);
 };

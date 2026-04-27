@@ -90,9 +90,6 @@ private slots:
 private:
     void connectServiceSignals();
     void resetAnalysisState();
-    bool isPresetMode(const QString& mode) const;
-    ImageService::BatchPresetMode batchPresetModeFromMode(const QString& mode) const;
-    ImageService::GenerateMode generateModeFromMode(const QString& mode) const;
     
     StoryboardService* m_storyboardService;
     AnalysisService* m_analysisService;

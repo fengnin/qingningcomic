@@ -142,6 +142,72 @@ void updateListFieldIfAllowed(QStringList& target,
         incomingSource, QStringLiteral("inferred"));
 }
 
+void mergeCharacterAppearance(CharacterAppearance& app, const ExtractedCharacter& incoming)
+{
+    const QJsonObject existingSources = app.fieldSources;
+    const QJsonObject incomingSources = incoming.fieldSources;
+
+    updateFieldIfAllowed(app.gender, incoming.gender, existingSources, incomingSources, "gender", app.fieldSources);
+    updateIntFieldIfAllowed(app.age, incoming.age, existingSources, incomingSources, "age", app.fieldSources);
+    updateFieldIfAllowed(app.hairColor, incoming.hairColor, existingSources, incomingSources, "hairColor", app.fieldSources);
+    updateFieldIfAllowed(app.hairStyle, incoming.hairStyle, existingSources, incomingSources, "hairStyle", app.fieldSources);
+    updateFieldIfAllowed(app.eyeColor, incoming.eyeColor, existingSources, incomingSources, "eyeColor", app.fieldSources);
+    updateFieldIfAllowed(app.build, incoming.bodyType, existingSources, incomingSources, "build", app.fieldSources);
+    updateFieldIfAllowed(app.height, incoming.height, existingSources, incomingSources, "height", app.fieldSources);
+
+    updateListFieldIfAllowed(app.clothing, incoming.clothing, existingSources, incomingSources, "clothing", app.fieldSources);
+    updateListFieldIfAllowed(app.accessories, incoming.accessories, existingSources, incomingSources, "accessories", app.fieldSources);
+    updateListFieldIfAllowed(app.distinctiveFeatures, incoming.distinctiveFeatures, existingSources, incomingSources, "distinctiveFeatures", app.fieldSources);
+}
+
+QStringList mergeCharacterAliases(const Character& existing, const ExtractedCharacter& incoming, CharacterAppearance& app)
+{
+    QStringList aliases = existing.aliases();
+    const QJsonObject existingSources = app.fieldSources;
+    const QJsonObject incomingSources = incoming.fieldSources;
+
+    updateListFieldIfAllowed(aliases, incoming.aliases, existingSources, incomingSources, "aliases", app.fieldSources);
+    if (!BibleUtils::BibleUpdateStrategy::isLockedSource(existingSources.value("aliases").toString())) {
+        appendUnique(aliases, incoming.name);
+    }
+
+    return aliases;
+}
+
+void mergeCharacterRole(Character& merged, const ExtractedCharacter& incoming)
+{
+    if (!merged.role().isEmpty()) {
+        return;
+    }
+
+    if (!incoming.role.isEmpty()) {
+        merged.setRole(incoming.role);
+        return;
+    }
+
+    if (incoming.tags.isEmpty()) {
+        return;
+    }
+
+    static const QStringList roleOrder = {
+        "protagonist",
+        "antagonist",
+        "supporting",
+        "background",
+        "mentor",
+        "love-interest"
+    };
+
+    for (const QString& role : roleOrder) {
+        if (incoming.tags.contains(role, Qt::CaseInsensitive)) {
+            merged.setRole(role);
+            return;
+        }
+    }
+
+    merged.setRole(incoming.tags.first());
+}
+
 QStringList collectIdentityKeys(const QString& name, const QString& role, const QStringList& aliases)
 {
     QStringList keys;
@@ -1479,55 +1545,11 @@ Character CharacterExtractor::mergeCharacters(const Character& existing, const E
 {
     Character merged = existing;
     CharacterAppearance app = merged.appearance();
-    const QJsonObject existingSources = app.fieldSources;
-    const QJsonObject incomingSources = incoming.fieldSources;
-
-    updateFieldIfAllowed(app.gender, incoming.gender, existingSources, incomingSources, "gender", app.fieldSources);
-    updateIntFieldIfAllowed(app.age, incoming.age, existingSources, incomingSources, "age", app.fieldSources);
-    updateFieldIfAllowed(app.hairColor, incoming.hairColor, existingSources, incomingSources, "hairColor", app.fieldSources);
-    updateFieldIfAllowed(app.hairStyle, incoming.hairStyle, existingSources, incomingSources, "hairStyle", app.fieldSources);
-    updateFieldIfAllowed(app.eyeColor, incoming.eyeColor, existingSources, incomingSources, "eyeColor", app.fieldSources);
-    updateFieldIfAllowed(app.build, incoming.bodyType, existingSources, incomingSources, "build", app.fieldSources);
-    updateFieldIfAllowed(app.height, incoming.height, existingSources, incomingSources, "height", app.fieldSources);
-
-    updateListFieldIfAllowed(app.clothing, incoming.clothing, existingSources, incomingSources, "clothing", app.fieldSources);
-    updateListFieldIfAllowed(app.accessories, incoming.accessories, existingSources, incomingSources, "accessories", app.fieldSources);
-    updateListFieldIfAllowed(app.distinctiveFeatures, incoming.distinctiveFeatures, existingSources, incomingSources, "distinctiveFeatures", app.fieldSources);
-
-    QStringList aliases = merged.aliases();
-    updateListFieldIfAllowed(aliases, incoming.aliases, existingSources, incomingSources, "aliases", app.fieldSources);
-    if (!BibleUtils::BibleUpdateStrategy::isLockedSource(existingSources.value("aliases").toString())) {
-        appendUnique(aliases, incoming.name);
-    }
-
-    if (merged.role().isEmpty() && !incoming.role.isEmpty()) {
-        merged.setRole(incoming.role);
-    }
-
-    if (merged.role().isEmpty() && !incoming.tags.isEmpty()) {
-        static const QStringList roleOrder = {
-            "protagonist",
-            "antagonist",
-            "supporting",
-            "background",
-            "mentor",
-            "love-interest"
-        };
-
-        for (const QString& role : roleOrder) {
-            if (incoming.tags.contains(role, Qt::CaseInsensitive)) {
-                merged.setRole(role);
-                break;
-            }
-        }
-
-        if (merged.role().isEmpty()) {
-            merged.setRole(incoming.tags.first());
-        }
-    }
+    mergeCharacterAppearance(app, incoming);
+    merged.setAliases(mergeCharacterAliases(existing, incoming, app));
+    mergeCharacterRole(merged, incoming);
 
     merged.setAppearance(app);
-    merged.setAliases(aliases);
 
     if (!incoming.personality.isEmpty()) {
         merged.setPersonality(BibleUtils::mergeStringLists(merged.personality(), incoming.personality));

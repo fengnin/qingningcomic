@@ -1,7 +1,6 @@
 #include "utils/AsyncImageLoader.h"
 #include "api/SharedNetworkManager.h"
 #include "utils/Logger.h"
-#include <QtConcurrent>
 #include <QFileInfo>
 #include <QPixmapCache>
 #include <QNetworkReply>
@@ -111,21 +110,18 @@ void AsyncImageLoader::onNetworkReplyFinished(QNetworkReply* reply, const QStrin
 void AsyncImageLoader::loadFromFile(const QString& id, const QString& path, const QSize& targetSize)
 {
     QString cacheKey = makeCacheKey(id, targetSize);
-    
-    QtConcurrent::run([this, id, cacheKey, path, targetSize]() {
-        QPixmap pixmap = loadImageFromFile(path, targetSize);
-        
-        {
-            QMutexLocker locker(&m_pendingMutex);
-            m_pendingLoads.remove(id);
-        }
-        
-        if (!pixmap.isNull()) {
-            emit imageLoaded(id, cacheKey, pixmap);
-        } else {
-            emit imageLoadFailed(id);
-        }
-    });
+    QPixmap pixmap = loadImageFromFile(path, targetSize);
+
+    {
+        QMutexLocker locker(&m_pendingMutex);
+        m_pendingLoads.remove(id);
+    }
+
+    if (!pixmap.isNull()) {
+        emit imageLoaded(id, cacheKey, pixmap);
+    } else {
+        emit imageLoadFailed(id);
+    }
 }
 
 void AsyncImageLoader::cancel(const QString& id)

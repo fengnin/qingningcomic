@@ -22,20 +22,11 @@ namespace {
     using EditorStyles::UI::createTransparentWidget;
     using EditorStyles::UI::createLabel;
     using EditorStyles::UI::setupLayout;
-    
+
     // ========== 对话框样式 ==========
     const QString DIALOG_BASE_STYLE = "QDialog { background: #FFFFFF; }";
     const QString DIALOG_TITLE_STYLE = "font-size: 18px; font-weight: bold; color: #1F2937; background: transparent;";
     const QString DIALOG_SUBTITLE_STYLE = "font-size: 14px; color: #6B7280; background: transparent;";
-    
-    const QString WARNING_LABEL_STYLE = R"(
-        font-size: 13px;
-        color: #991B1B;
-        background: #0def4444;
-        border: 1px solid #26ef4444;
-        border-radius: 8px;
-        padding: 12px 14px;
-    )";
     
     // ========== 空状态样式 ==========
     const QString EMPTY_CARD_STYLE = R"(
@@ -127,22 +118,6 @@ namespace {
     }
     
     // ========== 辅助函数 ==========
-    QLabel* createDialogLabel(const QString &text, const QString &style)
-    {
-        QLabel *label = new QLabel(text);
-        label->setStyleSheet(style);
-        label->setWordWrap(true);
-        return label;
-    }
-    
-    QLabel* createWarningLabel(const QString &text)
-    {
-        QLabel *label = new QLabel(text);
-        label->setStyleSheet(WARNING_LABEL_STYLE);
-        label->setWordWrap(true);
-        return label;
-    }
-    
     QLabel* createMessageIcon(const QString &bgColor, const QString &iconColor, const QString &iconText)
     {
         QLabel *iconLabel = new QLabel();
@@ -168,7 +143,7 @@ namespace {
     {
         return createButton(text, bgColor, "white", hoverColor);
     }
-    
+
     QPushButton* createSecondaryButton(const QString &text)
     {
         return createButton(text, Colors::COLOR_CANCEL_BG, "#374151", Colors::COLOR_CANCEL_HOVER);
@@ -180,6 +155,29 @@ namespace {
         btn->setStyleSheet(style);
         btn->setCursor(Qt::PointingHandCursor);
         return btn;
+    }
+
+    QLabel* createDialogLabel(const QString &text, const QString &style)
+    {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(style);
+        label->setWordWrap(true);
+        return label;
+    }
+
+    QLabel* createWarningLabel(const QString &text)
+    {
+        QLabel *label = new QLabel(text);
+        label->setStyleSheet(QString(
+            "font-size: 13px;"
+            "color: #991B1B;"
+            "background: #0def4444;"
+            "border: 1px solid #26ef4444;"
+            "border-radius: 8px;"
+            "padding: 12px 14px;"
+        ));
+        label->setWordWrap(true);
+        return label;
     }
     
     QLineEdit* createStyledLineEdit(const QString &placeholder, int width, int height)

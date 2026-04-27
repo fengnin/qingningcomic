@@ -7,6 +7,7 @@
 #include <QWaitCondition>
 #include <QThread>
 #include <functional>
+#include <mutex>
 
 class TaskWorker;
 
@@ -58,7 +59,7 @@ private:
     TaskData* getTaskRef(const QString& taskId);
 
     static TaskQueue* m_instance;
-    static QMutex m_instanceMutex;
+    static std::once_flag m_instanceOnceFlag;
     
     mutable QMutex m_mutex;
     QWaitCondition m_condition;

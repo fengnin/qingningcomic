@@ -2,6 +2,7 @@
 #include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
 #include "utils/AsyncImageLoader.h"
+#include "data/FileStorage.h"
 #include "utils/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -9,6 +10,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QPixmap>
 #include <QCryptographicHash>
+#include <QFileInfo>
 
 namespace {
     using EditorStyles::TRANSPARENT_BG;
@@ -204,8 +206,20 @@ void PanelCard::setPreviewUrl(const QString &url)
         m_previewLabel->setCursor(Qt::ArrowCursor);
         return;
     }
+
+    QString loadPath = url;
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        const QFileInfo relativeInfo(url);
+        if (!relativeInfo.exists() && FileStorage::instance()) {
+            const QString fullPath = FileStorage::instance()->getFullPath(url);
+            if (QFileInfo(fullPath).exists()) {
+                loadPath = fullPath;
+                m_currentImagePath = fullPath;
+            }
+        }
+    }
     
-    QString urlHash = QString(QCryptographicHash::hash(url.toUtf8(), QCryptographicHash::Md5).toHex());
+    QString urlHash = QString(QCryptographicHash::hash(loadPath.toUtf8(), QCryptographicHash::Md5).toHex());
     QString id = QString("panel_%1_%2_%3")
         .arg(m_chapterNumber).arg(m_panelNumber).arg(urlHash);
     QSize targetSize(Size::PREVIEW_WIDTH, Size::PREVIEW_HEIGHT);
@@ -227,7 +241,7 @@ void PanelCard::setPreviewUrl(const QString &url)
     connect(AsyncImageLoader::instance(), &AsyncImageLoader::imageLoaded,
             this, &PanelCard::onAsyncImageLoaded);
     
-    AsyncImageLoader::instance()->loadAsync(id, url, targetSize);
+    AsyncImageLoader::instance()->loadAsync(id, loadPath, targetSize);
 }
 
 void PanelCard::onAsyncImageLoaded(const QString& id, const QString& cacheKey, const QPixmap& pixmap)

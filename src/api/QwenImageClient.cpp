@@ -27,11 +27,12 @@ namespace {
     {
         return model.trimmed().toLower().startsWith("wanx");
     }
-    
+
     struct SyncRequestResult {
         bool success = false;
         QByteArray data;
         QString error;
+        int statusCode = 0;
     };
     
     SyncRequestResult waitForNetworkReply(QNetworkReply* reply, int timeoutMs) {
@@ -46,6 +47,8 @@ namespace {
         
         timer.start(timeoutMs);
         loop.exec();
+
+        result.statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         
         if (!timer.isActive()) {
             reply->abort();
@@ -104,6 +107,26 @@ bool QwenImageClient::shouldMock() const
     return m_config.forceMock || !m_initialized || m_config.apiKey.isEmpty();
 }
 
+QString QwenImageClient::resolveRequestId(const QString& preferredRequestId) const
+{
+    return preferredRequestId.isEmpty() ? QUuid::createUuid().toString() : preferredRequestId;
+}
+
+QString QwenImageClient::requestTypeName(RequestType type) const
+{
+    switch (type) {
+        case RequestType::Generate:
+            return QStringLiteral("generate");
+        case RequestType::Edit:
+            return QStringLiteral("edit");
+        case RequestType::TaskStatus:
+            return QStringLiteral("task_status");
+        case RequestType::Download:
+            return QStringLiteral("download");
+    }
+    return QStringLiteral("unknown");
+}
+
 
 void QwenImageClient::generateAsync(const GenerateOptions& options)
 {
@@ -117,8 +140,8 @@ void QwenImageClient::generateAsync(const GenerateOptions& options)
         emit generateCompleted(generatePlaceholder(options.prompt));
         return;
     }
-    
-    sendAsyncRequest(options, RequestType::Generate);
+
+    enqueueAsyncRequest(options);
 }
 
 void QwenImageClient::editAsync(const EditOptions& options)
@@ -133,8 +156,8 @@ void QwenImageClient::editAsync(const EditOptions& options)
         emit editCompleted(generatePlaceholder(options.prompt));
         return;
     }
-    
-    sendAsyncRequest(options, RequestType::Edit);
+
+    enqueueAsyncRequest(options);
 }
 
 
@@ -142,6 +165,8 @@ QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions&
 {
     LOG_INFO("QwenImageClient", QString("generate() called, shouldMock=%1, initialized=%2, apiKey.isEmpty=%3")
         .arg(shouldMock()).arg(m_initialized).arg(m_config.apiKey.isEmpty()));
+
+    QMutexLocker syncLock(&m_syncRequestMutex);
     
     if (!validateGenerateOptions(options)) {
         LOG_WARNING("QwenImageClient", "validateGenerateOptions failed");
@@ -153,16 +178,10 @@ QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions&
         return generatePlaceholder(options.prompt);
     }
     
-    QString url;
-    QJsonObject payload;
-    
-    if (isDashScopeMultimodalModel(m_config.generateModel)) {
-        url = resolveRequestUrl(RequestType::Generate);
-        payload = buildMultimodalRequestBody(options);
-    } else {
-        url = resolveRequestUrl(RequestType::Generate);
-        payload = buildGenerateRequestBody(options);
-    }
+    applyRequestThrottle();
+
+    const QString url = resolveRequestUrl(RequestType::Generate);
+    const QJsonObject payload = buildAsyncRequestBody(options, RequestType::Generate);
     
     LOG_INFO("QwenImageClient", QString("Sending request to: %1, model: %2").arg(url).arg(m_config.generateModel));
     
@@ -183,12 +202,16 @@ QwenImageClient::GenerateResult QwenImageClient::generate(const GenerateOptions&
 
 QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options)
 {
+    QMutexLocker syncLock(&m_syncRequestMutex);
+
     if (!validateEditOptions(options) || shouldMock()) {
         return generatePlaceholder(options.prompt);
     }
+
+    applyRequestThrottle();
     
-    QString url = buildApiUrl("image2image", m_config.editModel);
-    QJsonObject payload = buildEditRequestBody(options);
+    const QString url = resolveRequestUrl(RequestType::Edit);
+    const QJsonObject payload = buildAsyncRequestBody(options);
     QJsonObject response = sendSyncRequest(url, payload);
     
     if (response.isEmpty()) {
@@ -202,28 +225,12 @@ QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options
 
 void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestType type)
 {
-    QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
-    
-    QString url = resolveRequestUrl(type);
-    QJsonObject payload = (type == RequestType::Generate)
-        ? (isDashScopeMultimodalModel(m_config.generateModel)
-            ? buildMultimodalRequestBody(options)
-            : buildGenerateRequestBody(options))
-        : buildEditRequestBody(EditOptions::fromGenerateOptions(options));
-    LOG_DEBUG("QwenImageClient", QString("=== 请求调试信息 ==="));
-    LOG_DEBUG("QwenImageClient", QString("URL: %1").arg(url));
-    LOG_DEBUG("QwenImageClient", QString("Model: %1").arg(resolveRequestModel(type)));
-    LOG_DEBUG("QwenImageClient", QString("API Key (前10位): %1...").arg(m_config.apiKey.left(10)));
-    LOG_DEBUG("QwenImageClient", QString("Prompt: %1").arg(options.prompt.left(100)));
-    
-    const QString activeModel = resolveRequestModel(type);
-    bool useAsyncMode = isWanxModel(activeModel);
-    QNetworkRequest request = createNetworkRequest(url, useAsyncMode);
-    
-    LOG_DEBUG("QwenImageClient", QString("Request Body: %1").arg(QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact))));
-    LOG_DEBUG("QwenImageClient", QString("Async Mode: %1").arg(useAsyncMode ? "true" : "false"));
+    const QString requestId = resolveRequestId(options.requestId);
+    const QString url = resolveRequestUrl(type);
+    const QJsonObject payload = buildAsyncRequestBody(options, type);
+    const bool useAsyncMode = isWanxModel(resolveRequestModel(type));
 
-    dispatchAsyncRequest(requestId, request, payload, type);
+    dispatchPreparedAsyncRequest(requestId, url, payload, type, options.prompt, useAsyncMode);
     if (type == RequestType::Generate) {
         storePendingRequest(requestId, options);
     } else {
@@ -233,14 +240,132 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
 
 void QwenImageClient::sendAsyncRequest(const EditOptions& options, RequestType type)
 {
-    QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
-    QString url = resolveRequestUrl(type);
-    QJsonObject payload = buildEditRequestBody(options);
-    
-    QNetworkRequest request = createNetworkRequest(url, isWanxModel(resolveRequestModel(type)));
+    const QString requestId = resolveRequestId(options.requestId);
+    const QString url = resolveRequestUrl(type);
+    const QJsonObject payload = buildAsyncRequestBody(options);
+    const bool useAsyncMode = isWanxModel(resolveRequestModel(type));
 
-    dispatchAsyncRequest(requestId, request, payload, type);
+    dispatchPreparedAsyncRequest(requestId, url, payload, type, options.prompt, useAsyncMode);
     storePendingRequest(requestId, options);
+}
+
+void QwenImageClient::enqueueAsyncRequest(const GenerateOptions& options)
+{
+    {
+        QMutexLocker locker(&m_asyncQueueMutex);
+        m_asyncRequestQueue.enqueue(QueuedAsyncRequest{RequestType::Generate, options, EditOptions()});
+    }
+
+    processNextAsyncRequest();
+}
+
+void QwenImageClient::enqueueAsyncRequest(const EditOptions& options)
+{
+    {
+        QMutexLocker locker(&m_asyncQueueMutex);
+        m_asyncRequestQueue.enqueue(QueuedAsyncRequest{RequestType::Edit, GenerateOptions(), options});
+    }
+
+    processNextAsyncRequest();
+}
+
+void QwenImageClient::processNextAsyncRequest()
+{
+    QueuedAsyncRequest nextRequest;
+    {
+        QMutexLocker locker(&m_asyncQueueMutex);
+        if (m_asyncRequestInFlight || m_asyncRequestQueue.isEmpty()) {
+            return;
+        }
+
+        nextRequest = m_asyncRequestQueue.dequeue();
+        m_asyncRequestInFlight = true;
+    }
+
+    const int delayMs = requestDelayMs();
+    if (delayMs > 0) {
+        QTimer::singleShot(delayMs, this, [this, nextRequest]() {
+            noteRequestStarted();
+            if (nextRequest.type == RequestType::Generate) {
+                sendAsyncRequest(nextRequest.generateOptions, nextRequest.type);
+            } else {
+                sendAsyncRequest(nextRequest.editOptions, nextRequest.type);
+            }
+        });
+        return;
+    }
+
+    noteRequestStarted();
+    if (nextRequest.type == RequestType::Generate) {
+        sendAsyncRequest(nextRequest.generateOptions, nextRequest.type);
+    } else {
+        sendAsyncRequest(nextRequest.editOptions, nextRequest.type);
+    }
+}
+
+void QwenImageClient::finishAsyncRequest()
+{
+    {
+        QMutexLocker locker(&m_asyncQueueMutex);
+        m_asyncRequestInFlight = false;
+    }
+
+    QTimer::singleShot(0, this, &QwenImageClient::processNextAsyncRequest);
+}
+
+QwenImageClient::PendingRequestKind QwenImageClient::pendingRequestKind(const QString& requestId) const
+{
+    if (m_pendingGenerateOptions.contains(requestId)) {
+        return PendingRequestKind::Generate;
+    }
+    if (m_pendingEditOptions.contains(requestId)) {
+        return PendingRequestKind::Edit;
+    }
+    return PendingRequestKind::None;
+}
+
+void QwenImageClient::clearPendingRequestState(const QString& requestId)
+{
+    m_pendingGenerateOptions.remove(requestId);
+    m_pendingEditOptions.remove(requestId);
+    m_retryCount.remove(requestId);
+}
+
+void QwenImageClient::applyRequestThrottle()
+{
+    const int delayMs = requestDelayMs();
+    if (delayMs > 0) {
+        QThread::msleep(static_cast<unsigned long>(delayMs));
+    }
+    noteRequestStarted();
+}
+
+int QwenImageClient::requestDelayMs() const
+{
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    QMutexLocker locker(&m_rateLimitMutex);
+    if (m_nextAllowedRequestAtMs <= 0) {
+        return 0;
+    }
+
+    const qint64 delay = m_nextAllowedRequestAtMs - nowMs;
+    return delay > 0 ? static_cast<int>(delay) : 0;
+}
+
+void QwenImageClient::noteRequestStarted()
+{
+    QMutexLocker locker(&m_rateLimitMutex);
+    m_nextAllowedRequestAtMs = QDateTime::currentMSecsSinceEpoch() + m_minRequestIntervalMs;
+}
+
+void QwenImageClient::noteRateLimitHit()
+{
+    QMutexLocker locker(&m_rateLimitMutex);
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const qint64 backoffUntil = nowMs + m_rateLimitBackoffMs;
+    if (backoffUntil > m_nextAllowedRequestAtMs) {
+        m_nextAllowedRequestAtMs = backoffUntil;
+    }
 }
 
 void QwenImageClient::pollTaskStatus(const QString& taskId, const QString& requestId)
@@ -301,6 +426,10 @@ void QwenImageClient::onReplyFinished()
         .arg(QString::fromUtf8(contentType))
         .arg(responseData.size()));
     LOG_DEBUG("QwenImageClient", QString("Response: %1").arg(QString::fromUtf8(responseData.left(500))));
+
+    if (statusCode == 429) {
+        noteRateLimitHit();
+    }
     
     cleanupRequest(reply, requestId);
     
@@ -338,7 +467,7 @@ void QwenImageClient::onReplyFinished()
         result.errorMessage = "Failed to extract image from response";
     }
     
-    emitResult(type, requestId, result);
+    emitPendingResult(requestId, result);
 }
 
 void QwenImageClient::onTaskStatusReplyFinished()
@@ -426,6 +555,8 @@ void QwenImageClient::onReplyError(QNetworkReply::NetworkError error)
     
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
     if (!reply) return;
+
+    const QString requestId = reply->property("requestId").toString();
     
     int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     QByteArray responseData = reply->readAll();
@@ -436,9 +567,18 @@ void QwenImageClient::onReplyError(QNetworkReply::NetworkError error)
     LOG_ERROR("QwenImageClient", QString("Error: %1").arg(reply->errorString()));
     LOG_ERROR("QwenImageClient", QString("HTTP Status Code: %1").arg(statusCode));
     LOG_ERROR("QwenImageClient", QString("Response Body: %1").arg(QString::fromUtf8(responseData)));
+
+    if (statusCode == 429) {
+        noteRateLimitHit();
+    }
     
+    if (pendingRequestKind(requestId) != PendingRequestKind::None) {
+        emitPendingResult(requestId, createErrorResult(requestId, errorMessage));
+        return;
+    }
+
     setError(errorMessage);
-    
+
     emit errorOccurred("network", errorMessage);
 }
 
@@ -446,7 +586,7 @@ void QwenImageClient::onReplyError(QNetworkReply::NetworkError error)
 QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObject& payload)
 {
     try {
-        QNetworkRequest request = createNetworkRequest(url);
+        QNetworkRequest request = createNetworkRequest(url, false);
         QByteArray jsonData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
         
         QNetworkAccessManager manager;
@@ -454,6 +594,9 @@ QJsonObject QwenImageClient::sendSyncRequest(const QString& url, const QJsonObje
         
         SyncRequestResult netResult = waitForNetworkReply(reply.data(), m_config.requestTimeout);
         if (!netResult.success) {
+            if (netResult.statusCode == 429) {
+                noteRateLimitHit();
+            }
             setError(netResult.error);
             return QJsonObject();
         }
@@ -485,6 +628,9 @@ QJsonObject QwenImageClient::pollTaskSync(const QString& taskId)
             
             SyncRequestResult netResult = waitForNetworkReply(reply.data(), 10000);
             if (!netResult.success) {
+                if (netResult.statusCode == 429) {
+                    noteRateLimitHit();
+                }
                 setError(netResult.error);
                 return QJsonObject();
             }
@@ -540,8 +686,16 @@ QwenImageClient::GenerateResult QwenImageClient::parseSyncResponse(const QJsonOb
     result.requestId = response["request_id"].toString();
     result.timestamp = QDateTime::currentMSecsSinceEpoch();
     
+    QString inlineImageUrl = extractInlineImageUrl(response);
+    if (!inlineImageUrl.isEmpty()) {
+        result.imageUrl = inlineImageUrl;
+        result.success = true;
+        result.mimeType = "image/png";
+        return result;
+    }
+
     QJsonObject output = response["output"].toObject();
-    
+
     QString imageUrl = extractImageUrl(output);
     if (!imageUrl.isEmpty()) {
         result.imageUrl = imageUrl;
@@ -642,6 +796,15 @@ QwenImageClient::GenerateResult QwenImageClient::parseAsyncResponse(const QJsonO
         }
         return result;
     }
+
+    QString inlineImageUrl = extractInlineImageUrl(response);
+    if (!inlineImageUrl.isEmpty()) {
+        result.imageUrl = inlineImageUrl;
+        result.success = true;
+        result.mimeType = "image/png";
+        result.timestamp = QDateTime::currentMSecsSinceEpoch();
+        return result;
+    }
     
     QJsonArray results = output["results"].toArray();
     if (results.isEmpty()) return result;
@@ -735,11 +898,17 @@ QJsonObject QwenImageClient::buildGenerateRequestBody(const GenerateOptions& opt
     
     QJsonObject parameters = buildCommonParameters(options.size, options.seed);
     
-    if (!options.style.isEmpty()) {
+    const bool wanxModel = isWanxModel(m_config.generateModel);
+
+    if (!wanxModel && !options.style.isEmpty()) {
         parameters["style"] = options.style;
     }
-    if (options.textRendering) {
+    if (!wanxModel && options.textRendering) {
         parameters["text_rendering"] = true;
+    }
+    if (wanxModel) {
+        parameters["prompt_extend"] = true;
+        parameters["watermark"] = false;
     }
     parameters = applyCustomSize(parameters, options.size, options.width, options.height);
     
@@ -813,6 +982,39 @@ void QwenImageClient::dispatchAsyncRequest(const QString& requestId, const QNetw
             this, &QwenImageClient::onReplyError);
 
     emit progressChanged("sending_request", 0);
+}
+
+void QwenImageClient::dispatchPreparedAsyncRequest(const QString& requestId, const QString& url,
+                                                    const QJsonObject& payload, RequestType type,
+                                                    const QString& prompt, bool asyncMode)
+{
+    LOG_DEBUG("QwenImageClient", QString("=== 请求调试信息 ==="));
+    LOG_DEBUG("QwenImageClient", QString("URL: %1").arg(url));
+    LOG_DEBUG("QwenImageClient", QString("Model: %1").arg(resolveRequestModel(type)));
+    LOG_DEBUG("QwenImageClient", QString("API Key (前10位): %1...").arg(m_config.apiKey.left(10)));
+    LOG_DEBUG("QwenImageClient", QString("Prompt: %1").arg(prompt.left(100)));
+    LOG_DEBUG("QwenImageClient", QString("Request Body: %1")
+        .arg(QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact))));
+    LOG_DEBUG("QwenImageClient", QString("Async Mode: %1").arg(asyncMode ? "true" : "false"));
+
+    QNetworkRequest request = createNetworkRequest(url, asyncMode);
+    dispatchAsyncRequest(requestId, request, payload, type);
+}
+
+QJsonObject QwenImageClient::buildAsyncRequestBody(const GenerateOptions& options, RequestType type)
+{
+    if (type == RequestType::Generate) {
+        return isDashScopeMultimodalModel(m_config.generateModel)
+            ? buildMultimodalRequestBody(options)
+            : buildGenerateRequestBody(options);
+    }
+
+    return buildEditRequestBody(EditOptions::fromGenerateOptions(options));
+}
+
+QJsonObject QwenImageClient::buildAsyncRequestBody(const EditOptions& options)
+{
+    return buildEditRequestBody(options);
 }
 
 void QwenImageClient::storePendingRequest(const QString& requestId, const GenerateOptions& options)
@@ -929,50 +1131,55 @@ void QwenImageClient::emitResult(RequestType type, const QString& requestId, con
 
 void QwenImageClient::emitPendingResult(const QString& requestId, const GenerateResult& result)
 {
-    bool isGenerate = m_pendingGenerateOptions.contains(requestId);
-    
-    LOG_INFO("QwenImageClient", QString("emitPendingResult: requestId=%1, isGenerate=%2, success=%3, inGenerateMap=%4, inEditMap=%5")
+    const PendingRequestKind kind = pendingRequestKind(requestId);
+    const QString kindName = (kind == PendingRequestKind::Generate)
+        ? QStringLiteral("generate")
+        : (kind == PendingRequestKind::Edit)
+            ? QStringLiteral("edit")
+            : QStringLiteral("none");
+
+    LOG_INFO("QwenImageClient", QString("emitPendingResult: requestId=%1, kind=%2, success=%3, inGenerateMap=%4, inEditMap=%5")
         .arg(requestId)
-        .arg(isGenerate)
+        .arg(kindName)
         .arg(result.success)
         .arg(m_pendingGenerateOptions.contains(requestId))
         .arg(m_pendingEditOptions.contains(requestId)));
     
-    m_pendingGenerateOptions.remove(requestId);
-    m_pendingEditOptions.remove(requestId);
-    m_retryCount.remove(requestId);
+    clearPendingRequestState(requestId);
     
-    if (isGenerate) {
+    if (kind == PendingRequestKind::Generate) {
         LOG_INFO("QwenImageClient", QString("emitPendingResult: emitting generateCompleted for requestId=%1").arg(requestId));
         emit generateCompleted(result);
     } else {
         LOG_WARNING("QwenImageClient", QString("emitPendingResult: requestId=%1 not in generate map, emitting editCompleted!").arg(requestId));
         emit editCompleted(result);
     }
+
+    finishAsyncRequest();
 }
 
 void QwenImageClient::handleTaskSuccess(const QJsonObject& output, const QString& requestId)
 {
     LOG_INFO("QwenImageClient", QString("handleTaskSuccess called: requestId=%1").arg(requestId));
     emit progressChanged("generating", 80);
-    
-    QJsonArray results = output["results"].toArray();
-    
-    if (results.isEmpty()) {
-        LOG_WARNING("QwenImageClient", "handleTaskSuccess: results array is empty!");
-        emitPendingResult(requestId, createErrorResult(requestId, "No image URL in response"));
-        return;
+
+    QJsonObject response;
+    response["output"] = output;
+    QString imageUrl = extractInlineImageUrl(response);
+    if (imageUrl.isEmpty()) {
+        QJsonArray results = output["results"].toArray();
+        if (!results.isEmpty()) {
+            imageUrl = results.first().toObject()["url"].toString();
+        }
     }
-    
-    QString imageUrl = results.first().toObject()["url"].toString();
+
     LOG_INFO("QwenImageClient", QString("handleTaskSuccess: imageUrl=%1").arg(imageUrl.left(100)));
-    
     if (imageUrl.isEmpty()) {
         LOG_WARNING("QwenImageClient", "handleTaskSuccess: imageUrl is empty!");
         emitPendingResult(requestId, createErrorResult(requestId, "No image URL in response"));
         return;
     }
-    
+
     LOG_INFO("QwenImageClient", QString("handleTaskSuccess: calling downloadImageFromUrl"));
     downloadImageFromUrl(imageUrl, requestId);
 }

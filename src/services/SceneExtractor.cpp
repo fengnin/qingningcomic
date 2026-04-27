@@ -439,6 +439,89 @@ void assignSceneArrayField(ExtractedScene& scene, const QString& key, QJsonArray
     scene.fieldSources[key] = QStringLiteral("inferred");
 }
 
+void populateDerivedSceneDetails(SceneDetails& details, const Scene& scene, const ExtractedScene& extracted)
+{
+    details.description = extracted.description;
+    details.building = extracted.building;
+    details.landmark = extracted.landmark;
+    details.layout = extracted.layout;
+    details.atmosphere = extracted.atmosphere;
+    details.color = extracted.color;
+    details.type = extracted.type.isEmpty() ? inferSceneType(extracted.description, extracted.name) : extracted.type;
+    details.typeZh = extracted.typeZh;
+    details.setting = extracted.setting;
+    details.timeOfDay = extracted.timeOfDay.isEmpty() ? inferTimeOfDay(extracted.description) : extracted.timeOfDay;
+    details.weather = extracted.weather.isEmpty() ? inferWeather(extracted.description) : extracted.weather;
+    details.spaceSize = extracted.spaceSize;
+    details.currentInterpretation = extracted.currentInterpretation;
+    details.confidence = extracted.confidence;
+    details.status = extracted.status;
+    details.narrativeRole = extracted.narrativeRole;
+    details.narrativeRoleZh = extracted.narrativeRoleZh;
+    details.aliases = extracted.aliases.isEmpty()
+        ? buildSceneAliasKeys(scene.name(), details)
+        : deduplicateList(BibleUtils::mergeStringLists(extracted.aliases, buildSceneAliasKeys(scene.name(), details)));
+    details.anchorPoints = extracted.anchorPoints.isEmpty() ? buildConcreteAnchors(extracted) : extracted.anchorPoints;
+    details.signatureObjects = extracted.signatureObjects.isEmpty() ? buildConcreteSignatureObjects(extracted) : extracted.signatureObjects;
+    details.fixedColorBlocks = extracted.fixedColorBlocks.isEmpty() ? buildConcreteColorBlocks(extracted) : extracted.fixedColorBlocks;
+    details.consistencyRules = extracted.consistencyRules.isEmpty() ? buildConcreteConsistencyRules(extracted) : extracted.consistencyRules;
+    details.details = extracted.details;
+    details.evidence = extracted.evidence;
+    details.history = extracted.history;
+    details.timeVariations = extracted.timeVariations;
+    details.weatherVariations = extracted.weatherVariations;
+    details.fieldSources = extracted.fieldSources;
+
+    if (extracted.type.isEmpty() && !details.type.isEmpty()) {
+        details.fieldSources["type"] = QStringLiteral("inferred");
+    }
+    if (extracted.timeOfDay.isEmpty() && !details.timeOfDay.isEmpty()) {
+        details.fieldSources["timeOfDay"] = QStringLiteral("inferred");
+    }
+    if (extracted.weather.isEmpty() && !details.weather.isEmpty()) {
+        details.fieldSources["weather"] = QStringLiteral("inferred");
+    }
+
+    AnalysisFieldUtils::markFieldSources(details.fieldSources, {
+        {"description", !details.description.isEmpty()},
+        {"building", !details.building.isEmpty()},
+        {"landmark", !details.landmark.isEmpty()},
+        {"layout", !details.layout.isEmpty()},
+        {"atmosphere", !details.atmosphere.isEmpty()},
+        {"color", !details.color.isEmpty()},
+        {"type", !details.type.isEmpty()},
+        {"typeZh", !details.typeZh.isEmpty()},
+        {"setting", !details.setting.isEmpty()},
+        {"timeOfDay", !details.timeOfDay.isEmpty()},
+        {"weather", !details.weather.isEmpty()},
+        {"spaceSize", !details.spaceSize.isEmpty()},
+        {"currentInterpretation", !details.currentInterpretation.isEmpty()},
+        {"confidence", !details.confidence.isEmpty()},
+        {"status", !details.status.isEmpty()},
+        {"narrativeRole", !details.narrativeRole.isEmpty()},
+        {"narrativeRoleZh", !details.narrativeRoleZh.isEmpty()},
+        {"anchorPoints", !details.anchorPoints.isEmpty()},
+        {"signatureObjects", !details.signatureObjects.isEmpty()},
+        {"fixedColorBlocks", !details.fixedColorBlocks.isEmpty()},
+        {"consistencyRules", !details.consistencyRules.isEmpty()}
+    }, QStringLiteral("inferred"));
+}
+
+bool persistSceneRecord(const Scene& scene)
+{
+    QVariantMap data = scene.toVariantMap();
+    bool success = DatabaseManager::instance()->update(
+        "scenes", data, "id = ?", QVariantList() << scene.id());
+
+    if (!success) {
+        return false;
+    }
+
+    BibleCache::instance()->invalidateScenes(scene.novelId());
+
+    return true;
+}
+
 QString inferSceneType(const QString& description, const QString& name)
 {
     static const QStringList indoorKeywords = {
@@ -811,69 +894,7 @@ Scene SceneExtractor::toScene(const ExtractedScene& extracted, const QString& no
     scene.setSceneId(fallbackStableId);
     
     SceneDetails details;
-    details.description = extracted.description;
-    details.building = extracted.building;
-    details.landmark = extracted.landmark;
-    details.layout = extracted.layout;
-    details.atmosphere = extracted.atmosphere;
-    details.color = extracted.color;
-    details.type = extracted.type.isEmpty() ? inferSceneType(extracted.description, extracted.name) : extracted.type;
-    details.typeZh = extracted.typeZh;
-    details.setting = extracted.setting;
-    details.timeOfDay = extracted.timeOfDay.isEmpty() ? inferTimeOfDay(extracted.description) : extracted.timeOfDay;
-    details.weather = extracted.weather.isEmpty() ? inferWeather(extracted.description) : extracted.weather;
-    details.spaceSize = extracted.spaceSize;
-    details.currentInterpretation = extracted.currentInterpretation;
-    details.confidence = extracted.confidence;
-    details.status = extracted.status;
-    details.narrativeRole = extracted.narrativeRole;
-    details.narrativeRoleZh = extracted.narrativeRoleZh;
-    details.aliases = extracted.aliases.isEmpty()
-        ? buildSceneAliasKeys(scene.name(), details)
-        : deduplicateList(BibleUtils::mergeStringLists(extracted.aliases, buildSceneAliasKeys(scene.name(), details)));
-    details.anchorPoints = extracted.anchorPoints.isEmpty() ? buildConcreteAnchors(extracted) : extracted.anchorPoints;
-    details.signatureObjects = extracted.signatureObjects.isEmpty() ? buildConcreteSignatureObjects(extracted) : extracted.signatureObjects;
-    details.fixedColorBlocks = extracted.fixedColorBlocks.isEmpty() ? buildConcreteColorBlocks(extracted) : extracted.fixedColorBlocks;
-    details.consistencyRules = extracted.consistencyRules.isEmpty() ? buildConcreteConsistencyRules(extracted) : extracted.consistencyRules;
-    details.details = extracted.details;
-    details.evidence = extracted.evidence;
-    details.history = extracted.history;
-    details.timeVariations = extracted.timeVariations;
-    details.weatherVariations = extracted.weatherVariations;
-    details.fieldSources = extracted.fieldSources;
-    if (extracted.type.isEmpty() && !details.type.isEmpty()) {
-        details.fieldSources["type"] = QStringLiteral("inferred");
-    }
-    if (extracted.timeOfDay.isEmpty() && !details.timeOfDay.isEmpty()) {
-        details.fieldSources["timeOfDay"] = QStringLiteral("inferred");
-    }
-    if (extracted.weather.isEmpty() && !details.weather.isEmpty()) {
-        details.fieldSources["weather"] = QStringLiteral("inferred");
-    }
-
-    AnalysisFieldUtils::markFieldSources(details.fieldSources, {
-        {"description", !details.description.isEmpty()},
-        {"building", !details.building.isEmpty()},
-        {"landmark", !details.landmark.isEmpty()},
-        {"layout", !details.layout.isEmpty()},
-        {"atmosphere", !details.atmosphere.isEmpty()},
-        {"color", !details.color.isEmpty()},
-        {"type", !details.type.isEmpty()},
-        {"typeZh", !details.typeZh.isEmpty()},
-        {"setting", !details.setting.isEmpty()},
-        {"timeOfDay", !details.timeOfDay.isEmpty()},
-        {"weather", !details.weather.isEmpty()},
-        {"spaceSize", !details.spaceSize.isEmpty()},
-        {"currentInterpretation", !details.currentInterpretation.isEmpty()},
-        {"confidence", !details.confidence.isEmpty()},
-        {"status", !details.status.isEmpty()},
-        {"narrativeRole", !details.narrativeRole.isEmpty()},
-        {"narrativeRoleZh", !details.narrativeRoleZh.isEmpty()},
-        {"anchorPoints", !details.anchorPoints.isEmpty()},
-        {"signatureObjects", !details.signatureObjects.isEmpty()},
-        {"fixedColorBlocks", !details.fixedColorBlocks.isEmpty()},
-        {"consistencyRules", !details.consistencyRules.isEmpty()}
-    }, QStringLiteral("inferred"));
+    populateDerivedSceneDetails(details, scene, extracted);
 
     scene.setDetails(details);
     return scene;
@@ -1036,14 +1057,10 @@ QVariantMap SceneExtractor::sceneToData(const Scene& scene) const
 
 bool SceneExtractor::updateScene(const Scene& scene)
 {
-    QVariantMap data = sceneToData(scene);
-    
-    bool success = DatabaseManager::instance()->update(
-        "scenes", data, "id = ?", QVariantList() << scene.id());
-    
+    bool success = persistSceneRecord(scene);
+
     if (success) {
         LOG_INFO("SceneExtractor", QString("Updated scene: %1").arg(scene.name()));
-        BibleCache::instance()->invalidateScenes(scene.novelId());
         emit sceneUpdated(scene.id(), scene.name());
     } else {
         LOG_ERROR("SceneExtractor", QString("Failed to update scene: %1").arg(scene.name()));
@@ -1054,14 +1071,10 @@ bool SceneExtractor::updateScene(const Scene& scene)
 
 bool SceneExtractor::updateSceneSilent(const Scene& scene)
 {
-    QVariantMap data = sceneToData(scene);
-    
-    bool success = DatabaseManager::instance()->update(
-        "scenes", data, "id = ?", QVariantList() << scene.id());
-    
+    bool success = persistSceneRecord(scene);
+
     if (success) {
         LOG_INFO("SceneExtractor", QString("Updated scene (silent): %1").arg(scene.name()));
-        BibleCache::instance()->invalidateScenes(scene.novelId());
     }
 
     return success;

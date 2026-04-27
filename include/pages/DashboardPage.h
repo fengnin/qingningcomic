@@ -7,6 +7,9 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QComboBox>
+#include <QTimer>
+#include <QList>
+#include <QVariantMap>
 #include "pages/NovelDetailPage.h"
 #include "components/ModeComboBox.h"
 
@@ -29,6 +32,8 @@ private:
     void loadStatsFromDatabase();
     void startPolling();
     void stopPolling();
+    void scheduleRefresh(int delayMs = 0);
+    void onTaskQueueChanged();
     void refreshActiveJobs();
     void refreshJobLists();
     void clearLayout(QLayout *layout);
@@ -65,11 +70,15 @@ private:
     
     QWidget* createActiveJobsCard();
     void populateActiveJobsList();
-    void populateJobList(QVBoxLayout *layout, const QString &whereClause,
-                          const QVariantList &whereValues, const QString &emptyText,
-                          const QString &orderBy, int limit, bool showProgress);
+    QList<QVariantMap> loadDashboardJobs(const QString &whereClause,
+                                         const QVariantList &whereValues,
+                                         const QString &orderBy,
+                                         int limit) const;
+    void renderJobList(QVBoxLayout *layout, const QList<QVariantMap> &jobs,
+                       const QString &emptyText, bool showProgress);
     
-    QWidget* createJobItem(const JobItemData &data);
+    JobItemData buildJobItemData(const QVariantMap &job, bool showProgress) const;
+    QWidget* createJobItemWidget(const JobItemData &data);
     QWidget* createTimelineJobItem(const QString &type, const QString &status,
                                     const QString &time, int progress);
     QWidget* createStandardJobItem(const QString &type, const QString &status, const QString &time);
@@ -104,6 +113,7 @@ private:
     ModeComboBox *m_statusCombo = nullptr;
     QPushButton *m_refreshBtn = nullptr;
     QTimer *m_refreshTimer = nullptr;
+    QTimer *m_syncRefreshTimer = nullptr;
 };
 
 #endif // DASHBOARDPAGE_H

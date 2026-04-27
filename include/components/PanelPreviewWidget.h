@@ -6,6 +6,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QMap>
+#include <QScrollArea>
 
 class QVBoxLayout;
 class QHBoxLayout;
@@ -23,9 +24,14 @@ public:
     void setPanels(const QList<Panel>& panels);
     void clear();
     void refresh();
+    void beginBatchRefresh();
+    void endBatchRefresh(bool refreshNow = true);
 
     int panelCount() const { return m_panelCount; }
     int currentChapter() const { return m_currentChapter; }
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 signals:
     void panelClicked(int panelNumber, const QString& panelId);
@@ -53,6 +59,7 @@ private:
 
     QLabel* m_titleLabel = nullptr;
     QLabel* m_countLabel = nullptr;
+    QScrollArea* m_scrollArea = nullptr;
     QWidget* m_panelContainer = nullptr;
     QHBoxLayout* m_panelLayout = nullptr;
     
@@ -61,6 +68,7 @@ private:
     QString m_storyboardId;
     QList<Panel> m_panels;
     QMap<QString, PanelCard*> m_panelCards;
+    bool m_deferLiveUpdates = false;
 };
 
 #endif // PANELPREVIEWWIDGET_H

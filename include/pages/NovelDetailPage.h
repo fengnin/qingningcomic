@@ -17,6 +17,8 @@
 #include <QMenu>
 #include <QLayout>
 #include <QProgressBar>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <initializer_list>
 #include "models/Novel.h"
 #include "models/Character.h"
@@ -144,6 +146,17 @@ private:
     void refreshStoryboardItems();
     void refreshStoryboardItems(const QList<Panel>& panels);
     QList<Panel> loadPanelsFromDatabase() const;
+    void refreshPanelsAfterBatchGeneration();
+    void startPanelBatchGeneration(const QList<Panel>& panels, ImageService::BatchPresetMode presetMode);
+    void finalizePanelBatchGeneration(const QJsonObject& result, bool success, const QString& errorMessage = QString());
+    void resetPanelBatchGenerationControls();
+    bool isPanelBatchTaskForNovel(const QString& taskId, const QString& novelId) const;
+    void clearPanelBatchTaskState();
+    void handlePanelBatchGenerationFailure(const QString& errorMessage,
+                                           AnalysisProgressWidget::State progressState = AnalysisProgressWidget::State::Failed);
+    void onPanelBatchTaskProgress(const QString& taskId, int progress, const QString& message);
+    void onPanelBatchTaskCompleted(const QString& taskId, const QJsonObject& result);
+    void onPanelBatchTaskFailed(const QString& taskId, const QString& error);
     QPair<int, QStringList> parsePanelToItem(const Panel& panel) const;
     void clearLayout(QLayout *layout);
     void updateChapterSelection(int chapterNumber);
@@ -220,6 +233,12 @@ private:
     
     QList<Character> m_pendingCharacters;
     QList<Scene> m_pendingScenes;
+    QList<Panel> m_currentPanels;
+    bool m_pendingPanelBatchGeneration = false;
+    ImageService::BatchPresetMode m_pendingPanelBatchPresetMode = ImageService::BatchPresetMode::Square_1x1;
+    bool m_panelBatchRefreshPending = false;
+    QString m_panelBatchTaskId;
+    QString m_panelBatchNovelId;
     int m_totalImageTasks;
     int m_completedImageTasks;
     bool m_isBibleImageGenerationRunning = false;

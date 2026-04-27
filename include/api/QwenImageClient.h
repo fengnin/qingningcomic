@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QQueue>
 #include <QMap>
 #include <QVariant>
 #include <QMutex>
@@ -113,6 +114,7 @@ public:
     bool shouldMock() const;
     GenerateResult generatePlaceholder(const QString& prompt = QString());
     static QString sizeToString(ImageSize size, int width = 0, int height = 0);
+    QByteArray downloadImage(const QString& url);
 
 signals:
     void generateCompleted(const QwenImageClient::GenerateResult& result);
@@ -133,6 +135,12 @@ private:
         TaskStatus = 2,
         Download = 3
     };
+
+    enum class PendingRequestKind {
+        None = 0,
+        Generate = 1,
+        Edit = 2
+    };
     
     QwenImageClient(const QwenImageClient&) = delete;
     QwenImageClient& operator=(const QwenImageClient&) = delete;
@@ -152,21 +160,35 @@ private:
     QString resolveRequestUrl(RequestType type) const;
     QString buildApiUrl(const QString& service) const;
     QString buildApiUrl(const QString& service, const QString& model) const;
+    QString resolveRequestId(const QString& preferredRequestId) const;
+    QString requestTypeName(RequestType type) const;
 
     // 异步请求发送
     void sendAsyncRequest(const GenerateOptions& options, RequestType type);
     void sendAsyncRequest(const EditOptions& options, RequestType type);
     void dispatchAsyncRequest(const QString& requestId, const QNetworkRequest& request,
                               const QJsonObject& payload, RequestType type);
+    void dispatchPreparedAsyncRequest(const QString& requestId, const QString& url,
+                                      const QJsonObject& payload, RequestType type,
+                                      const QString& prompt, bool asyncMode);
+    QJsonObject buildAsyncRequestBody(const GenerateOptions& options, RequestType type);
+    QJsonObject buildAsyncRequestBody(const EditOptions& options);
     void storePendingRequest(const QString& requestId, const GenerateOptions& options);
     void storePendingRequest(const QString& requestId, const EditOptions& options);
+    void enqueueAsyncRequest(const GenerateOptions& options);
+    void enqueueAsyncRequest(const EditOptions& options);
+    void processNextAsyncRequest();
+    void finishAsyncRequest();
+    void applyRequestThrottle();
+    int requestDelayMs() const;
+    void noteRequestStarted();
+    void noteRateLimitHit();
     void pollTaskStatus(const QString& taskId, const QString& requestId);
     void downloadImageFromUrl(const QString& url, const QString& requestId);
     
     // 同步请求
     QJsonObject sendSyncRequest(const QString& url, const QJsonObject& payload);
     QJsonObject pollTaskSync(const QString& taskId);
-    QByteArray downloadImage(const QString& url);
     
     // 响应解析
     GenerateResult extractImageFromResponse(const QJsonObject& response);
@@ -186,6 +208,8 @@ private:
     void emitResult(RequestType type, const QString& requestId, const GenerateResult& result);
     void emitPendingResult(const QString& requestId, const GenerateResult& result);
     void handleTaskSuccess(const QJsonObject& output, const QString& requestId);
+    PendingRequestKind pendingRequestKind(const QString& requestId) const;
+    void clearPendingRequestState(const QString& requestId);
     GenerateResult createErrorResult(const QString& requestId, const QString& message) const;
     void setError(const QString& message);
 
@@ -201,6 +225,19 @@ private:
     QMap<QString, GenerateOptions> m_pendingGenerateOptions;
     QMap<QString, EditOptions> m_pendingEditOptions;
     QMap<QString, int> m_retryCount;
+    QMutex m_syncRequestMutex;
+    mutable QMutex m_rateLimitMutex;
+    qint64 m_nextAllowedRequestAtMs = 0;
+    int m_minRequestIntervalMs = 15000;
+    int m_rateLimitBackoffMs = 60000;
+    struct QueuedAsyncRequest {
+        RequestType type;
+        GenerateOptions generateOptions;
+        EditOptions editOptions;
+    };
+    QQueue<QueuedAsyncRequest> m_asyncRequestQueue;
+    bool m_asyncRequestInFlight = false;
+    QMutex m_asyncQueueMutex;
 
     static const QByteArray PLACEHOLDER_IMAGE;
 };

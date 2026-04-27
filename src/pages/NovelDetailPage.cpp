@@ -23,9 +23,11 @@
 #include "models/Bible.h"
 #include "models/Panel.h"
 #include "utils/EncodingUtils.h"
+#include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
 #include "components/SuccessDialog.h"
 #include "components/ConfirmDialog.h"
+#include "components/DeleteConfirmDialog.h"
 #include "data/DatabaseManager.h"
 #include "components/EditorStyles.h"
 #include "components/AnalysisProgressWidget.h"
@@ -64,7 +66,7 @@
 namespace {
     using namespace EditorStyles;
     using EditorStyles::UI::setupLayout;
-    
+
     // ========== 按钮样式 ==========
     const QString ARROW_BTN_STYLE = R"(
         QPushButton {
@@ -505,7 +507,7 @@ namespace {
         label->setFont(QFont("Microsoft YaHei", fontSize, bold ? QFont::Bold : QFont::Normal));
         return label;
     }
-    
+
     QPushButton* createButton(const QString &text, const QString &style, int width, int height)
     {
         QPushButton *btn = new QPushButton(text);
@@ -515,7 +517,7 @@ namespace {
         btn->setCursor(Qt::PointingHandCursor);
         return btn;
     }
-    
+
     QPushButton* createFeatureButton(const QString &text, int width = -1)
     {
         QPushButton *btn = new QPushButton(text);
@@ -602,43 +604,13 @@ void NovelDetailPage::setupConnections()
             }, Qt::QueuedConnection);
     
     connect(TaskQueue::instance(), &TaskQueue::taskProgress,
-            this, [this](const QString& taskId, int progress, const QString& message) {
-                Q_UNUSED(taskId);
-                if (m_panelGenerateProgress) {
-                    m_panelGenerateProgress->setProgress(progress);
-                    m_panelGenerateProgress->setProgressText(message);
-                }
-            }, Qt::QueuedConnection);
+            this, &NovelDetailPage::onPanelBatchTaskProgress, Qt::QueuedConnection);
     
     connect(TaskQueue::instance(), &TaskQueue::taskCompleted,
-            this, [this](const QString& taskId, const QJsonObject& result) {
-                Q_UNUSED(taskId);
-                if (m_panelGenerateProgress) {
-                    m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Completed);
-                    m_panelGenerateProgress->setResult(result);
-                }
-                
-                m_generatePanelsBtn->setEnabled(true);
-                m_generatePanelsBtn->setText(tr("开始生成"));
-                
-                QTimer::singleShot(100, this, [this]() {
-                    if (m_panelPreviewWidget) {
-                        m_panelPreviewWidget->refresh();
-                    }
-                });
-            }, Qt::QueuedConnection);
+            this, &NovelDetailPage::onPanelBatchTaskCompleted, Qt::QueuedConnection);
     
     connect(TaskQueue::instance(), &TaskQueue::taskFailed,
-            this, [this](const QString& taskId, const QString& error) {
-                Q_UNUSED(taskId);
-                if (m_panelGenerateProgress) {
-                    m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Failed);
-                    m_panelGenerateProgress->setProgressText(error);
-                }
-                
-                m_generatePanelsBtn->setEnabled(true);
-                m_generatePanelsBtn->setText(tr("开始生成"));
-            }, Qt::QueuedConnection);
+            this, &NovelDetailPage::onPanelBatchTaskFailed, Qt::QueuedConnection);
     
     connect(CharacterExtractor::instance(), &CharacterExtractor::characterUpdated,
             this, [this](const QString&, const QString&) {
@@ -685,9 +657,15 @@ void NovelDetailPage::initColorConstants()
 void NovelDetailPage::setNovel(const Novel &novel)
 {
     LOG_DEBUG("NovelDetailPage", QString("setNovel: %1, id=%2").arg(novel.title()).arg(novel.id()));
+    const bool keepActivePanelBatch = isPanelBatchTaskForNovel(m_panelBatchTaskId, novel.id());
     m_currentNovel = novel;
     m_deferredBibleRefresh = false;
-    
+    m_currentPanels.clear();
+    if (!keepActivePanelBatch) {
+        m_panelBatchRefreshPending = false;
+        clearPanelBatchTaskState();
+    }
+
     updateDisplay();
     
     if (m_bibleSectionWidget) {
@@ -1446,8 +1424,8 @@ void NovelDetailPage::onChapterClicked(int chapterNumber)
 
 void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
 {
-    if (!ConfirmDialog::showConfirm(this, tr("确认删除"),
-            QString("确定删除第 %1 章吗？此操作不可恢复。").arg(chapterNumber))) {
+    if (!DeleteConfirmDialog::showConfirm(this, tr("确认删除章节？"),
+            QString("您即将删除第 %1 章，此操作不可恢复。").arg(chapterNumber))) {
         return;
     }
     
@@ -1555,6 +1533,7 @@ void NovelDetailPage::refreshStoryboardItems(const QList<Panel>& panels)
         return;
     }
     
+    m_currentPanels = panels;
     clearLayout(containerLayout);
 
     QList<QPair<int, QStringList>> storyboardItems;
@@ -1592,6 +1571,132 @@ void NovelDetailPage::refreshStoryboardItems(const QList<Panel>& panels)
     }
 }
 
+void NovelDetailPage::refreshPanelsAfterBatchGeneration()
+{
+    if (!m_panelBatchRefreshPending) {
+        return;
+    }
+    m_panelBatchRefreshPending = false;
+
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->endBatchRefresh(false);
+    }
+
+    const QList<Panel> refreshedPanels = loadPanelsFromDatabase();
+    LOG_INFO("NovelDetailPage", QString("Batch image generation finished, reloading %1 panels from database")
+        .arg(refreshedPanels.size()));
+    refreshStoryboardItems(refreshedPanels);
+
+    if (!m_currentNovel.id().isEmpty()) {
+        Storyboard storyboard = StoryboardService::instance()->getStoryboardByChapter(m_currentNovel.id(), m_currentChapter);
+        if (!storyboard.id().isEmpty()) {
+            StoryboardViewModel::instance()->invalidatePanelsCache(storyboard.id());
+        }
+    }
+}
+
+void NovelDetailPage::startPanelBatchGeneration(const QList<Panel>& panels, ImageService::BatchPresetMode presetMode)
+{
+    QStringList panelIds;
+    panelIds.reserve(panels.size());
+    for (const Panel& panel : panels) {
+        panelIds.append(panel.id());
+    }
+
+    if (panelIds.isEmpty()) {
+        handlePanelBatchGenerationFailure(tr("分镜数据为空"), AnalysisProgressWidget::State::Idle);
+        QMessageBox::warning(this, tr("无面板"), tr("当前分镜没有面板数据"));
+        return;
+    }
+
+    const QString modeStr = ImageModeUtils::presetModeString(presetMode);
+
+    if (m_panelGenerateProgress) {
+        m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_panelGenerateProgress->setProgress(0);
+        m_panelGenerateProgress->setProgressText(TR("正在排队生成面板图像 0/%1").arg(panelIds.size()));
+    }
+
+    LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
+    QTimer::singleShot(0, this, [this, panelIds, modeStr]() {
+        m_panelBatchTaskId = StoryboardViewModel::instance()->enqueueBatchPanelImageGeneration(panelIds, modeStr);
+        if (m_panelBatchTaskId.isEmpty()) {
+            LOG_ERROR("NovelDetailPage", "Failed to enqueue panel batch generation task");
+            handlePanelBatchGenerationFailure(tr("面板生成任务创建失败"));
+            return;
+        }
+
+        m_panelBatchNovelId = m_currentNovel.id();
+
+        LOG_INFO("NovelDetailPage", QString("Panel batch task enqueued: %1").arg(m_panelBatchTaskId));
+    });
+}
+
+void NovelDetailPage::finalizePanelBatchGeneration(const QJsonObject& result, bool success, const QString& errorMessage)
+{
+    if (!m_panelGenerateProgress) {
+        return;
+    }
+
+    if (success) {
+        m_panelGenerateProgress->setProgress(100);
+        m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Completed);
+        m_panelGenerateProgress->setResult(result);
+        return;
+    }
+
+    m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Failed);
+    m_panelGenerateProgress->setProgress(0);
+    m_panelGenerateProgress->setProgressText(errorMessage.isEmpty() ? tr("面板生成失败") : errorMessage);
+}
+
+void NovelDetailPage::resetPanelBatchGenerationControls()
+{
+    if (m_generatePanelsBtn) {
+        m_generatePanelsBtn->setEnabled(true);
+        m_generatePanelsBtn->setText(tr("开始生成"));
+    }
+    clearPanelBatchTaskState();
+}
+
+void NovelDetailPage::onPanelBatchTaskProgress(const QString& taskId, int progress, const QString& message)
+{
+    if (!isPanelBatchTaskForNovel(taskId, m_currentNovel.id()) || !m_panelGenerateProgress) {
+        return;
+    }
+
+    m_panelGenerateProgress->setProgress(progress);
+    m_panelGenerateProgress->setProgressText(message);
+}
+
+void NovelDetailPage::onPanelBatchTaskCompleted(const QString& taskId, const QJsonObject& result)
+{
+    if (!isPanelBatchTaskForNovel(taskId, m_currentNovel.id())) {
+        return;
+    }
+
+    if (result.value("status").toString() == QLatin1String("started")) {
+        LOG_DEBUG("NovelDetailPage", "Panel batch task accepted, waiting for image batch completion");
+        return;
+    }
+
+    const bool success = result.value("status").toString() == QLatin1String("completed");
+    finalizePanelBatchGeneration(result, success, success ? QString() : result.value("message").toString());
+    if (success) {
+        refreshPanelsAfterBatchGeneration();
+    }
+    resetPanelBatchGenerationControls();
+}
+
+void NovelDetailPage::onPanelBatchTaskFailed(const QString& taskId, const QString& error)
+{
+    if (!isPanelBatchTaskForNovel(taskId, m_currentNovel.id())) {
+        return;
+    }
+
+    handlePanelBatchGenerationFailure(error);
+}
+
 QList<Panel> NovelDetailPage::loadPanelsFromDatabase() const
 {
     QList<Panel> panels;
@@ -1607,6 +1712,37 @@ QList<Panel> NovelDetailPage::loadPanelsFromDatabase() const
     }
 
     return StoryboardService::instance()->getPanels(storyboard.id());
+}
+
+bool NovelDetailPage::isPanelBatchTaskForNovel(const QString& taskId, const QString& novelId) const
+{
+    return !taskId.isEmpty()
+        && taskId == m_panelBatchTaskId
+        && !m_panelBatchNovelId.isEmpty()
+        && m_panelBatchNovelId == novelId;
+}
+
+void NovelDetailPage::clearPanelBatchTaskState()
+{
+    m_panelBatchTaskId.clear();
+    m_panelBatchNovelId.clear();
+}
+
+void NovelDetailPage::handlePanelBatchGenerationFailure(const QString& errorMessage,
+                                                        AnalysisProgressWidget::State progressState)
+{
+    if (m_panelGenerateProgress) {
+        m_panelGenerateProgress->setState(progressState);
+        m_panelGenerateProgress->setProgress(0);
+        m_panelGenerateProgress->setProgressText(errorMessage.isEmpty() ? tr("面板生成失败") : errorMessage);
+    }
+
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->endBatchRefresh(false);
+    }
+
+    m_panelBatchRefreshPending = false;
+    resetPanelBatchGenerationControls();
 }
 
 void NovelDetailPage::updateChapterSelection(int chapterNumber)
@@ -1670,6 +1806,11 @@ void NovelDetailPage::onPanelsLoaded(const QString& novelId, int chapterNumber, 
     }
 
     refreshStoryboardItems(panels);
+
+    if (m_pendingPanelBatchGeneration) {
+        m_pendingPanelBatchGeneration = false;
+        startPanelBatchGeneration(panels, m_pendingPanelBatchPresetMode);
+    }
 }
 
 
@@ -1959,31 +2100,6 @@ void NovelDetailPage::onGeneratePanelsClicked()
         return;
     }
     
-    StoryboardViewModel* vm = StoryboardViewModel::instance();
-    if (!vm->hasCachedPanels(m_currentNovel.id(), m_currentChapter)) {
-        vm->loadStoryboard(m_currentNovel.id(), m_currentChapter);
-        QMessageBox::information(this, tr("数据加载中"), tr("分镜数据还在加载，请稍后再试"));
-        return;
-    }
-
-    Storyboard currentStoryboard = vm->currentStoryboard();
-    if (currentStoryboard.id().isEmpty()) {
-        QMessageBox::warning(this, tr("无分镜"), tr("当前章节没有分镜数据，请先分析"));
-        return;
-    }
-    
-    QList<Panel> panels = vm->currentPanels();
-    
-    QStringList panelIds;
-    for (const Panel& p : panels) {
-        panelIds.append(p.id());
-    }
-    
-    if (panelIds.isEmpty()) {
-        QMessageBox::warning(this, tr("无面板"), tr("当前分镜没有面板数据"));
-        return;
-    }
-    
     ImageService::BatchPresetMode presetMode = ImageService::BatchPresetMode::Square_1x1;
     if (m_generateModeCombo) {
         switch (m_generateModeCombo->currentIndex()) {
@@ -1999,7 +2115,7 @@ void NovelDetailPage::onGeneratePanelsClicked()
                 break;
         }
     }
-    
+
     m_generatePanelsBtn->setEnabled(false);
     m_generatePanelsBtn->setText(tr("生成中..."));
     
@@ -2007,12 +2123,26 @@ void NovelDetailPage::onGeneratePanelsClicked()
         m_panelGenerateProgress->reset();
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
         m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(TR("正在生成面板图像 0/%1").arg(panelIds.size()));
+        m_panelGenerateProgress->setProgressText(tr("正在准备分镜数据..."));
     }
-    
-    LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
-    
-    QString taskId = ImageService::instance()->enqueueBatchPanelImageGeneration(panelIds, presetMode);
+
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->beginBatchRefresh();
+    }
+    m_panelBatchRefreshPending = true;
+
+    if (m_analysisProgress && m_analysisProgress->currentState() != AnalysisProgressWidget::State::Processing) {
+        m_analysisProgress->reset();
+    }
+
+    if (!m_currentPanels.isEmpty()) {
+        startPanelBatchGeneration(m_currentPanels, presetMode);
+        return;
+    }
+
+    m_pendingPanelBatchGeneration = true;
+    m_pendingPanelBatchPresetMode = presetMode;
+    StoryboardViewModel::instance()->loadStoryboard(m_currentNovel.id(), m_currentChapter, false);
     
 }
 void NovelDetailPage::startAutoImageGeneration(int chapter)
@@ -2423,8 +2553,7 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &id, const QString 
 
 void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
 {
-    bool confirmed = ConfirmDialog::showConfirm(this, tr("确认删除"), tr("确定删除此图片？"));
-    if (!confirmed) {
+    if (!DeleteConfirmDialog::showConfirm(this, tr("确认删除图片？"), tr("您即将删除此图片，此操作不可恢复。"))) {
         return;
     }
     
@@ -2439,12 +2568,12 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType
 
 void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType type)
 {
-    QString title = (type == BibleType::Character) ? tr("删除角色") : tr("删除场景");
+    QString title = (type == BibleType::Character) ? tr("确认删除角色？") : tr("确认删除场景？");
     QString message = (type == BibleType::Character)
-        ? tr("确定删除此角色？关联数据将被清除。")
-        : tr("确定删除此场景？关联数据将被清除。");
+        ? tr("您即将删除此角色，此操作不可恢复。")
+        : tr("您即将删除此场景，此操作不可恢复。");
 
-    if (!ConfirmDialog::showConfirm(this, title, message)) {
+    if (!DeleteConfirmDialog::showConfirm(this, title, message)) {
         return;
     }
 
@@ -2513,5 +2642,3 @@ void NovelDetailPage::onPanelCardClicked(int panelNumber)
         }
     }
 }
-
-#include "moc_NovelDetailPage.cpp"

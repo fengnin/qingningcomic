@@ -3,6 +3,7 @@
 #include "data/DatabaseManager.h"
 #include "utils/SingletonUtils.h"
 #include "utils/PromptBuilder.h"
+#include "utils/ImageModeUtils.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
 #include "api/StorageClient.h"
@@ -26,44 +27,6 @@
 #include <cmath>
 
 namespace {
-bool isPresetModeString(const QString& mode)
-{
-    return mode == QLatin1String("1x1") || mode == QLatin1String("1:1")
-        || mode == QLatin1String("3x2") || mode == QLatin1String("3:2")
-        || mode == QLatin1String("16x9") || mode == QLatin1String("16:9");
-}
-
-ImageService::GenerateMode generateModeFromString(const QString& mode)
-{
-    return (mode == QLatin1String("hd")) ? ImageService::GenerateMode::HD : ImageService::GenerateMode::Preview;
-}
-
-ImageService::BatchPresetMode presetModeFromStringValue(const QString& mode)
-{
-    if (mode == QLatin1String("3x2") || mode == QLatin1String("3:2")) {
-        return ImageService::BatchPresetMode::Standard_3x2;
-    }
-    if (mode == QLatin1String("16x9") || mode == QLatin1String("16:9")) {
-        return ImageService::BatchPresetMode::Widescreen_16x9;
-    }
-    return ImageService::BatchPresetMode::Square_1x1;
-}
-
-QString generateModeString(ImageService::GenerateMode mode)
-{
-    return (mode == ImageService::GenerateMode::HD) ? QStringLiteral("hd") : QStringLiteral("preview");
-}
-
-QString presetModeString(ImageService::BatchPresetMode presetMode)
-{
-    switch (presetMode) {
-        case ImageService::BatchPresetMode::Square_1x1: return QStringLiteral("1x1");
-        case ImageService::BatchPresetMode::Standard_3x2: return QStringLiteral("3x2");
-        case ImageService::BatchPresetMode::Widescreen_16x9: return QStringLiteral("16x9");
-    }
-    return QStringLiteral("1x1");
-}
-
 QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
 {
     QJsonObject json;
@@ -91,6 +54,47 @@ TaskData createPanelTask(const QString& panelId, TaskType type, const QString& m
     return task;
 }
 
+struct TaskScope
+{
+    QString novelId;
+    QString storyboardId;
+};
+
+TaskScope resolveTaskScope(const QString& panelId, const QStringList& panelIds)
+{
+    QString resolvedPanelId = panelId;
+    if (resolvedPanelId.isEmpty() && !panelIds.isEmpty()) {
+        resolvedPanelId = panelIds.first();
+    }
+
+    TaskScope scope;
+    if (resolvedPanelId.isEmpty()) {
+        return scope;
+    }
+
+    Panel panel = StoryboardService::instance()->getPanel(resolvedPanelId);
+    if (!panel.isValid()) {
+        return scope;
+    }
+
+    scope.storyboardId = panel.storyboardId();
+    if (scope.storyboardId.isEmpty()) {
+        return scope;
+    }
+
+    DatabaseManager* db = DatabaseManager::instance();
+    if (!db) {
+        return scope;
+    }
+
+    QVariantMap storyboardRow = db->selectOne("storyboards", "id = ?", QVariantList{scope.storyboardId});
+    if (!storyboardRow.isEmpty()) {
+        scope.novelId = storyboardRow.value("novel_id").toString();
+    }
+
+    return scope;
+}
+
 QJsonArray panelIdsToJsonArray(const QStringList& panelIds)
 {
     QJsonArray panelIdArray;
@@ -110,12 +114,82 @@ QStringList panelIdsFromPanels(const QList<Panel>& panels)
     return panelIds;
 }
 
+QList<Panel> fetchStoryboardPanels(const QString& storyboardId, QString& errorMessage, const QString& exceptionMessage, const QString& unknownMessage)
+{
+    try {
+        return StoryboardService::instance()->getPanels(storyboardId);
+    } catch (const std::exception& e) {
+        LOG_ERROR("ImageService", QString("getPanels exception: %1").arg(e.what()));
+        errorMessage = exceptionMessage;
+    } catch (...) {
+        LOG_ERROR("ImageService", "getPanels unknown exception");
+        errorMessage = unknownMessage;
+    }
+    return QList<Panel>();
+}
+
+QString enqueuePanelTask(const QString& panelId,
+                         TaskType taskType,
+                         const QString& modeValue,
+                         const QStringList& panelIds = QStringList())
+{
+    TaskData task = createPanelTask(panelId, taskType, modeValue, panelIds.isEmpty() ? 1 : panelIds.size());
+    const TaskScope scope = resolveTaskScope(panelId, panelIds);
+    task.novelId = scope.novelId;
+    task.storyboardId = scope.storyboardId;
+
+    if (!panelIds.isEmpty()) {
+        task.params["panelIds"] = panelIdsToJsonArray(panelIds);
+        task.completed = 0;
+    }
+    return TaskQueue::instance()->enqueue(task);
+}
+
 struct RequestedResolution
 {
     int width = 0;
     int height = 0;
     bool isPreset = false;
 };
+
+void applyPresetResolutionForProvider(ImageService::BatchPresetMode presetMode,
+                                      const QString& providerName,
+                                      int& width,
+                                      int& height)
+{
+    if (providerName == QLatin1String("volcengine")) {
+        switch (presetMode) {
+            case ImageService::BatchPresetMode::Square_1x1:
+                width = 1328;
+                height = 1328;
+                break;
+            case ImageService::BatchPresetMode::Standard_3x2:
+                width = 1584;
+                height = 1056;
+                break;
+            case ImageService::BatchPresetMode::Widescreen_16x9:
+                width = 1664;
+                height = 936;
+                break;
+        }
+        return;
+    }
+
+    switch (presetMode) {
+        case ImageService::BatchPresetMode::Square_1x1:
+            width = 1024;
+            height = 1024;
+            break;
+        case ImageService::BatchPresetMode::Standard_3x2:
+            width = 1536;
+            height = 1024;
+            break;
+        case ImageService::BatchPresetMode::Widescreen_16x9:
+            width = 1280;
+            height = 720;
+            break;
+    }
+}
 
 RequestedResolution requestedResolution(const QString& presetMode,
                                         ImageService::GenerateMode mode,
@@ -128,39 +202,8 @@ RequestedResolution requestedResolution(const QString& presetMode,
     RequestedResolution resolution;
     resolution.isPreset = !presetMode.isEmpty();
     if (resolution.isPreset) {
-        const ImageService::BatchPresetMode batchPresetMode = presetModeFromStringValue(presetMode);
-        if (providerName == QLatin1String("volcengine")) {
-            switch (batchPresetMode) {
-                case ImageService::BatchPresetMode::Square_1x1:
-                    resolution.width = 1328;
-                    resolution.height = 1328;
-                    break;
-                case ImageService::BatchPresetMode::Standard_3x2:
-                    resolution.width = 1584;
-                    resolution.height = 1056;
-                    break;
-                case ImageService::BatchPresetMode::Widescreen_16x9:
-                    resolution.width = 1664;
-                    resolution.height = 936;
-                    break;
-            }
-            return resolution;
-        }
-
-        switch (batchPresetMode) {
-            case ImageService::BatchPresetMode::Square_1x1:
-                resolution.width = 1024;
-                resolution.height = 1024;
-                break;
-            case ImageService::BatchPresetMode::Standard_3x2:
-                resolution.width = 1536;
-                resolution.height = 1024;
-                break;
-            case ImageService::BatchPresetMode::Widescreen_16x9:
-                resolution.width = 1280;
-                resolution.height = 720;
-                break;
-        }
+        const ImageService::BatchPresetMode batchPresetMode = ImageModeUtils::presetModeFromString(presetMode);
+        applyPresetResolutionForProvider(batchPresetMode, providerName, resolution.width, resolution.height);
         return resolution;
     }
 
@@ -340,6 +383,7 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
     GenerationContext ctx;
     ctx.panelId = panelId;
     ctx.resolution = resolution;
+    ctx.allowReferenceEdit = checkConcurrency;
     if (resolution.isPreset) {
         ctx.presetMode = resolution.presetName;
     } else {
@@ -451,17 +495,15 @@ void ImageService::generatePanelImages(const QStringList& panelIds, BatchPresetM
 
 void ImageService::generateStoryboardImages(const QString& storyboardId, GenerateMode mode)
 {
-    QList<Panel> panels;
-    
-    try {
-        panels = StoryboardService::instance()->getPanels(storyboardId);
-    } catch (const std::exception& e) {
-        LOG_ERROR("ImageService", QString("getPanels exception: %1").arg(e.what()));
-        emit errorOccurred("generateStoryboardImages", tr("获取面板数据异常"));
-        return;
-    } catch (...) {
-        LOG_ERROR("ImageService", "getPanels unknown exception");
-        emit errorOccurred("generateStoryboardImages", tr("获取面板数据未知错误"));
+    QString errorMessage;
+    const QList<Panel> panels = fetchStoryboardPanels(
+        storyboardId,
+        errorMessage,
+        tr("获取面板数据异常"),
+        tr("获取面板数据未知错误"));
+
+    if (!errorMessage.isEmpty()) {
+        emit errorOccurred("generateStoryboardImages", errorMessage);
         return;
     }
 
@@ -475,17 +517,15 @@ void ImageService::generateStoryboardImages(const QString& storyboardId, Generat
 
 void ImageService::generateStoryboardImages(const QString& storyboardId, BatchPresetMode presetMode)
 {
-    QList<Panel> panels;
+    QString errorMessage;
+    const QList<Panel> panels = fetchStoryboardPanels(
+        storyboardId,
+        errorMessage,
+        tr("获取分镜面板异常"),
+        tr("获取分镜面板未知错误"));
 
-    try {
-        panels = StoryboardService::instance()->getPanels(storyboardId);
-    } catch (const std::exception& e) {
-        LOG_ERROR("ImageService", QString("getPanels exception: %1").arg(e.what()));
-        emit errorOccurred("generateStoryboardImages", tr("获取分镜面板异常"));
-        return;
-    } catch (...) {
-        LOG_ERROR("ImageService", "getPanels unknown exception");
-        emit errorOccurred("generateStoryboardImages", tr("获取分镜面板未知错误"));
+    if (!errorMessage.isEmpty()) {
+        emit errorOccurred("generateStoryboardImages", errorMessage);
         return;
     }
 
@@ -651,45 +691,22 @@ bool ImageService::executeWithQwen(GenerationContext& ctx)
 {
     QwenImageClient::GenerateResult result;
     const ProviderConfig config = getProviderConfig();
-    const RequestedResolution resolution = requestedResolution(ctx.presetMode,
-                                                               ctx.mode,
-                                                               QStringLiteral("qwen"),
-                                                               config.previewWidth,
-                                                               config.previewHeight,
-                                                               config.hdWidth,
-                                                               config.hdHeight);
-    const bool useCustomSize = resolution.isPreset;
+    const RequestedResolution requested = requestedResolution(ctx.presetMode,
+                                                              ctx.mode,
+                                                              QStringLiteral("qwen"),
+                                                              config.previewWidth,
+                                                              config.previewHeight,
+                                                              config.hdWidth,
+                                                              config.hdHeight);
+    ResolutionConfig resolution;
+    resolution.width = requested.width;
+    resolution.height = requested.height;
+    resolution.isPreset = requested.isPreset;
     
-    if (!ctx.refImageData.isEmpty()) {
-        QwenImageClient::EditOptions options;
-        options.prompt = ctx.prompt;
-        options.sourceImage = ctx.refImageData;
-        options.negativePrompt = ctx.negativePrompt;
-        if (useCustomSize) {
-            options.size = QwenImageClient::ImageSize::Custom;
-            options.width = resolution.width;
-            options.height = resolution.height;
-        } else {
-            options.size = (ctx.mode == GenerateMode::HD)
-                ? QwenImageClient::ImageSize::Square
-                : QwenImageClient::ImageSize::Portrait;
-        }
-        result = QwenImageClient::instance()->edit(options);
+    if (ctx.allowReferenceEdit && !ctx.refImageData.isEmpty()) {
+        result = QwenImageClient::instance()->edit(buildQwenEditOptions(ctx, resolution));
     } else {
-        QwenImageClient::GenerateOptions options;
-        options.prompt = ctx.prompt;
-        options.negativePrompt = ctx.negativePrompt;
-        if (useCustomSize) {
-            options.size = QwenImageClient::ImageSize::Custom;
-            options.width = resolution.width;
-            options.height = resolution.height;
-        } else {
-            options.size = (ctx.mode == GenerateMode::HD)
-                ? QwenImageClient::ImageSize::Square
-                : QwenImageClient::ImageSize::Portrait;
-        }
-        options.style = "manga";
-        result = QwenImageClient::instance()->generate(options);
+        result = QwenImageClient::instance()->generate(buildQwenGenerateOptions(ctx, resolution));
     }
 
     if (!result.success) {
@@ -697,8 +714,56 @@ bool ImageService::executeWithQwen(GenerationContext& ctx)
         return false;
     }
 
-    ctx.imageData = result.imageData;
-    return true;
+    if (!result.imageData.isEmpty()) {
+        ctx.imageData = result.imageData;
+        return true;
+    }
+
+    if (!result.imageUrl.isEmpty()) {
+        LOG_INFO("ImageService", QString("Downloading image from URL: %1").arg(result.imageUrl.left(100)));
+        ctx.imageData = QwenImageClient::instance()->downloadImage(result.imageUrl);
+        if (ctx.imageData.isEmpty()) {
+            setError(tr("Failed to download image from URL"));
+            return false;
+        }
+        return true;
+    }
+
+    setError(tr("Qwen返回的结果没有图像数据"));
+    return false;
+}
+
+QwenImageClient::GenerateOptions ImageService::buildQwenGenerateOptions(const GenerationContext& ctx,
+                                                                        const ResolutionConfig& resolution) const
+{
+    QwenImageClient::GenerateOptions options;
+    options.prompt = ctx.prompt;
+    options.negativePrompt = ctx.negativePrompt;
+    options.size = resolution.isPreset
+        ? QwenImageClient::ImageSize::Custom
+        : (ctx.mode == GenerateMode::HD
+            ? QwenImageClient::ImageSize::Square
+            : QwenImageClient::ImageSize::Portrait);
+    options.width = resolution.width;
+    options.height = resolution.height;
+    return options;
+}
+
+QwenImageClient::EditOptions ImageService::buildQwenEditOptions(const GenerationContext& ctx,
+                                                                const ResolutionConfig& resolution) const
+{
+    QwenImageClient::EditOptions options;
+    options.prompt = ctx.prompt;
+    options.sourceImage = ctx.refImageData;
+    options.negativePrompt = ctx.negativePrompt;
+    options.size = resolution.isPreset
+        ? QwenImageClient::ImageSize::Custom
+        : (ctx.mode == GenerateMode::HD
+            ? QwenImageClient::ImageSize::Square
+            : QwenImageClient::ImageSize::Portrait);
+    options.width = resolution.width;
+    options.height = resolution.height;
+    return options;
 }
 
 bool ImageService::executeImageGeneration(GenerationContext& ctx)
@@ -842,6 +907,27 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
 
     try {
         QJsonObject panelJson = buildPanelJson(ctx.panel);
+        QStringList panelCharacterNames;
+        for (const auto& value : panelJson.value("characters").toArray()) {
+            const QJsonObject charObj = value.toObject();
+            const QString name = charObj.value("name").toString().trimmed();
+            if (!name.isEmpty()) {
+                panelCharacterNames.append(name);
+            }
+        }
+
+        const QString sceneText = panelJson.value("scene").toString().trimmed();
+        const QString visualPromptCn = panelJson.value("visualPrompt").toString().trimmed();
+        const QString visualPromptEn = panelJson.value("visualPromptEn").toString().trimmed();
+        LOG_INFO("ImageService", QString(
+            "buildPromptForPanel input: panelId=%1, page=%2, index=%3, scene='%4', visualPromptCn='%5', visualPromptEn='%6', characters=[%7]")
+            .arg(ctx.panelId)
+            .arg(ctx.panel.page())
+            .arg(ctx.panel.index())
+            .arg(sceneText.left(120))
+            .arg(visualPromptCn.left(120))
+            .arg(visualPromptEn.left(120))
+            .arg(panelCharacterNames.join(", ")));
         
         QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
         QMap<QString, QJsonObject> characterRefs = fetchCharacterRefs(novelId, ctx.referenceImages);
@@ -850,22 +936,12 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         LOG_INFO("ImageService", QString("buildPromptForPanel: panelId=%1, novelId=%2, characters=%3, scenes=%4")
             .arg(ctx.panelId).arg(novelId).arg(characterRefs.size()).arg(sceneRefs.size()));
         
-        QJsonObject options;
-        options["mode"] = !ctx.presetMode.isEmpty()
-            ? ctx.presetMode
-            : ((ctx.mode == GenerateMode::HD) ? "hd" : "preview");
-        options["promptTarget"] = classifyPanelPromptTarget(panelJson);
-        
+        QJsonObject options = buildPanelPromptOptions(ctx, panelJson);
         PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, characterRefs, sceneRefs, options);
 
         ctx.prompt = result.text;
         ctx.negativePrompt = result.negativePrompt;
-        
-        for (const QString& ref : result.referenceImages) {
-            if (!ref.isEmpty() && !ctx.referenceImages.contains(ref)) {
-                ctx.referenceImages.append(ref);
-            }
-        }
+        appendUniqueReferenceImages(ctx.referenceImages, result.referenceImages);
         
         if (ctx.prompt.isEmpty()) {
             setError(tr("提示词构建为空"));
@@ -884,6 +960,25 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         LOG_ERROR("ImageService", "buildPromptForPanel unknown exception");
         setError(tr("构建提示词时发生异常"));
         return false;
+    }
+}
+
+QJsonObject ImageService::buildPanelPromptOptions(const GenerationContext& ctx, const QJsonObject& panelJson) const
+{
+    QJsonObject options;
+    options["mode"] = !ctx.presetMode.isEmpty()
+        ? ctx.presetMode
+        : ((ctx.mode == GenerateMode::HD) ? "hd" : "preview");
+    options["promptTarget"] = classifyPanelPromptTarget(panelJson);
+    return options;
+}
+
+void ImageService::appendUniqueReferenceImages(QStringList& target, const QStringList& source) const
+{
+    for (const QString& ref : source) {
+        if (!ref.isEmpty() && !target.contains(ref)) {
+            target.append(ref);
+        }
     }
 }
 
@@ -1151,67 +1246,36 @@ ImageService::GenerateResult ImageService::createErrorResult(const QString& pane
 
 QString ImageService::presetModeToString(BatchPresetMode presetMode) const
 {
-    return presetModeString(presetMode);
+    return ImageModeUtils::presetModeString(presetMode);
 }
 
 ImageService::BatchPresetMode ImageService::presetModeFromString(const QString& presetMode) const
 {
-    return presetModeFromStringValue(presetMode);
+    return ImageModeUtils::presetModeFromString(presetMode);
 }
 
 void ImageService::getPresetResolution(BatchPresetMode presetMode, int& width, int& height) const
 {
-    QString provider = AppConfig::instance()->imageService().provider;
-
-    if (provider == "volcengine") {
-        switch (presetMode) {
-            case BatchPresetMode::Square_1x1:
-                width = 1328;
-                height = 1328;
-                break;
-            case BatchPresetMode::Standard_3x2:
-                width = 1584;
-                height = 1056;
-                break;
-            case BatchPresetMode::Widescreen_16x9:
-                width = 1664;
-                height = 936;
-                break;
-        }
-        return;
-    }
-
-    switch (presetMode) {
-        case BatchPresetMode::Square_1x1:
-            width = 1024;
-            height = 1024;
-            break;
-        case BatchPresetMode::Standard_3x2:
-            width = 1536;
-            height = 1024;
-            break;
-        case BatchPresetMode::Widescreen_16x9:
-            width = 1280;
-            height = 720;
-            break;
-    }
+    applyPresetResolutionForProvider(
+        presetMode,
+        AppConfig::instance()->imageService().provider,
+        width,
+        height);
 }
 
 void ImageService::getPresetResolution(const QString& presetMode, int& width, int& height) const
 {
-    getPresetResolution(presetModeFromString(presetMode), width, height);
+    getPresetResolution(ImageModeUtils::presetModeFromString(presetMode), width, height);
 }
 
 QString ImageService::enqueuePanelImageGeneration(const QString& panelId, GenerateMode mode)
 {
-    return TaskQueue::instance()->enqueue(
-        createPanelTask(panelId, TaskType::GeneratePanelImage, generateModeString(mode), 1));
+    return enqueuePanelTask(panelId, TaskType::GeneratePanelImage, ImageModeUtils::generateModeString(mode));
 }
 
 QString ImageService::enqueuePanelImageGeneration(const QString& panelId, BatchPresetMode presetMode)
 {
-    return TaskQueue::instance()->enqueue(
-        createPanelTask(panelId, TaskType::GeneratePanelImage, presetModeString(presetMode), 1));
+    return enqueuePanelTask(panelId, TaskType::GeneratePanelImage, ImageModeUtils::presetModeString(presetMode));
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, GenerateMode mode)
@@ -1220,10 +1284,7 @@ QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelI
         return QString();
     }
 
-    TaskData task = createPanelTask(QString(), TaskType::GeneratePanels, generateModeString(mode), panelIds.size());
-    task.params["panelIds"] = panelIdsToJsonArray(panelIds);
-    task.completed = 0;
-    return TaskQueue::instance()->enqueue(task);
+    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::generateModeString(mode), panelIds);
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, BatchPresetMode presetMode)
@@ -1232,10 +1293,7 @@ QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelI
         return QString();
     }
 
-    TaskData task = createPanelTask(QString(), TaskType::GeneratePanels, presetModeString(presetMode), panelIds.size());
-    task.params["panelIds"] = panelIdsToJsonArray(panelIds);
-    task.completed = 0;
-    return TaskQueue::instance()->enqueue(task);
+    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::presetModeString(presetMode), panelIds);
 }
 
 QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelIds, GenerateMode mode)
@@ -1268,14 +1326,14 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
 
     const QString modeStr = task.params.value("mode").toString();
     if (modeStr.isEmpty() || modeStr == QLatin1String("preview") || modeStr == QLatin1String("hd")) {
-        return generateResultToJson(generatePanelImage(task.panelId, generateModeFromString(modeStr)));
+        return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
     }
 
-    if (isPresetModeString(modeStr)) {
-        return generateResultToJson(generatePanelImage(task.panelId, presetModeFromStringValue(modeStr)));
+    if (ImageModeUtils::isPresetModeString(modeStr)) {
+        return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::presetModeFromString(modeStr)));
     }
 
-    return generateResultToJson(generatePanelImage(task.panelId, generateModeFromString(modeStr)));
+    return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
 }
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)
@@ -1377,19 +1435,19 @@ ImageService::GenerateResult ImageService::generateWithRetry(const QString& pane
 void ImageService::processNextPanel()
 {
     QString panelId;
-    int currentIndex;
-    int total;
+    int currentIndex = 0;
+    int total = 0;
     ResolutionConfig resolution;
-    
+
     {
         QMutexLocker locker(&m_mutex);
-        if (m_batchCancelled || m_currentProcessIndex >= m_pendingPanelIds.size()) {
+        if (!shouldAdvanceToNextBatchItem()) {
             BatchResult finalResult = m_batchResult;
             finishBatch();
-            
+
             LOG_INFO("ImageService", QString("Batch completed: %1 success, %2 failed")
                 .arg(finalResult.successCount).arg(finalResult.failedCount));
-            
+
             emit imageBatchCompleted(finalResult);
             return;
         }
@@ -1402,6 +1460,16 @@ void ImageService::processNextPanel()
     emit batchProgressChanged(currentIndex + 1, total, tr("\u6b63\u5728\u5904\u7406..."));
     
     QtConcurrent::run(this, &ImageService::processPanelAsync, panelId, resolution, currentIndex, total);
+}
+
+bool ImageService::shouldAdvanceToNextBatchItem() const
+{
+    return !m_batchCancelled && m_currentProcessIndex < m_pendingPanelIds.size();
+}
+
+void ImageService::queueNextBatchItemProcessing()
+{
+    QTimer::singleShot(100, this, &ImageService::processNextPanel);
 }
 
 void ImageService::processPanelAsync(const QString& panelId, const ResolutionConfig& resolution, int currentIndex, int total)
@@ -1433,5 +1501,5 @@ void ImageService::processPanelAsync(const QString& panelId, const ResolutionCon
         emit panelGenerated(result);
     }
     
-    QTimer::singleShot(100, this, &ImageService::processNextPanel);
+    queueNextBatchItemProcessing();
 }

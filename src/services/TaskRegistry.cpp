@@ -3,9 +3,14 @@
 #include "services/ImageService.h"
 #include "services/StoryboardService.h"
 #include "services/AnalysisService.h"
+#include "services/NovelService.h"
+#include "utils/AnalysisJobUtils.h"
+#include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
-#include <QEventLoop>
 #include <QJsonDocument>
+#include <QCoreApplication>
+#include <QEventLoop>
+#include <QMutex>
 #include <stdexcept>
 
 namespace {
@@ -41,22 +46,6 @@ struct HandlerSpec
         return panelIdList;
     }
 
-    ImageService::BatchPresetMode batchPresetModeFromMode(const QString& modeStr)
-    {
-        if (modeStr == "3x2" || modeStr == "3:2") {
-            return ImageService::BatchPresetMode::Standard_3x2;
-        }
-        if (modeStr == "16x9" || modeStr == "16:9") {
-            return ImageService::BatchPresetMode::Widescreen_16x9;
-        }
-        return ImageService::BatchPresetMode::Square_1x1;
-    }
-
-    ImageService::GenerateMode generateModeFromMode(const QString& modeStr)
-    {
-        return (modeStr == "hd") ? ImageService::GenerateMode::HD : ImageService::GenerateMode::Preview;
-    }
-
     void emitBatchProgress(const QString& taskId, int total, int current, const QString& info)
     {
         if (TaskQueue::instance()) {
@@ -65,59 +54,127 @@ struct HandlerSpec
         }
     }
 
-    void connectBatchSignals(ImageService* imageService,
-                             QEventLoop* loop,
-                             TaskData* task,
-                             int total,
-                             bool* batchFinished,
-                             bool* batchFailed,
-                             QString* batchError)
+    class BatchTaskContext : public QObject
     {
-        QObject::connect(
-            imageService, &ImageService::batchProgressChanged,
-            loop,
-            [task, total](int current, int totalPanel, const QString& info) {
-                Q_UNUSED(totalPanel)
-                task->completed = current;
-                emitBatchProgress(task->id, total, current, info);
-            },
-            Qt::QueuedConnection);
+    public:
+        BatchTaskContext(const QString& taskId, ImageService* imageService, int total, QEventLoop* completionLoop)
+            : QObject(nullptr)
+            , m_taskId(taskId)
+            , m_imageService(imageService)
+            , m_total(total)
+            , m_completionLoop(completionLoop)
+        {
+            if (QCoreApplication::instance()) {
+                moveToThread(QCoreApplication::instance()->thread());
+            }
+        }
 
-        QObject::connect(
-            imageService, &ImageService::imageBatchCompleted,
-            loop,
-            [loop, task, batchFinished, batchFailed, batchError](const ImageService::BatchResult& result) {
-                *batchFinished = true;
-                task->result = buildBatchResult(result.successCount, result.failedCount, result.totalCount);
-                task->completed = result.totalCount;
-                if ((result.totalCount > 0 && result.successCount == 0) || !batchError->isEmpty()) {
-                    *batchFailed = true;
-                    if (batchError->isEmpty()) {
-                        *batchError = QStringLiteral("Batch generation failed");
-                    }
-                }
-                loop->quit();
-            },
-            Qt::QueuedConnection);
+        void start(const QStringList& panelIdList, const QString& modeStr)
+        {
+            connect(m_imageService, &ImageService::batchProgressChanged,
+                    this, &BatchTaskContext::onBatchProgress,
+                    Qt::QueuedConnection);
 
-        QObject::connect(
-            imageService, &ImageService::errorOccurred,
-            loop,
-            [loop, batchFailed, batchError, task](const QString& operation, const QString& message) {
-                if (operation == "startBatchGeneration") {
-                    *batchFailed = true;
-                    *batchError = message;
-                    task->result = buildBatchResult(0, 0, 0);
-                    loop->quit();
+            connect(m_imageService, &ImageService::imageBatchCompleted,
+                    this, &BatchTaskContext::onBatchCompleted,
+                    Qt::QueuedConnection);
+
+            connect(m_imageService, &ImageService::errorOccurred,
+                    this, &BatchTaskContext::onBatchError,
+                    Qt::QueuedConnection);
+
+            if (ImageModeUtils::isPresetModeString(modeStr)) {
+                m_imageService->generatePanelImages(panelIdList, ImageModeUtils::presetModeFromString(modeStr));
+            } else {
+                m_imageService->generatePanelImages(panelIdList, ImageModeUtils::generateModeFromString(modeStr));
+            }
+        }
+
+        ImageService::BatchResult finalResult() const
+        {
+            QMutexLocker locker(&m_stateMutex);
+            return m_finalResult;
+        }
+
+        QString errorMessage() const
+        {
+            QMutexLocker locker(&m_stateMutex);
+            return m_errorMessage;
+        }
+
+    private:
+        void onBatchProgress(int current, int totalPanel, const QString& info)
+        {
+            Q_UNUSED(totalPanel)
+            emitBatchProgress(m_taskId, m_total, current, info);
+        }
+
+        void onBatchCompleted(const ImageService::BatchResult& result)
+        {
+            {
+                QMutexLocker locker(&m_stateMutex);
+                m_finalResult = result;
+                m_hasFinalResult = true;
+            }
+
+            if (result.totalCount > 0 && result.successCount == 0 && m_errorMessage.isEmpty()) {
+                m_errorMessage = QStringLiteral("Batch generation failed: all panels failed");
+            }
+
+            AnalysisJobUtils::updateJobStatus(
+                m_taskId,
+                m_errorMessage.isEmpty() ? QStringLiteral("completed") : QStringLiteral("failed"),
+                m_errorMessage);
+
+            LOG_INFO("TaskRegistry", QString("Batch task completed: %1 success, %2 failed, %3 total")
+                .arg(result.successCount).arg(result.failedCount).arg(result.totalCount));
+
+            finishWaitingLoop();
+            this->deleteLater();
+        }
+
+        void onBatchError(const QString& operation, const QString& message)
+        {
+            if (operation == "startBatchGeneration") {
+                {
+                    QMutexLocker locker(&m_stateMutex);
+                    m_errorMessage = message;
+                    m_hasFinalResult = true;
                 }
-            },
-            Qt::QueuedConnection);
-    }
+                LOG_ERROR("TaskRegistry", QString("Batch generation error: %1").arg(message));
+                AnalysisJobUtils::updateJobStatus(m_taskId, QStringLiteral("failed"), message);
+                finishWaitingLoop();
+            }
+        }
+
+    private:
+        void finishWaitingLoop()
+        {
+            if (!m_completionLoop) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(m_completionLoop, "quit", Qt::QueuedConnection);
+        }
+
+        QString m_taskId;
+        ImageService* m_imageService;
+        int m_total;
+        QEventLoop* m_completionLoop = nullptr;
+        mutable QMutex m_stateMutex;
+        ImageService::BatchResult m_finalResult;
+        QString m_errorMessage;
+        bool m_hasFinalResult = false;
+    };
 
     void executePanelBatch(TaskData& task, ImageService* imageService)
     {
         if (!imageService) {
             throw std::runtime_error("ImageService is null");
+        }
+
+        if (!task.novelId.isEmpty()) {
+            NovelService::instance()->updateStatus(task.novelId, NovelStatus::Analyzing);
         }
 
         const QJsonArray panelIds = task.params["panelIds"].toArray();
@@ -128,33 +185,80 @@ struct HandlerSpec
 
         if (total == 0) {
             task.result = buildBatchResult(0, 0, 0);
+            if (!task.novelId.isEmpty()) {
+                NovelService::instance()->updateStatus(task.novelId, NovelStatus::Completed);
+            }
             return;
         }
 
         const QStringList panelIdList = toPanelIdList(panelIds);
 
-        bool batchFinished = false;
-        bool batchFailed = false;
-        QString batchError;
+        QEventLoop completionLoop;
+        ImageService::BatchResult finalResult;
+        QString errorMessage;
+        bool finished = false;
 
-        QEventLoop loop;
-        connectBatchSignals(imageService, &loop, &task, total, &batchFinished, &batchFailed, &batchError);
+        QObject::connect(imageService, &ImageService::batchProgressChanged,
+                &completionLoop,
+                [&](int current, int totalPanel, const QString& info) {
+                    Q_UNUSED(totalPanel)
+                    task.completed = current;
+                    emitBatchProgress(task.id, total, current, info);
+                },
+                Qt::QueuedConnection);
 
-        if (modeStr == "1x1" || modeStr == "1:1" || modeStr == "3x2" || modeStr == "3:2"
-            || modeStr == "16x9" || modeStr == "16:9") {
-            imageService->generatePanelImages(panelIdList, batchPresetModeFromMode(modeStr));
+        QObject::connect(imageService, &ImageService::imageBatchCompleted,
+                &completionLoop,
+                [&](const ImageService::BatchResult& result) {
+                    finalResult = result;
+                    finished = true;
+                    completionLoop.quit();
+                },
+                Qt::QueuedConnection);
+
+        QObject::connect(imageService, &ImageService::errorOccurred,
+                &completionLoop,
+                [&](const QString& operation, const QString& message) {
+                    if (operation == "startBatchGeneration") {
+                        errorMessage = message;
+                        finished = true;
+                        completionLoop.quit();
+                    }
+                },
+                Qt::QueuedConnection);
+
+        if (ImageModeUtils::isPresetModeString(modeStr)) {
+            imageService->generatePanelImages(panelIdList, ImageModeUtils::presetModeFromString(modeStr));
         } else {
-            imageService->generatePanelImages(panelIdList, generateModeFromMode(modeStr));
+            imageService->generatePanelImages(panelIdList, ImageModeUtils::generateModeFromString(modeStr));
         }
 
-        loop.exec();
+        completionLoop.exec();
 
-        if (batchFailed) {
-            throw std::runtime_error(batchError.toUtf8().constData());
+        if (!finished) {
+            task.result = buildBatchResult(0, 0, total);
+            task.result["status"] = "failed";
+            task.result["message"] = "Batch generation interrupted";
+            if (!task.novelId.isEmpty()) {
+                NovelService::instance()->updateStatus(task.novelId, NovelStatus::Error);
+            }
+            return;
         }
 
-        if (!batchFinished) {
-            throw std::runtime_error("Batch generation finished without a completion signal");
+        task.result = buildBatchResult(finalResult.successCount, finalResult.failedCount, finalResult.totalCount);
+        if (!errorMessage.isEmpty()) {
+            task.result["errorMessage"] = errorMessage;
+            task.result["status"] = "failed";
+            task.result["message"] = errorMessage;
+            if (!task.novelId.isEmpty()) {
+                NovelService::instance()->updateStatus(task.novelId, NovelStatus::Error);
+            }
+        } else {
+            task.result["status"] = "completed";
+            task.result["message"] = "Batch generation completed";
+            if (!task.novelId.isEmpty()) {
+                NovelService::instance()->updateStatus(task.novelId, NovelStatus::Completed);
+            }
         }
     }
 
