@@ -8,9 +8,7 @@
 #include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
 #include <QJsonDocument>
-#include <QCoreApplication>
 #include <QEventLoop>
-#include <QMutex>
 #include <stdexcept>
 
 namespace {
@@ -53,119 +51,6 @@ struct HandlerSpec
             emit TaskQueue::instance()->taskProgress(taskId, progress, info);
         }
     }
-
-    class BatchTaskContext : public QObject
-    {
-    public:
-        BatchTaskContext(const QString& taskId, ImageService* imageService, int total, QEventLoop* completionLoop)
-            : QObject(nullptr)
-            , m_taskId(taskId)
-            , m_imageService(imageService)
-            , m_total(total)
-            , m_completionLoop(completionLoop)
-        {
-            if (QCoreApplication::instance()) {
-                moveToThread(QCoreApplication::instance()->thread());
-            }
-        }
-
-        void start(const QStringList& panelIdList, const QString& modeStr)
-        {
-            connect(m_imageService, &ImageService::batchProgressChanged,
-                    this, &BatchTaskContext::onBatchProgress,
-                    Qt::QueuedConnection);
-
-            connect(m_imageService, &ImageService::imageBatchCompleted,
-                    this, &BatchTaskContext::onBatchCompleted,
-                    Qt::QueuedConnection);
-
-            connect(m_imageService, &ImageService::errorOccurred,
-                    this, &BatchTaskContext::onBatchError,
-                    Qt::QueuedConnection);
-
-            if (ImageModeUtils::isPresetModeString(modeStr)) {
-                m_imageService->generatePanelImages(panelIdList, ImageModeUtils::presetModeFromString(modeStr));
-            } else {
-                m_imageService->generatePanelImages(panelIdList, ImageModeUtils::generateModeFromString(modeStr));
-            }
-        }
-
-        ImageService::BatchResult finalResult() const
-        {
-            QMutexLocker locker(&m_stateMutex);
-            return m_finalResult;
-        }
-
-        QString errorMessage() const
-        {
-            QMutexLocker locker(&m_stateMutex);
-            return m_errorMessage;
-        }
-
-    private:
-        void onBatchProgress(int current, int totalPanel, const QString& info)
-        {
-            Q_UNUSED(totalPanel)
-            emitBatchProgress(m_taskId, m_total, current, info);
-        }
-
-        void onBatchCompleted(const ImageService::BatchResult& result)
-        {
-            {
-                QMutexLocker locker(&m_stateMutex);
-                m_finalResult = result;
-                m_hasFinalResult = true;
-            }
-
-            if (result.totalCount > 0 && result.successCount == 0 && m_errorMessage.isEmpty()) {
-                m_errorMessage = QStringLiteral("Batch generation failed: all panels failed");
-            }
-
-            AnalysisJobUtils::updateJobStatus(
-                m_taskId,
-                m_errorMessage.isEmpty() ? QStringLiteral("completed") : QStringLiteral("failed"),
-                m_errorMessage);
-
-            LOG_INFO("TaskRegistry", QString("Batch task completed: %1 success, %2 failed, %3 total")
-                .arg(result.successCount).arg(result.failedCount).arg(result.totalCount));
-
-            finishWaitingLoop();
-            this->deleteLater();
-        }
-
-        void onBatchError(const QString& operation, const QString& message)
-        {
-            if (operation == "startBatchGeneration") {
-                {
-                    QMutexLocker locker(&m_stateMutex);
-                    m_errorMessage = message;
-                    m_hasFinalResult = true;
-                }
-                LOG_ERROR("TaskRegistry", QString("Batch generation error: %1").arg(message));
-                AnalysisJobUtils::updateJobStatus(m_taskId, QStringLiteral("failed"), message);
-                finishWaitingLoop();
-            }
-        }
-
-    private:
-        void finishWaitingLoop()
-        {
-            if (!m_completionLoop) {
-                return;
-            }
-
-            QMetaObject::invokeMethod(m_completionLoop, "quit", Qt::QueuedConnection);
-        }
-
-        QString m_taskId;
-        ImageService* m_imageService;
-        int m_total;
-        QEventLoop* m_completionLoop = nullptr;
-        mutable QMutex m_stateMutex;
-        ImageService::BatchResult m_finalResult;
-        QString m_errorMessage;
-        bool m_hasFinalResult = false;
-    };
 
     void executePanelBatch(TaskData& task, ImageService* imageService)
     {

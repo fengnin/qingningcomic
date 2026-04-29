@@ -4,6 +4,7 @@
 #include "api/QwenPromptBuilder.h"
 #include "api/QwenJsonRepair.h"
 #include "api/QwenStreamHandler.h"
+#include "utils/ChangeRequestParseUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/BibleUtils.h"
@@ -348,29 +349,44 @@ QJsonObject QwenClient::parseChangeRequest(
     const QJsonObject& jsonSchema,
     const QJsonObject& context)
 {
-    Q_UNUSED(jsonSchema);
-    
     if (!checkInitialized("parseChangeRequest")) {
         return QJsonObject();
     }
     
-    log(tr("解析变更请求"));
-    
-    QString contextInfo;
-    if (!context.isEmpty()) {
-        contextInfo = QString("\n上下文信息：\n%1")
-            .arg(QString::fromUtf8(QJsonDocument(context).toJson(QJsonDocument::Indented)));
-    }
-    
-    QString userPrompt = QString("自然语言修改需求：\n%1\n%2\n\n请输出符合 CR-DSL JSON 的内容。").arg(naturalLanguage, contextInfo);
+    log(QString("解析变更请求开始: textLength=%1, contextKeys=%2, schemaKeys=%3")
+        .arg(naturalLanguage.length())
+        .arg(context.keys().join(","))
+        .arg(jsonSchema.keys().join(",")));
+    const QString systemPrompt = QwenPromptBuilder::buildChangeRequestSystemPrompt();
+    const QString userPrompt = ChangeRequestParseUtils::buildChangeRequestUserPrompt(naturalLanguage, context);
 
-    QJsonObject result = sendPromptRequest(
-        buildSimplePayload(QwenPromptBuilder::buildChangeRequestPrompt(), userPrompt, 0.2, 2000));
+    QJsonObject payload = buildJsonSchemaPayload(
+        systemPrompt,
+        userPrompt,
+        jsonSchema,
+        true,
+        QStringLiteral("change_request_dsl"));
+    payload["temperature"] = 0.2;
+    payload["max_tokens"] = 2000;
+
+    logRequest(m_config.model, naturalLanguage, systemPrompt, userPrompt);
+
+    QJsonObject result = sendPromptRequest(payload);
     if (result.isEmpty()) {
+        log(QString("解析变更请求失败: %1").arg(m_lastError));
         return QJsonObject();
     }
 
-    return QwenJsonRepair::parseWithRepair(result["content"].toString());
+    const QString content = result["content"].toString();
+    log(QString("解析变更请求返回: finishReason=%1, contentLength=%2")
+        .arg(result["finishReason"].toString())
+        .arg(content.length()));
+    log(QString("解析变更请求原文: %1")
+        .arg(content.left(1000)));
+
+    QJsonObject parsed = QwenJsonRepair::parseWithRepair(content);
+    log(QString("解析变更请求修复后字段: %1").arg(parsed.keys().join(",")));
+    return parsed;
 }
 
 QString QwenClient::rewriteDialogue(const QString& originalDialogue, const QString& instruction)

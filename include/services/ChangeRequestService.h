@@ -4,6 +4,7 @@
 #include "models/ChangeRequest.h"
 #include "data/DatabaseManager.h"
 #include "models/Panel.h"
+#include "services/ImageService.h"
 #include <QObject>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -11,6 +12,7 @@
 
 class QwenClient;
 class ImageService;
+struct ChangeRequestOp;
 
 /**
  * @brief 自然语言改稿服务
@@ -64,12 +66,6 @@ public:
     QList<ChangeRequest> getChangeRequestsByNovel(const QString& novelId);
 
     /**
-     * @brief 更新改稿请求状态
-     */
-    bool updateChangeRequestStatus(const QString& crId, const QString& novelId, 
-                                    const QString& status, const QString& error = QString());
-
-    /**
      * @brief 保存 DSL 到数据库
      */
     bool saveChangeRequestDsl(const QString& crId, const QString& novelId, 
@@ -90,6 +86,10 @@ private:
     QJsonObject executeArtOperation(const ChangeRequestDsl& dsl, 
                                      const ChangeRequestOp& op,
                                      const QString& crId);
+    QJsonObject executeSetExpressionOperation(const ChangeRequestOp& op,
+                                              Panel panel,
+                                              const QString& panelId,
+                                              const QString& mode);
     QJsonObject executeDialogueOperation(const ChangeRequestDsl& dsl, 
                                           const ChangeRequestOp& op,
                                           const QString& crId);
@@ -99,16 +99,33 @@ private:
     QJsonObject executeStyleOperation(const ChangeRequestDsl& dsl, 
                                        const ChangeRequestOp& op,
                                        const QString& crId);
+    ChangeRequestDsl prepareChangeRequestDsl(const ChangeRequest& cr);
+    void resolveDslTarget(ChangeRequestDsl& dsl, const QString& novelId, const QJsonObject& context);
+    QJsonArray executeDslOperations(const QString& crId, const ChangeRequestDsl& dsl);
+    QJsonObject executeOperationByType(const ChangeRequestDsl& dsl,
+                                       const ChangeRequestOp& op,
+                                       const QString& crId);
 
     Panel loadPanelById(const QString& panelId);
+    Panel requirePanelForDsl(const ChangeRequestDsl& dsl, const QString& operationKind);
     bool updatePanel(const Panel& panel);
     bool updatePanelDialogue(const QString& panelId, const QList<DialogueLine>& dialogue);
     bool updatePanelLayout(const QString& panelId, int width, int height);
     bool updateStoryboardStyle(const QString& storyboardId, const QJsonObject& styleOverrides);
-    bool reorderPanel(const QString& panelId, int fromIndex, int toIndex);
     QJsonObject buildPanelContentForWrite(const Panel& panel) const;
+    ImageService::EditHint buildExpressionEditHint(const QString& expression) const;
+    ImageService::EditHint buildSubjectReplacementEditHint(const QJsonObject& params) const;
+    ImageService::EditHint buildLocalObjectReplacementEditHint() const;
     bool ensureChangeRequestColumns();
-    bool ensureStoryboardStyleOverridesColumn();
+    QString resolveStoryboardIdForChangeRequest(const QString& novelId, const QJsonObject& context);
+    QString resolveImageModeForPanel(const ChangeRequestOp& op, const Panel& panel) const;
+    bool runPanelImageGeneration(const QString& panelId,
+                                 const QString& mode,
+                                 QJsonObject& output,
+                                 const ImageService::EditHint& editHint = ImageService::EditHint());
+    QJsonObject buildStyleOverrides(const ChangeRequestOp& op) const;
+    void restorePanelAfterFailedArtEdit(const Panel& originalPanel, const QString& panelId);
+    bool writeChangeRequestStatus(const QString& crId, const QString& novelId, const QString& status, const QString& error = QString());
 
     QString generateEditS3Key(const QString& panelId, const QString& crId, 
                                const QString& action, const QString& mode);

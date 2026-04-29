@@ -8,6 +8,19 @@
 #include <QMetaType>
 #include <QVariant>
 
+struct ChangeRequestDsl;
+struct ChangeRequestOp;
+
+namespace ChangeRequestNormalization {
+inline QString normalizeScope(const QString& value);
+inline QString normalizeType(const QString& value);
+inline QString normalizeAction(const QString& value);
+inline bool isSupportedScope(const QString& value);
+inline bool isSupportedType(const QString& value);
+inline bool isSupportedAction(const QString& value);
+inline void normalize(ChangeRequestDsl& dsl);
+}
+
 /**
  * @brief 改稿操作参数
  */
@@ -21,8 +34,19 @@ struct ChangeRequestOp {
     
     static ChangeRequestOp fromJson(const QJsonObject& json) {
         ChangeRequestOp op;
-        op.action = json["action"].toString();
-        op.params = json["params"].toObject();
+        op.action = ChangeRequestNormalization::normalizeAction(json.value("action").toString(
+            json.value("operation").toString(
+                json.value("name").toString())));
+
+        if (json.contains("params") && json.value("params").isObject()) {
+            op.params = json.value("params").toObject();
+        } else if (json.contains("parameters") && json.value("parameters").isObject()) {
+            op.params = json.value("parameters").toObject();
+        } else if (json.contains("args") && json.value("args").isObject()) {
+            op.params = json.value("args").toObject();
+        } else {
+            op.params = QJsonObject();
+        }
         return op;
     }
     
@@ -50,21 +74,65 @@ struct ChangeRequestDsl {
     ChangeRequestDsl() : priority("medium") {}
     
     bool isValid() const {
-        return !scope.isEmpty() && !type.isEmpty() && !ops.isEmpty();
+        const QString normalizedScope = ChangeRequestNormalization::normalizeScope(scope);
+        const QString normalizedType = ChangeRequestNormalization::normalizeType(type);
+        if (!ChangeRequestNormalization::isSupportedScope(normalizedScope)) {
+            return false;
+        }
+        if (!ChangeRequestNormalization::isSupportedType(normalizedType)) {
+            return false;
+        }
+        if (targetId.trimmed().isEmpty()) {
+            return false;
+        }
+        if (ops.isEmpty()) {
+            return false;
+        }
+        for (const ChangeRequestOp& op : ops) {
+            if (!ChangeRequestNormalization::isSupportedAction(op.action)) {
+                return false;
+            }
+        }
+        return true;
     }
     
     static ChangeRequestDsl fromJson(const QJsonObject& json) {
         ChangeRequestDsl dsl;
-        dsl.scope = json["scope"].toString();
-        dsl.type = json["type"].toString();
-        dsl.targetId = json["targetId"].toString();
-        dsl.reason = json["reason"].toString();
-        dsl.priority = json["priority"].toString("medium");
+        const QJsonObject source = json.contains("dsl") && json.value("dsl").isObject()
+            ? json.value("dsl").toObject()
+            : (json.contains("change_request") && json.value("change_request").isObject()
+                   ? json.value("change_request").toObject()
+                   : json);
+
+        dsl.scope = source.value("scope").toString(
+            source.value("scopeType").toString(
+                source.value("changeScope").toString(
+                    source.value("scope_type").toString())));
+        dsl.type = source.value("type").toString(
+            source.value("changeType").toString(
+                source.value("operationType").toString(
+                    source.value("typeName").toString())));
+        dsl.targetId = source.value("targetId").toString(
+            source.value("target_id").toString(
+                source.value("target").toString()));
+        dsl.reason = source.value("reason").toString(
+            source.value("explanation").toString());
+        dsl.priority = source.value("priority").toString("medium");
         
-        QJsonArray opsArray = json["ops"].toArray();
+        QJsonArray opsArray;
+        if (source.contains("ops") && source.value("ops").isArray()) {
+            opsArray = source.value("ops").toArray();
+        } else if (source.contains("operations") && source.value("operations").isArray()) {
+            opsArray = source.value("operations").toArray();
+        } else if (source.contains("actions") && source.value("actions").isArray()) {
+            opsArray = source.value("actions").toArray();
+        }
+
         for (const auto& op : opsArray) {
             dsl.ops.append(ChangeRequestOp::fromJson(op.toObject()));
         }
+
+        ChangeRequestNormalization::normalize(dsl);
         
         return dsl;
     }
@@ -220,5 +288,98 @@ Q_DECLARE_METATYPE(ChangeRequest)
 Q_DECLARE_METATYPE(ChangeRequestDsl)
 Q_DECLARE_METATYPE(ChangeRequestOp)
 Q_DECLARE_METATYPE(ChangeRequestOpResult)
+
+namespace ChangeRequestNormalization {
+
+inline QString normalizeScope(const QString& value)
+{
+    return value.trimmed().toLower();
+}
+
+inline QString normalizeType(const QString& value)
+{
+    return value.trimmed().toLower();
+}
+
+inline QString normalizeAction(const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    const QString lower = trimmed.toLower();
+
+    if (lower == QStringLiteral("setexpression")
+        || lower == QStringLiteral("updateexpression")
+        || lower == QStringLiteral("set_expression")
+        || lower == QStringLiteral("update_expression")
+        || lower == QStringLiteral("set-expression")
+        || lower == QStringLiteral("update-expression")) {
+        return QStringLiteral("setExpression");
+    }
+    if (lower == QStringLiteral("rewritedialogue")) {
+        return QStringLiteral("rewrite_dialogue");
+    }
+    if (lower == QStringLiteral("setstyle")
+        || lower == QStringLiteral("set_style")
+        || lower == QStringLiteral("updatestyle")
+        || lower == QStringLiteral("style_update")
+        || lower == QStringLiteral("set-style")
+        || lower == QStringLiteral("update-style")) {
+        return QStringLiteral("update_style");
+    }
+
+    return lower;
+}
+
+inline bool isSupportedScope(const QString& value)
+{
+    const QString normalized = normalizeScope(value);
+    return normalized == QStringLiteral("global")
+        || normalized == QStringLiteral("character")
+        || normalized == QStringLiteral("panel")
+        || normalized == QStringLiteral("page");
+}
+
+inline bool isSupportedType(const QString& value)
+{
+    const QString normalized = normalizeType(value);
+    return normalized == QStringLiteral("art")
+        || normalized == QStringLiteral("dialogue")
+        || normalized == QStringLiteral("layout")
+        || normalized == QStringLiteral("style");
+}
+
+inline bool isSupportedAction(const QString& value)
+{
+    const QString normalized = normalizeAction(value);
+    return normalized == QStringLiteral("inpaint")
+        || normalized == QStringLiteral("outpaint")
+        || normalized == QStringLiteral("bg_swap")
+        || normalized == QStringLiteral("repose")
+        || normalized == QStringLiteral("regen_panel")
+        || normalized == QStringLiteral("setExpression")
+        || normalized == QStringLiteral("add_effect")
+        || normalized == QStringLiteral("resize")
+        || normalized == QStringLiteral("update_style")
+        || normalized == QStringLiteral("rewrite_dialogue")
+        || normalized == QStringLiteral("reorder");
+}
+
+inline void normalize(ChangeRequestDsl& dsl)
+{
+    dsl.scope = normalizeScope(dsl.scope);
+    dsl.type = normalizeType(dsl.type);
+    dsl.targetId = dsl.targetId.trimmed();
+    dsl.reason = dsl.reason.trimmed();
+    dsl.priority = dsl.priority.trimmed().toLower();
+
+    if (dsl.priority.isEmpty()) {
+        dsl.priority = QStringLiteral("medium");
+    }
+
+    for (ChangeRequestOp& op : dsl.ops) {
+        op.action = normalizeAction(op.action);
+    }
+}
+
+} // namespace ChangeRequestNormalization
 
 #endif // CHANGEREQUEST_H

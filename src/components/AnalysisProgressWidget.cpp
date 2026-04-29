@@ -183,9 +183,9 @@ QString AnalysisProgressWidget::stateToText(State state) const
         case State::Processing:
             return TR("正在处理结果...");
         case State::Completed:
-            return TR("分析完成");
+            return TR("已完成");
         case State::Failed:
-            return TR("分析失败");
+            return TR("已失败");
         default:
             return QString();
     }

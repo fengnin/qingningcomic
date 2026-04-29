@@ -4,6 +4,13 @@
 #include <QUuid>
 #include <QDateTime>
 
+namespace {
+QString mysqlLocalTimestamp()
+{
+    return QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+}
+}
+
 ExportService::ExportService(DatabaseManager* db, QObject* parent)
     : BaseService(db, parent)
 {
@@ -45,7 +52,7 @@ ExportResult ExportService::createExport(const QString& novelId, const QString& 
     result.novelId = novelId;
     result.format = format;
     result.status = "pending";
-    result.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
+    result.createdAt = mysqlLocalTimestamp();
     
     QVariantMap data;
     data["id"] = result.id;

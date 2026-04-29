@@ -8,6 +8,7 @@
 #include <QSqlRecord>
 #include <QJsonDocument>
 #include <QSet>
+#include <QThread>
 
 DEFINE_SINGLETON_INSTANCE_SIMPLE(DatabaseManager)
 
@@ -87,6 +88,14 @@ void DatabaseManager::disconnect()
 
 bool DatabaseManager::isConnected() const
 {
+    if (QThread::currentThread() != thread()) {
+        bool connected = false;
+        QMetaObject::invokeMethod(const_cast<DatabaseManager*>(this), [this, &connected]() {
+            connected = isConnected();
+        }, Qt::BlockingQueuedConnection);
+        return connected;
+    }
+
     QMutexLocker locker(&m_mutex);
     
     if (!m_database.isOpen()) {
@@ -98,6 +107,14 @@ bool DatabaseManager::isConnected() const
 
 QString DatabaseManager::lastError() const
 {
+    if (QThread::currentThread() != thread()) {
+        QString error;
+        QMetaObject::invokeMethod(const_cast<DatabaseManager*>(this), [this, &error]() {
+            error = lastError();
+        }, Qt::BlockingQueuedConnection);
+        return error;
+    }
+
     QMutexLocker locker(&m_mutex);
     return m_lastError;
 }
@@ -376,6 +393,14 @@ bool DatabaseManager::beginTransaction()
 
 bool DatabaseManager::reconnectIfNeeded()
 {
+    if (QThread::currentThread() != thread()) {
+        bool result = false;
+        QMetaObject::invokeMethod(this, [this, &result]() {
+            result = reconnectIfNeeded();
+        }, Qt::BlockingQueuedConnection);
+        return result;
+    }
+
     // 注意：此方法假设调用者已持有 m_mutex 锁
     // 不要在此方法内再次获取锁，否则会导致死锁
     

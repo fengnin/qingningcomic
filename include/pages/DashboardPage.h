@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QTimer>
+#include <QDateTime>
 #include <QList>
 #include <QVariantMap>
 #include "pages/NovelDetailPage.h"
@@ -63,6 +64,7 @@ private:
         QString time;
         int progress = 0;
         bool showProgress = false;
+        QDateTime sortTime;
     };
     
     QWidget* createJobOverviewCard();
@@ -74,15 +76,26 @@ private:
                                          const QVariantList &whereValues,
                                          const QString &orderBy,
                                          int limit) const;
-    void renderJobList(QVBoxLayout *layout, const QList<QVariantMap> &jobs,
-                       const QString &emptyText, bool showProgress);
-    
+    QList<QVariantMap> loadDashboardChangeRequests(const QString &whereClause,
+                                                  const QVariantList &whereValues,
+                                                  const QString &orderBy,
+                                                  int limit) const;
+    void renderJobList(QVBoxLayout *layout, const QList<JobItemData> &jobs,
+                       const QString &emptyText);
+
     JobItemData buildJobItemData(const QVariantMap &job, bool showProgress) const;
+    JobItemData buildChangeRequestItemData(const QVariantMap &changeRequest, bool showProgress) const;
     QWidget* createJobItemWidget(const JobItemData &data);
     QWidget* createTimelineJobItem(const QString &type, const QString &status,
                                     const QString &time, int progress);
     QWidget* createStandardJobItem(const QString &type, const QString &status, const QString &time);
     QWidget* createActiveJobsFooter();
+    QList<JobItemData> loadOverviewTimelineItems() const;
+    QList<JobItemData> loadActiveTimelineItems() const;
+    QList<JobItemData> loadActiveJobItems() const;
+    QList<JobItemData> loadActiveChangeRequestItems() const;
+    static QDateTime parseDashboardDateTime(const QString &value);
+    static int changeRequestProgressForStatus(const QString &status);
     
     // ========== 指引卡片 ==========
     QWidget* createGuideCard();

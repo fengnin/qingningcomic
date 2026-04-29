@@ -10,6 +10,7 @@
 
 class QVBoxLayout;
 class QHBoxLayout;
+class QWheelEvent;
 class PanelCard;
 
 class PanelPreviewWidget : public QWidget
@@ -45,9 +46,13 @@ private slots:
 private:
     void setupUI();
     void resetPanelView();
+    void renderPanels(const QList<Panel>& panels);
+    void showEmptyState();
     void populateWithPanels(const QList<Panel>& panels);
     void populateEmptyState();
     void finishPopulate(int actualCount);
+    bool handleWheelScroll(QWheelEvent* wheelEvent);
+    bool forwardVerticalWheelToParent(QWheelEvent* wheelEvent);
     QString panelDescription(const Panel& panel) const;
     int panelNumberFor(const Panel& panel) const;
     PanelCard* createPanelCard(int panelNum, const QString& description,

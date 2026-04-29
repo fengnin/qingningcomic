@@ -10,6 +10,7 @@
 #include "utils/AsyncImageLoader.h"
 #include "utils/LayoutUtils.h"
 #include <QLabel>
+#include <QAbstractScrollArea>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -223,7 +224,8 @@ void PanelPreviewWidget::setPanels(const QList<Panel>& panels)
     } else {
         m_storyboardId.clear();
     }
-    refresh();
+
+    renderPanels(m_panels);
 }
 
 void PanelPreviewWidget::clear()
@@ -231,10 +233,7 @@ void PanelPreviewWidget::clear()
     m_panels.clear();
     m_panelCount = 0;
     m_storyboardId.clear();
-    resetPanelView();
-    populateEmptyState();
-    updateCountLabel(m_countLabel, 0);
-    emit panelCountChanged(0);
+    showEmptyState();
 }
 
 void PanelPreviewWidget::beginBatchRefresh()
@@ -252,8 +251,6 @@ void PanelPreviewWidget::endBatchRefresh(bool refreshNow)
 
 void PanelPreviewWidget::refresh()
 {
-    resetPanelView();
-    
     if (!m_storyboardId.isEmpty()) {
         QList<Panel> freshPanels = StoryboardService::instance()->getPanels(m_storyboardId);
         if (!freshPanels.isEmpty()) {
@@ -261,16 +258,28 @@ void PanelPreviewWidget::refresh()
         }
     }
     
-    if (m_panels.isEmpty()) {
-        m_panelCount = 0;
-        populateEmptyState();
-        updateCountLabel(m_countLabel, 0);
-        emit panelCountChanged(0);
+    renderPanels(m_panels);
+}
+
+void PanelPreviewWidget::renderPanels(const QList<Panel>& panels)
+{
+    if (panels.isEmpty()) {
+        showEmptyState();
         return;
     }
 
-    preloadPanelPreviewCache(m_currentChapter, m_panels);
-    populateWithPanels(m_panels);
+    resetPanelView();
+    preloadPanelPreviewCache(m_currentChapter, panels);
+    populateWithPanels(panels);
+}
+
+void PanelPreviewWidget::showEmptyState()
+{
+    m_panelCount = 0;
+    resetPanelView();
+    populateEmptyState();
+    updateCountLabel(m_countLabel, 0);
+    emit panelCountChanged(0);
 }
 
 void PanelPreviewWidget::populateWithPanels(const QList<Panel>& panels)
@@ -443,21 +452,64 @@ bool PanelPreviewWidget::eventFilter(QObject* watched, QEvent* event)
 {
     if (m_scrollArea && (watched == m_scrollArea || watched == m_scrollArea->viewport())) {
         if (event->type() == QEvent::Wheel) {
-            QWheelEvent* wheelEvent = static_cast<QWheelEvent*>(event);
-            const QPoint delta = wheelEvent->angleDelta();
-            const int horizontalDelta = !delta.x() ? delta.y() : delta.x();
-            if (horizontalDelta != 0 && m_scrollArea->horizontalScrollBar()) {
-                const int step = qAbs(horizontalDelta) / 120;
-                const int direction = horizontalDelta > 0 ? -1 : 1;
-                m_scrollArea->horizontalScrollBar()->setValue(
-                    m_scrollArea->horizontalScrollBar()->value() + direction * step * 120);
-                wheelEvent->accept();
-                return true;
-            }
+            return handleWheelScroll(static_cast<QWheelEvent*>(event));
         }
     }
 
     return QWidget::eventFilter(watched, event);
+}
+
+bool PanelPreviewWidget::handleWheelScroll(QWheelEvent* wheelEvent)
+{
+    if (!wheelEvent || !m_scrollArea) {
+        return false;
+    }
+
+    const QPoint delta = wheelEvent->angleDelta();
+    if ((wheelEvent->modifiers().testFlag(Qt::ShiftModifier) || delta.x() != 0)
+        && m_scrollArea->horizontalScrollBar()) {
+        const int horizontalDelta = delta.x() != 0 ? delta.x() : delta.y();
+        if (horizontalDelta != 0) {
+            const int step = qMax(1, qAbs(horizontalDelta) / 120);
+            const int direction = horizontalDelta > 0 ? -1 : 1;
+            m_scrollArea->horizontalScrollBar()->setValue(
+                m_scrollArea->horizontalScrollBar()->value() + direction * step * 120);
+            wheelEvent->accept();
+            return true;
+        }
+    }
+
+    return forwardVerticalWheelToParent(wheelEvent);
+}
+
+bool PanelPreviewWidget::forwardVerticalWheelToParent(QWheelEvent* wheelEvent)
+{
+    if (!wheelEvent || !m_scrollArea) {
+        return false;
+    }
+
+    const QPoint delta = wheelEvent->angleDelta();
+    if (delta.y() == 0) {
+        return false;
+    }
+
+    QWidget* ancestor = m_scrollArea->parentWidget();
+    while (ancestor) {
+        QAbstractScrollArea* parentScrollArea = qobject_cast<QAbstractScrollArea*>(ancestor);
+        if (parentScrollArea && parentScrollArea != m_scrollArea) {
+            QScrollBar* parentBar = parentScrollArea->verticalScrollBar();
+            if (parentBar) {
+                const int step = qMax(1, qAbs(delta.y()) / 120);
+                const int direction = delta.y() > 0 ? -1 : 1;
+                parentBar->setValue(parentBar->value() + direction * step * 120);
+                wheelEvent->accept();
+                return true;
+            }
+        }
+        ancestor = ancestor->parentWidget();
+    }
+
+    return false;
 }
 
 void PanelPreviewWidget::onPanelDescriptionChanged(int panelNumber, const QString& description)

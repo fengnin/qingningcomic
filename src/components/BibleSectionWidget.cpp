@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QTimer>
 
 namespace {
 const QString COLOR_HINT = "#6B7280";
@@ -173,7 +174,12 @@ QFrame* BibleSectionWidget::createBibleCard(const QString& title, QLabel*& count
 void BibleSectionWidget::setNovelId(const QString& novelId)
 {
     m_novelId = novelId;
-    refreshBible();
+    QTimer::singleShot(0, this, [this, novelId]() {
+        if (m_novelId != novelId) {
+            return;
+        }
+        refreshBible();
+    });
 }
 
 void BibleSectionWidget::refreshBible()

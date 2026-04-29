@@ -37,6 +37,8 @@
 #include "services/ServiceContainer.h"
 #include "utils/StatusHelper.h"
 #include "services/ChangeRequestService.h"
+#include "utils/ChangeRequestUiUtils.h"
+#include "utils/ChangeRequestTargetUtils.h"
 #include "utils/BibleUtils.h"
 #include <QMessageBox>
 #include <QFileDialog>
@@ -61,11 +63,28 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QSet>
+#include <QSignalBlocker>
 
 
 namespace {
     using namespace EditorStyles;
     using EditorStyles::UI::setupLayout;
+
+    QString resolvePanelIdForNumber(const QList<Panel>& panels, int requestedPanelNumber)
+    {
+        if (requestedPanelNumber <= 0) {
+            return QString();
+        }
+
+        for (const Panel& panel : panels) {
+            const int panelNumber = ChangeRequestTargetUtils::panelNumberFromPageAndIndex(panel.page(), panel.index());
+            if (panelNumber == requestedPanelNumber) {
+                return panel.id();
+            }
+        }
+
+        return QString();
+    }
 
     // ========== 按钮样式 ==========
     const QString ARROW_BTN_STYLE = R"(
@@ -499,7 +518,7 @@ namespace {
         widget->setStyleSheet(TRANSPARENT_BG);
         return widget;
     }
-    
+
     QLabel* createLabel(const QString &text, const QString &color, int fontSize, bool bold = false)
     {
         QLabel *label = new QLabel(text);
@@ -659,17 +678,30 @@ void NovelDetailPage::setNovel(const Novel &novel)
     LOG_DEBUG("NovelDetailPage", QString("setNovel: %1, id=%2").arg(novel.title()).arg(novel.id()));
     const bool keepActivePanelBatch = isPanelBatchTaskForNovel(m_panelBatchTaskId, novel.id());
     m_currentNovel = novel;
+    m_currentChapter = 1;
+    m_completedChapterCount = 0;
+    m_characterCount = 0;
+    m_sceneCount = 0;
+    m_selectedPanelNumber = 0;
+    m_selectedPanelId.clear();
     m_deferredBibleRefresh = false;
     m_currentPanels.clear();
+    StoryboardViewModel::instance()->clearCache();
     if (!keepActivePanelBatch) {
         m_panelBatchRefreshPending = false;
         clearPanelBatchTaskState();
     }
 
     updateDisplay();
-    
+
     if (m_bibleSectionWidget) {
-        m_bibleSectionWidget->setNovelId(novel.id());
+        const QString novelId = novel.id();
+        QTimer::singleShot(0, this, [this, novelId]() {
+            if (m_currentNovel.id() != novelId || !m_bibleSectionWidget) {
+                return;
+            }
+            m_bibleSectionWidget->setNovelId(novelId);
+        });
     }
 }
 
@@ -679,6 +711,8 @@ void NovelDetailPage::setChapterNumber(int chapterNumber)
         return;
     }
     m_currentChapter = chapterNumber;
+    m_selectedPanelNumber = 0;
+    m_selectedPanelId.clear();
     if (m_chapterNumberSpin) {
         m_chapterNumberSpin->setValue(chapterNumber);
     }
@@ -907,7 +941,10 @@ QWidget* NovelDetailPage::createHeaderSection()
     m_titleLabel = createLabel(tr("作品详情"), m_colorTitle, 28, true);
     m_statusLabel = createStatusLabel("completed");
     m_metaLabel = createLabel(tr("创作信息"), m_colorHint, 14);
-    
+    m_changeRequestOverviewLabel = createLabel(tr("修改请求"), m_colorTitle, 14, true);
+    m_changeRequestOverviewProgress = new AnalysisProgressWidget();
+    m_changeRequestOverviewProgress->reset();
+
     m_analyzeBtn = createButton(tr("分析分镜"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
     connect(m_analyzeBtn, &QPushButton::clicked, this, &NovelDetailPage::onAnalyzeClicked);
     
@@ -919,6 +956,9 @@ QWidget* NovelDetailPage::createHeaderSection()
     layout->addWidget(m_statusLabel);
     layout->addSpacing(16);
     layout->addWidget(m_metaLabel);
+    layout->addSpacing(8);
+    layout->addWidget(m_changeRequestOverviewLabel);
+    layout->addWidget(m_changeRequestOverviewProgress);
     layout->addWidget(createTransparentWidget(), 1);
     layout->addWidget(m_analyzeBtn);
     layout->addWidget(m_viewExportsBtn);
@@ -1092,7 +1132,7 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     layout->addWidget(createSectionLabel(tr("修改指令")));
     
     m_changeRequestEdit = new QTextEdit();
-    m_changeRequestEdit->setPlaceholderText(tr("输入自然语言修改需求，说明要改的页码、面板和内容。"));
+    m_changeRequestEdit->setPlaceholderText(tr("比如：把第 1 个面板中的角色表情改为微笑"));
     m_changeRequestEdit->setFixedHeight(66);
     m_changeRequestEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_changeRequestEdit);
@@ -1102,6 +1142,10 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交修改请求"), tr("任务状态 就绪"));
     connect(m_submitChangeRequestBtn, &QPushButton::clicked, this, &NovelDetailPage::onSubmitChangeRequestClicked);
     layout->addWidget(btnRow);
+
+    m_changeRequestProgress = new AnalysisProgressWidget();
+    m_changeRequestProgress->reset();
+    layout->addWidget(m_changeRequestProgress);
     
     layout->addWidget(createLabel(tr("系统会解析修改请求并生成对应的 CR-DSL 变更。"), m_colorHint, 12));
     layout->addStretch();
@@ -1291,20 +1335,6 @@ void NovelDetailPage::updateDisplay()
     }
     
     m_titleLabel->setText(m_currentNovel.title());
-    
-    StoryboardViewModel* vm = StoryboardViewModel::instance();
-    QList<Storyboard> storyboards = StoryboardService::instance()->getAllStoryboards(m_currentNovel.id());
-    
-    m_completedChapterCount = storyboards.size();
-    
-    int maxChapterNumber = 0;
-    for (const Storyboard& storyboard : storyboards) {
-        if (storyboard.chapterNumber() > maxChapterNumber) {
-            maxChapterNumber = storyboard.chapterNumber();
-        }
-    }
-    int nextChapterNumber = maxChapterNumber > 0 ? maxChapterNumber + 1 : 1;
-    
     m_metaLabel->setText(QString("作品 ID: %1 | 已完成章节: %2 | 当前章节: %3")
         .arg(m_currentNovel.id())
         .arg(m_completedChapterCount)
@@ -1315,13 +1345,13 @@ void NovelDetailPage::updateDisplay()
     }
     
     if (m_chapterNumberSpin) {
-        if (m_chapterNumberSpin->value() != nextChapterNumber) {
-            m_chapterNumberSpin->setValue(nextChapterNumber);
-        }
+        QSignalBlocker blocker(m_chapterNumberSpin);
+        m_chapterNumberSpin->setValue(m_currentChapter);
     }
-    
-    updateChapterHints(storyboards);
-    
+
+    updateChapterUI(m_currentChapter);
+
+    StoryboardViewModel* vm = StoryboardViewModel::instance();
     if (vm->isAnalyzing()) {
         setAnalysisStatus(AnalysisStatusManager::Status::Processing);
     } else {
@@ -1333,9 +1363,10 @@ void NovelDetailPage::updateDisplay()
             m_analysisResult->hide();
         }
     }
-    
-    refreshChapterCards(storyboards);
-    refreshStoryboardItems();
+
+    resetStoryboardDisplay();
+
+    vm->loadStoryboards(m_currentNovel.id(), false);
     
     QTimer::singleShot(0, this, [this]() {
         updateBibleMetaLabel();
@@ -1395,12 +1426,25 @@ void NovelDetailPage::clearChapterCards()
     }
 }
 
-void NovelDetailPage::refreshChapterCardsOnly()
+void NovelDetailPage::resetStoryboardDisplay()
 {
-    if (!m_chapterContainerLayout) return;
-    
-    QList<Storyboard> storyboards = StoryboardService::instance()->getAllStoryboards(m_currentNovel.id());
-    m_completedChapterCount = storyboards.size();
+    clearChapterCards();
+    if (m_storyboardContainer) {
+        clearLayout(m_storyboardContainer->layout());
+        if (m_storyboardCountLabel) {
+            m_storyboardCountLabel->setText(tr("共 0 个分镜"));
+        }
+    }
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->clear();
+    }
+}
+
+void NovelDetailPage::syncChapterSelectionFromStoryboards(const QList<Storyboard>& storyboards)
+{
+    if (storyboards.isEmpty()) {
+        return;
+    }
 
     bool currentExists = false;
     for (const Storyboard& storyboard : storyboards) {
@@ -1410,8 +1454,25 @@ void NovelDetailPage::refreshChapterCardsOnly()
         }
     }
     if (!currentExists) {
-        m_currentChapter = storyboards.isEmpty() ? 1 : storyboards.first().chapterNumber();
+        m_currentChapter = storyboards.first().chapterNumber();
     }
+
+    if (m_chapterCountLabel) {
+        m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
+    }
+    if (m_chapterNumberSpin && m_chapterNumberSpin->value() != m_currentChapter) {
+        QSignalBlocker blocker(m_chapterNumberSpin);
+        m_chapterNumberSpin->setValue(m_currentChapter);
+    }
+}
+
+void NovelDetailPage::refreshChapterCardsOnly()
+{
+    if (!m_chapterContainerLayout) return;
+
+    QList<Storyboard> storyboards = StoryboardService::instance()->getAllStoryboards(m_currentNovel.id());
+    m_completedChapterCount = storyboards.size();
+    syncChapterSelectionFromStoryboards(storyboards);
 
     updateDisplay();
 }
@@ -1766,24 +1827,18 @@ void NovelDetailPage::onStoryboardsLoaded(const QString& novelId, const QList<St
 
     m_completedChapterCount = storyboards.size();
 
-    int maxChapterNumber = 0;
-    for (const Storyboard& storyboard : storyboards) {
-        if (storyboard.chapterNumber() > maxChapterNumber) {
-            maxChapterNumber = storyboard.chapterNumber();
-        }
+    if (storyboards.isEmpty()) {
+        resetStoryboardDisplay();
+        updateChapterHints(storyboards);
+        updateBibleMetaLabel();
+        return;
     }
 
-    const int nextChapterNumber = maxChapterNumber > 0 ? maxChapterNumber + 1 : 1;
+    syncChapterSelectionFromStoryboards(storyboards);
     refreshChapterCards(storyboards);
     updateChapterHints(storyboards);
 
-    if (m_chapterCountLabel) {
-        m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
-    }
-    if (m_chapterNumberSpin && m_chapterNumberSpin->value() != nextChapterNumber) {
-        m_chapterNumberSpin->setValue(nextChapterNumber);
-    }
-
+    refreshStoryboardItems();
     updateBibleMetaLabel();
 }
 
@@ -1805,6 +1860,8 @@ void NovelDetailPage::onPanelsLoaded(const QString& novelId, int chapterNumber, 
         return;
     }
 
+    m_selectedPanelNumber = 0;
+    m_selectedPanelId.clear();
     refreshStoryboardItems(panels);
 
     if (m_pendingPanelBatchGeneration) {
@@ -1982,8 +2039,8 @@ void NovelDetailPage::createRunningJobRecord(int chapterNumber)
         .arg(0)
         .arg(0)
         .arg(paramsStr.replace("'", "''"))
-        .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
-        .arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"))
+        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
     
     if (DatabaseManager::instance()->executeSql(sql)) {
         m_currentJobId = jobId;
@@ -2228,31 +2285,30 @@ void NovelDetailPage::onAllImageGenerationCompleted()
 
 void NovelDetailPage::onSubmitChangeRequestClicked()
 {
-    if (!m_changeRequestEdit) {
-        return;
-    }
-    
-    QString naturalLanguage = m_changeRequestEdit->toPlainText().trimmed();
+    const QString naturalLanguage = collectChangeRequestText();
     if (naturalLanguage.isEmpty()) {
         QMessageBox::warning(this, tr("输入为空"), tr("请输入变更内容"));
         return;
     }
-    
+
     if (m_currentNovel.id().isEmpty()) {
         QMessageBox::warning(this, tr("无作品"), tr("未选择任何作品"));
         return;
     }
-    
+
     ChangeRequestService* service = ServiceContainer::instance()->changeRequestService();
     if (!service) {
         QMessageBox::warning(this, tr("服务不可用"), tr("变更请求服务不可用"));
         return;
     }
-    
-    QJsonObject context;
-    context["storyboardId"] = m_currentNovel.storyboardId();
-    context["chapterNumber"] = m_chapterNumberSpin->value();
-    
+
+    const QJsonObject context = buildChangeRequestContext();
+    LOG_INFO("NovelDetailPage", QString("修改请求上下文: keys=%1").arg(context.keys().join(",")));
+    LOG_DEBUG("NovelDetailPage", QString("修改请求上下文详情: storyboardId=%1, chapterNumber=%2, targetPanelNumber=%3, targetPanelId=%4")
+        .arg(context.value("storyboardId").toString())
+        .arg(context.value("chapterNumber").toInt())
+        .arg(context.value("targetPanelNumber").toInt())
+        .arg(context.value("targetPanelId").toString()));
     ChangeRequest cr = service->createChangeRequest(
         m_currentNovel.id(),
         naturalLanguage,
@@ -2260,32 +2316,279 @@ void NovelDetailPage::onSubmitChangeRequestClicked()
     );
     
     if (cr.isValid()) {
+        bindChangeRequestResultHandlers(service);
+        beginChangeRequestProgress(cr.id(), naturalLanguage);
         m_changeRequestEdit->clear();
-        
-        QMessageBox::information(this, tr("提交成功"),
-            QString("变更请求已提交: %1").arg(cr.id()));
-        
-        disconnect(service, &ChangeRequestService::changeRequestCompleted, this, nullptr);
-        disconnect(service, &ChangeRequestService::changeRequestFailed, this, nullptr);
-        
-        connect(service, &ChangeRequestService::changeRequestCompleted,
-                this, [this](const QString& crId, const QJsonObject& result) {
-            Q_UNUSED(crId);
-            QMessageBox::information(this, tr("执行完成"),
-                QString("变更请求状态: %1").arg(result["status"].toString()));
-            refreshStoryboardItems();
-        });
-        
-        connect(service, &ChangeRequestService::changeRequestFailed,
-                this, [this](const QString& crId, const QString& error) {
-            Q_UNUSED(crId);
-            QMessageBox::warning(this, tr("执行失败"), QString("失败: %1").arg(error));
-        });
-        
+        showChangeRequestSubmissionResult(cr.id());
         service->executeChangeRequestAsync(cr.id());
     } else {
-        QMessageBox::warning(this, tr("服务错误"), QString("服务错误: %1").arg(service->lastError()));
+        showChangeRequestSubmissionFailure(service->lastError());
     }
+}
+
+QString NovelDetailPage::collectChangeRequestText() const
+{
+    if (!m_changeRequestEdit) {
+        return QString();
+    }
+
+    return ChangeRequestUiUtils::normalizeNaturalLanguage(m_changeRequestEdit->toPlainText());
+}
+
+QJsonObject NovelDetailPage::buildChangeRequestContext() const
+{
+    const int chapterNumber = m_currentChapter > 0
+        ? m_currentChapter
+        : (m_chapterNumberSpin ? m_chapterNumberSpin->value() : 0);
+    const QString naturalLanguage = collectChangeRequestText();
+    const int requestedPanelNumber = ChangeRequestTargetUtils::extractRequestedPanelNumber(naturalLanguage);
+    const bool hasSelectedPanel = !m_selectedPanelId.isEmpty();
+    LOG_INFO("NovelDetailPage", QString("提交修改请求: textLength=%1, requestedPanelNumber=%2, currentPanels=%3")
+        .arg(naturalLanguage.length())
+        .arg(requestedPanelNumber)
+        .arg(m_currentPanels.size()));
+    QString storyboardId = m_currentNovel.storyboardId();
+
+    if (storyboardId.isEmpty()) {
+        for (const Panel& panel : m_currentPanels) {
+            if (!panel.storyboardId().isEmpty()) {
+                storyboardId = panel.storyboardId();
+                break;
+            }
+        }
+    }
+
+    if (storyboardId.isEmpty() && !m_currentNovel.id().isEmpty() && chapterNumber > 0) {
+        const Storyboard storyboard = StoryboardService::instance()->getStoryboardByChapter(
+            m_currentNovel.id(),
+            chapterNumber);
+        storyboardId = storyboard.id();
+    }
+
+    QJsonObject context = ChangeRequestUiUtils::buildSubmissionContext(
+        storyboardId,
+        chapterNumber);
+
+    if (requestedPanelNumber > 0) {
+        context["targetPanelNumber"] = requestedPanelNumber;
+    }
+
+    QString targetPanelId;
+    if (!m_currentPanels.isEmpty()) {
+        targetPanelId = resolvePanelIdForNumber(m_currentPanels, requestedPanelNumber);
+        if (!targetPanelId.isEmpty()) {
+            LOG_INFO("NovelDetailPage", QString("已解析修改目标面板: requestedPanelNumber=%1, targetPanelId=%2")
+                .arg(requestedPanelNumber)
+                .arg(targetPanelId));
+        } else if (requestedPanelNumber > 0) {
+            LOG_WARNING("NovelDetailPage", QString("未能解析修改目标面板: requestedPanelNumber=%1, currentPanels=%2")
+                .arg(requestedPanelNumber)
+                .arg(m_currentPanels.size()));
+        }
+    }
+
+    if (targetPanelId.isEmpty() && hasSelectedPanel) {
+        const bool useSelectedPanel = requestedPanelNumber <= 0
+            || (m_selectedPanelNumber > 0 && m_selectedPanelNumber == requestedPanelNumber);
+        if (useSelectedPanel) {
+            targetPanelId = m_selectedPanelId;
+            if (!targetPanelId.isEmpty()) {
+                if (requestedPanelNumber <= 0 && m_selectedPanelNumber > 0) {
+                    context["targetPanelNumber"] = m_selectedPanelNumber;
+                }
+                LOG_INFO("NovelDetailPage", QString("使用当前选中面板作为修改目标: selectedPanelNumber=%1, selectedPanelId=%2")
+                    .arg(m_selectedPanelNumber)
+                    .arg(targetPanelId));
+            }
+        }
+    }
+
+    if (!targetPanelId.isEmpty()) {
+        context["targetPanelId"] = targetPanelId;
+    }
+
+    LOG_DEBUG("NovelDetailPage", QString("构建后的修改请求上下文: storyboardId=%1, chapterNumber=%2, targetPanelNumber=%3, targetPanelId=%4")
+        .arg(context.value("storyboardId").toString())
+        .arg(context.value("chapterNumber").toInt())
+        .arg(context.value("targetPanelNumber").toInt())
+        .arg(context.value("targetPanelId").toString()));
+
+    return context;
+}
+
+void NovelDetailPage::bindChangeRequestResultHandlers(ChangeRequestService* service)
+{
+    if (!service) {
+        return;
+    }
+
+    disconnect(service, &ChangeRequestService::progressChanged, this, nullptr);
+    disconnect(service, &ChangeRequestService::changeRequestCompleted, this, nullptr);
+    disconnect(service, &ChangeRequestService::changeRequestFailed, this, nullptr);
+
+    connect(service, &ChangeRequestService::progressChanged, this,
+            [this](const QString& crId, int current, int total, const QString& message) {
+        if (!m_changeRequestRunning || crId != m_activeChangeRequestId) {
+            return;
+        }
+        updateChangeRequestProgress(current, total, message);
+    }, Qt::QueuedConnection);
+
+    connect(service, &ChangeRequestService::changeRequestCompleted, this,
+            [this](const QString& crId, const QJsonObject& result) {
+        if (crId != m_activeChangeRequestId) {
+            return;
+        }
+        showChangeRequestExecutionResult(result["status"].toString(), true);
+        refreshStoryboardItems();
+    }, Qt::QueuedConnection);
+
+    connect(service, &ChangeRequestService::changeRequestFailed, this,
+            [this](const QString& crId, const QString& error) {
+        if (crId != m_activeChangeRequestId) {
+            return;
+        }
+        showChangeRequestExecutionResult(error, false);
+    }, Qt::QueuedConnection);
+}
+
+void NovelDetailPage::showChangeRequestSubmissionResult(const QString& requestId)
+{
+    if (m_changeRequestOverviewLabel) {
+        m_changeRequestOverviewLabel->setText(tr("修改请求"));
+    }
+    if (m_changeRequestOverviewProgress) {
+        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_changeRequestOverviewProgress->setProgressText(tr("请求 %1 已提交，等待执行").arg(requestId));
+    }
+}
+
+void NovelDetailPage::showChangeRequestExecutionResult(const QString& statusText, bool success)
+{
+    if (success) {
+        const QString displayText = (statusText.isEmpty() || statusText == QStringLiteral("completed"))
+            ? tr("修改完成")
+            : statusText;
+        finishChangeRequestProgress(true, displayText);
+        return;
+    }
+
+    finishChangeRequestProgress(false, statusText.isEmpty() ? tr("未知错误") : statusText);
+}
+
+void NovelDetailPage::showChangeRequestSubmissionFailure(const QString& errorMessage)
+{
+    QMessageBox::warning(this, tr("服务错误"), QString("服务错误: %1").arg(errorMessage));
+}
+
+void NovelDetailPage::updateChangeRequestOverviewStatus(const QString& text, const QString& color)
+{
+    if (!m_changeRequestOverviewLabel) {
+        return;
+    }
+
+    const QString resolvedColor = color.isEmpty() ? QStringLiteral("#6B7280") : color;
+    m_changeRequestOverviewLabel->setText(text);
+    m_changeRequestOverviewLabel->setStyleSheet(QString("font-size: 14px; color: %1; background: transparent; font-weight: 600;").arg(resolvedColor));
+}
+
+void NovelDetailPage::beginChangeRequestProgress(const QString& requestId, const QString& naturalLanguage)
+{
+    m_activeChangeRequestId = requestId;
+    m_activeChangeRequestSummary = naturalLanguage.left(40);
+    if (naturalLanguage.size() > 40) {
+        m_activeChangeRequestSummary += QStringLiteral("…");
+    }
+    m_changeRequestRunning = true;
+
+    if (m_submitChangeRequestBtn) {
+        m_submitChangeRequestBtn->setEnabled(false);
+    }
+    updateButtonStatus(m_submitChangeRequestBtn, tr("任务状态 处理中"), "#F59E0B");
+
+    if (m_changeRequestProgress) {
+        m_changeRequestProgress->reset();
+        m_changeRequestProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_changeRequestProgress->setProgress(0);
+        m_changeRequestProgress->setProgressText(tr("正在提交修改请求..."));
+    }
+
+    if (m_changeRequestOverviewProgress) {
+        m_changeRequestOverviewProgress->reset();
+        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_changeRequestOverviewProgress->setProgress(0);
+        m_changeRequestOverviewProgress->setProgressText(tr("正在提交修改请求..."));
+    }
+
+    updateChangeRequestOverviewStatus(tr("修改请求"), "#0F766E");
+}
+
+void NovelDetailPage::updateChangeRequestProgress(int current, int total, const QString& message)
+{
+    if (!m_changeRequestProgress) {
+        return;
+    }
+
+    const int safeTotal = qMax(1, total);
+    const int safeCurrent = qBound(0, current, safeTotal);
+    const int progress = safeCurrent * 100 / safeTotal;
+
+    m_changeRequestProgress->setState(AnalysisProgressWidget::State::Processing);
+    m_changeRequestProgress->setProgress(progress);
+    m_changeRequestProgress->setProgressText(message.isEmpty() ? tr("正在处理修改请求...") : message);
+
+    if (m_changeRequestOverviewProgress) {
+        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
+        m_changeRequestOverviewProgress->setProgress(progress);
+        m_changeRequestOverviewProgress->setProgressText(message.isEmpty() ? tr("正在处理修改请求...") : message);
+    }
+}
+
+void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& message)
+{
+    m_changeRequestRunning = false;
+
+    if (m_submitChangeRequestBtn) {
+        m_submitChangeRequestBtn->setEnabled(true);
+    }
+    updateButtonStatus(m_submitChangeRequestBtn, success ? tr("任务状态 完成") : tr("任务状态 失败"),
+                       success ? "#10B981" : "#EF4444");
+
+    if (m_changeRequestProgress) {
+        m_changeRequestProgress->setProgress(success ? 100 : 0);
+        m_changeRequestProgress->setState(success ? AnalysisProgressWidget::State::Completed
+                                                  : AnalysisProgressWidget::State::Failed);
+        m_changeRequestProgress->setProgressText(message.isEmpty()
+                                                     ? (success ? tr("修改完成") : tr("修改失败"))
+                                                     : message);
+    }
+
+    if (m_changeRequestOverviewProgress) {
+        m_changeRequestOverviewProgress->setProgress(success ? 100 : 0);
+        m_changeRequestOverviewProgress->setState(success ? AnalysisProgressWidget::State::Completed
+                                                          : AnalysisProgressWidget::State::Failed);
+        m_changeRequestOverviewProgress->setProgressText(message.isEmpty()
+                                                              ? (success ? tr("修改完成") : tr("修改失败"))
+                                                              : message);
+    }
+
+    const QString requestId = m_activeChangeRequestId;
+    QTimer::singleShot(success ? 2000 : 3500, this, [this, requestId]() {
+        if (m_changeRequestRunning || m_activeChangeRequestId != requestId) {
+            return;
+        }
+
+        m_activeChangeRequestId.clear();
+        m_activeChangeRequestSummary.clear();
+        if (m_changeRequestProgress) {
+            m_changeRequestProgress->reset();
+        }
+        if (m_changeRequestOverviewProgress) {
+            m_changeRequestOverviewProgress->reset();
+        }
+        updateButtonStatus(m_submitChangeRequestBtn, tr("任务状态 就绪"), "#6B7280");
+        updateChangeRequestOverviewStatus(tr("修改请求"), "#374151");
+    });
 }
 
 void NovelDetailPage::onChapterNumberChanged(int value)
@@ -2611,8 +2914,14 @@ void NovelDetailPage::onExportClicked()
     QMessageBox::information(this, tr("导出功能"), tr("导出功能开发中..."));
 }
 
-void NovelDetailPage::onPanelCardClicked(int panelNumber)
+void NovelDetailPage::onPanelCardClicked(int panelNumber, const QString& panelId)
 {
+    m_selectedPanelNumber = panelNumber > 0 ? panelNumber : 0;
+    m_selectedPanelId = panelId;
+    if (m_selectedPanelId.isEmpty() && m_selectedPanelNumber > 0) {
+        m_selectedPanelId = resolvePanelIdForNumber(m_currentPanels, m_selectedPanelNumber);
+    }
+
     if (!m_storyboardContainer) {
         return;
     }

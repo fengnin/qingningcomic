@@ -52,7 +52,12 @@ QJsonObject ChangeRequest::toJson() const
     json["updatedAt"] = m_updatedAt;
     appendIfNotEmpty(json, QStringLiteral("error"), m_errorMessage);
 
-    if (m_dsl.isValid()) {
+    const bool hasDslContent = !m_dsl.scope.isEmpty()
+        || !m_dsl.type.isEmpty()
+        || !m_dsl.targetId.isEmpty()
+        || !m_dsl.ops.isEmpty()
+        || !m_dsl.reason.isEmpty();
+    if (hasDslContent) {
         json["dsl"] = m_dsl.toJson();
     }
 

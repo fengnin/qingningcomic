@@ -28,6 +28,89 @@ namespace {
         return model.trimmed().toLower().startsWith("wanx");
     }
 
+    QString encodeImageDataUri(const QByteArray& imageData, const QString& mimeType = QStringLiteral("image/png"))
+    {
+        if (imageData.isEmpty()) {
+            return QString();
+        }
+        return QStringLiteral("data:%1;base64,%2")
+            .arg(mimeType, QString::fromLatin1(imageData.toBase64()));
+    }
+
+    QJsonObject buildTextContentItem(const QString& text)
+    {
+        return QJsonObject{{"text", text}};
+    }
+
+    QJsonObject buildImageContentItem(const QByteArray& imageData)
+    {
+        return QJsonObject{{"image", encodeImageDataUri(imageData)}};
+    }
+
+    QJsonArray buildUserMessageContent(const QString& prompt, const QByteArray* imageData = nullptr)
+    {
+        QJsonArray content;
+        if (imageData && !imageData->isEmpty()) {
+            content.append(buildImageContentItem(*imageData));
+        }
+        content.append(buildTextContentItem(prompt));
+        return content;
+    }
+
+    QJsonObject buildUserMessage(const QJsonArray& content)
+    {
+        QJsonObject userMessage;
+        userMessage["role"] = "user";
+        userMessage["content"] = content;
+        return userMessage;
+    }
+
+    QJsonObject buildRequestEnvelope(const QString& model,
+                                     const QJsonObject& input,
+                                     const QJsonObject& parameters)
+    {
+        QJsonObject body;
+        body["model"] = model;
+        body["input"] = input;
+        body["parameters"] = parameters;
+        return body;
+    }
+
+    QJsonObject buildMessageInput(const QJsonArray& messages, const QString& negativePrompt)
+    {
+        QJsonObject input;
+        input["messages"] = messages;
+        if (!negativePrompt.isEmpty()) {
+            input["negative_prompt"] = negativePrompt;
+        }
+        return input;
+    }
+
+    QJsonObject buildEditRequestInput(const QwenImageClient::EditOptions& options)
+    {
+        QJsonObject input;
+        input["messages"] = QJsonArray{buildUserMessage(buildUserMessageContent(options.prompt, &options.sourceImage))};
+        return input;
+    }
+
+    QJsonObject buildEditParameters(const QwenImageClient::EditOptions& options)
+    {
+        QJsonObject parameters;
+        parameters["n"] = 1;
+        parameters["watermark"] = false;
+        if (!options.negativePrompt.isEmpty()) {
+            parameters["negative_prompt"] = options.negativePrompt;
+        }
+        if (options.seed >= 0) {
+            parameters["seed"] = options.seed;
+        }
+
+        parameters["size"] = QwenImageClient::sizeToString(options.size, options.width, options.height);
+        parameters["prompt_extend"] = true;
+
+        return parameters;
+    }
+
     struct SyncRequestResult {
         bool success = false;
         QByteArray data;
@@ -207,11 +290,11 @@ QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options
     if (!validateEditOptions(options) || shouldMock()) {
         return generatePlaceholder(options.prompt);
     }
-
+    
     applyRequestThrottle();
     
     const QString url = resolveRequestUrl(RequestType::Edit);
-    const QJsonObject payload = buildAsyncRequestBody(options);
+    const QJsonObject payload = buildEditRequestBody(options);
     QJsonObject response = sendSyncRequest(url, payload);
     
     if (response.isEmpty()) {
@@ -242,7 +325,7 @@ void QwenImageClient::sendAsyncRequest(const EditOptions& options, RequestType t
 {
     const QString requestId = resolveRequestId(options.requestId);
     const QString url = resolveRequestUrl(type);
-    const QJsonObject payload = buildAsyncRequestBody(options);
+    const QJsonObject payload = buildEditRequestBody(options);
     const bool useAsyncMode = isWanxModel(resolveRequestModel(type));
 
     dispatchPreparedAsyncRequest(requestId, url, payload, type, options.prompt, useAsyncMode);
@@ -878,10 +961,11 @@ QString QwenImageClient::resolveRequestService(RequestType type) const
 
 QString QwenImageClient::resolveRequestUrl(RequestType type) const
 {
-    if (type == RequestType::Generate && isDashScopeMultimodalModel(m_config.generateModel)) {
+    const QString model = resolveRequestModel(type);
+    if ((type == RequestType::Generate || type == RequestType::Edit) && isDashScopeMultimodalModel(model)) {
         return QString("%1/api/v1/services/aigc/multimodal-generation/generation").arg(m_config.baseUrl);
     }
-    return buildApiUrl(resolveRequestService(type), resolveRequestModel(type));
+    return buildApiUrl(resolveRequestService(type), model);
 }
 
 QJsonObject QwenImageClient::buildGenerateRequestBody(const GenerateOptions& options)
@@ -918,55 +1002,25 @@ QJsonObject QwenImageClient::buildGenerateRequestBody(const GenerateOptions& opt
 
 QJsonObject QwenImageClient::buildMultimodalRequestBody(const GenerateOptions& options)
 {
-    QJsonObject body;
-    body["model"] = m_config.generateModel;
-    
     QJsonArray messages;
-    QJsonObject userMessage;
-    userMessage["role"] = "user";
-    
-    QJsonArray content;
-    QJsonObject textContent;
-    textContent["text"] = options.prompt;
-    content.append(textContent);
-    userMessage["content"] = content;
-    messages.append(userMessage);
-    
-    QJsonObject input;
-    input["messages"] = messages;
-    body["input"] = input;
-    
+    messages.append(buildUserMessage(buildUserMessageContent(options.prompt)));
+
     QJsonObject parameters;
     parameters["size"] = sizeToString(options.size, options.width, options.height);
     parameters["n"] = 1;
     parameters["watermark"] = false;
     parameters["prompt_extend"] = true;
-    body["parameters"] = parameters;
-    
-    return body;
+
+    return buildRequestEnvelope(m_config.generateModel,
+                                buildMessageInput(messages, options.negativePrompt),
+                                parameters);
 }
 
 QJsonObject QwenImageClient::buildEditRequestBody(const EditOptions& options)
 {
-    QJsonObject body;
-    body["model"] = m_config.editModel;
-    
-    QJsonObject input;
-    input["prompt"] = options.prompt;
-    input["image"] = QString::fromLatin1(options.sourceImage.toBase64());
-    
-    if (!options.maskImage.isEmpty()) {
-        input["mask"] = QString::fromLatin1(options.maskImage.toBase64());
-    }
-    if (!options.negativePrompt.isEmpty()) {
-        input["negative_prompt"] = options.negativePrompt;
-    }
-    body["input"] = input;
-    
-    QJsonObject parameters = buildCommonParameters(options.size, options.seed);
-    parameters = applyCustomSize(parameters, options.size, options.width, options.height);
-    body["parameters"] = parameters;
-    return body;
+    return buildRequestEnvelope(m_config.editModel,
+                                buildEditRequestInput(options),
+                                buildEditParameters(options));
 }
 
 void QwenImageClient::dispatchAsyncRequest(const QString& requestId, const QNetworkRequest& request,
@@ -1010,11 +1064,6 @@ QJsonObject QwenImageClient::buildAsyncRequestBody(const GenerateOptions& option
     }
 
     return buildEditRequestBody(EditOptions::fromGenerateOptions(options));
-}
-
-QJsonObject QwenImageClient::buildAsyncRequestBody(const EditOptions& options)
-{
-    return buildEditRequestBody(options);
 }
 
 void QwenImageClient::storePendingRequest(const QString& requestId, const GenerateOptions& options)

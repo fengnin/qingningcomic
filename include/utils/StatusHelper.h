@@ -46,7 +46,7 @@ namespace Job {
             {"generate_panel_image", QString::fromUtf8("面板高清生成")},
             {"GeneratePanels", QString::fromUtf8("面板预览")},
             {"generate_panels", QString::fromUtf8("面板预览")},
-            {"change_request", QString::fromUtf8("修改请求执行")},
+            {"change_request", QString::fromUtf8("修改请求")},
             {"panel_edit", QString::fromUtf8("面板编辑")},
             {"generate_portrait", QString::fromUtf8("角色标准像")},
             {"export_pdf", QString::fromUtf8("导出 PDF")},

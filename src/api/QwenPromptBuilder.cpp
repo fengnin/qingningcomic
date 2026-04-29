@@ -2,6 +2,7 @@
 #include "services/BibleContextInjector.h"
 #include "utils/SchemaToPrompt.h"
 #include "utils/SchemaFileUtils.h"
+#include "utils/ChangeRequestParseUtils.h"
 #include "utils/Logger.h"
 
 namespace {
@@ -177,14 +178,14 @@ QString QwenPromptBuilder::buildUserMessageWithBible(
         text, existingCharacters, existingScenes, chapterNumber);
 }
 
+QString QwenPromptBuilder::buildChangeRequestSystemPrompt()
+{
+    return ChangeRequestParseUtils::buildChangeRequestSystemPrompt();
+}
+
 QString QwenPromptBuilder::buildChangeRequestPrompt()
 {
-    return joinPromptLines({
-        QStringLiteral("你是漫画分镜编辑助手。"),
-        QString(),
-        QStringLiteral("请将用户的自然语言修改需求转换为结构化 CR-DSL JSON。"),
-        QStringLiteral("只输出 JSON，不要添加额外说明。")
-    });
+    return buildChangeRequestSystemPrompt();
 }
 
 QString QwenPromptBuilder::buildDialogueRewritePrompt()

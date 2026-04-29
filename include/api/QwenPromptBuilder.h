@@ -9,6 +9,7 @@ class QwenPromptBuilder
 {
 public:
     static QString buildSystemPrompt(const QString& schemaPath = "schemas/storyboard.json");
+    static QString buildChangeRequestSystemPrompt();
     static QString buildChangeRequestPrompt();
     static QString buildDialogueRewritePrompt();
     static QString buildUserMessageWithBible(

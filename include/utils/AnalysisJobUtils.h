@@ -12,6 +12,11 @@
 
 namespace AnalysisJobUtils {
 
+inline QString mysqlLocalTimestamp()
+{
+    return QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+}
+
 inline QString createJob(const QString& novelId, int chapterNumber)
 {
     QString jobId = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -26,8 +31,8 @@ inline QString createJob(const QString& novelId, int chapterNumber)
     data["status"] = "running";
     data["novel_id"] = novelId;
     data["params"] = paramsJson;
-    data["created_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    data["updated_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    data["created_at"] = mysqlLocalTimestamp();
+    data["updated_at"] = mysqlLocalTimestamp();
     
     if (DatabaseManager::instance()->insert("jobs", data) < 0) {
         LOG_ERROR("AnalysisJobUtils", "Failed to create job");
@@ -49,7 +54,7 @@ inline void updateJobStatus(const QString& jobId, const QString& status, const Q
     
     QVariantMap data;
     data["status"] = status;
-    data["updated_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    data["updated_at"] = mysqlLocalTimestamp();
     
     if (status == "completed") {
         data["progress"] = 100;

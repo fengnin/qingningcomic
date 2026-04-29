@@ -1,6 +1,8 @@
 #include "utils/PromptBuilder.h"
 #include "services/CharacterExtractor.h"
+#include "utils/ChangeRequestIntentUtils.h"
 #include "utils/Logger.h"
+#include "utils/PromptTargetUtils.h"
 #include <QRegularExpression>
 
 namespace {
@@ -134,8 +136,6 @@ namespace {
         return normalized;
     }
 
-    bool isSceneFocusedPrompt(const QString& text);
-    bool isCharacterFocusedPrompt(const QString& text);
     QString formatCharacterDescriptorLocal(const QString& name,
                                            const QString& pose,
                                            const QString& expression);
@@ -146,26 +146,7 @@ namespace {
     void addIfNotEmpty(QStringList& parts, const QString& value);
     void addIfContains(QStringList& parts, const QJsonObject& obj, const QString& key, const QString& format = QString());
     QString optionOrDefault(const QJsonObject& options, const QString& key, const QString& fallback);
-
-    QString resolvePanelPromptTarget(const QJsonObject& options,
-                                     const QString& editPrompt,
-                                     const QString& panelSceneText)
-    {
-        QString promptTarget = options.value("promptTarget").toString().trimmed().toLower();
-        if (!promptTarget.isEmpty()) {
-            return promptTarget;
-        }
-
-        const bool sceneFocused = isSceneFocusedPrompt(editPrompt) || isSceneFocusedPrompt(panelSceneText);
-        const bool characterFocused = isCharacterFocusedPrompt(editPrompt);
-        if (sceneFocused && !characterFocused) {
-            return QStringLiteral("scene");
-        }
-        if (characterFocused && !sceneFocused) {
-            return QStringLiteral("character");
-        }
-        return QString();
-    }
+    QString buildEditDirective(const QString& editPrompt, const QString& target, const QString& editIntent);
 
     QString buildPanelCharacterDescription(const QString& name,
                                            const QString& pose,
@@ -267,25 +248,59 @@ namespace {
     }
 
     QString selectPanelReference(const QString& promptTarget,
+                                 const QString& editIntent,
+                                 const QString& editPrompt,
                                  const QString& primaryCharacterRef,
                                  const QString& primarySceneRef,
                                  QString& selectedRefType)
     {
-        QString selectedRef = primaryCharacterRef;
-        selectedRefType = QStringLiteral("character");
+        const QString normalizedPromptTarget = promptTarget.trimmed().toLower();
+        const bool preferSceneReference = PromptTargetUtils::shouldPreferSceneReferenceForEditIntent(
+            editIntent,
+            editPrompt);
 
-        if (!primarySceneRef.isEmpty() && (promptTarget == QStringLiteral("scene") || primaryCharacterRef.isEmpty())
-            && promptTarget != QStringLiteral("character")) {
-            selectedRef = primarySceneRef;
+        if (normalizedPromptTarget == QStringLiteral("scene") && !primarySceneRef.isEmpty()) {
             selectedRefType = QStringLiteral("scene");
+            return primarySceneRef;
         }
 
-        if (selectedRef.isEmpty() && !primarySceneRef.isEmpty()) {
-            selectedRef = primarySceneRef;
-            selectedRefType = QStringLiteral("scene");
+        if (normalizedPromptTarget == QStringLiteral("scene") && !primaryCharacterRef.isEmpty()) {
+            selectedRefType = QStringLiteral("character");
+            return primaryCharacterRef;
         }
 
-        return selectedRef;
+        if (normalizedPromptTarget == QStringLiteral("character") && !primaryCharacterRef.isEmpty()) {
+            selectedRefType = QStringLiteral("character");
+            return primaryCharacterRef;
+        }
+
+        if (normalizedPromptTarget == QStringLiteral("character") && !primarySceneRef.isEmpty()) {
+            selectedRefType = QStringLiteral("scene");
+            return primarySceneRef;
+        }
+
+        if (preferSceneReference && !primarySceneRef.isEmpty()) {
+            selectedRefType = QStringLiteral("scene");
+            return primarySceneRef;
+        }
+
+        if (primaryCharacterRef.isEmpty() && !primarySceneRef.isEmpty()) {
+            selectedRefType = QStringLiteral("scene");
+            return primarySceneRef;
+        }
+
+        if (!primaryCharacterRef.isEmpty() && normalizedPromptTarget != QStringLiteral("scene")) {
+            selectedRefType = QStringLiteral("character");
+            return primaryCharacterRef;
+        }
+
+        if (!primarySceneRef.isEmpty()) {
+            selectedRefType = QStringLiteral("scene");
+            return primarySceneRef;
+        }
+
+        selectedRefType.clear();
+        return QString();
     }
     
     const QMap<QString, QString> EXPRESSION_MAPPING = buildMapping({
@@ -355,44 +370,6 @@ namespace {
         }
     }
 
-    bool containsAnyKeyword(const QString& text, const QStringList& keywords)
-    {
-        const QString lower = text.toLower();
-        for (const QString& keyword : keywords) {
-            if (lower.contains(keyword.toLower())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool isSceneFocusedPrompt(const QString& text)
-    {
-        static const QStringList keywords = {
-            "scene", "background", "environment", "setting", "location",
-            "room", "street", "building", "architecture", "landscape",
-            "sky", "weather", "light", "lighting", "atmosphere",
-            QString::fromUtf8("\u573a\u666f"), QString::fromUtf8("\u80cc\u666f"), QString::fromUtf8("\u73af\u5883"),
-            QString::fromUtf8("\u8bbe\u5b9a"), QString::fromUtf8("\u4f4d\u7f6e"), QString::fromUtf8("\u5efa\u7b51"),
-            QString::fromUtf8("\u5929\u7a7a"), QString::fromUtf8("\u6c14\u5019"), QString::fromUtf8("\u5149\u7ebf"),
-            QString::fromUtf8("\u6c1b\u56f4"), QString::fromUtf8("\u98ce\u683c"), QString::fromUtf8("\u8272\u8c03")
-        };
-        return containsAnyKeyword(text, keywords);
-    }
-
-    bool isCharacterFocusedPrompt(const QString& text)
-    {
-        static const QStringList keywords = {
-            "character", "person", "face", "expression", "outfit",
-            "clothing", "hair", "pose", "body", "identity",
-            QString::fromUtf8("\u89d2\u8272"), QString::fromUtf8("\u4eba\u7269"), QString::fromUtf8("\u9762\u90e8"),
-            QString::fromUtf8("\u8868\u60c5"), QString::fromUtf8("\u670d\u88c5"), QString::fromUtf8("\u53d1\u578b"),
-            QString::fromUtf8("\u59ff\u52bf"), QString::fromUtf8("\u5916\u89c2"), QString::fromUtf8("\u8eab\u6750"),
-            QString::fromUtf8("\u7279\u5f81"), QString::fromUtf8("\u6027\u683c"), QString::fromUtf8("\u795e\u6001")
-        };
-        return containsAnyKeyword(text, keywords);
-    }
-
     QString combineEditPrompt(const QString& promptCn, const QString& promptEn)
     {
         QStringList prompts;
@@ -430,25 +407,90 @@ namespace {
         return result.trimmed();
     }
 
-    QString buildEditDirective(const QString& editPrompt, const QString& target)
+    QString buildEditDirective(const QString& editPrompt, const QString& target, const QString& editIntent)
     {
         if (editPrompt.isEmpty()) {
             return QString();
         }
 
         QString normalizedTarget = target.trimmed().toLower();
+        const QString normalizedEditIntent = editIntent.trimmed().toLower();
+
+        if (PromptTargetUtils::isLocalObjectMovementIntent(normalizedEditIntent)) {
+            return QString("localized object movement edit only, move the specified object from its original position into the requested container or location, remove the original occurrence, rebuild the vacated area naturally, keep the object identity, scene, framing, lighting, and composition stable, do not duplicate the object or turn this into a character edit, apply this edit strictly: %1")
+                .arg(editPrompt);
+        }
+
+        if (normalizedEditIntent == QStringLiteral("replace_subject")) {
+            if (normalizedTarget == QStringLiteral("character") || PromptTargetUtils::isCharacterFocusedPrompt(editPrompt)) {
+                return QString("character replacement edit only, replace the existing subject with the specified identity, keep the scene, framing, pose, lighting, and composition stable, lock the subject identity to the provided character reference, do not redraw the surrounding background, apply this edit strictly: %1")
+                    .arg(editPrompt);
+            }
+            return QString("localized object replacement edit only, replace the specific local object or subject named in the request, keep the surrounding scene, framing, lighting, and composition stable, do not expand the edit to the whole character or whole image, apply this edit strictly: %1")
+                .arg(editPrompt);
+        }
+
+        if (normalizedEditIntent == QStringLiteral("replace_attribute")) {
+            return QString("localized character attribute edit only, change only the requested clothing, hair, accessory, material, texture, or color detail, keep the character identity, pose, expression, scene, framing, lighting, and composition stable, do not replace the whole character, apply this edit strictly: %1")
+                .arg(editPrompt);
+        }
+
+        if (PromptTargetUtils::isRemovalIntentText(editPrompt)) {
+            return QString("scene edit only, remove the specified subject, rebuild the covered background naturally, keep all remaining characters, composition, perspective, lighting, and color continuity stable, apply this edit strictly: %1")
+                .arg(editPrompt);
+        }
+
         if (normalizedTarget == "scene") {
             return QString("scene edit only, keep character identity and pose stable, apply this edit strictly: %1")
                 .arg(editPrompt);
         }
 
         if (normalizedTarget == "character") {
-            return QString("character edit only, keep background and camera stable, apply this edit strictly: %1")
+            return QString("face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: %1")
                 .arg(editPrompt);
         }
 
         return QString("apply this edit strictly while preserving the existing composition: %1")
             .arg(editPrompt);
+    }
+
+    QString buildAspectRatioDirective(const QJsonObject& options)
+    {
+        const QString aspectRatio = optionOrDefault(options, "aspectRatio", QString());
+        const QString composition = optionOrDefault(options, "composition", QString());
+
+        if (aspectRatio.isEmpty() && composition.isEmpty()) {
+            return QString();
+        }
+
+        QStringList parts;
+        const QString normalizedAspectRatio = aspectRatio.trimmed().toLower();
+        if (normalizedAspectRatio == QStringLiteral("1x1") || normalizedAspectRatio == QStringLiteral("1:1")) {
+            parts << QStringLiteral("square composition")
+                  << QStringLiteral("centered framing")
+                  << QStringLiteral("equal width and height");
+        } else if (normalizedAspectRatio == QStringLiteral("16:9")
+                   || normalizedAspectRatio == QStringLiteral("16x9")) {
+            parts << QStringLiteral("widescreen composition");
+        } else if (normalizedAspectRatio == QStringLiteral("3:2")
+                   || normalizedAspectRatio == QStringLiteral("3x2")) {
+            parts << QStringLiteral("landscape composition");
+        } else if (!aspectRatio.isEmpty()) {
+            parts << QString("strictly maintain %1 aspect ratio").arg(aspectRatio);
+        }
+
+        if (!composition.isEmpty()) {
+            if (composition.compare(QStringLiteral("square"), Qt::CaseInsensitive) == 0) {
+                if (!parts.contains(QStringLiteral("square composition"))) {
+                    parts.prepend(QStringLiteral("square composition"));
+                }
+                parts << QStringLiteral("balanced framing");
+            } else {
+                parts << QString("%1 composition").arg(composition);
+            }
+        }
+
+        return parts.join(", ");
     }
 
     QString firstNonEmptyPortrait(const QStringList &portraitPaths) {
@@ -859,6 +901,11 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                                                               const QJsonObject &options)
 {
     QString mode = optionOrDefault(options, "mode", "preview");
+    LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt entered: panelId=%1, mode=%2, charRefs=%3, sceneRefs=%4")
+        .arg(panel.value("id").toString())
+        .arg(mode)
+        .arg(characterRefs.size())
+        .arg(sceneRefs.size()));
     
     QStringList parts;
     parts << "manga panel illustration";
@@ -871,17 +918,29 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QString visualPrompt = panel["visualPrompt"].toString().trimmed();
     QString visualPromptEn = panel["visualPromptEn"].toString().trimmed();
     QString editPrompt = combineEditPrompt(visualPrompt, visualPromptEn);
+    QString editIntent = panel["editIntent"].toString().trimmed();
     QString panelSceneText = panel["scene"].toString();
-    QString promptTarget = resolvePanelPromptTarget(options, editPrompt, panelSceneText);
+    const QString promptTarget = PromptTargetUtils::resolveEditPromptTarget(
+        panel,
+        options.value("promptTarget").toString(),
+        editPrompt,
+        panelSceneText);
+    LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage1: panelId=%1, promptTarget=%2, editPromptLen=%3")
+        .arg(panel.value("id").toString())
+        .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
+        .arg(editPrompt.length()));
 
     if (!editPrompt.isEmpty()) {
-        parts.append(buildEditDirective(editPrompt, promptTarget));
+        parts.append(buildEditDirective(editPrompt, promptTarget, editIntent));
     }
     
     addIfNotEmpty(parts, matchSceneDetails(sceneRefs, sceneId, sceneName));
     addIfNotEmpty(parts, panelSceneText);
 
     appendPanelVisualDescriptors(panel, parts);
+    LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage2: panelId=%1, parts=%2 after scene/visual")
+        .arg(panel.value("id").toString())
+        .arg(parts.size()));
     
     QStringList dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
     QString primarySceneRef = resolveSceneRefPath(sceneRefs, sceneId, sceneName);
@@ -895,13 +954,24 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                                  panelCharNames,
                                  characterDescriptions,
                                  primaryCharacterRef);
+    LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage3: panelId=%1, panelChars=%2, charDesc=%3, primaryCharRef=%4, primarySceneRef=%5")
+        .arg(panel.value("id").toString())
+        .arg(panelCharNames.join(", "))
+        .arg(characterDescriptions.size())
+        .arg(primaryCharacterRef.isEmpty() ? "(none)" : primaryCharacterRef.left(30))
+        .arg(primarySceneRef.isEmpty() ? "(none)" : primarySceneRef.left(30)));
     
     if (!characterDescriptions.isEmpty()) {
         parts.append(QString("character identity lock: %1").arg(characterDescriptions.join("; ")));
     }
 
     QString selectedRefType;
-    QString selectedRef = selectPanelReference(promptTarget, primaryCharacterRef, primarySceneRef, selectedRefType);
+    QString selectedRef = selectPanelReference(promptTarget,
+                                               editIntent,
+                                               editPrompt,
+                                               primaryCharacterRef,
+                                               primarySceneRef,
+                                               selectedRefType);
 
     if (selectedRefType == QStringLiteral("scene")) {
         parts.append("use the scene reference as the environment anchor");
@@ -909,10 +979,15 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         parts.append("use the character reference as the identity anchor");
     }
 
+    addIfNotEmpty(parts, buildAspectRatioDirective(options));
+
     parts << "full-color vibrant palette, no grayscale output";
     parts << (mode == "preview" ? "preview quality" : "high resolution detailed render");
     parts << JAPANESE_MANGA_DIRECTIVE;
     parts << "dynamic lighting, high quality manga aesthetics";
+    LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage4: panelId=%1, finalParts=%2")
+        .arg(panel.value("id").toString())
+        .arg(parts.size()));
     
     QStringList refUris;
     if (!selectedRef.isEmpty()) {

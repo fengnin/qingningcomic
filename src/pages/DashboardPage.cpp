@@ -4,11 +4,14 @@
 #include "utils/StatusHelper.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
+#include "services/ChangeRequestService.h"
+#include "services/ServiceContainer.h"
 #include "services/TaskQueue.h"
 #include "components/EditorStyles.h"
 #include "utils/EncodingUtils.h"
 #include "utils/UserSession.h"
 #include <QGridLayout>
+#include <algorithm>
 #include <QFont>
 #include <QTimer>
 #include <QMap>
@@ -83,6 +86,7 @@ namespace {
     const QString EMPTY_JOBS_TEXT = QString::fromUtf8("暂无任务记录");
     const QString EMPTY_ACTIVE_JOBS_TEXT = QString::fromUtf8("暂无进行中的任务");
     const QString ACTIVE_JOBS_WHERE = "status IN ('running', 'in_progress', 'pending')";
+    const QString ACTIVE_CHANGE_REQUESTS_WHERE = "status IN ('queued', 'pending', 'in_progress')";
     
     const QString CARD_TITLE_JOB_OVERVIEW = QString::fromUtf8("任务总览");
     const QString CARD_SUBTITLE_JOB_OVERVIEW = QString::fromUtf8("最新任务按时间排序");
@@ -100,6 +104,15 @@ namespace {
             return false;
         }
         return normalized != "cancelled";
+    }
+
+    QDateTime parseDashboardDateTimeImpl(const QString& value)
+    {
+        QDateTime dt = QDateTime::fromString(value, QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        if (!dt.isValid()) {
+            dt = QDateTime::fromString(value, Qt::ISODate);
+        }
+        return dt;
     }
 }
 
@@ -139,6 +152,18 @@ void DashboardPage::setupConnections()
                 this, [this](const QString&, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
         connect(taskQueue, &TaskQueue::taskCancelled,
                 this, [this](const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+    }
+
+    ChangeRequestService* changeRequestService = ServiceContainer::instance()->changeRequestService();
+    if (changeRequestService) {
+        connect(changeRequestService, &ChangeRequestService::changeRequestCreated,
+                this, [this](const ChangeRequest&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(changeRequestService, &ChangeRequestService::changeRequestCompleted,
+                this, [this](const QString&, const QJsonObject&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(changeRequestService, &ChangeRequestService::changeRequestFailed,
+                this, [this](const QString&, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
+        connect(changeRequestService, &ChangeRequestService::progressChanged,
+                this, [this](const QString&, int, int, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
     }
     
     m_refreshTimer = new QTimer(this);
@@ -246,26 +271,37 @@ void DashboardPage::loadStatsFromDatabase()
         "jobs",
         "novel_id IN (SELECT id FROM novels WHERE user_id = ?)",
         QVariantList{userId});
+    QList<QVariantMap> changeRequests = db->selectAll(
+        "change_requests",
+        "novel_id IN (SELECT id FROM novels WHERE user_id = ?)",
+        QVariantList{userId});
 
     int totalJobs = 0;
     int runningJobs = 0;
     int completedJobs = 0;
     int failedJobs = 0;
 
-    for (const QVariantMap& job : jobs) {
-        QString status = job.value("status").toString().toLower();
+    auto accumulateStatus = [&](const QVariantMap& item) {
+        const QString status = item.value("status").toString().toLower();
         if (!isCountedDashboardJobStatus(status)) {
-            continue;
+            return;
         }
 
         ++totalJobs;
-        if (status == "running" || status == "in_progress" || status == "pending") {
-            runningJobs++;
+        if (status == "running" || status == "in_progress" || status == "pending" || status == "queued") {
+            ++runningJobs;
         } else if (status == "completed") {
-            completedJobs++;
+            ++completedJobs;
         } else if (status == "failed") {
-            failedJobs++;
+            ++failedJobs;
         }
+    };
+
+    for (const QVariantMap& job : jobs) {
+        accumulateStatus(job);
+    }
+    for (const QVariantMap& changeRequest : changeRequests) {
+        accumulateStatus(changeRequest);
     }
 
     updateJobStats(totalJobs, runningJobs, completedJobs, failedJobs);
@@ -518,18 +554,30 @@ QWidget* DashboardPage::createJobOverviewCard()
 
 void DashboardPage::populateJobOverviewList()
 {
-    const QList<QVariantMap> jobs = loadDashboardJobs(QString(), QVariantList(),
-                                                      "created_at DESC",
-                                                      Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
-    renderJobList(m_jobOverviewLayout, jobs, EMPTY_JOBS_TEXT, false);
+    QList<JobItemData> jobs = loadOverviewTimelineItems();
+    std::sort(jobs.begin(), jobs.end(), [](const JobItemData& left, const JobItemData& right) {
+        return left.sortTime > right.sortTime;
+    });
+
+    if (jobs.size() > Constants::DASHBOARD_MAX_OVERVIEW_JOBS) {
+        jobs = jobs.mid(0, Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    }
+
+    renderJobList(m_jobOverviewLayout, jobs, EMPTY_JOBS_TEXT);
 }
 
 void DashboardPage::populateActiveJobsList()
 {
-    const QList<QVariantMap> jobs = loadDashboardJobs(ACTIVE_JOBS_WHERE, QVariantList(),
-                                                      "created_at DESC",
-                                                      Constants::DASHBOARD_MAX_ACTIVE_JOBS);
-    renderJobList(m_activeJobsLayout, jobs, EMPTY_ACTIVE_JOBS_TEXT, true);
+    QList<JobItemData> items = loadActiveTimelineItems();
+    std::sort(items.begin(), items.end(), [](const JobItemData& left, const JobItemData& right) {
+        return left.sortTime > right.sortTime;
+    });
+
+    if (items.size() > Constants::DASHBOARD_MAX_ACTIVE_JOBS) {
+        items = items.mid(0, Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    }
+
+    renderJobList(m_activeJobsLayout, items, EMPTY_ACTIVE_JOBS_TEXT);
 }
 
 QList<QVariantMap> DashboardPage::loadDashboardJobs(const QString &whereClause,
@@ -551,8 +599,81 @@ QList<QVariantMap> DashboardPage::loadDashboardJobs(const QString &whereClause,
     return db->selectAll("jobs", finalWhere, finalValues, orderBy, limit);
 }
 
-void DashboardPage::renderJobList(QVBoxLayout *layout, const QList<QVariantMap> &jobs,
-                                  const QString &emptyText, bool showProgress)
+QList<QVariantMap> DashboardPage::loadDashboardChangeRequests(const QString &whereClause,
+                                                              const QVariantList &whereValues,
+                                                              const QString &orderBy,
+                                                              int limit) const
+{
+    DatabaseManager* db = DatabaseManager::instance();
+    QString userId = UserSession::instance()->currentUserId();
+
+    QString finalWhere = "novel_id IN (SELECT id FROM novels WHERE user_id = ?)";
+    QVariantList finalValues = QVariantList{userId};
+
+    if (!whereClause.isEmpty()) {
+        finalWhere += " AND " + whereClause;
+        finalValues.append(whereValues);
+    }
+
+    return db->selectAll("change_requests", finalWhere, finalValues, orderBy, limit);
+}
+
+QList<DashboardPage::JobItemData> DashboardPage::loadActiveJobItems() const
+{
+    QList<JobItemData> items;
+    const QList<QVariantMap> jobs = loadDashboardJobs(ACTIVE_JOBS_WHERE, QVariantList(),
+                                                      "created_at DESC",
+                                                      Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    for (const QVariantMap& job : jobs) {
+        items.append(buildJobItemData(job, true));
+    }
+    return items;
+}
+
+QList<DashboardPage::JobItemData> DashboardPage::loadActiveChangeRequestItems() const
+{
+    QList<JobItemData> items;
+    const QList<QVariantMap> changeRequests = loadDashboardChangeRequests(
+        ACTIVE_CHANGE_REQUESTS_WHERE,
+        QVariantList(),
+        "created_at DESC",
+        Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    for (const QVariantMap& row : changeRequests) {
+        items.append(buildChangeRequestItemData(row, true));
+    }
+    return items;
+}
+
+QList<DashboardPage::JobItemData> DashboardPage::loadOverviewTimelineItems() const
+{
+    QList<JobItemData> items;
+
+    const QList<QVariantMap> jobs = loadDashboardJobs(QString(), QVariantList(),
+                                                      "created_at DESC",
+                                                      Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    for (const QVariantMap& job : jobs) {
+        items.append(buildJobItemData(job, false));
+    }
+
+    const QList<QVariantMap> changeRequests = loadDashboardChangeRequests(QString(), QVariantList(),
+                                                                          "created_at DESC",
+                                                                          Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    for (const QVariantMap& changeRequest : changeRequests) {
+        items.append(buildChangeRequestItemData(changeRequest, false));
+    }
+
+    return items;
+}
+
+QList<DashboardPage::JobItemData> DashboardPage::loadActiveTimelineItems() const
+{
+    QList<JobItemData> items = loadActiveJobItems();
+    items.append(loadActiveChangeRequestItems());
+    return items;
+}
+
+void DashboardPage::renderJobList(QVBoxLayout *layout, const QList<JobItemData> &jobs,
+                                  const QString &emptyText)
 {
     if (!layout) return;
 
@@ -567,8 +688,8 @@ void DashboardPage::renderJobList(QVBoxLayout *layout, const QList<QVariantMap> 
         return;
     }
 
-    for (const QVariantMap& job : jobs) {
-        layout->addWidget(createJobItemWidget(buildJobItemData(job, showProgress)));
+    for (const JobItemData& item : jobs) {
+        layout->addWidget(createJobItemWidget(item));
     }
 
     layout->addStretch();
@@ -582,6 +703,20 @@ DashboardPage::JobItemData DashboardPage::buildJobItemData(const QVariantMap &jo
     data.time = job.value("created_at").toString();
     data.progress = job.value("progress").toInt();
     data.showProgress = showProgress;
+    data.sortTime = parseDashboardDateTime(job.value("created_at").toString());
+    return data;
+}
+
+DashboardPage::JobItemData DashboardPage::buildChangeRequestItemData(const QVariantMap &changeRequest, bool showProgress) const
+{
+    JobItemData data;
+    data.type = StatusHelper::Job::typeLabel(QStringLiteral("change_request"));
+    const QString status = changeRequest.value("status").toString();
+    data.status = StatusHelper::Job::statusLabel(status);
+    data.time = changeRequest.value("created_at").toString();
+    data.progress = changeRequestProgressForStatus(status);
+    data.showProgress = showProgress;
+    data.sortTime = parseDashboardDateTime(changeRequest.value("created_at").toString());
     return data;
 }
 
@@ -673,6 +808,32 @@ QWidget* DashboardPage::createActiveJobsFooter()
     footerLayout->addWidget(footerLabel);
     
     return footer;
+}
+
+QDateTime DashboardPage::parseDashboardDateTime(const QString &value)
+{
+    return parseDashboardDateTimeImpl(value);
+}
+
+int DashboardPage::changeRequestProgressForStatus(const QString &status)
+{
+    const QString normalized = status.trimmed().toLower();
+    if (normalized == QStringLiteral("queued")) {
+        return 10;
+    }
+    if (normalized == QStringLiteral("pending")) {
+        return 35;
+    }
+    if (normalized == QStringLiteral("in_progress")) {
+        return 70;
+    }
+    if (normalized == QStringLiteral("completed")) {
+        return 100;
+    }
+    if (normalized == QStringLiteral("failed")) {
+        return 0;
+    }
+    return 0;
 }
 
 

@@ -4,6 +4,9 @@
 #include "utils/SingletonUtils.h"
 #include "utils/PromptBuilder.h"
 #include "utils/ImageModeUtils.h"
+#include "utils/FaceEditPromptUtils.h"
+#include "utils/LocalEditPromptUtils.h"
+#include "utils/PromptTargetUtils.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
 #include "api/StorageClient.h"
@@ -13,13 +16,22 @@
 #include "services/SceneExtractor.h"
 #include "services/TaskQueue.h"
 #include "models/Task.h"
+#include "utils/StatusWriteUtils.h"
+#include "utils/ChangeRequestExpressionUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/AppConfig.h"
 #include <QJsonDocument>
 #include <QDateTime>
+#include <QColor>
 #include <QFileInfo>
+#include <QBuffer>
 #include <QImage>
+#include <QPointF>
+#include <QRectF>
+#include <QSize>
+#include <QPainter>
+#include <QRadialGradient>
 #include <QSqlQuery>
 #include <QtConcurrent>
 #include <QThread>
@@ -39,6 +51,225 @@ QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
     json["height"] = result.height;
     json["timestamp"] = result.timestamp;
     return json;
+}
+
+QByteArray imageToPngBytes(const QImage& image)
+{
+    QByteArray bufferData;
+    QBuffer buffer(&bufferData);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        return QByteArray();
+    }
+    if (!image.save(&buffer, "PNG")) {
+        return QByteArray();
+    }
+    return bufferData;
+}
+
+QRectF faceEditRegionImpl(const Panel& panel, int width, int height)
+{
+    const QString shotType = panel.shotType().trimmed().toLower();
+
+    double regionWidthRatio = 0.24;
+    double regionHeightRatio = 0.24;
+    double centerXRatio = 0.50;
+    double centerYRatio = 0.22;
+
+    if (shotType.contains("close-up") || shotType.contains("portrait") || shotType.contains("single")
+        || shotType.contains(QString::fromUtf8("特写")) || shotType.contains(QString::fromUtf8("近景"))) {
+        regionWidthRatio = 0.30;
+        regionHeightRatio = 0.32;
+        centerYRatio = 0.20;
+    } else if (shotType.contains("medium") || shotType.contains(QString::fromUtf8("中景"))) {
+        regionWidthRatio = 0.20;
+        regionHeightRatio = 0.22;
+        centerYRatio = 0.19;
+    } else if (shotType.contains("wide") || shotType.contains("full") || shotType.contains("long")
+               || shotType.contains(QString::fromUtf8("远景")) || shotType.contains(QString::fromUtf8("全景"))) {
+        regionWidthRatio = 0.16;
+        regionHeightRatio = 0.18;
+        centerYRatio = 0.17;
+    }
+
+    const double regionWidth = qMax(72.0, width * regionWidthRatio);
+    const double regionHeight = qMax(72.0, height * regionHeightRatio);
+    const double centerX = width * centerXRatio;
+    const double centerY = height * centerYRatio;
+
+    return QRectF(centerX - regionWidth / 2.0,
+                  centerY - regionHeight / 2.0,
+                  regionWidth,
+                  regionHeight);
+}
+
+QRectF subjectReplacementRegionImpl(const Panel& panel, int width, int height)
+{
+    const QString shotType = panel.shotType().trimmed().toLower();
+
+    double regionWidthRatio = 0.42;
+    double regionHeightRatio = 0.56;
+    double centerXRatio = 0.50;
+    double centerYRatio = 0.38;
+
+    if (shotType.contains("close-up") || shotType.contains("portrait") || shotType.contains("single")
+        || shotType.contains(QString::fromUtf8("特写")) || shotType.contains(QString::fromUtf8("近景"))) {
+        regionWidthRatio = 0.48;
+        regionHeightRatio = 0.62;
+        centerYRatio = 0.40;
+    } else if (shotType.contains("medium") || shotType.contains(QString::fromUtf8("中景"))) {
+        regionWidthRatio = 0.54;
+        regionHeightRatio = 0.70;
+        centerYRatio = 0.46;
+    } else if (shotType.contains("wide") || shotType.contains("full") || shotType.contains("long")
+               || shotType.contains(QString::fromUtf8("远景")) || shotType.contains(QString::fromUtf8("全景"))) {
+        regionWidthRatio = 0.62;
+        regionHeightRatio = 0.78;
+        centerYRatio = 0.52;
+    }
+
+    const double regionWidth = qMax(110.0, width * regionWidthRatio);
+    const double regionHeight = qMax(130.0, height * regionHeightRatio);
+    const double centerX = width * centerXRatio;
+    const double centerY = height * centerYRatio;
+
+    return QRectF(centerX - regionWidth / 2.0,
+                  centerY - regionHeight / 2.0,
+                  regionWidth,
+                  regionHeight);
+}
+
+QRectF expandFaceRegionImpl(const QRectF& region, double scale, const QSize& canvasSize)
+{
+    if (region.isEmpty() || canvasSize.width() <= 0 || canvasSize.height() <= 0) {
+        return QRectF();
+    }
+
+    const double clampedScale = qBound(1.0, scale, 1.8);
+    const QPointF center = region.center();
+    const double width = qMin(static_cast<double>(canvasSize.width()), region.width() * clampedScale);
+    const double height = qMin(static_cast<double>(canvasSize.height()), region.height() * clampedScale);
+    QRectF expanded(center.x() - width / 2.0,
+                    center.y() - height / 2.0,
+                    width,
+                    height);
+    expanded = expanded.intersected(QRectF(0.0, 0.0, canvasSize.width(), canvasSize.height()));
+    return expanded;
+}
+
+QByteArray buildFaceEditMaskBytesImpl(const QRectF& region,
+                                      const QSize& canvasSize,
+                                      double coreRatio,
+                                      double featherRatio)
+{
+    if (canvasSize.width() <= 0 || canvasSize.height() <= 0 || region.isEmpty()) {
+        return QByteArray();
+    }
+
+    QImage mask(canvasSize, QImage::Format_ARGB32_Premultiplied);
+    mask.fill(Qt::transparent);
+
+    QPainter painter(&mask);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+
+    const QPointF center(region.center());
+    const qreal radius = qMax(region.width(), region.height()) * 0.48;
+    QRadialGradient gradient(center, radius);
+    const qreal clampedCoreRatio = qBound<qreal>(static_cast<qreal>(0.0),
+                                                  static_cast<qreal>(coreRatio),
+                                                  static_cast<qreal>(0.99));
+    const qreal clampedFeatherRatio = qBound<qreal>(static_cast<qreal>(0.0),
+                                                    static_cast<qreal>(featherRatio),
+                                                    static_cast<qreal>(1.0) - clampedCoreRatio);
+    const qreal fadeStart = qBound<qreal>(static_cast<qreal>(0.01), clampedCoreRatio, static_cast<qreal>(0.99));
+    const qreal fadeEnd = qBound<qreal>(fadeStart,
+                                        fadeStart + clampedFeatherRatio,
+                                        static_cast<qreal>(0.995));
+    gradient.setColorAt(0.0, QColor(255, 255, 255, 255));
+    gradient.setColorAt(fadeStart, QColor(255, 255, 255, 255));
+    gradient.setColorAt(fadeEnd, QColor(255, 255, 255, 0));
+    gradient.setColorAt(1.0, QColor(255, 255, 255, 0));
+    painter.setBrush(gradient);
+    painter.drawEllipse(region);
+    painter.end();
+
+    return imageToPngBytes(mask);
+}
+
+QImage loadImageFromBytes(const QByteArray& data)
+{
+    QImage image;
+    image.loadFromData(data);
+    if (image.isNull()) {
+        return image;
+    }
+    return image.convertToFormat(QImage::Format_ARGB32);
+}
+
+QByteArray blendEditedCropIntoOriginalImpl(const QByteArray& originalImage,
+                                           const QByteArray& editedImage,
+                                           const QRect& cropRect,
+                                           const QByteArray& maskImage)
+{
+    if (originalImage.isEmpty() || editedImage.isEmpty() || !cropRect.isValid() || cropRect.isEmpty()) {
+        return editedImage.isEmpty() ? originalImage : editedImage;
+    }
+
+    const QImage original = loadImageFromBytes(originalImage);
+    QImage edited = loadImageFromBytes(editedImage);
+    const QImage mask = loadImageFromBytes(maskImage);
+
+    if (original.isNull() || edited.isNull()) {
+        return editedImage;
+    }
+
+    const QRect targetRect = cropRect.intersected(original.rect());
+    if (targetRect.isEmpty()) {
+        return editedImage;
+    }
+
+    const QSize targetSize = targetRect.size();
+    if (edited.size() != targetSize) {
+        edited = edited.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+            .convertToFormat(QImage::Format_ARGB32);
+    } else {
+        edited = edited.convertToFormat(QImage::Format_ARGB32);
+    }
+
+    QImage normalizedMask;
+    if (!mask.isNull() && mask.size() == targetSize) {
+        normalizedMask = mask.convertToFormat(QImage::Format_ARGB32);
+    } else if (!mask.isNull() && !mask.size().isEmpty()) {
+        normalizedMask = mask.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+            .convertToFormat(QImage::Format_ARGB32);
+    } else {
+        normalizedMask = QImage();
+    }
+
+    const QImage originalArgb = original.convertToFormat(QImage::Format_ARGB32);
+    QImage blended = originalArgb;
+    const bool hasMask = !normalizedMask.isNull();
+
+    for (int y = 0; y < targetSize.height(); ++y) {
+        const int originalY = targetRect.y() + y;
+        const QRgb* originalLine = reinterpret_cast<const QRgb*>(originalArgb.constScanLine(originalY));
+        const QRgb* editedLine = reinterpret_cast<const QRgb*>(edited.constScanLine(y));
+        const QRgb* maskLine = hasMask ? reinterpret_cast<const QRgb*>(normalizedMask.constScanLine(y)) : nullptr;
+        QRgb* blendedLine = reinterpret_cast<QRgb*>(blended.scanLine(originalY));
+
+        for (int x = 0; x < targetSize.width(); ++x) {
+            const int originalX = targetRect.x() + x;
+            const int alpha = hasMask ? qAlpha(maskLine[x]) : 255;
+            const int inverseAlpha = 255 - alpha;
+            const int r = (qRed(editedLine[x]) * alpha + qRed(originalLine[originalX]) * inverseAlpha) / 255;
+            const int g = (qGreen(editedLine[x]) * alpha + qGreen(originalLine[originalX]) * inverseAlpha) / 255;
+            const int b = (qBlue(editedLine[x]) * alpha + qBlue(originalLine[originalX]) * inverseAlpha) / 255;
+            const int a = qMax(qAlpha(originalLine[originalX]), qAlpha(editedLine[x]));
+            blendedLine[originalX] = qRgba(r, g, b, a);
+        }
+    }
+
+    return imageToPngBytes(blended);
 }
 
 TaskData createPanelTask(const QString& panelId, TaskType type, const QString& modeValue, int total)
@@ -152,6 +383,50 @@ struct RequestedResolution
     bool isPreset = false;
 };
 
+struct ImageDimensions
+{
+    int width = 0;
+    int height = 0;
+};
+
+struct EditDimensions
+{
+    int width = 0;
+    int height = 0;
+    QwenImageClient::ImageSize size = QwenImageClient::ImageSize::Square;
+};
+
+bool resolveFinalImageTargetSize(bool isPreset,
+                                 int presetWidth,
+                                 int presetHeight,
+                                 int referenceWidth,
+                                 int referenceHeight,
+                                 int& targetWidth,
+                                 int& targetHeight)
+{
+    if (isPreset) {
+        targetWidth = presetWidth;
+        targetHeight = presetHeight;
+        return targetWidth > 0 && targetHeight > 0;
+    }
+
+    if (referenceWidth > 0 && referenceHeight > 0) {
+        targetWidth = referenceWidth;
+        targetHeight = referenceHeight;
+        return true;
+    }
+
+    return false;
+}
+
+const QByteArray& referenceImageForEdit(const QByteArray& faceOnlyImage, const QByteArray& referenceImage, bool faceOnlyEdit)
+{
+    if (!faceOnlyEdit || faceOnlyImage.isEmpty()) {
+        return referenceImage;
+    }
+    return faceOnlyImage;
+}
+
 void applyPresetResolutionForProvider(ImageService::BatchPresetMode presetMode,
                                       const QString& providerName,
                                       int& width,
@@ -212,73 +487,79 @@ RequestedResolution requestedResolution(const QString& presetMode,
     return resolution;
 }
 
-QString classifyPanelPromptTarget(const QJsonObject& panelJson)
+ImageDimensions readImageDimensions(const QByteArray& imageData)
 {
-    QString visualPrompt = panelJson.value("visualPrompt").toString().trimmed();
-    QString visualPromptEn = panelJson.value("visualPromptEn").toString().trimmed();
-    QString combined = (visualPrompt + " " + visualPromptEn).trimmed().toLower();
-    QString sceneText = panelJson.value("scene").toString().trimmed().toLower();
-    QString shotType = panelJson.value("shotType").toString().trimmed().toLower();
-
-    auto containsAny = [](const QString& text, const QStringList& keywords) {
-        for (const QString& keyword : keywords) {
-            if (text.contains(keyword.toLower())) {
-                return true;
-            }
-        }
-        return false;
-    };
-    const QStringList sceneKeywords = {
-        "scene", "background", "environment", "setting", "location",
-        "room", "street", "building", "architecture", "landscape",
-        QString::fromUtf8("场景"), QString::fromUtf8("背景"), QString::fromUtf8("环境"),
-        QString::fromUtf8("街道"), QString::fromUtf8("建筑"), QString::fromUtf8("风景"),
-        QString::fromUtf8("室内"), QString::fromUtf8("室外"), QString::fromUtf8("城市"),
-        QString::fromUtf8("自然")
-    };
-    const QStringList characterKeywords = {
-        "character", "person", "face", "expression", "outfit",
-        "clothing", "hair", "pose", "body", "identity",
-        QString::fromUtf8("角色"), QString::fromUtf8("人物"), QString::fromUtf8("表情"),
-        QString::fromUtf8("服装"), QString::fromUtf8("发型"), QString::fromUtf8("姿势"),
-        QString::fromUtf8("外貌"), QString::fromUtf8("特征"), QString::fromUtf8("身份")
-    };
-
-
-    bool sceneCue = containsAny(combined, sceneKeywords) || containsAny(sceneText, sceneKeywords);
-    bool charCue = containsAny(combined, characterKeywords);
-
-    if (sceneCue && !charCue) {
-        return "scene";
-    }
-    if (charCue && !sceneCue) {
-        return "character";
+    ImageDimensions dimensions;
+    if (imageData.isEmpty()) {
+        return dimensions;
     }
 
-    static const QStringList sceneShotTypes = {
-        "wide", "extreme-wide", "establishing", "full", "long", "master"
-    };
-    static const QStringList characterShotTypes = {
-        "close-up", "extreme-close-up", "medium-close-up", "portrait", "single"
-    };
-
-    if (containsAny(shotType, sceneShotTypes)) {
-        return "scene";
+    QImage image;
+    if (image.loadFromData(imageData)) {
+        dimensions.width = image.width();
+        dimensions.height = image.height();
     }
-    if (containsAny(shotType, characterShotTypes)) {
-        return "character";
-    }
-
-    int charCount = panelJson.value("characters").toArray().size();
-    if (charCount <= 1) {
-        return "character";
-    }
-    if (charCount >= 3) {
-        return "scene";
-    }
-
-    return "balanced";
+    return dimensions;
 }
+
+EditDimensions resolveEditDimensions(int referenceWidth,
+                                     int referenceHeight,
+                                     int fallbackWidth,
+                                     int fallbackHeight,
+                                     bool usePresetFallback,
+                                     ImageService::GenerateMode mode)
+{
+    EditDimensions dimensions;
+    if (referenceWidth > 0 && referenceHeight > 0) {
+        dimensions.width = referenceWidth;
+        dimensions.height = referenceHeight;
+        dimensions.size = QwenImageClient::ImageSize::Custom;
+        return dimensions;
+    }
+
+    dimensions.width = fallbackWidth;
+    dimensions.height = fallbackHeight;
+    dimensions.size = usePresetFallback
+        ? QwenImageClient::ImageSize::Custom
+        : (mode == ImageService::GenerateMode::HD
+            ? QwenImageClient::ImageSize::Square
+            : QwenImageClient::ImageSize::Portrait);
+    return dimensions;
+}
+
+QByteArray normalizeImageSize(const QByteArray& imageData, int targetWidth, int targetHeight)
+{
+    if (imageData.isEmpty() || targetWidth <= 0 || targetHeight <= 0) {
+        return imageData;
+    }
+
+    QImage image;
+    if (!image.loadFromData(imageData)) {
+        return imageData;
+    }
+
+    if (image.width() == targetWidth && image.height() == targetHeight) {
+        return imageData;
+    }
+
+    QImage resized = image.scaled(targetWidth, targetHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    QByteArray bufferData;
+    QBuffer buffer(&bufferData);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        return imageData;
+    }
+    if (!resized.save(&buffer, "PNG")) {
+        return imageData;
+    }
+
+    LOG_INFO("ImageService", QString("Normalized edited image size from %1x%2 to %3x%4")
+        .arg(image.width())
+        .arg(image.height())
+        .arg(targetWidth)
+        .arg(targetHeight));
+    return bufferData;
+}
+
 }
 
 ImageService::ResolutionConfig ImageService::ResolutionConfig::fromMode(GenerateMode mode)
@@ -356,7 +637,10 @@ void ImageService::cancelCurrentBatch()
     emit batchGenerationCancelled();
 }
 
-ImageService::GenerateResult ImageService::generatePanelImageCore(const QString& panelId, const ResolutionConfig& resolution, bool checkConcurrency)
+ImageService::GenerateResult ImageService::generatePanelImageCore(const QString& panelId,
+                                                                 const ResolutionConfig& resolution,
+                                                                 bool checkConcurrency,
+                                                                 const EditHint& hint)
 {
     if (panelId.isEmpty()) {
         return createErrorResult(panelId, tr("图片服务不可用"));
@@ -383,7 +667,17 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
     GenerationContext ctx;
     ctx.panelId = panelId;
     ctx.resolution = resolution;
-    ctx.allowReferenceEdit = checkConcurrency;
+    ctx.mode = GenerateMode::Preview;
+    ctx.faceOnlyEdit = hint.faceOnly;
+    ctx.editStrategy = hint.strategy;
+    ctx.editExpression = hint.expression;
+    ctx.editSubjectDescription = hint.subjectDescription;
+    ctx.editReplacementDescription = hint.replacementDescription;
+    ctx.editPreserveDescription = hint.preserveDescription;
+    ctx.editRegionScale = hint.regionScale;
+    ctx.editMaskCoreRatio = hint.maskCoreRatio;
+    ctx.editMaskFeatherRatio = hint.maskFeatherRatio;
+    ctx.editMaskData.clear();
     if (resolution.isPreset) {
         ctx.presetMode = resolution.presetName;
     } else {
@@ -397,6 +691,12 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
         }
 
         setError(tr("加载参考图失败"));
+
+        if (checkConcurrency) {
+            prepareEditReferenceImages(ctx);
+        } else {
+            ctx.allowReferenceEdit = false;
+        }
 
         if (!buildPromptForPanel(ctx)) {
             resetState();
@@ -437,17 +737,22 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
 
 ImageService::GenerateResult ImageService::generatePanelImage(const QString& panelId, GenerateMode mode)
 {
-    return generatePanelImageCore(panelId, ResolutionConfig::fromMode(mode), true);
+    return generatePanelImageCore(panelId, ResolutionConfig::fromMode(mode), true, EditHint());
+}
+
+ImageService::GenerateResult ImageService::generatePanelImage(const QString& panelId, GenerateMode mode, const EditHint& hint)
+{
+    return generatePanelImageCore(panelId, ResolutionConfig::fromMode(mode), true, hint);
 }
 
 ImageService::GenerateResult ImageService::generatePanelImage(const QString& panelId, BatchPresetMode presetMode)
 {
-    return generatePanelImageCore(panelId, ResolutionConfig::fromPreset(presetMode), true);
+    return generatePanelImageCore(panelId, ResolutionConfig::fromPreset(presetMode), true, EditHint());
 }
 
 ImageService::GenerateResult ImageService::generatePanelImageInternal(const QString& panelId, const ResolutionConfig& resolution)
 {
-    return generatePanelImageCore(panelId, resolution, false);
+    return generatePanelImageCore(panelId, resolution, false, EditHint());
 }
 
 void ImageService::startBatchGeneration(const QStringList& panelIds, const ResolutionConfig& resolution)
@@ -539,14 +844,256 @@ void ImageService::generateStoryboardImages(const QString& storyboardId, BatchPr
 
 ImageService::GenerateResult ImageService::regeneratePanelImage(const QString& panelId, GenerateMode mode)
 {
-    LOG_INFO("ImageService", QString("Regenerating panel: %1").arg(panelId));
     return generatePanelImage(panelId, mode);
+}
+
+ImageService::GenerateResult ImageService::regeneratePanelImage(const QString& panelId, GenerateMode mode, const EditHint& hint)
+{
+    LOG_INFO("ImageService", QString("Regenerating panel: %1").arg(panelId));
+    return generatePanelImage(panelId, mode, hint);
 }
 
 ImageService::GenerateResult ImageService::regeneratePanelImage(const QString& panelId, BatchPresetMode presetMode)
 {
     LOG_INFO("ImageService", QString("Regenerating panel preset: %1").arg(panelId));
     return generatePanelImage(panelId, presetMode);
+}
+
+QString ImageService::preferredPanelSourceImagePath(const Panel& panel, GenerateMode mode)
+{
+    const QString previewPath = panel.previewS3Key();
+    const QString hdPath = panel.hdS3Key();
+
+    if (mode == GenerateMode::HD) {
+        if (!hdPath.isEmpty()) {
+            return hdPath;
+        }
+        if (!previewPath.isEmpty()) {
+            return previewPath;
+        }
+        return QString();
+    }
+
+    if (!previewPath.isEmpty()) {
+        return previewPath;
+    }
+    if (!hdPath.isEmpty()) {
+        return hdPath;
+    }
+
+    return QString();
+}
+
+void ImageService::prepareEditReferenceImages(GenerationContext& ctx)
+{
+    ctx.sourceImagePath = preferredPanelSourceImagePath(ctx.panel, ctx.mode);
+    ctx.allowReferenceEdit = !ctx.sourceImagePath.isEmpty();
+
+    if (!ctx.allowReferenceEdit) {
+        return;
+    }
+
+    ctx.referenceImages.prepend(ctx.sourceImagePath);
+    LOG_INFO("ImageService", QString("Using panel source image for edit: %1").arg(ctx.sourceImagePath));
+}
+
+QString ImageService::buildFaceEditPrompt(const GenerationContext& ctx) const
+{
+    if (ctx.editExpression.trimmed().isEmpty()
+        && ctx.editReplacementDescription.trimmed().isEmpty()) {
+        return QString();
+    }
+
+    if (ctx.editExpression.trimmed().isEmpty()
+        && !ctx.editReplacementDescription.trimmed().isEmpty()) {
+        return LocalEditPromptUtils::buildLocalReplacementEditPrompt(
+            ctx.editSubjectDescription,
+            ctx.editReplacementDescription,
+            ctx.editPreserveDescription,
+            1.30);
+    }
+
+    return FaceEditPromptUtils::buildFaceExpressionEditPrompt(
+        ctx.editSubjectDescription,
+        ChangeRequestExpressionUtils::expressionPromptDescription(ctx.editExpression),
+        ctx.editPreserveDescription);
+}
+
+double ImageService::faceEditMinimumScaleForShotType(const QString& shotType)
+{
+    if (shotType.contains("close-up") || shotType.contains("portrait") || shotType.contains("single")
+        || shotType.contains(QString::fromUtf8("特写")) || shotType.contains(QString::fromUtf8("近景"))) {
+        return 1.20;
+    }
+    if (shotType.contains("medium") || shotType.contains(QString::fromUtf8("中景"))) {
+        return 1.14;
+    }
+    if (shotType.contains("wide") || shotType.contains("full") || shotType.contains("long")
+        || shotType.contains(QString::fromUtf8("远景")) || shotType.contains(QString::fromUtf8("全景"))) {
+        return 1.08;
+    }
+    return 1.0;
+}
+
+bool ImageService::prepareFaceOnlyEditContext(GenerationContext& ctx) const
+{
+    if (ctx.editTargetRect.isValid() && !ctx.editTargetRect.isEmpty()
+        && !ctx.editSourceImageData.isEmpty()
+        && !ctx.editMaskData.isEmpty()) {
+        return true;
+    }
+
+    if (!ctx.faceOnlyEdit || ctx.refImageData.isEmpty() || ctx.refImageWidth <= 0 || ctx.refImageHeight <= 0) {
+        return false;
+    }
+
+    const bool subjectReplacement = ctx.editStrategy == EditHint::Strategy::SubjectReplacement
+        || !ctx.editReplacementDescription.trimmed().isEmpty();
+
+    const QRectF editRegion = subjectReplacement
+        ? subjectReplacementRegionImpl(ctx.panel, ctx.refImageWidth, ctx.refImageHeight)
+        : resolveFaceEditRegion(ctx);
+    if (editRegion.isEmpty()) {
+        LOG_WARNING("ImageService", QString("Failed to resolve edit region for panel: %1").arg(ctx.panelId));
+        return false;
+    }
+
+    ctx.editTargetRect = QRect(0, 0, ctx.refImageWidth, ctx.refImageHeight);
+    ctx.editSourceImageData = ctx.refImageData;
+    if (ctx.editSourceImageData.isEmpty()) {
+        LOG_WARNING("ImageService", QString("Failed to prepare face edit source for panel: %1").arg(ctx.panelId));
+        return false;
+    }
+
+    const double coreRatio = subjectReplacement ? qMin(ctx.editMaskCoreRatio, 0.76) : ctx.editMaskCoreRatio;
+    const double featherRatio = subjectReplacement ? qMax(ctx.editMaskFeatherRatio, 0.18) : ctx.editMaskFeatherRatio;
+    ctx.editMaskData = buildFaceEditMaskBytesImpl(
+        editRegion,
+        ctx.editTargetRect.size(),
+        coreRatio,
+        featherRatio);
+
+    LOG_DEBUG("ImageService", QString("Prepared edit region: panelId=%1, region=%2,%3 %4x%5, imageSize=%6x%7, strategy=%8")
+        .arg(ctx.panelId)
+        .arg(editRegion.x())
+        .arg(editRegion.y())
+        .arg(editRegion.width())
+        .arg(editRegion.height())
+        .arg(ctx.editTargetRect.width())
+        .arg(ctx.editTargetRect.height())
+        .arg(subjectReplacement ? QStringLiteral("subject_replacement") : QStringLiteral("face_expression")));
+    return true;
+}
+
+QRectF ImageService::resolveFaceEditRegion(const GenerationContext& ctx) const
+{
+    if (ctx.refImageWidth <= 0 || ctx.refImageHeight <= 0) {
+        return QRectF();
+    }
+
+    const QRectF baseRegion = faceEditRegionImpl(ctx.panel, ctx.refImageWidth, ctx.refImageHeight);
+    if (baseRegion.isEmpty()) {
+        return QRectF();
+    }
+
+    const QString shotType = ctx.panel.shotType().trimmed().toLower();
+    const double scale = qMax(qBound(1.0, ctx.editRegionScale, 1.8), faceEditMinimumScaleForShotType(shotType));
+
+    return expandEditRegion(baseRegion, scale, QSize(ctx.refImageWidth, ctx.refImageHeight));
+}
+
+QByteArray ImageService::buildFaceEditMask(const GenerationContext& ctx) const
+{
+    if (ctx.refImageWidth <= 0 || ctx.refImageHeight <= 0) {
+        return QByteArray();
+    }
+
+    const QRectF region = resolveFaceEditRegion(ctx);
+    if (region.isEmpty()) {
+        return QByteArray();
+    }
+
+    const QSize canvasSize = QSize(ctx.refImageWidth, ctx.refImageHeight);
+    LOG_DEBUG("ImageService", QString("Building face edit mask: panelId=%1, shotType=%2, region=%3,%4 %5x%6, canvas=%7x%8")
+        .arg(ctx.panelId)
+        .arg(ctx.panel.shotType())
+        .arg(region.x())
+        .arg(region.y())
+        .arg(region.width())
+        .arg(region.height())
+        .arg(canvasSize.width())
+        .arg(canvasSize.height()));
+    return buildFaceEditMaskBytesImpl(region, canvasSize, ctx.editMaskCoreRatio, ctx.editMaskFeatherRatio);
+}
+
+void ImageService::applyFaceOnlyEditHints(GenerationContext& ctx, QwenImageClient::EditOptions& options) const
+{
+    if (!ctx.faceOnlyEdit) {
+        return;
+    }
+
+    if (!prepareFaceOnlyEditContext(ctx)) {
+        return;
+    }
+
+    options.prompt = buildFaceEditPrompt(ctx);
+    options.sourceImage = ctx.editSourceImageData;
+    options.maskImage = ctx.editMaskData;
+    options.size = QwenImageClient::ImageSize::Custom;
+    options.width = ctx.refImageWidth > 0 ? ctx.refImageWidth : ctx.editTargetRect.width();
+    options.height = ctx.refImageHeight > 0 ? ctx.refImageHeight : ctx.editTargetRect.height();
+}
+
+bool ImageService::applyFaceOnlyEditPostProcess(GenerationContext& ctx)
+{
+    if (!ctx.faceOnlyEdit || ctx.refImageData.isEmpty() || ctx.imageData.isEmpty()) {
+        return true;
+    }
+
+    if (!ctx.editTargetRect.isValid() || ctx.editTargetRect.isEmpty()) {
+        return true;
+    }
+
+    if (ctx.editMaskData.isEmpty()) {
+        ctx.editMaskData = buildFaceEditMask(ctx);
+    }
+
+    ctx.imageData = blendEditedCropIntoOriginalImpl(ctx.refImageData, ctx.imageData, ctx.editTargetRect, ctx.editMaskData);
+    LOG_INFO("ImageService", QString("Applied local edit blend for panel: %1, editRect=%2,%3 %4x%5")
+        .arg(ctx.panelId)
+        .arg(ctx.editTargetRect.x())
+        .arg(ctx.editTargetRect.y())
+        .arg(ctx.editTargetRect.width())
+        .arg(ctx.editTargetRect.height()));
+    return !ctx.imageData.isEmpty();
+}
+
+QRectF ImageService::expandEditRegion(const QRectF& region, double scale, const QSize& canvasSize)
+{
+    return expandFaceRegionImpl(region, scale, canvasSize);
+}
+
+bool ImageService::finalizeGeneratedImage(GenerationContext& ctx, const QByteArray& imageData)
+{
+    if (imageData.isEmpty()) {
+        return false;
+    }
+
+    int targetWidth = 0;
+    int targetHeight = 0;
+    if (!resolveFinalImageTargetSize(ctx.resolution.isPreset,
+                                     ctx.resolution.width,
+                                     ctx.resolution.height,
+                                     ctx.refImageWidth,
+                                     ctx.refImageHeight,
+                                     targetWidth,
+                                     targetHeight)) {
+        ctx.imageData = imageData;
+        return applyFaceOnlyEditPostProcess(ctx);
+    }
+
+    ctx.imageData = normalizeImageSize(imageData, targetWidth, targetHeight);
+    return applyFaceOnlyEditPostProcess(ctx);
 }
 
 ImageService::ProviderConfig ImageService::getProviderConfig() const
@@ -614,8 +1161,15 @@ bool ImageService::loadReferenceImage(GenerationContext& ctx)
     
     ctx.refImageData = refFile.readAll();
     refFile.close();
+
+    const ImageDimensions refImageDimensions = readImageDimensions(ctx.refImageData);
+    ctx.refImageWidth = refImageDimensions.width;
+    ctx.refImageHeight = refImageDimensions.height;
     
     LOG_INFO("ImageService", QString("Loaded reference image: %1 bytes").arg(ctx.refImageData.size()));
+    LOG_INFO("ImageService", QString("Reference image size: %1x%2")
+        .arg(ctx.refImageWidth)
+        .arg(ctx.refImageHeight));
     
     if (ctx.referenceImages.size() > 1) {
         LOG_INFO("ImageService", QString("Multiple reference images detected (%1), using first as primary")
@@ -661,8 +1215,9 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     options.seed = -1;
     options.returnUrl = true;
     
-    if (!ctx.refImageData.isEmpty()) {
-        options.referenceImage = ctx.refImageData;
+    const QByteArray& referenceImage = referenceImageForEdit(ctx.editSourceImageData, ctx.refImageData, ctx.faceOnlyEdit);
+    if (ctx.allowReferenceEdit && !referenceImage.isEmpty()) {
+        options.referenceImage = referenceImage;
         LOG_INFO("ImageService", "Using img2img API with reference image");
     }
     
@@ -672,7 +1227,7 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
         setError(result.errorMessage);
         return false;
     }
-    
+
     if (!result.imageUrl.isEmpty() && result.imageData.isEmpty()) {
         LOG_INFO("ImageService", QString("Downloading image from URL: %1").arg(result.imageUrl.left(100)));
         ctx.imageData = client->downloadImage(result.imageUrl);
@@ -682,6 +1237,10 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
         }
     } else {
         ctx.imageData = result.imageData;
+    }
+
+    if (!finalizeGeneratedImage(ctx, ctx.imageData)) {
+        return false;
     }
     
     return !ctx.imageData.isEmpty();
@@ -715,18 +1274,17 @@ bool ImageService::executeWithQwen(GenerationContext& ctx)
     }
 
     if (!result.imageData.isEmpty()) {
-        ctx.imageData = result.imageData;
-        return true;
+        return finalizeGeneratedImage(ctx, result.imageData);
     }
 
     if (!result.imageUrl.isEmpty()) {
         LOG_INFO("ImageService", QString("Downloading image from URL: %1").arg(result.imageUrl.left(100)));
-        ctx.imageData = QwenImageClient::instance()->downloadImage(result.imageUrl);
-        if (ctx.imageData.isEmpty()) {
+        const QByteArray downloaded = QwenImageClient::instance()->downloadImage(result.imageUrl);
+        if (downloaded.isEmpty()) {
             setError(tr("Failed to download image from URL"));
             return false;
         }
-        return true;
+        return finalizeGeneratedImage(ctx, downloaded);
     }
 
     setError(tr("Qwen返回的结果没有图像数据"));
@@ -749,20 +1307,28 @@ QwenImageClient::GenerateOptions ImageService::buildQwenGenerateOptions(const Ge
     return options;
 }
 
-QwenImageClient::EditOptions ImageService::buildQwenEditOptions(const GenerationContext& ctx,
+QwenImageClient::EditOptions ImageService::buildQwenEditOptions(GenerationContext& ctx,
                                                                 const ResolutionConfig& resolution) const
 {
     QwenImageClient::EditOptions options;
     options.prompt = ctx.prompt;
-    options.sourceImage = ctx.refImageData;
+    options.sourceImage = referenceImageForEdit(ctx.editSourceImageData, ctx.refImageData, ctx.faceOnlyEdit);
     options.negativePrompt = ctx.negativePrompt;
-    options.size = resolution.isPreset
-        ? QwenImageClient::ImageSize::Custom
-        : (ctx.mode == GenerateMode::HD
-            ? QwenImageClient::ImageSize::Square
-            : QwenImageClient::ImageSize::Portrait);
-    options.width = resolution.width;
-    options.height = resolution.height;
+    const EditDimensions editDimensions = resolveEditDimensions(
+        ctx.faceOnlyEdit && ctx.editTargetRect.isValid() && !ctx.editTargetRect.isEmpty()
+            ? ctx.editTargetRect.width()
+            : ctx.refImageWidth,
+        ctx.faceOnlyEdit && ctx.editTargetRect.isValid() && !ctx.editTargetRect.isEmpty()
+            ? ctx.editTargetRect.height()
+            : ctx.refImageHeight,
+        resolution.width,
+        resolution.height,
+        resolution.isPreset,
+        ctx.mode);
+    options.size = editDimensions.size;
+    options.width = editDimensions.width;
+    options.height = editDimensions.height;
+    applyFaceOnlyEditHints(ctx, options);
     return options;
 }
 
@@ -773,7 +1339,13 @@ bool ImageService::executeImageGeneration(GenerationContext& ctx)
     
     LOG_INFO("ImageService", QString("Using image provider: %1, hasRefImage: %2")
         .arg(config.name).arg(!ctx.refImageData.isEmpty()));
-    
+
+    if (ctx.faceOnlyEdit && !ctx.refImageData.isEmpty() && !prepareFaceOnlyEditContext(ctx)) {
+        setError(tr("无法准备局部编辑区域"));
+        LOG_ERROR("ImageService", QString("Failed to prepare face-only edit context for panel: %1").arg(ctx.panelId));
+        return false;
+    }
+
     bool success = m_apiRetryPolicy->executeWithRetry(
         [&]() -> bool {
             if (config.name == "volcengine") {
@@ -874,11 +1446,6 @@ bool ImageService::safeFetchPanel(GenerationContext& ctx)
                     .arg(attempt)
                     .arg(m_dbRetryPolicy->config().maxAttempts)
                     .arg(error));
-            
-            DatabaseManager* db = DatabaseManager::instance();
-            if (db) {
-                db->reconnectIfNeeded();
-            }
         },
         [&](const QList<RetryAttempt>& attempts) {
             if (m_dbRetryPolicy->isFinalFailure()) {
@@ -930,14 +1497,27 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
             .arg(panelCharacterNames.join(", ")));
         
         QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: resolved novelId=%1").arg(novelId));
+
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching character refs for panelId=%1").arg(ctx.panelId));
         QMap<QString, QJsonObject> characterRefs = fetchCharacterRefs(novelId, ctx.referenceImages);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: character refs loaded=%1, refImages=%2")
+            .arg(characterRefs.size())
+            .arg(ctx.referenceImages.size()));
+
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching scene refs for panelId=%1").arg(ctx.panelId));
         QMap<QString, QJsonObject> sceneRefs = fetchSceneRefs(novelId, ctx.referenceImages);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: scene refs loaded=%1, refImages=%2")
+            .arg(sceneRefs.size())
+            .arg(ctx.referenceImages.size()));
         
         LOG_INFO("ImageService", QString("buildPromptForPanel: panelId=%1, novelId=%2, characters=%3, scenes=%4")
             .arg(ctx.panelId).arg(novelId).arg(characterRefs.size()).arg(sceneRefs.size()));
         
         QJsonObject options = buildPanelPromptOptions(ctx, panelJson);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: invoking PromptBuilder for panelId=%1").arg(ctx.panelId));
         PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, characterRefs, sceneRefs, options);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: PromptBuilder returned for panelId=%1").arg(ctx.panelId));
 
         ctx.prompt = result.text;
         ctx.negativePrompt = result.negativePrompt;
@@ -969,7 +1549,16 @@ QJsonObject ImageService::buildPanelPromptOptions(const GenerationContext& ctx, 
     options["mode"] = !ctx.presetMode.isEmpty()
         ? ctx.presetMode
         : ((ctx.mode == GenerateMode::HD) ? "hd" : "preview");
-    options["promptTarget"] = classifyPanelPromptTarget(panelJson);
+    options["promptTarget"] = PromptTargetUtils::classifyPanelPromptTarget(panelJson);
+
+    if (ctx.presetMode.isEmpty()) {
+        return options;
+    }
+
+    options["aspectRatio"] = ctx.presetMode;
+    if (ctx.presetMode == QStringLiteral("1x1") || ctx.presetMode == QStringLiteral("1:1")) {
+        options["composition"] = QStringLiteral("square");
+    }
     return options;
 }
 
@@ -1109,22 +1698,12 @@ QString ImageService::fetchNovelIdByStoryboardId(const QString& storyboardId)
     
     m_dbRetryPolicy->executeWithRetry(
         [&]() -> bool {
-            if (!db->isConnected()) {
-                if (!db->reconnectIfNeeded()) {
-                    return false;
-                }
-            }
-            
-            QSqlQuery query(db->database());
-            query.prepare("SELECT novel_id FROM storyboards WHERE id = ?");
-            query.addBindValue(storyboardId);
-            
-            if (query.exec() && query.next()) {
-                result = query.value(0).toString();
-                return true;
-            }
-            
-            return false;
+            const QVariantMap row = db->selectOne(
+                QStringLiteral("storyboards"),
+                QStringLiteral("id = ?"),
+                QVariantList{storyboardId});
+            result = row.value(QStringLiteral("novel_id")).toString();
+            return !result.isEmpty();
         },
         [&](int attempt, const QString& error) {
             LOG_WARNING("ImageService", 
@@ -1132,8 +1711,6 @@ QString ImageService::fetchNovelIdByStoryboardId(const QString& storyboardId)
                     .arg(attempt)
                     .arg(m_dbRetryPolicy->config().maxAttempts)
                     .arg(error));
-            
-            db->reconnectIfNeeded();
         },
         [&](const QList<RetryAttempt>& attempts) {
             if (m_dbRetryPolicy->isFinalFailure()) {
@@ -1175,11 +1752,6 @@ bool ImageService::safeUpdateDatabase(GenerationContext& ctx)
                     .arg(attempt)
                     .arg(m_dbRetryPolicy->config().maxAttempts)
                     .arg(error));
-            
-            DatabaseManager* db = DatabaseManager::instance();
-            if (db) {
-                db->reconnectIfNeeded();
-            }
         },
         [&](const QList<RetryAttempt>& attempts) {
             if (m_dbRetryPolicy->isFinalFailure()) {

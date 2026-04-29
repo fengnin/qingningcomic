@@ -39,6 +39,8 @@
 #include "components/PanelPreviewWidget.h"
 #include "services/AnalysisStatusManager.h"
 
+class ChangeRequestService;
+
 class NovelDetailPage : public QWidget
 {
     Q_OBJECT
@@ -81,7 +83,7 @@ private slots:
     void onBibleItemDeleteRequested(const QString &id, BibleType type);
     void onCharacterDataChanged(const QString &id, const Character &character);
     void onSceneDataChanged(const QString &id, const Scene &scene);
-    void onPanelCardClicked(int panelNumber);
+    void onPanelCardClicked(int panelNumber, const QString& panelId);
     void onStoryboardsLoaded(const QString& novelId, const QList<Storyboard>& storyboards);
     void onStoryboardLoaded(const QString& novelId, int chapterNumber, const Storyboard& storyboard);
     void onPanelsLoaded(const QString& novelId, int chapterNumber, const QList<Panel>& panels);
@@ -105,6 +107,10 @@ private:
     QWidget* createButtonStatusRow(QPushButton *btn, const QString &statusText);
     QWidget* createButtonRow(QPushButton *&btn, const QString &btnText, const QString &statusText);
     void updateButtonStatus(QPushButton *btn, const QString &text, const QString &color);
+    void updateChangeRequestOverviewStatus(const QString& text, const QString& color = QString());
+    void beginChangeRequestProgress(const QString& requestId, const QString& naturalLanguage);
+    void updateChangeRequestProgress(int current, int total, const QString& message);
+    void finishChangeRequestProgress(bool success, const QString& message);
     void updateChapterHints(const QList<Storyboard>& storyboards);
     void updateChapterUI(int targetChapter);
     QLabel* createCompactTag(const QString &text, int fontSize = 12);
@@ -143,6 +149,8 @@ private:
     void refreshChapterCards(const QList<Storyboard>& storyboards);
     void refreshChapterCardsOnly();
     void clearChapterCards();
+    void resetStoryboardDisplay();
+    void syncChapterSelectionFromStoryboards(const QList<Storyboard>& storyboards);
     void refreshStoryboardItems();
     void refreshStoryboardItems(const QList<Panel>& panels);
     QList<Panel> loadPanelsFromDatabase() const;
@@ -164,6 +172,8 @@ private:
     void setAnalysisStatus(AnalysisStatusManager::Status status, const QString& extraInfo = QString());
     QString getChapterText(int chapterNumber) const;
     bool validateChapterInput(const QString& text) const;
+    void showChangeRequestSubmissionResult(const QString& requestId);
+    void showChangeRequestExecutionResult(const QString& statusText, bool success);
     void handleAnalysisSuccess(int chapter);
     void handleAnalysisFailure(const QString& errorMessage);
     bool isCurrentNovel(const QString& novelId) const;
@@ -178,6 +188,10 @@ private:
     
     QJsonArray parseCharactersToJson(const QString& characters);
     QJsonArray parseDialogueToJson(const QString& dialogue);
+    QString collectChangeRequestText() const;
+    QJsonObject buildChangeRequestContext() const;
+    void bindChangeRequestResultHandlers(ChangeRequestService* service);
+    void showChangeRequestSubmissionFailure(const QString& errorMessage);
     
     QString m_colorTitle;
     QString m_colorSubtitle;
@@ -213,6 +227,7 @@ private:
     QPushButton *m_generatePanelsBtn;
     QTextEdit *m_changeRequestEdit;
     QPushButton *m_submitChangeRequestBtn;
+    QLabel *m_changeRequestOverviewLabel = nullptr;
     
     BibleSectionWidget *m_bibleSectionWidget = nullptr;
     PanelPreviewWidget *m_panelPreviewWidget = nullptr;
@@ -222,6 +237,8 @@ private:
     
     AnalysisProgressWidget *m_analysisProgress;
     AnalysisProgressWidget *m_panelGenerateProgress;
+    AnalysisProgressWidget *m_changeRequestOverviewProgress = nullptr;
+    AnalysisProgressWidget *m_changeRequestProgress = nullptr;
     AnalysisResultWidget *m_analysisResult;
     AnalysisStatusManager::Status m_analysisStatus;
     
@@ -229,6 +246,11 @@ private:
     int m_currentChapter;
     int m_completedChapterCount;
     QString m_currentJobId;
+    QString m_activeChangeRequestId;
+    QString m_activeChangeRequestSummary;
+    bool m_changeRequestRunning = false;
+    int m_selectedPanelNumber = 0;
+    QString m_selectedPanelId;
     QMap<QPushButton*, QLabel*> m_statusLabelMap;
     
     QList<Character> m_pendingCharacters;

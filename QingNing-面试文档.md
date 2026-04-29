@@ -1216,7 +1216,143 @@ bool SceneExtractor::saveScene(const QString& novelId, const ExtractedScene& ext
 3. **向量相似度**：使用 Embedding 计算场景描述的语义相似度
 4. **场景聚类**：对大量场景自动聚类，减少人工干预
 
+### 16.7 AI 模型输出 DSL 与执行器约定不一致问题
+
+#### 问题描述
+
+**现象**：AI 模型（Qwen）解析用户自然语言后生成的 DSL JSON 字段名不稳定，与代码期望的格式不一致。
+
+**典型场景**：
+
+用户输入："把第一个面板的背景换成森林"
+
+AI 可能输出：
+```json
+{
+  "scopeType": "panel",      // 不是 scope
+  "changeType": "art",       // 不是 type
+  "target": "panel-123",     // 不是 targetId
+  "operations": [            // 不是 ops
+    { "operation": "bg_swap", "parameters": { "prompt": "森林" } }
+  ]
+}
+```
+
+而 Schema 定义的标准格式是：
+```json
+{
+  "scope": "panel",
+  "type": "art",
+  "targetId": "panel-123",
+  "ops": [
+    { "action": "bg_swap", "params": { "prompt": "森林" } }
+  ]
+}
+```
+
+#### 根因分析
+
+| 原因 | 说明 |
+|------|------|
+| AI 输出不稳定 | 同样的 prompt，AI 可能输出不同的字段名 |
+| Prompt 约束不够强 | AI 没有严格按照 JSON Schema 输出 |
+| 模型版本差异 | 不同版本的模型输出格式可能不同 |
+
+#### 解决方案：多字段名兼容
+
+```cpp
+// ChangeRequest.h - 兼容多种字段名
+struct ChangeRequestOp {
+    QString action;
+    QJsonObject params;
+    
+    static ChangeRequestOp fromJson(const QJsonObject& json) {
+        ChangeRequestOp op;
+        
+        // action / operation / name 三种可能
+        op.action = json.value("action").toString(
+            json.value("operation").toString(
+                json.value("name").toString()));
+        
+        // params / parameters / args 三种可能
+        if (json.contains("params")) {
+            op.params = json.value("params").toObject();
+        } else if (json.contains("parameters")) {
+            op.params = json.value("parameters").toObject();
+        } else if (json.contains("args")) {
+            op.params = json.value("args").toObject();
+        }
+        return op;
+    }
+};
+
+struct ChangeRequestDsl {
+    QString scope;
+    QString type;
+    QString targetId;
+    
+    static ChangeRequestDsl fromJson(const QJsonObject& json) {
+        ChangeRequestDsl dsl;
+        
+        // scope / scopeType / changeScope / scope_type 四种可能
+        dsl.scope = source.value("scope").toString(
+            source.value("scopeType").toString(
+                source.value("changeScope").toString(
+                    source.value("scope_type").toString())));
+        
+        // type / changeType / operationType / typeName 四种可能
+        dsl.type = source.value("type").toString(
+            source.value("changeType").toString(
+                source.value("operationType").toString(
+                    source.value("typeName").toString())));
+        
+        // targetId / target_id / target 三种可能
+        dsl.targetId = source.value("targetId").toString(
+            source.value("target_id").toString(
+                source.value("target").toString()));
+        
+        // ops / operations / actions 三种可能
+        QJsonArray opsArray;
+        if (source.contains("ops")) {
+            opsArray = source.value("ops").toArray();
+        } else if (source.contains("operations")) {
+            opsArray = source.value("operations").toArray();
+        } else if (source.contains("actions")) {
+            opsArray = source.value("actions").toArray();
+        }
+        
+        return dsl;
+    }
+};
+```
+
+#### 设计要点
+
+| 要点 | 说明 |
+|------|------|
+| **多字段名兼容** | 识别多种可能的字段名，按优先级尝试 |
+| **嵌套结构处理** | 处理 `dsl`、`change_request` 等嵌套层级 |
+| **默认值兜底** | 字段缺失时提供合理的默认值 |
+| **日志记录** | 记录解析过程，便于调试 |
+
+#### 面试问答
+
+**Q: 为什么 AI 模型输出的格式不稳定？**
+
+A: 大语言模型本质上是概率模型，同样的 prompt 可能产生不同的输出。虽然我们通过 JSON Schema 约束输出格式，但模型仍可能使用同义词或变体字段名。
+
+**Q: 为什么不在 Prompt 中更严格地约束？**
+
+A: 我们尝试过，但：
+1. 过于严格的约束可能影响模型的推理能力
+2. 不同模型版本对指令的遵循程度不同
+3. 兼容性方案更健壮，能适应模型升级
+
+**Q: 这种兼容方案有什么缺点？**
+
+A: 主要缺点是代码复杂度增加。但我们通过封装 `fromJson()` 方法，将兼容逻辑集中在一处，不影响业务代码的可读性。
+
 ---
 
-*文档版本: 5.2*  
+*文档版本: 5.3*  
 *最后更新: 2026年*

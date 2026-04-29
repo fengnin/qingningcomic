@@ -172,7 +172,6 @@ private:
                                       const QJsonObject& payload, RequestType type,
                                       const QString& prompt, bool asyncMode);
     QJsonObject buildAsyncRequestBody(const GenerateOptions& options, RequestType type);
-    QJsonObject buildAsyncRequestBody(const EditOptions& options);
     void storePendingRequest(const QString& requestId, const GenerateOptions& options);
     void storePendingRequest(const QString& requestId, const EditOptions& options);
     void enqueueAsyncRequest(const GenerateOptions& options);

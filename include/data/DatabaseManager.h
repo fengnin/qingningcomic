@@ -5,6 +5,9 @@
 #include <QSqlQuery>
 #include <QMutex>
 #include <QRecursiveMutex>
+#include <QObject>
+#include <QMetaObject>
+#include <QThread>
 #include <QString>
 #include <QVariant>
 #include <QVariantMap>
@@ -125,6 +128,14 @@ T DatabaseManager::safeExecute(const QString& operation, DbOperation<T> dbOp, T 
 template<typename T>
 T DatabaseManager::safeExecuteWithLock(const QString& operation, DbOperation<T> dbOp, T defaultValue)
 {
+    if (QThread::currentThread() != thread()) {
+        T result = defaultValue;
+        QMetaObject::invokeMethod(this, [this, &result, operation, dbOp, defaultValue]() {
+            result = safeExecuteWithLock(operation, dbOp, defaultValue);
+        }, Qt::BlockingQueuedConnection);
+        return result;
+    }
+
     QMutexLocker locker(&m_mutex);
     
     if (!ensureConnection(operation)) {

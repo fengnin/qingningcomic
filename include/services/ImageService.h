@@ -7,7 +7,11 @@
 #include "utils/RetryPolicy.h"
 #include "utils/SingletonUtils.h"
 #include <QJsonObject>
+#include <QVariantMap>
 #include <QByteArray>
+#include <QRect>
+#include <QRectF>
+#include <QSize>
 #include <QMutex>
 
 class Character;
@@ -28,6 +32,38 @@ public:
         Square_1x1,
         Standard_3x2,
         Widescreen_16x9
+    };
+
+    struct EditHint {
+        enum class Strategy {
+            Default,
+            FaceExpression,
+            SubjectReplacement
+        };
+
+        Strategy strategy;
+        bool faceOnly;
+        QString expression;
+        QString subjectDescription;
+        QString replacementDescription;
+        QString preserveDescription;
+        double regionScale;
+        double maskCoreRatio;
+        double maskFeatherRatio;
+
+        EditHint()
+            : strategy(Strategy::Default)
+            , faceOnly(false)
+            , expression()
+            , subjectDescription()
+            , replacementDescription()
+            , preserveDescription()
+            , regionScale(1.15)
+            , maskCoreRatio(0.90)
+            , maskFeatherRatio(0.10)
+        {}
+
+        bool isEnabled() const { return faceOnly || strategy != Strategy::Default || !expression.isEmpty(); }
     };
 
     struct ResolutionConfig {
@@ -60,9 +96,11 @@ public:
     };
 
     GenerateResult generatePanelImage(const QString& panelId, GenerateMode mode = GenerateMode::Preview);
+    GenerateResult generatePanelImage(const QString& panelId, GenerateMode mode, const EditHint& hint);
     void generatePanelImages(const QStringList& panelIds, GenerateMode mode = GenerateMode::Preview);
     void generateStoryboardImages(const QString& storyboardId, GenerateMode mode = GenerateMode::Preview);
     GenerateResult regeneratePanelImage(const QString& panelId, GenerateMode mode = GenerateMode::Preview);
+    GenerateResult regeneratePanelImage(const QString& panelId, GenerateMode mode, const EditHint& hint);
 
     GenerateResult generatePanelImage(const QString& panelId, BatchPresetMode presetMode);
     void generatePanelImages(const QStringList& panelIds, BatchPresetMode presetMode);
@@ -76,6 +114,7 @@ public:
     QString enqueueBatchPanelImageGeneration(const QStringList& panelIds, BatchPresetMode presetMode);
     QStringList enqueuePanelImageGenerations(const QStringList& panelIds, BatchPresetMode presetMode);
     QJsonObject handleGeneratePanelImageTask(const QJsonObject& task);
+    static QString preferredPanelSourceImagePath(const Panel& panel, GenerateMode mode);
 
     void cancelCurrentBatch();
 
@@ -96,14 +135,29 @@ private:
         GenerateMode mode;
         QString presetMode;
         bool allowReferenceEdit = true;
+        bool faceOnlyEdit = false;
+        EditHint::Strategy editStrategy = EditHint::Strategy::Default;
         ResolutionConfig resolution;
         Panel panel;
+        QString sourceImagePath;
+        QString editExpression;
+        QString editSubjectDescription;
+        QString editReplacementDescription;
+        QString editPreserveDescription;
+        double editRegionScale = 1.15;
+        double editMaskCoreRatio = 0.90;
+        double editMaskFeatherRatio = 0.10;
+        QRect editTargetRect;
+        QByteArray editSourceImageData;
         QString prompt;
         QString negativePrompt;
         QByteArray imageData;
+        QByteArray editMaskData;
         QString s3Key;
         QStringList referenceImages;
         QByteArray refImageData;
+        int refImageWidth = 0;
+        int refImageHeight = 0;
     };
 
     struct ProviderConfig {
@@ -141,7 +195,7 @@ private slots:
     
 private:
     GenerateResult generatePanelImageInternal(const QString& panelId, const ResolutionConfig& resolution);
-    GenerateResult generatePanelImageCore(const QString& panelId, const ResolutionConfig& resolution, bool checkConcurrency);
+    GenerateResult generatePanelImageCore(const QString& panelId, const ResolutionConfig& resolution, bool checkConcurrency, const EditHint& hint);
     GenerateResult generateWithRetry(const QString& panelId, GenerateMode mode, int maxRetries);
     GenerateResult generateWithRetry(const QString& panelId, const QString& presetMode, int maxRetries);
     GenerateResult generateWithRetryInternal(const QString& panelId, const ResolutionConfig& resolution, int maxRetries);
@@ -153,12 +207,22 @@ private:
     void getPresetResolution(BatchPresetMode presetMode, int& width, int& height) const;
     void getPresetResolution(const QString& presetMode, int& width, int& height) const;
     bool loadReferenceImage(GenerationContext& ctx);
+    void prepareEditReferenceImages(GenerationContext& ctx);
+    bool prepareFaceOnlyEditContext(GenerationContext& ctx) const;
+    QRectF resolveFaceEditRegion(const GenerationContext& ctx) const;
+    QByteArray buildFaceEditMask(const GenerationContext& ctx) const;
+    QString buildFaceEditPrompt(const GenerationContext& ctx) const;
+    static double faceEditMinimumScaleForShotType(const QString& shotType);
+    void applyFaceOnlyEditHints(GenerationContext& ctx, QwenImageClient::EditOptions& options) const;
+    bool applyFaceOnlyEditPostProcess(GenerationContext& ctx);
+    static QRectF expandEditRegion(const QRectF& region, double scale, const QSize& canvasSize);
+    bool finalizeGeneratedImage(GenerationContext& ctx, const QByteArray& imageData);
     bool executeWithVolcEngine(GenerationContext& ctx);
     bool executeWithQwen(GenerationContext& ctx);
     bool executeImageGeneration(GenerationContext& ctx);
     QwenImageClient::GenerateOptions buildQwenGenerateOptions(const GenerationContext& ctx,
                                                               const ResolutionConfig& resolution) const;
-    QwenImageClient::EditOptions buildQwenEditOptions(const GenerationContext& ctx,
+    QwenImageClient::EditOptions buildQwenEditOptions(GenerationContext& ctx,
                                                       const ResolutionConfig& resolution) const;
     QJsonObject buildPanelPromptOptions(const GenerationContext& ctx, const QJsonObject& panelJson) const;
     void appendUniqueReferenceImages(QStringList& target, const QStringList& source) const;
