@@ -4,6 +4,7 @@
 #include "services/ExportService.h"
 #include "services/ServiceContainer.h"
 #include "utils/EncodingUtils.h"
+#include "data/FileStorage.h"
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QUrl>
@@ -159,6 +160,7 @@ ExportPage::ExportPage(QWidget *parent)
     , m_resultStatusLabel(nullptr)
     , m_resultFileSizeLabel(nullptr)
     , m_resultCreatedAtLabel(nullptr)
+    , m_resultFileUrlLabel(nullptr)
     , m_downloadBtn(nullptr)
     , m_historyList(nullptr)
 {
@@ -382,12 +384,25 @@ QWidget* ExportPage::createResultArea()
     layout->addWidget(createResultHeader());
     layout->addWidget(createResultDetails());
 
-    m_downloadBtn = new QPushButton("📥 打开下载链接");
+    m_downloadBtn = new QPushButton("📥 打开文件");
     m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
     m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
     m_downloadBtn->setCursor(Qt::PointingHandCursor);
-    connect(m_downloadBtn, &QPushButton::clicked, []() {
-        QDesktopServices::openUrl(QUrl("https://example.com/download"));
+    connect(m_downloadBtn, &QPushButton::clicked, [this]() {
+        if (!m_resultWidget) {
+            return;
+        }
+        if (!m_resultFileUrlLabel) {
+            return;
+        }
+        const QString path = m_resultFileUrlLabel->text().trimmed();
+        if (path.isEmpty() || path == "—") {
+            return;
+        }
+        const QUrl url = QUrl::fromLocalFile(path);
+        if (url.isValid()) {
+            QDesktopServices::openUrl(url);
+        }
     });
     layout->addWidget(m_downloadBtn);
 
@@ -424,6 +439,7 @@ QWidget* ExportPage::createResultDetails()
     gridLayout->addWidget(createDetailItem(tr("状态"), &m_resultStatusLabel), 1, 0);
     gridLayout->addWidget(createDetailItem(tr("文件大小"), &m_resultFileSizeLabel), 1, 1);
     gridLayout->addWidget(createDetailItem("创建时间", &m_resultCreatedAtLabel), 2, 0, 1, 2);
+    gridLayout->addWidget(createDetailItem(tr("文件路径"), &m_resultFileUrlLabel), 3, 0, 1, 2);
 
     return detailsGrid;
 }
@@ -631,7 +647,7 @@ void ExportPage::showError(const QString &message)
 void ExportPage::showResult(const QVariantMap &data)
 {
     if (!m_resultWidget || !m_resultNovelIdLabel || !m_resultFormatLabel ||
-        !m_resultStatusLabel || !m_resultFileSizeLabel || !m_resultCreatedAtLabel) {
+        !m_resultStatusLabel || !m_resultFileSizeLabel || !m_resultCreatedAtLabel || !m_resultFileUrlLabel) {
         return;
     }
 
@@ -647,6 +663,7 @@ void ExportPage::showResult(const QVariantMap &data)
     m_resultStatusLabel->setText(statusLabel(data["status"].toString()));
     m_resultFileSizeLabel->setText(formatBytes(data["fileSize"].toLongLong()));
     m_resultCreatedAtLabel->setText(formatDateTime(data["createdAt"].toString()));
+    m_resultFileUrlLabel->setText(data["fileUrl"].toString().isEmpty() ? QStringLiteral("—") : data["fileUrl"].toString());
 
     m_resultWidget->setVisible(true);
 }
@@ -658,6 +675,3 @@ void ExportPage::clearMessages()
     }
     m_resultWidget->setVisible(false);
 }
-
-
-

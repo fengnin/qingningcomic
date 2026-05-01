@@ -26,7 +26,7 @@ mingw {
 }
 
 # 启用 Qt 模块
-QT += core network sql widgets concurrent
+QT += core network sql widgets concurrent printsupport
 
 # 源文件列表
 SOURCES += \
@@ -87,7 +87,11 @@ SOURCES += \
     src/utils/PromptBuilder.cpp \
     src/utils/AsyncImageLoader.cpp \
     src/utils/ImageModeUtils.cpp \
+    src/utils/ExportUtils.cpp \
+    src/utils/ExportRenderer.cpp \
+    src/utils/DialogueBubbleRenderer.cpp \
     src/utils/RetryPolicy.cpp \
+    src/utils/ExportDataHelper.cpp \
     src/components/SuccessDialog.cpp \
     src/components/ConfirmDialog.cpp \
     src/components/DeleteConfirmDialog.cpp \
@@ -184,6 +188,7 @@ HEADERS += \
     include/utils/PromptBuilder.h \
     include/utils/ImageModeUtils.h \
     include/utils/RetryPolicy.h \
+    include/utils/DialogueBubbleRenderer.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \
     include/components/ImageViewerDialog.h \

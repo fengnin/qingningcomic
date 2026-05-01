@@ -18,6 +18,7 @@
 #include "models/Task.h"
 #include "utils/StatusWriteUtils.h"
 #include "utils/ChangeRequestExpressionUtils.h"
+#include "utils/DialogueBubbleRenderer.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include "utils/AppConfig.h"
@@ -706,6 +707,21 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
         if (!generateImage(ctx)) {
             resetState();
             return createErrorResult(panelId, lastError().isEmpty() ? tr("图像生成失败") : lastError());
+        }
+
+        if (!ctx.panel.dialogue().isEmpty() && !ctx.faceOnlyEdit) {
+            emit progressChanged(tr("正在渲染对话气泡..."), 65);
+            QImage baseImage;
+            if (baseImage.loadFromData(ctx.imageData)) {
+                QImage withBubbles = DialogueBubbleRenderer::renderForPanel(ctx.panel, baseImage);
+                if (!withBubbles.isNull()) {
+                    QBuffer buffer(&ctx.imageData);
+                    buffer.open(QIODevice::WriteOnly);
+                    if (withBubbles.save(&buffer, "PNG")) {
+                        LOG_INFO("ImageService", QString("Dialogue bubbles rendered for panel: %1").arg(panelId));
+                    }
+                }
+            }
         }
 
         if (!storeImage(ctx)) {
@@ -1852,20 +1868,16 @@ QString ImageService::enqueuePanelImageGeneration(const QString& panelId, BatchP
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, GenerateMode mode)
 {
-    if (panelIds.isEmpty()) {
-        return QString();
-    }
-
-    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::generateModeString(mode), panelIds);
+    return panelIds.isEmpty()
+        ? QString()
+        : enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::generateModeString(mode), panelIds);
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, BatchPresetMode presetMode)
 {
-    if (panelIds.isEmpty()) {
-        return QString();
-    }
-
-    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::presetModeString(presetMode), panelIds);
+    return panelIds.isEmpty()
+        ? QString()
+        : enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::presetModeString(presetMode), panelIds);
 }
 
 QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelIds, GenerateMode mode)
@@ -1876,7 +1888,6 @@ QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelI
     for (const QString& panelId : panelIds) {
         taskIds.append(enqueuePanelImageGeneration(panelId, mode));
     }
-
     return taskIds;
 }
 
@@ -1888,7 +1899,6 @@ QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelI
     for (const QString& panelId : panelIds) {
         taskIds.append(enqueuePanelImageGeneration(panelId, presetMode));
     }
-
     return taskIds;
 }
 
@@ -1910,47 +1920,19 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)
 {
-    QJsonObject json = panel.rawContent();
-    if (json.isEmpty()) {
+    QJsonObject json = panel.content();
+    if (!json.contains("id")) {
         json["id"] = panel.id();
+    }
+    if (!json.contains("page")) {
         json["page"] = panel.page();
+    }
+    if (!json.contains("index")) {
         json["index"] = panel.index();
-        json["scene"] = panel.scene();
-        json["shotType"] = panel.shotType();
-        json["cameraAngle"] = panel.cameraAngle();
-        json["visualPrompt"] = panel.visualPrompt();
-        json["visualPromptEn"] = panel.visualPromptEn();
+    }
+    if (!json.contains("status")) {
         json["status"] = panel.status();
-    } else {
-        if (!json.contains("id")) {
-            json["id"] = panel.id();
-        }
-        if (!json.contains("status")) {
-            json["status"] = panel.status();
-        }
     }
-    
-    QJsonArray charactersArray;
-    for (const auto& c : panel.characters()) {
-        QJsonObject charObj;
-        charObj["charId"] = c.charId;
-        charObj["name"] = c.name;
-        charObj["pose"] = c.pose;
-        charObj["expression"] = c.expression;
-        charactersArray.append(charObj);
-    }
-    json["characters"] = charactersArray;
-    
-    QJsonArray dialogueArray;
-    for (const auto& d : panel.dialogue()) {
-        QJsonObject dialogueObj;
-        dialogueObj["speaker"] = d.speaker;
-        dialogueObj["text"] = d.text;
-        dialogueObj["bubbleType"] = d.bubbleType;
-        dialogueArray.append(dialogueObj);
-    }
-    json["dialogue"] = dialogueArray;
-    
     return json;
 }
 

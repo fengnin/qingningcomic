@@ -101,73 +101,30 @@ inline QJsonObject buildChangeRequestSchema()
 
 inline QString buildChangeRequestSystemPrompt()
 {
-    return QStringLiteral(
-        "你是一个漫画修改助手。\n\n"
-        "你的任务是将用户的自然语言修改请求转换为结构化的 CR-DSL（Change Request Domain Specific Language）。\n\n"
-        "CR-DSL 包含以下要素：\n"
-        "- scope: 修改范围\n"
-        "- targetId: 目标 ID（如果适用）\n"
-        "- type: 修改类型\n"
-        "- ops: 操作列表，每个操作包含 action 和 params\n\n"
-        "type 与 action 的对应关系：\n"
-        "- type=art: inpaint, outpaint, bg_swap, repose, regen_panel, setExpression, add_effect, resize\n"
-        "- type=dialogue: rewrite_dialogue\n"
-        "- type=layout: reorder, resize\n"
-        "- type=style: update_style\n\n"
-        "layout/reorder 的标准输出规则：\n"
-        "- 如果是完整顺序重排，使用 panelOrder\n"
-        "- 如果是交换少量面板，使用 sourceIndices / targetIndices\n"
-        "- sourceIndices / targetIndices 使用当前页内的 0-based panel_index\n"
-        "- panelOrder 使用 1-based 面板编号\n"
-        "- 不要主动生成 fromIndex / toIndex，保留给兼容层处理\n\n"
-        "可用的 action 详细说明：\n"
-        "- inpaint: 局部重绘（需要遮罩区域）；如果用户要求去掉/删除某个角色或物体，prompt 必须明确写出“移除主体、补全背景、保留其余内容”，不要只写局部重绘\n"
-        "- outpaint: 扩展画面\n"
-        "- bg_swap: 替换背景\n"
-        "- repose: 改变角色姿势\n"
-        "- regen_panel: 重新生成整个面板\n"
-        "- setExpression: 修改角色表情（params.expression 指定目标表情）\n"
-        "- editIntent: 可选的意图标记；去除主体使用 remove_subject，通用局部替换使用 replace_subject，局部移动/放置使用 move_subject，局部插入使用 insert_subject，局部属性修改使用 replace_attribute，背景修改使用 replace_background，表情修改使用 set_expression\n"
-        "- add_effect: 添加特效（params.effect 指定特效类型，params.intensity 指定强度 0-1）\n"
-        "- resize: 调整面板尺寸（params.width 和 params.height 指定尺寸）\n"
-        "- rewrite_dialogue: 重写对白\n"
-        "- reorder: 重新排序\n\n"
-        "如果是角色表情修改，请把 expression 归一为以下规范值之一：\n"
-        "- neutral\n"
-        "- happy\n"
-        "- sad\n"
-        "- angry\n"
-        "- surprised\n"
-        "- scared\n"
-        "- determined\n"
-        "- confused\n"
-        "- embarrassed\n"
-        "- smirking\n\n"
-        "如果请求的核心目标是修改角色表情，请优先使用 setExpression，"
-        "不要把表情修改误写成 repose、outpaint 或 regen_panel。\n\n"
-        "请根据用户的自然语言请求，生成符合 Schema 的 CR-DSL JSON。");
+    QStringList sections;
+    sections << QStringLiteral("你是一个漫画修改助手。");
+    sections << QStringLiteral("你的任务是将用户的自然语言修改请求转换为结构化的 CR-DSL（Change Request Domain Specific Language）。");
+    sections << QStringLiteral("CR-DSL 包含以下要素：\n- scope: 修改范围\n- targetId: 目标 ID（如果适用）\n- type: 修改类型\n- ops: 操作列表，每个操作包含 action 和 params");
+    sections << QStringLiteral("type 与 action 的对应关系：\n- type=art: inpaint, outpaint, bg_swap, repose, regen_panel, setExpression, add_effect, resize\n- type=dialogue: rewrite_dialogue\n- type=layout: reorder, resize\n- type=style: update_style");
+    sections << QStringLiteral("layout/reorder 的标准输出规则：\n- 如果是完整顺序重排，使用 panelOrder\n- 如果是交换少量面板，使用 sourceIndices / targetIndices\n- sourceIndices / targetIndices 使用当前页内的 0-based panel_index\n- panelOrder 使用 1-based 面板编号\n- 不要主动生成 fromIndex / toIndex，保留给兼容层处理");
+    sections << QStringLiteral("可用的 action 详细说明：\n- inpaint: 局部重绘（需要遮罩区域）；如果用户要求去掉/删除某个角色或物体，prompt 必须明确写出“移除主体、补全背景、保留其余内容”，不要只写局部重绘\n- outpaint: 扩展画面\n- bg_swap: 替换背景\n- repose: 改变角色姿势\n- regen_panel: 重新生成整个面板\n- setExpression: 修改角色表情（params.expression 指定目标表情）\n- editIntent: 可选的意图标记；去除主体使用 remove_subject，通用局部替换使用 replace_subject，局部移动/放置使用 move_subject，局部插入使用 insert_subject，局部属性修改使用 replace_attribute，背景修改使用 replace_background，表情修改使用 set_expression\n- add_effect: 添加特效（params.effect 指定特效类型，params.intensity 指定强度 0-1）\n- resize: 调整面板尺寸（params.width 和 params.height 指定尺寸）\n- rewrite_dialogue: 重写对白\n- reorder: 重新排序");
+    sections << QStringLiteral("如果是角色表情修改，请把 expression 归一为以下规范值之一：\n- neutral\n- happy\n- sad\n- angry\n- surprised\n- scared\n- determined\n- confused\n- embarrassed\n- smirking");
+    sections << QStringLiteral("如果请求的核心目标是修改角色表情，请优先使用 setExpression，不要把表情修改误写成 repose、outpaint 或 regen_panel。");
+    sections << QStringLiteral("解析时必须遵守以下绝对规则：\n- 只允许修改用户明确提到的对象和属性，未提及的内容一律保持原样。\n- 如果用户说的是“对白、台词、说的话、文字内容、文本”，优先视为 dialogue（面板对白），而不是 art。\n- 如果用户明确指向“图上的字、书页上的字、牌子上的字、海报上的字”，才将其视为 art。\n- 如果请求中只提到“改文字”但上下文存在面板对白，则优先映射到 dialogue。\n- 如果请求要求修改图像内容，必须在 prompt 中明确写出哪些内容可以变、哪些内容必须保持不变。");
+    sections << QStringLiteral("请根据用户的自然语言请求，生成符合 Schema 的 CR-DSL JSON。");
+    return sections.join(QStringLiteral("\n\n"));
 }
 
 inline QString buildChangeRequestUserPrompt(const QString& naturalLanguage, const QJsonObject& context)
 {
-    QString prompt = QStringLiteral("自然语言修改需求：\n%1").arg(naturalLanguage);
+    QStringList sections;
+    sections << QStringLiteral("自然语言修改需求：\n%1").arg(naturalLanguage);
     if (!context.isEmpty()) {
-        prompt += QStringLiteral("\n上下文信息：\n%1")
+        sections << QStringLiteral("上下文信息：\n%1")
             .arg(QString::fromUtf8(QJsonDocument(context).toJson(QJsonDocument::Indented)));
     }
-    prompt += QStringLiteral(
-        "\n\n请输出符合 CR-DSL JSON 的内容，并尽量补全：\n"
-        "- scope：根据修改范围选择 global / character / panel / page\n"
-        "- type：根据修改类型选择 art / dialogue / layout / style\n"
-        "- action：根据 type 选择对应的操作（art→inpaint/setExpression等，dialogue→rewrite_dialogue，layout→reorder/resize，style→update_style）\n"
-        "- targetId：如果上下文里提供了 targetPanelId / targetPanelNumber，请直接映射到对应 ID\n"
-        "- targetId：如果 type=style，请优先映射到 storyboardId\n"
-        "- targetId：如果能明确到具体对象，请填写对应 ID\n"
-        "- params.editIntent：如果属于局部编辑，尽量填写 remove_subject / replace_subject / move_subject / insert_subject / replace_attribute / replace_background / set_expression\n"
-        "- params.maskRegion：如果是局部替换，请填写最小、最具体的被替换对象，不要写容器、整个人物或整页场景\n"
-        "- params.prompt：尽量保留原始自然语言中的具体对象名，例如“桌上的水杯”优先于“桌上”\n"
-        "- ops：至少包含一条可执行操作，action 必须与 type 匹配");
-    return prompt;
+    sections << QStringLiteral("请输出符合 CR-DSL JSON 的内容，并尽量补全：\n- scope：根据修改范围选择 global / character / panel / page\n- type：根据修改类型选择 art / dialogue / layout / style\n- action：根据 type 选择对应的操作（art→inpaint/setExpression等，dialogue→rewrite_dialogue，layout→reorder/resize，style→update_style）\n- 绝对规则：未明确提及的内容一律不改，不要自行扩展到颜色、光线、背景、构图、人物姿态、服装、发型或其他无关部分\n- 如果用户明确要求“只改文字/对白/台词”，请输出 dialogue + rewrite_dialogue，不要输出 art\n- targetId：如果上下文里提供了 targetPanelId / targetPanelNumber，请直接映射到对应 ID\n- targetId：如果 type=style，请优先映射到 storyboardId\n- targetId：如果能明确到具体对象，请填写对应 ID\n- params.editIntent：如果属于局部编辑，尽量填写 remove_subject / replace_subject / move_subject / insert_subject / replace_attribute / replace_background / set_expression\n- params.maskRegion：如果是局部替换，请填写最小、最具体的被替换对象，不要写容器、整个人物或整页场景\n- params.prompt：尽量保留原始自然语言中的具体对象名，例如“桌上的水杯”优先于“桌上”\n- params.prompt：如果是局部编辑，必须额外写出“未提到的部分保持不变”\n- ops：至少包含一条可执行操作，action 必须与 type 匹配");
+    return sections.join(QStringLiteral("\n\n"));
 }
 
 inline bool isValidParsedDsl(const ChangeRequestDsl& dsl, QString* errorMessage = nullptr)
@@ -187,6 +144,17 @@ inline bool isValidParsedDsl(const ChangeRequestDsl& dsl, QString* errorMessage 
             *errorMessage = QStringLiteral("Parsed DSL has invalid type");
         }
         return false;
+    }
+
+    if (type == QStringLiteral("dialogue")) {
+        for (const ChangeRequestOp& op : dsl.ops) {
+            if (ChangeRequestNormalization::normalizeAction(op.action) != QStringLiteral("rewrite_dialogue")) {
+                if (errorMessage) {
+                    *errorMessage = QStringLiteral("Dialogue DSL must use rewrite_dialogue");
+                }
+                return false;
+            }
+        }
     }
 
     if (dsl.targetId.trimmed().isEmpty()) {

@@ -19,6 +19,98 @@ namespace {
     constexpr int PREVIEW_HEIGHT = 320;
     constexpr int SCENE_DESC_HEIGHT = 120;
     constexpr int INSTRUCTION_HEIGHT = 100;
+
+    QString sectionCardStyle(const QString& objectName)
+    {
+        return QStringLiteral(
+            "#%1 { background: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB; }"
+        ).arg(objectName);
+    }
+
+    QString modeButtonStyle(bool active)
+    {
+        return active ? QStringLiteral(R"(
+            QPushButton {
+                background: #ffffff;
+                color: #4d7c0f;
+                font-size: 12px;
+                font-weight: 600;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+            }
+        )") : QStringLiteral(R"(
+            QPushButton {
+                background: transparent;
+                color: #6B7280;
+                font-size: 12px;
+                font-weight: 500;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background: rgba(255,255,255,0.5);
+                color: #374151;
+            }
+        )");
+    }
+
+    void applyTextEditStyle(QTextEdit* edit)
+    {
+        if (!edit) {
+            return;
+        }
+
+        edit->setStyleSheet(R"(
+            QTextEdit {
+                padding: 12px;
+                font-size: 13px;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                background: #ffffff;
+                color: #374151;
+            }
+            QTextEdit:focus {
+                border-color: #84cc16;
+            }
+        )");
+    }
+
+    void applyModeButtonStyle(QPushButton* button, bool active)
+    {
+        if (!button) {
+            return;
+        }
+
+        button->setStyleSheet(modeButtonStyle(active));
+    }
+
+    void updateStatusLabel(QLabel* label, PanelEditorWidget::State state)
+    {
+        if (!label) {
+            return;
+        }
+
+        switch (state) {
+            case PanelEditorWidget::State::Ready:
+                label->setText(QString::fromUtf8("任务状态: 等待中"));
+                label->setStyleSheet("font-size: 12px; color: #9CA3AF; background: transparent;");
+                break;
+            case PanelEditorWidget::State::Processing:
+                label->setText(QString::fromUtf8("任务状态: 处理中"));
+                label->setStyleSheet("font-size: 12px; color: #F59E0B; background: transparent; font-weight: 600;");
+                break;
+            case PanelEditorWidget::State::Success:
+                label->setText(QString::fromUtf8("任务状态: 成功"));
+                label->setStyleSheet("font-size: 12px; color: #10B981; background: transparent; font-weight: 600;");
+                break;
+            case PanelEditorWidget::State::Error:
+                label->setText(QString::fromUtf8("任务状态: 失败"));
+                label->setStyleSheet("font-size: 12px; color: #EF4444; background: transparent; font-weight: 600;");
+                break;
+        }
+    }
 }
 
 PanelEditorWidget::PanelEditorWidget(QWidget *parent)
@@ -201,30 +293,10 @@ void PanelEditorWidget::setPreviewUrl(const QString &url)
 void PanelEditorWidget::setState(State state)
 {
     m_state = state;
-    
-    if (!m_statusLabel) return;
-    
-    switch (state) {
-        case State::Ready:
-            m_statusLabel->setText(QString::fromUtf8("任务状态: 等待中"));
-            m_statusLabel->setStyleSheet("font-size: 12px; color: #9CA3AF; background: transparent;");
-            if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
-            break;
-        case State::Processing:
-            m_statusLabel->setText(QString::fromUtf8("任务状态: 处理中"));
-            m_statusLabel->setStyleSheet("font-size: 12px; color: #F59E0B; background: transparent; font-weight: 600;");
-            if (m_submitEditBtn) m_submitEditBtn->setEnabled(false);
-            break;
-        case State::Success:
-            m_statusLabel->setText(QString::fromUtf8("任务状态: 成功"));
-            m_statusLabel->setStyleSheet("font-size: 12px; color: #10B981; background: transparent; font-weight: 600;");
-            if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
-            break;
-        case State::Error:
-            m_statusLabel->setText(QString::fromUtf8("任务状态: 失败"));
-            m_statusLabel->setStyleSheet("font-size: 12px; color: #EF4444; background: transparent; font-weight: 600;");
-            if (m_submitEditBtn) m_submitEditBtn->setEnabled(true);
-            break;
+
+    updateStatusLabel(m_statusLabel, state);
+    if (m_submitEditBtn) {
+        m_submitEditBtn->setEnabled(state != State::Processing);
     }
 }
 
@@ -242,13 +314,7 @@ QWidget* PanelEditorWidget::createSceneDescSection()
 {
     QWidget *card = new QWidget();
     card->setObjectName("sceneCard");
-    card->setStyleSheet(R"(
-        #sceneCard {
-            background: #F9FAFB;
-            border-radius: 12px;
-            border: 1px solid #E5E7EB;
-        }
-    )");
+    card->setStyleSheet(sectionCardStyle("sceneCard"));
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
@@ -258,19 +324,7 @@ QWidget* PanelEditorWidget::createSceneDescSection()
     layout->addWidget(titleLabel);
     
     m_sceneDescEdit = new QTextEdit();
-    m_sceneDescEdit->setStyleSheet(R"(
-        QTextEdit {
-            padding: 12px;
-            font-size: 13px;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            background: #ffffff;
-            color: #374151;
-        }
-        QTextEdit:focus {
-            border-color: #84cc16;
-        }
-    )");
+    applyTextEditStyle(m_sceneDescEdit);
     m_sceneDescEdit->setFixedHeight(SCENE_DESC_HEIGHT);
     layout->addWidget(m_sceneDescEdit);
     
@@ -305,13 +359,7 @@ QWidget* PanelEditorWidget::createEditModeSection()
 {
     QWidget *card = new QWidget();
     card->setObjectName("modeCard");
-    card->setStyleSheet(R"(
-        #modeCard {
-            background: #F9FAFB;
-            border-radius: 12px;
-            border: 1px solid #E5E7EB;
-        }
-    )");
+    card->setStyleSheet(sectionCardStyle("modeCard"));
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
@@ -335,18 +383,9 @@ QWidget* PanelEditorWidget::createEditModeSection()
     m_inpaintBtn = createModeButton(QString::fromUtf8("局部重绘"), static_cast<int>(EditMode::Inpaint));
     m_outpaintBtn = createModeButton(QString::fromUtf8("扩展绘制"), static_cast<int>(EditMode::Outpaint));
     m_bgSwapBtn = createModeButton(QString::fromUtf8("背景替换"), static_cast<int>(EditMode::BgSwap));
-    
-    m_inpaintBtn->setStyleSheet(R"(
-        QPushButton {
-            background: #ffffff;
-            color: #4d7c0f;
-            font-size: 12px;
-            font-weight: 600;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-        }
-    )");
+    applyModeButtonStyle(m_inpaintBtn, true);
+    applyModeButtonStyle(m_outpaintBtn, false);
+    applyModeButtonStyle(m_bgSwapBtn, false);
     
     modeLayout->addWidget(m_inpaintBtn);
     modeLayout->addWidget(m_outpaintBtn);
@@ -360,13 +399,7 @@ QWidget* PanelEditorWidget::createInstructionSection()
 {
     QWidget *card = new QWidget();
     card->setObjectName("instrCard");
-    card->setStyleSheet(R"(
-        #instrCard {
-            background: #F9FAFB;
-            border-radius: 12px;
-            border: 1px solid #E5E7EB;
-        }
-    )");
+    card->setStyleSheet(sectionCardStyle("instrCard"));
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
@@ -377,19 +410,7 @@ QWidget* PanelEditorWidget::createInstructionSection()
     
     m_editInstructionEdit = new QTextEdit();
     m_editInstructionEdit->setPlaceholderText(QString::fromUtf8("输入修改要求..."));
-    m_editInstructionEdit->setStyleSheet(R"(
-        QTextEdit {
-            padding: 12px;
-            font-size: 13px;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            background: #ffffff;
-            color: #374151;
-        }
-        QTextEdit:focus {
-            border-color: #84cc16;
-        }
-    )");
+    applyTextEditStyle(m_editInstructionEdit);
     m_editInstructionEdit->setFixedHeight(INSTRUCTION_HEIGHT);
     layout->addWidget(m_editInstructionEdit);
     
@@ -479,21 +500,7 @@ QWidget* PanelEditorWidget::createFooter()
 QPushButton* PanelEditorWidget::createModeButton(const QString& text, int mode)
 {
     QPushButton *btn = new QPushButton(text);
-    btn->setStyleSheet(R"(
-        QPushButton {
-            background: transparent;
-            color: #6B7280;
-            font-size: 12px;
-            font-weight: 500;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-        }
-        QPushButton:hover {
-            background: rgba(255,255,255,0.5);
-            color: #374151;
-        }
-    )");
+    btn->setStyleSheet(modeButtonStyle(false));
     btn->setCursor(Qt::PointingHandCursor);
     connect(btn, &QPushButton::clicked, [this, mode]() { onEditModeClicked(mode); });
     return btn;
@@ -501,36 +508,9 @@ QPushButton* PanelEditorWidget::createModeButton(const QString& text, int mode)
 
 void PanelEditorWidget::updateModeButtons(EditMode activeMode)
 {
-    QString activeStyle = R"(
-        QPushButton {
-            background: #ffffff;
-            color: #4d7c0f;
-            font-size: 12px;
-            font-weight: 600;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-        }
-    )";
-    QString normalStyle = R"(
-        QPushButton {
-            background: transparent;
-            color: #6B7280;
-            font-size: 12px;
-            font-weight: 500;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-        }
-        QPushButton:hover {
-            background: rgba(255,255,255,0.5);
-            color: #374151;
-        }
-    )";
-    
-    if (m_inpaintBtn) m_inpaintBtn->setStyleSheet(activeMode == EditMode::Inpaint ? activeStyle : normalStyle);
-    if (m_outpaintBtn) m_outpaintBtn->setStyleSheet(activeMode == EditMode::Outpaint ? activeStyle : normalStyle);
-    if (m_bgSwapBtn) m_bgSwapBtn->setStyleSheet(activeMode == EditMode::BgSwap ? activeStyle : normalStyle);
+    applyModeButtonStyle(m_inpaintBtn, activeMode == EditMode::Inpaint);
+    applyModeButtonStyle(m_outpaintBtn, activeMode == EditMode::Outpaint);
+    applyModeButtonStyle(m_bgSwapBtn, activeMode == EditMode::BgSwap);
 }
 
 void PanelEditorWidget::loadPreviewFromUrl(const QString &url)

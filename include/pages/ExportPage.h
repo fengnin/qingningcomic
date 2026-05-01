@@ -72,6 +72,7 @@ private:
     QLabel *m_resultStatusLabel;
     QLabel *m_resultFileSizeLabel;
     QLabel *m_resultCreatedAtLabel;
+    QLabel *m_resultFileUrlLabel;
     QPushButton *m_downloadBtn;
     QListWidget *m_historyList;
     

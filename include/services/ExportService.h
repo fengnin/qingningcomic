@@ -2,6 +2,10 @@
 #define EXPORT_SERVICE_H
 
 #include "services/BaseService.h"
+#include "models/Novel.h"
+#include "models/Storyboard.h"
+#include "models/Panel.h"
+#include "utils/ExportUtils.h"
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QVariantMap>
@@ -34,6 +38,8 @@ public:
     QString getFilePath(const QString& exportId, const QString& format);
     QList<ExportResult> getExportsByNovel(const QString& novelId);
     QList<ExportResult> getRecentExports(int limit = 10);
+    bool exportCurrentStory(const QString& novelId, int chapterNumber, const QString& format,
+                            QString* outExportId = nullptr, QString* outFilePath = nullptr);
     
 signals:
     void exportCreated(const ExportResult& result);
@@ -42,6 +48,9 @@ signals:
     void exportFailed(const QString& exportId, const QString& error);
 
 private:
+    ExportUtils::ExportFormat parseExportFormat(const QString& format) const;
+    QByteArray renderExportData(ExportUtils::ExportFormat exportFormat, const Novel& novel,
+                                const Storyboard& storyboard, const QList<Panel>& panels) const;
     static QString tableName() { return "exports"; }
 };
 

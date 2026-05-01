@@ -54,9 +54,14 @@ build/obj/UserSession.o
 build/obj/JsonRepairAdapter.o
 build/obj/PromptBuilder.o
 build/obj/AsyncImageLoader.o
+build/obj/ImageModeUtils.o
+build/obj/ExportUtils.o
+build/obj/ExportRenderer.o
 build/obj/RetryPolicy.o
+build/obj/ExportDataHelper.o
 build/obj/SuccessDialog.o
 build/obj/ConfirmDialog.o
+build/obj/DeleteConfirmDialog.o
 build/obj/SchemaToPrompt.o
 build/obj/ChapterSpinBox.o
 build/obj/ChapterSelectDialog.o
@@ -89,6 +94,7 @@ build/obj/moc_DashboardPage.o
 build/obj/moc_NovelUploadPage.o
 build/obj/moc_ExportPage.o
 build/obj/moc_NovelPage.o
+build/obj/moc_NovelDetailPage.o
 build/obj/moc_CharacterDetailPage.o
 build/obj/moc_DatabaseWorker.o
 build/obj/moc_Character.o
@@ -117,6 +123,7 @@ build/obj/moc_AsyncImageLoader.o
 build/obj/moc_UserSession.o
 build/obj/moc_SuccessDialog.o
 build/obj/moc_ConfirmDialog.o
+build/obj/moc_DeleteConfirmDialog.o
 build/obj/moc_RetryPolicy.o
 build/obj/moc_ChapterSpinBox.o
 build/obj/moc_ChapterSelectDialog.o

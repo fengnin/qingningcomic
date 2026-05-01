@@ -43,7 +43,7 @@ Panel::Panel()
 
 QJsonObject Panel::content() const
 {
-    QJsonObject obj;
+    QJsonObject obj = m_rawContent;
     obj["scene"] = m_scene;
     obj["shotType"] = m_shotType;
     obj["cameraAngle"] = m_cameraAngle;

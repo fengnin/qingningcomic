@@ -37,6 +37,7 @@
 #include "services/ServiceContainer.h"
 #include "utils/StatusHelper.h"
 #include "services/ChangeRequestService.h"
+#include "services/ExportService.h"
 #include "utils/ChangeRequestUiUtils.h"
 #include "utils/ChangeRequestTargetUtils.h"
 #include "utils/BibleUtils.h"
@@ -1159,13 +1160,13 @@ QWidget* NovelDetailPage::createExportCard()
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     setupLayout(cardLayout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    cardLayout->addWidget(createCardHeader(tr("导出高清成品"), tr("PDF / Webtoon 长图 / 资源包")));
+    cardLayout->addWidget(createCardHeader(tr("导出高清成品"), tr("PDF / Webtoon 长图 / ZIP压缩包")));
     
     cardLayout->addWidget(createSectionLabel(tr("导出格式")));
     
     m_exportFormatCombo = new ModeComboBox();
     m_exportFormatCombo->addItem("PDF");
-    m_exportFormatCombo->addItem(tr("图片包"));
+    m_exportFormatCombo->addItem(tr("Webtoon长图"));
     m_exportFormatCombo->addItem(tr("ZIP压缩包"));
     m_exportFormatCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     cardLayout->addWidget(m_exportFormatCombo);
@@ -2911,7 +2912,36 @@ void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType ty
 
 void NovelDetailPage::onExportClicked()
 {
-    QMessageBox::information(this, tr("导出功能"), tr("导出功能开发中..."));
+    if (m_currentNovel.id().isEmpty()) {
+        QMessageBox::warning(this, tr("导出失败"), tr("当前没有可导出的作品"));
+        return;
+    }
+
+    const QString format = m_exportFormatCombo ? m_exportFormatCombo->currentText() : QStringLiteral("PDF");
+    QString exportFormat = QStringLiteral("pdf");
+    if (format.contains(QStringLiteral("Webtoon"))) {
+        exportFormat = QStringLiteral("webtoon");
+    } else if (format.contains(QStringLiteral("ZIP")) || format.contains(QStringLiteral("资源"))) {
+        exportFormat = QStringLiteral("resources");
+    }
+
+    ExportService* exportService = ServiceContainer::instance()->exportService();
+    if (!exportService) {
+        QMessageBox::warning(this, tr("导出失败"), tr("导出服务未初始化"));
+        return;
+    }
+
+    QString exportId;
+    QString filePath;
+    if (!exportService->exportCurrentStory(m_currentNovel.id(), m_currentChapter, exportFormat, &exportId, &filePath)) {
+        QMessageBox::warning(this, tr("导出失败"), tr("导出失败，请检查面板和图片是否齐全"));
+        return;
+    }
+
+    if (m_exportStatusLabel) {
+        m_exportStatusLabel->setText(tr("导出完成：%1").arg(exportId));
+    }
+    QMessageBox::information(this, tr("导出完成"), tr("文件已生成：%1").arg(filePath));
 }
 
 void NovelDetailPage::onPanelCardClicked(int panelNumber, const QString& panelId)
