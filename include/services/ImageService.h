@@ -191,7 +191,7 @@ private:
     
 private slots:
     void processNextPanel();
-    void processPanelAsync(const QString& panelId, const ResolutionConfig& resolution, int currentIndex, int total);
+    void processPanelAsync(const QString& panelId, const ResolutionConfig& resolution);
     
 private:
     GenerateResult generatePanelImageInternal(const QString& panelId, const ResolutionConfig& resolution);
@@ -200,6 +200,9 @@ private:
     GenerateResult generateWithRetry(const QString& panelId, const QString& presetMode, int maxRetries);
     GenerateResult generateWithRetryInternal(const QString& panelId, const ResolutionConfig& resolution, int maxRetries);
     void startBatchGeneration(const QStringList& panelIds, const ResolutionConfig& resolution);
+    bool takeNextBatchItem(QString& panelId, int& currentIndex, int& total, ResolutionConfig& resolution);
+    void completeBatchGeneration();
+    bool recordBatchItemResult(const QString& panelId, const GenerateResult& result, int maxRetries);
     
     ProviderConfig getProviderConfig() const;
     QString presetModeToString(BatchPresetMode presetMode) const;

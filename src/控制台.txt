@@ -1,71 +1,366 @@
-[2026-05-01 21:21:51.080] [INFO] [TaskWorker] Task completed: f6fb1968-b87e-41b2-8579-c9090734f755
-[2026-05-01 21:21:51.084] [INFO] [AnalysisService] onTaskCompleted: taskId=f6fb1968-b87e-41b2-8579-c9090734f755
-[2026-05-01 21:21:51.084] [DEBUG] [AnalysisService] Ignoring non-storyboard task completion: taskId=f6fb1968-b87e-41b2-8579-c9090734f755, type=GeneratePanels
-[2026-05-01 21:21:51.165] [INFO] [NovelDetailPage] Batch image generation finished, reloading 6 panels from database
-[2026-05-01 21:21:51.494] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
-[2026-05-01 21:23:15.764] [INFO] [NovelDetailPage] 提交修改请求: textLength=15, requestedPanelNumber=6, currentPanels=6
-[2026-05-01 21:23:15.764] [INFO] [NovelDetailPage] 已解析修改目标面板: requestedPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:15.764] [DEBUG] [NovelDetailPage] 构建后的修改请求上下文: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, chapterNumber=1, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:15.764] [INFO] [NovelDetailPage] 修改请求上下文: keys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:15.764] [DEBUG] [NovelDetailPage] 修改请求上下文详情: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, chapterNumber=1, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:15.764] [INFO] [ChangeRequest] 创建变更请求: novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, textLength=15, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:15.764] [DEBUG] [ChangeRequest] 变更请求上下文已补全: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:15.764] [DEBUG] [ChangeRequest] 变更请求草稿已构建: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, createdAt=2026-05-01 13:23:15, status=queued
-[2026-05-01 21:23:15.851] [DEBUG] [ChangeRequest] 写入 change_requests 字段: context,created_at,dsl,error_message,id,job_id,natural_language,novel_id,status,storyboard_id,updated_at,user_id
-[2026-05-01 21:23:15.906] [INFO] [ChangeRequest] 变更请求已创建: c385c2a8-5f6e-4e7b-a765-21c3ec957f59 (dbRowId=1)
-[2026-05-01 21:23:15.908] [INFO] [ChangeRequest] 调度异步执行变更请求: c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:15.908] [INFO] [ChangeRequest] 开始执行变更请求: c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:15.950] [DEBUG] [ChangeRequest] 加载到变更请求: novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=queued, hasDsl=false, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:15.950] [DEBUG] [ChangeRequest] 写回变更请求状态: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=in_progress, hasError=false
-[2026-05-01 21:23:16.047] [DEBUG] [ChangeRequest] 状态已切换为 in_progress: c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:16.048] [DEBUG] [ChangeRequest] 现有 DSL 无效，准备重新解析: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, error=Parsed DSL has invalid type
-[2026-05-01 21:23:16.048] [DEBUG] [ChangeRequest] 解析自然语言: textLength=15, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber, schemaKeys=$schema,properties,required,title,type
-[2026-05-01 21:23:16.048] [DEBUG] [ChangeRequest] 自然语言目标面板号: 6
-[2026-05-01 21:23:17.784] [DEBUG] [ChangeRequest] 解析结果字段: ops, scope, type
-[2026-05-01 21:23:17.784] [DEBUG] [ChangeRequest] 解析结果原文: {"ops":[{"action":"rewrite_dialogue","params":{"text":"欣欣是猪"}}],"scope":"panel","type":"dialogue"}
-[2026-05-01 21:23:17.784] [DEBUG] [ChangeRequest] DSL 归一化后: {"ops":[{"action":"rewrite_dialogue","params":{"maskRegion":"文字","sourceText":"把第六个面板的文字改成欣欣是猪","text":"欣欣是猪"}}],"priority":"medium","reason":"","scope":"panel","targetId":"a027d742-c367-43e8-ac59-0f8d9ff42c31","type":"dialogue"}
-[2026-05-01 21:23:17.785] [INFO] [ChangeRequest] 解析 DSL 成功: scope=panel, type=dialogue, targetId=a027d742-c367-43e8-ac59-0f8d9ff42c31, ops=1
-[2026-05-01 21:23:17.785] [DEBUG] [ChangeRequest] 保存 CR-DSL: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, dsl={"ops":[{"action":"rewrite_dialogue","params":{"maskRegion":"文字","sourceText":"把第六个面板的文字改成欣欣是猪","text":"欣欣是猪"}}],"priority":"medium","reason":"","scope":"panel","targetId":"a027d742-c367-43e8-ac59-0f8d9ff42c31","type":"dialogue"}
-[2026-05-01 21:23:17.849] [INFO] [ChangeRequest] CR-DSL 已保存: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:17.849] [DEBUG] [ChangeRequest] 重新解析后的 DSL 已保存: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:17.850] [INFO] [ChangeRequest] 执行操作: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, step=1/1, action=rewrite_dialogue
-[2026-05-01 21:23:17.850] [DEBUG] [ChangeRequest] 操作参数: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, action=rewrite_dialogue, paramsKeys=maskRegion,sourceText,text
-[2026-05-01 21:23:18.769] [DEBUG] [ChangeRequest] 操作完成: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, action=rewrite_dialogue, outputKeys=dialogueId,speaker,text
-[2026-05-01 21:23:18.769] [INFO] [ChangeRequest] 执行 DSL: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, scope=panel, type=dialogue, targetId=a027d742-c367-43e8-ac59-0f8d9ff42c31, ops=1
-[2026-05-01 21:23:18.769] [DEBUG] [ChangeRequest] 变更请求结果汇总: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, resultCount=1
-[2026-05-01 21:23:18.769] [DEBUG] [ChangeRequest] 写回变更请求状态: crId=c385c2a8-5f6e-4e7b-a765-21c3ec957f59, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=completed, hasError=false
-[2026-05-01 21:23:18.838] [INFO] [ChangeRequest] 变更请求执行完成: c385c2a8-5f6e-4e7b-a765-21c3ec957f59
-[2026-05-01 21:23:19.267] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
-[2026-05-01 21:23:54.694] [INFO] [NovelDetailPage] 提交修改请求: textLength=15, requestedPanelNumber=6, currentPanels=6
-[2026-05-01 21:23:54.695] [INFO] [NovelDetailPage] 已解析修改目标面板: requestedPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:54.695] [DEBUG] [NovelDetailPage] 构建后的修改请求上下文: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, chapterNumber=1, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:54.695] [INFO] [NovelDetailPage] 修改请求上下文: keys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:54.695] [DEBUG] [NovelDetailPage] 修改请求上下文详情: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, chapterNumber=1, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:54.695] [INFO] [ChangeRequest] 创建变更请求: novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, textLength=15, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:54.695] [DEBUG] [ChangeRequest] 变更请求上下文已补全: storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, targetPanelNumber=6, targetPanelId=a027d742-c367-43e8-ac59-0f8d9ff42c31
-[2026-05-01 21:23:54.695] [DEBUG] [ChangeRequest] 变更请求草稿已构建: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, storyboardId=af011a4c-922f-4469-88d7-7d59a09bb08d, createdAt=2026-05-01 13:23:54, status=queued
-[2026-05-01 21:23:54.775] [DEBUG] [ChangeRequest] 写入 change_requests 字段: context,created_at,dsl,error_message,id,job_id,natural_language,novel_id,status,storyboard_id,updated_at,user_id
-[2026-05-01 21:23:54.828] [INFO] [ChangeRequest] 变更请求已创建: 492e9dae-bd98-4404-be8e-76e6f27f61ac (dbRowId=1)
-[2026-05-01 21:23:54.831] [INFO] [ChangeRequest] 调度异步执行变更请求: 492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:54.831] [INFO] [ChangeRequest] 开始执行变更请求: 492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:54.886] [DEBUG] [ChangeRequest] 加载到变更请求: novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=queued, hasDsl=false, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber
-[2026-05-01 21:23:54.886] [DEBUG] [ChangeRequest] 写回变更请求状态: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=in_progress, hasError=false
-[2026-05-01 21:23:54.965] [DEBUG] [ChangeRequest] 状态已切换为 in_progress: 492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:54.965] [DEBUG] [ChangeRequest] 现有 DSL 无效，准备重新解析: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, error=Parsed DSL has invalid type
-[2026-05-01 21:23:54.965] [DEBUG] [ChangeRequest] 解析自然语言: textLength=15, contextKeys=chapterNumber,storyboardId,targetPanelId,targetPanelNumber, schemaKeys=$schema,properties,required,title,type
-[2026-05-01 21:23:54.965] [DEBUG] [ChangeRequest] 自然语言目标面板号: 6
-[2026-05-01 21:23:56.871] [DEBUG] [ChangeRequest] 解析结果字段: ops, scope, type
-[2026-05-01 21:23:56.871] [DEBUG] [ChangeRequest] 解析结果原文: {"ops":[{"action":"rewrite_dialogue","params":{"text":"欣欣是猪"}}],"scope":"panel","type":"dialogue"}
-[2026-05-01 21:23:56.871] [DEBUG] [ChangeRequest] DSL 归一化后: {"ops":[{"action":"rewrite_dialogue","params":{"maskRegion":"文字","sourceText":"把第六个面板的文字改成欣欣是猪","text":"欣欣是猪"}}],"priority":"medium","reason":"","scope":"panel","targetId":"a027d742-c367-43e8-ac59-0f8d9ff42c31","type":"dialogue"}
-[2026-05-01 21:23:56.871] [INFO] [ChangeRequest] 解析 DSL 成功: scope=panel, type=dialogue, targetId=a027d742-c367-43e8-ac59-0f8d9ff42c31, ops=1
-[2026-05-01 21:23:56.874] [DEBUG] [ChangeRequest] 保存 CR-DSL: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, dsl={"ops":[{"action":"rewrite_dialogue","params":{"maskRegion":"文字","sourceText":"把第六个面板的文字改成欣欣是猪","text":"欣欣是猪"}}],"priority":"medium","reason":"","scope":"panel","targetId":"a027d742-c367-43e8-ac59-0f8d9ff42c31","type":"dialogue"}
-[2026-05-01 21:23:56.955] [INFO] [ChangeRequest] CR-DSL 已保存: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:56.957] [DEBUG] [ChangeRequest] 重新解析后的 DSL 已保存: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:56.957] [INFO] [ChangeRequest] 执行操作: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, step=1/1, action=rewrite_dialogue
-[2026-05-01 21:23:56.957] [DEBUG] [ChangeRequest] 操作参数: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, action=rewrite_dialogue, paramsKeys=maskRegion,sourceText,text
-[2026-05-01 21:23:57.867] [DEBUG] [ChangeRequest] 操作完成: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, action=rewrite_dialogue, outputKeys=dialogueId,speaker,text
-[2026-05-01 21:23:57.867] [INFO] [ChangeRequest] 执行 DSL: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, scope=panel, type=dialogue, targetId=a027d742-c367-43e8-ac59-0f8d9ff42c31, ops=1
-[2026-05-01 21:23:57.867] [DEBUG] [ChangeRequest] 变更请求结果汇总: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, resultCount=1
-[2026-05-01 21:23:57.867] [DEBUG] [ChangeRequest] 写回变更请求状态: crId=492e9dae-bd98-4404-be8e-76e6f27f61ac, novelId=33da432e-947f-4cdd-aa07-efa8ee8d4094, status=completed, hasError=false
-[2026-05-01 21:23:57.954] [INFO] [ChangeRequest] 变更请求执行完成: 492e9dae-bd98-4404-be8e-76e6f27f61ac
-[2026-05-01 21:23:58.364] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+========== QingningComic Opened at 2026-05-04 11:43:35 ==========
+[2026-05-04 11:43:35.457] [INFO] [Application] QingningComic starting...
+[2026-05-04 11:43:35.457] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-05-04 11:43:35.782] [INFO] [Database] Connected to qingning_comic (utf8mb4)
+[2026-05-04 11:43:35.782] [INFO] [Database] Database connected successfully
+[2026-05-04 11:43:35.782] [INFO] [Database] Skipping default user creation (not in dev mode)
+[2026-05-04 11:43:35.788] [INFO] [AppInitializer] Loading config from: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/../../../config.ini
+[2026-05-04 11:43:35.788] [INFO] [QwenClient] Initialized with model: qwen-plus
+[2026-05-04 11:43:35.788] [INFO] [AppInitializer] QwenClient initialized successfully
+[2026-05-04 11:43:35.803] [INFO] [QwenImageClient] Initialized with generateModel: qwen-image-max-2025-12-30, editModel: qwen-image-edit
+[2026-05-04 11:43:35.803] [INFO] [AppInitializer] QwenImageClient initialized successfully
+[2026-05-04 11:43:35.811] [INFO] [VolcEngineImageClient] Initialized with reqKey: high_aes_general_v30l_zt2i, baseUrl: https://visual.volcengineapi.com
+[2026-05-04 11:43:35.812] [INFO] [AppInitializer] VolcEngineImageClient initialized successfully
+[2026-05-04 11:43:35.812] [INFO] [AppInitializer] Using local storage, skipping StorageClient initialization
+[2026-05-04 11:43:35.812] [INFO] [FileStorage] Storage initialized at: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data (absolute path)
+[2026-05-04 11:43:35.812] [INFO] [AppInitializer] FileStorage initialized at: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/
+[2026-05-04 11:43:35.812] [INFO] [TaskRegistry] GenerateStoryboard handler registered
+[2026-05-04 11:43:35.812] [INFO] [TaskRegistry] GeneratePanelImage handler registered
+[2026-05-04 11:43:35.812] [INFO] [TaskRegistry] GeneratePanels handler registered
+[2026-05-04 11:43:35.812] [INFO] [TaskRegistry] All task handlers registered
+[2026-05-04 11:43:35.887] [INFO] [TaskQueue] Loaded 335 tasks, 0 pending
+[2026-05-04 11:43:35.888] [INFO] [TaskQueue] Started with 1 workers (signal-driven)
+[2026-05-04 11:43:35.888] [INFO] [AppInitializer] ViewModels initialized
+[2026-05-04 11:43:35.888] [INFO] [TaskWorker] Worker started (signal-driven)
+[2026-05-04 11:43:36.238] [INFO] [UserSession] Initialized with default user: qingning
+[2026-05-04 11:43:39.526] [DEBUG] [NovelDetailPage] setNovel: 青柠, id=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:43:39.737] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=0, characters=0, scenes=0
+[2026-05-04 11:43:39.737] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=0, characters=0, scenes=0
+[2026-05-04 11:43:39.898] [DEBUG] [CharacterExtractor] Loaded character row: id=0e9d75fa-1a6a-45f6-847a-ec3597f321e0, name=青柠, role=protagonist, gender=女, age=20, hairColor=白发, hairStyle=齐肩直发，微带自然弧度, eyeColor=浅琥珀色, build=纤细, clothing=浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, features=浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边, personality=安静, 细腻, 温柔而有分寸感, 内心藏着执念, portraitPath=characters/0e9d75fa/reference.png
+[2026-05-04 11:43:39.898] [DEBUG] [CharacterExtractor] Loaded character row: id=8368d1d8-9d34-4b37-a9fb-4a662636b1a9, name=陈伯, role=supportingCharacter, gender=男, age=70, hairColor=白色, hairStyle=稀疏短发, eyeColor=灰褐色, build=瘦小微驼, clothing=洗得发白的藏青布衫, 深灰布裤, 旧布鞋, features=满头银白短发, 眼角皱纹深刻, 双手布满老年斑与细纹, personality=慈爱, 急切中带着小心翼翼, 怀旧而虔诚, portraitPath=characters/8368d1d8/reference.png
+[2026-05-04 11:43:39.935] [INFO] [BibleSectionWidget] Rendering character bible: id=0e9d75fa-1a6a-45f6-847a-ec3597f321e0, name=青柠, role=protagonist
+[2026-05-04 11:43:39.935] [INFO] [BibleSectionWidget] Character bible details lines=9, name=青柠
+[2026-05-04 11:43:39.975] [INFO] [BibleSectionWidget] Rendering character bible: id=8368d1d8-9d34-4b37-a9fb-4a662636b1a9, name=陈伯, role=supportingCharacter
+[2026-05-04 11:43:39.975] [INFO] [BibleSectionWidget] Character bible details lines=9, name=陈伯
+[2026-05-04 11:43:40.057] [DEBUG] [NovelDetailPage] onCharacterCountChanged: 0 -> 2
+[2026-05-04 11:43:40.057] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=0, characters=2, scenes=0
+[2026-05-04 11:43:40.057] [DEBUG] [NovelDetailPage] onSceneCountChanged: 0 -> 1
+[2026-05-04 11:43:40.057] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=0, characters=2, scenes=1
+[2026-05-04 11:43:40.057] [INFO] [BibleSectionWidget] Refreshed bible: 2 characters, 1 scenes
+[2026-05-04 11:43:40.741] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-05-04 11:43:40.741] [DEBUG] [NovelDetailPage] updateBibleMetaLabel: chapters=1, characters=2, scenes=1
+[2026-05-04 11:43:43.385] [INFO] [NovelDetailPage] Starting batch generation for 6 panels
+[2026-05-04 11:43:43.549] [INFO] [TaskQueue] Task enqueued: 68f83e54-f5ac-43b0-9307-dae716baa80c (GeneratePanels)
+[2026-05-04 11:43:43.549] [INFO] [NovelDetailPage] Panel batch task enqueued: 68f83e54-f5ac-43b0-9307-dae716baa80c
+[2026-05-04 11:43:43.681] [INFO] [TaskWorker] Processing task: 68f83e54-f5ac-43b0-9307-dae716baa80c
+[2026-05-04 11:43:43.794] [INFO] [ImageService] Starting batch generation for 6 panels
+[2026-05-04 11:43:43.814] [INFO] [ImageService] generatePanelImageCore: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, resolution=1536x1024
+[2026-05-04 11:43:43.942] [INFO] [ImageService] buildPromptForPanel input: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, page=1, index=0, scene='六月午后的拾光书店，风裹着栀子香穿窗而入。青柠静坐柜台后，指尖一枚将化的薄荷糖泛着微光，浅琥珀色瞳仁映着浮动光尘——她像一段被时光轻轻搁置的留白。', visualPromptCn='柔焦文艺风，夏日午后老骑楼书店 interior，阳光透过拱形玻璃窗洒落，青柠（二十岁左右，黑褐齐肩直发，浅蓝围裙配白衬衫）静坐柜台，指尖捏着半化薄荷糖，手背落有光斑，窗外可见栀子花枝与爬墙虎，木质书架堆满旧书，整体色调为青柠绿、米白、暖木', visualPromptEn='Soft-focus literary manga style, warm afternoon light in a vintage arcade-style bookstore with arched glass windows, you', characters=[青柠]
+[2026-05-04 11:43:43.978] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:43:43.978] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762
+[2026-05-04 11:43:43.978] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:43:43.978] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:43:43.979] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762
+[2026-05-04 11:43:43.979] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:43:43.979] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:43:43.979] [INFO] [ImageService] buildPromptForPanel: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:43:43.979] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762
+[2026-05-04 11:43:43.979] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:43:43.979] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, promptTarget=character, editPromptLen=650
+[2026-05-04 11:43:43.982] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, parts=8 after scene/visual
+[2026-05-04 11:43:43.982] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, panelChars=青柠, charDesc=1, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=scenes/88c78cee/reference.png
+[2026-05-04 11:43:43.982] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, finalParts=15
+[2026-05-04 11:43:43.983] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠], charRefs=2, sceneRef=scenes/88c78cee/reference.png, primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:43:43.983] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=character, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[]
+[2026-05-04 11:43:43.983] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762
+[2026-05-04 11:43:43.983] [INFO] [ImageService] Prompt built: len=1054, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-l...
+[2026-05-04 11:43:43.983] [DEBUG] [ImageService] Final panel prompt: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, promptLen=1054, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: 柔焦文艺风，夏日午后老骑楼书店 interior，阳光透过拱形玻璃窗洒落，青柠（二十岁左右，黑褐齐肩直发，浅蓝围裙配白衬衫）静坐柜台，指尖捏着半化薄荷糖，手背落有光斑，窗外可见栀子花枝与爬墙虎，木质书架堆满旧书，整体色调为青柠绿、米白、暖木褐，水彩质感，seinen shoujo manga style / Soft-focus literary manga style, warm afternoon light in a vintage arcade-style bookstore with arched glass windows, young woman (20s, shoulder-length brown-black hair, light blue apron over white shirt) sitting quietly at counter, holding a half-melted mint candy on her fingertips, sunlight glinting on her hand, potted gardenia blooming outside window, ivy leaves rustling, wooden bookshelves filled with aged books, color palette of lime green, ivory, and warm wood brown, watercolor texture
+[2026-05-04 11:43:43.983] [DEBUG] [ImageService] Final panel negative prompt: panelId=2a39e7a0-130b-474a-a2b2-5e055a5a6762, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:43:43.983] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:43:43.999] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:43:43.999] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:43:43.999] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:43:43.999] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:43:44.011] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:43:44.011] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:44:01.934] [INFO] [QwenImageClient] Response received, extracting image...
+[2026-05-04 11:44:01.934] [INFO] [ImageService] Downloading image from URL: https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/cb/20260504/d23adf3d/5a921e2c-b541-914a-
+[2026-05-04 11:44:02.316] [INFO] [FileStorage] Panel image saved: panels/2a39e7a0/preview.png
+[2026-05-04 11:44:02.316] [INFO] [ImageService] Image stored locally: panels/2a39e7a0/preview.png
+[2026-05-04 11:44:02.415] [INFO] [ImageService] Panel generated successfully: 2a39e7a0-130b-474a-a2b2-5e055a5a6762
+[2026-05-04 11:44:02.564] [INFO] [ImageService] generatePanelImageCore: panelId=a819103c-fcd6-4455-af56-9f531e182265, resolution=1536x1024
+[2026-05-04 11:44:02.682] [INFO] [ImageService] buildPromptForPanel input: panelId=a819103c-fcd6-4455-af56-9f531e182265, page=1, index=1, scene='风铃轻响，门开一线。白发陈伯攥着旧布包立于光影交界处，目光游移；青柠抬眸相迎，眉宇间浮起自然的关切——两个被时光不同方式标记的人，在栀子香里悄然相认。', visualPromptCn='Manga panel: gentle afternoon light in 'Shiguang Bookstore', arched glass door open, elderly man (70s, silver short hair', visualPromptEn='Manga panel: gentle afternoon light in 'Shiguang Bookstore', arched glass door open, elderly man (70s, silver short hair', characters=[青柠, 陈伯]
+[2026-05-04 11:44:02.718] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:44:02.718] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:02.728] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:44:02.728] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:44:02.728] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:02.728] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:44:02.728] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:44:02.728] [INFO] [ImageService] buildPromptForPanel: panelId=a819103c-fcd6-4455-af56-9f531e182265, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:44:02.728] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:02.728] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=a819103c-fcd6-4455-af56-9f531e182265, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:44:02.728] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=a819103c-fcd6-4455-af56-9f531e182265, promptTarget=balanced, editPromptLen=436
+[2026-05-04 11:44:02.729] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=a819103c-fcd6-4455-af56-9f531e182265, parts=7 after scene/visual
+[2026-05-04 11:44:02.729] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=a819103c-fcd6-4455-af56-9f531e182265, panelChars=青柠, 陈伯, charDesc=2, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:44:02.729] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=a819103c-fcd6-4455-af56-9f531e182265, finalParts=14
+[2026-05-04 11:44:02.730] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠, 陈伯], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:44:02.730] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=balanced, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:44:02.730] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:02.730] [INFO] [ImageService] Prompt built: len=1151, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply ...
+[2026-05-04 11:44:02.730] [DEBUG] [ImageService] Final panel prompt: panelId=a819103c-fcd6-4455-af56-9f531e182265, promptLen=1151, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply this edit strictly while preserving the existing composition: Manga panel: gentle afternoon light in 'Shiguang Bookstore', arched glass door open, elderly man (70s, silver short hair, faded indigo shirt) stands hesitantly holding a cloth bag, young woman (20s, light blue apron, calm expression) looks up from counter with soft inquiry. Copper wind chime above door, ivy leaves visible through side window, warm wood tones and gardenia white dominate palette, delicate line art with watercolor wash, 风铃轻响，门开一线。白发陈伯攥着旧布包立于光影交界处，目光游移；青柠抬眸相迎，眉宇间浮起自然的关切——两个被时光不同方式标记的人，在栀子香里悄然相认。, 中近景 shot, camera angle 平视，略带迎宾视角，门框构成天然画框, mood 微澜初起，静中有温, character identity lock: 青柠, 身体微微前倾，右手已放下薄荷糖，左手轻搭柜台边缘 pose, 抬眸，眼神清澈微询 expression, 女, 20 years old, 纤细, 白发 齐肩直发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边; 陈伯, 站在门口，一手攥着褪色蓝布包，另一手扶着门框，微微佝偻 pose, 茫然又急切，目光四处轻扫 expression, 男, 70 years old, 瘦小微驼, 白色 稀疏短发 hair, 灰褐色 eyes, wearing 洗得发白的藏青布衫, 深灰布裤, 旧布鞋, distinctive features: 满头银白短发, 眼角皱纹深刻, 双手布满老年斑与细纹
+[2026-05-04 11:44:02.730] [DEBUG] [ImageService] Final panel negative prompt: panelId=a819103c-fcd6-4455-af56-9f531e182265, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:44:02.730] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:44:02.755] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:44:02.755] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:44:02.755] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:44:02.758] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:44:02.758] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:44:02.758] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:44:21.059] [INFO] [QwenImageClient] Response received, extracting image...
+[2026-05-04 11:44:21.059] [INFO] [ImageService] Downloading image from URL: https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/9c/20260504/d23adf3d/2944be55-66d1-9a27-
+[2026-05-04 11:44:22.083] [INFO] [ImageService] Dialogue bubbles rendered for panel: a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:22.095] [INFO] [FileStorage] Panel image saved: panels/a819103c/preview.png
+[2026-05-04 11:44:22.095] [INFO] [ImageService] Image stored locally: panels/a819103c/preview.png
+[2026-05-04 11:44:22.169] [INFO] [ImageService] Panel generated successfully: a819103c-fcd6-4455-af56-9f531e182265
+[2026-05-04 11:44:22.323] [INFO] [ImageService] generatePanelImageCore: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, resolution=1536x1024
+[2026-05-04 11:44:22.438] [INFO] [ImageService] buildPromptForPanel input: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, page=1, index=2, scene='青柠在C区书架前半蹲，指尖拂过一排旧书，最终停驻在那本封面磨损却挺括的《城南旧事》上。阳光恰如约定般落在烫金书名，仿佛时光亲手盖下的邮戳。', visualPromptCn='Close-up manga panel: young woman's hand gently pulling out a worn copy of 'Chengnan Jiushi' (City South Old Stories) fr', visualPromptEn='Close-up manga panel: young woman's hand gently pulling out a worn copy of 'Chengnan Jiushi' (City South Old Stories) fr', characters=[青柠, 陈伯]
+[2026-05-04 11:44:22.474] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:44:22.474] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:22.486] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:44:22.486] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:44:22.486] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:22.486] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:44:22.486] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:44:22.486] [INFO] [ImageService] buildPromptForPanel: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:44:22.486] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:22.486] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:44:22.486] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, promptTarget=scene, editPromptLen=389
+[2026-05-04 11:44:22.487] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, parts=7 after scene/visual
+[2026-05-04 11:44:22.487] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, panelChars=青柠, 陈伯, charDesc=2, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:44:22.487] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, finalParts=14
+[2026-05-04 11:44:22.487] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠, 陈伯], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:44:22.487] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=scene, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:44:22.488] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:22.488] [INFO] [ImageService] Prompt built: len=1195, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, scene ...
+[2026-05-04 11:44:22.488] [DEBUG] [ImageService] Final panel prompt: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, promptLen=1195, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, scene edit only, keep character identity and pose stable, apply this edit strictly: Close-up manga panel: young woman's hand gently pulling out a worn copy of 'Chengnan Jiushi' (City South Old Stories) from a wooden bookshelf labeled 'Republic Era Essays'. Sunlight highlights the faded gold title on its beige cloth cover. Elderly man watches silently behind her, slightly blurred. Warm sepia tones, textured paper background, delicate ink lines, shoujo literary aesthetic, 青柠在C区书架前半蹲，指尖拂过一排旧书，最终停驻在那本封面磨损却挺括的《城南旧事》上。阳光恰如约定般落在烫金书名，仿佛时光亲手盖下的邮戳。, 中近景 shot, camera angle 低角度微仰，强调书架纵深与人物姿态, mood 专注而柔软，带着旧物的体温, character identity lock: 青柠, 半蹲于书架前，左手轻抚书脊，右手正抽出一本封面磨损的《城南旧事》 pose, 专注、耐心，嘴角微扬 expression, 女, 20 years old, 纤细, 白发 齐肩直发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边; 陈伯, 微微前倾，双手交叠于布包上，目光紧随青柠动作 pose, 屏息凝望，眼中泛起微光 expression, 男, 70 years old, 瘦小微驼, 白色 稀疏短发 hair, 灰褐色 eyes, wearing 洗得发白的藏青布衫, 深灰布裤, 旧布鞋, distinctive features: 满头银白短发, 眼角皱纹深刻, 双手布满老年斑与细纹, use the character reference as the identity anchor, landscape composition
+[2026-05-04 11:44:22.488] [DEBUG] [ImageService] Final panel negative prompt: panelId=9350ed3a-cb96-492b-9f53-14912991f33a, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:44:22.488] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:44:22.512] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:44:22.512] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:44:22.512] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:44:22.516] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:44:22.516] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:44:22.516] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:44:41.669] [INFO] [QwenImageClient] Response received, extracting image...
+[2026-05-04 11:44:41.672] [INFO] [ImageService] Downloading image from URL: https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/e1/20260504/d23adf3d/3aeb83a6-072b-961a-
+[2026-05-04 11:44:42.637] [INFO] [ImageService] Dialogue bubbles rendered for panel: 9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:42.653] [INFO] [FileStorage] Panel image saved: panels/9350ed3a/preview.png
+[2026-05-04 11:44:42.653] [INFO] [ImageService] Image stored locally: panels/9350ed3a/preview.png
+[2026-05-04 11:44:42.722] [INFO] [ImageService] Panel generated successfully: 9350ed3a-cb96-492b-9f53-14912991f33a
+[2026-05-04 11:44:42.874] [INFO] [ImageService] generatePanelImageCore: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, resolution=1536x1024
+[2026-05-04 11:44:42.989] [INFO] [ImageService] buildPromptForPanel input: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, page=1, index=3, scene='陈伯双手微颤接过书，青柠却轻轻按住他掏钱的手——那一瞬没有金钱的刻度，只有两双被岁月打磨过的手，在旧书封面上完成一次无声的交接。光尘在斜阳里静静浮游。', visualPromptCn='Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he rece', visualPromptEn='Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he rece', characters=[青柠, 陈伯]
+[2026-05-04 11:44:43.042] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:44:43.042] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:43.043] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:44:43.043] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:44:43.043] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:43.043] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:44:43.043] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:44:43.043] [INFO] [ImageService] buildPromptForPanel: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:44:43.043] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:43.043] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:44:43.043] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, promptTarget=balanced, editPromptLen=407
+[2026-05-04 11:44:43.044] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, parts=7 after scene/visual
+[2026-05-04 11:44:43.044] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, panelChars=青柠, 陈伯, charDesc=2, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:44:43.044] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, finalParts=14
+[2026-05-04 11:44:43.044] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠, 陈伯], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:44:43.044] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=balanced, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:44:43.045] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:43.045] [INFO] [ImageService] Prompt built: len=1197, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply ...
+[2026-05-04 11:44:43.045] [DEBUG] [ImageService] Final panel prompt: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, promptLen=1197, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply this edit strictly while preserving the existing composition: Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he receives a worn book. His silver hair catches light, eyes glistening; her amber eyes hold quiet warmth. Wooden counter with faint pencil marks, ivy shadow creeping across surface. Warm golden lighting, soft focus background, expressive linework with subtle shading emphasis on hands and eyes, 陈伯双手微颤接过书，青柠却轻轻按住他掏钱的手——那一瞬没有金钱的刻度，只有两双被岁月打磨过的手，在旧书封面上完成一次无声的交接。光尘在斜阳里静静浮游。, 中近景 shot, camera angle 微侧45°，兼顾两人手部互动与面部微表情, mood 微颤的感动，克制的暖流, character identity lock: 青柠, 双手捧书递出，左手轻按住陈伯正欲掏钱的手背 pose, 眼底浮起浅淡笑意，目光柔软 expression, 女, 20 years old, 纤细, 白发 齐肩直发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边; 陈伯, 双手微张欲接书，布包滑落一半，手指因激动微微颤抖 pose, 震惊→动容→眼眶微润 expression, 男, 70 years old, 瘦小微驼, 白色 稀疏短发 hair, 灰褐色 eyes, wearing 洗得发白的藏青布衫, 深灰布裤, 旧布鞋, distinctive features: 满头银白短发, 眼角皱纹深刻, 双手布满老年斑与细纹, use the character reference as the identity anchor, landscape composition
+[2026-05-04 11:44:43.045] [DEBUG] [ImageService] Final panel negative prompt: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:44:43.045] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:44:43.062] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:44:43.062] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:44:43.062] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:44:43.062] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:44:43.062] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:44:43.062] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:44:43.243] [ERROR] [QwenImageClient] Sync request response body: {"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later. For details, see: https://help.aliyun.com/zh/model-studio/error-code#rate-limit","request_id":"6bead1e0-1f41-93e9-b28d-9527f808d36c"}
+[2026-05-04 11:44:43.243] [ERROR] [QwenImageClient] Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests
+[2026-05-04 11:44:43.247] [ERROR] [QwenImageClient] API request failed: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests
+[2026-05-04 11:44:43.247] [WARN] [ImageService] Panel 3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac generation failed (attempt 1/3): Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests, retrying in 10s...
+[2026-05-04 11:44:53.249] [INFO] [ImageService] generatePanelImageCore: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, resolution=1536x1024
+[2026-05-04 11:44:53.270] [INFO] [ImageService] buildPromptForPanel input: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, page=1, index=3, scene='陈伯双手微颤接过书，青柠却轻轻按住他掏钱的手——那一瞬没有金钱的刻度，只有两双被岁月打磨过的手，在旧书封面上完成一次无声的交接。光尘在斜阳里静静浮游。', visualPromptCn='Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he rece', visualPromptEn='Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he rece', characters=[青柠, 陈伯]
+[2026-05-04 11:44:53.306] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:44:53.306] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:53.321] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:44:53.321] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:44:53.321] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:53.321] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:44:53.321] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:44:53.321] [INFO] [ImageService] buildPromptForPanel: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:44:53.321] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:53.321] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:44:53.322] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, promptTarget=balanced, editPromptLen=407
+[2026-05-04 11:44:53.322] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, parts=7 after scene/visual
+[2026-05-04 11:44:53.322] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, panelChars=青柠, 陈伯, charDesc=2, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:44:53.322] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, finalParts=14
+[2026-05-04 11:44:53.322] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠, 陈伯], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:44:53.322] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=balanced, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:44:53.322] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:44:53.322] [INFO] [ImageService] Prompt built: len=1197, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply ...
+[2026-05-04 11:44:53.323] [DEBUG] [ImageService] Final panel prompt: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, promptLen=1197, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, apply this edit strictly while preserving the existing composition: Emotional manga panel: young woman (light blue apron) gently pressing her palm over elderly man's veined hand as he receives a worn book. His silver hair catches light, eyes glistening; her amber eyes hold quiet warmth. Wooden counter with faint pencil marks, ivy shadow creeping across surface. Warm golden lighting, soft focus background, expressive linework with subtle shading emphasis on hands and eyes, 陈伯双手微颤接过书，青柠却轻轻按住他掏钱的手——那一瞬没有金钱的刻度，只有两双被岁月打磨过的手，在旧书封面上完成一次无声的交接。光尘在斜阳里静静浮游。, 中近景 shot, camera angle 微侧45°，兼顾两人手部互动与面部微表情, mood 微颤的感动，克制的暖流, character identity lock: 青柠, 双手捧书递出，左手轻按住陈伯正欲掏钱的手背 pose, 眼底浮起浅淡笑意，目光柔软 expression, 女, 20 years old, 纤细, 白发 齐肩直发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边; 陈伯, 双手微张欲接书，布包滑落一半，手指因激动微微颤抖 pose, 震惊→动容→眼眶微润 expression, 男, 70 years old, 瘦小微驼, 白色 稀疏短发 hair, 灰褐色 eyes, wearing 洗得发白的藏青布衫, 深灰布裤, 旧布鞋, distinctive features: 满头银白短发, 眼角皱纹深刻, 双手布满老年斑与细纹, use the character reference as the identity anchor, landscape composition
+[2026-05-04 11:44:53.323] [DEBUG] [ImageService] Final panel negative prompt: panelId=3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:44:53.323] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:44:53.342] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:44:53.342] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:44:53.342] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:44:53.351] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:44:53.351] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:45:43.254] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:46:02.022] [INFO] [QwenImageClient] Response received, extracting image...
+[2026-05-04 11:46:02.024] [INFO] [ImageService] Downloading image from URL: https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/2f/20260504/d23adf3d/946ecc4b-0f7d-9173-
+[2026-05-04 11:46:03.029] [INFO] [ImageService] Dialogue bubbles rendered for panel: 3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:46:03.029] [INFO] [FileStorage] Panel image saved: panels/3a69d4db/preview.png
+[2026-05-04 11:46:03.029] [INFO] [ImageService] Image stored locally: panels/3a69d4db/preview.png
+[2026-05-04 11:46:03.124] [INFO] [ImageService] Panel generated successfully: 3a69d4db-2cd6-42ae-a3e6-b79188c0d1ac
+[2026-05-04 11:46:03.263] [INFO] [ImageService] generatePanelImageCore: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, resolution=1536x1024
+[2026-05-04 11:46:03.373] [INFO] [ImageService] buildPromptForPanel input: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, page=1, index=4, scene='风铃再响，陈伯身影消失在门外光晕里。青柠含着薄荷糖伏在柜台，翻开笔记本写下那行字——栀子香未散，而'旧时光的温柔'六个字，正悄悄叩响她自己遗失的门扉。', visualPromptCn='Top-down manga close-up: open notebook with yellowed pages, elegant handwritten Chinese characters reading 'Wind carries', visualPromptEn='Top-down manga close-up: open notebook with yellowed pages, elegant handwritten Chinese characters reading 'Wind carries', characters=[青柠]
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=a65298a9-73a2-4bdf-a584-fbd993f85430
+[2026-05-04 11:46:03.420] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=a65298a9-73a2-4bdf-a584-fbd993f85430
+[2026-05-04 11:46:03.420] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:46:03.420] [INFO] [ImageService] buildPromptForPanel: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=a65298a9-73a2-4bdf-a584-fbd993f85430
+[2026-05-04 11:46:03.420] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:46:03.420] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, promptTarget=character, editPromptLen=418
+[2026-05-04 11:46:03.420] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, parts=7 after scene/visual
+[2026-05-04 11:46:03.420] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, panelChars=青柠, charDesc=1, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:46:03.420] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, finalParts=14
+[2026-05-04 11:46:03.420] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:46:03.420] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=character, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[]
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=a65298a9-73a2-4bdf-a584-fbd993f85430
+[2026-05-04 11:46:03.420] [INFO] [ImageService] Prompt built: len=1192, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-l...
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] Final panel prompt: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, promptLen=1192, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: Top-down manga close-up: open notebook with yellowed pages, elegant handwritten Chinese characters reading 'Wind carries gardenia fragrance, and also the tenderness of old times.' A fresh gardenia petal rests beside the ink. Young woman's hand with light blue sleeve holds a fountain pen, mint candy glints faintly at corner of lips. Soft green-tinted light, watercolor texture, delicate line art, shoujo literary mood, 风铃再响，陈伯身影消失在门外光晕里。青柠含着薄荷糖伏在柜台，翻开笔记本写下那行字——栀子香未散，而'旧时光的温柔'六个字，正悄悄叩响她自己遗失的门扉。, close-up shot, camera angle 俯视微斜，模拟青柠书写时的主观视角, mood 余韵悠长，私密而轻盈, character identity lock: 青柠, 伏案书写，左手轻托笔记本，右手执钢笔，薄荷糖隐于唇边 pose, 宁静沉思，唇角微扬 expression, 女, 20 years old, 纤细, 白发 齐肩直发，微带自然弧度 hair, 浅琥珀色 eyes, wearing 浅蓝色棉麻围裙, 白色短袖衬衫, 及膝牛仔裙, 帆布鞋, distinctive features: 浅琥珀色瞳仁, 眉眼清浅，神情疏离中带温柔, 常含薄荷糖在唇边
+[2026-05-04 11:46:03.420] [DEBUG] [ImageService] Final panel negative prompt: panelId=a65298a9-73a2-4bdf-a584-fbd993f85430, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:46:03.420] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:46:03.451] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:46:03.451] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:46:03.451] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:46:03.451] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:46:03.451] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:46:03.451] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:46:20.781] [INFO] [QwenImageClient] Response received, extracting image...
+[2026-05-04 11:46:20.781] [INFO] [ImageService] Downloading image from URL: https://dashscope-result-sh.oss-cn-shanghai.aliyuncs.com/7d/b3/20260504/d23adf3d/e8e8f5f5-db54-956f-
+[2026-05-04 11:46:21.149] [INFO] [FileStorage] Panel image saved: panels/a65298a9/preview.png
+[2026-05-04 11:46:21.149] [INFO] [ImageService] Image stored locally: panels/a65298a9/preview.png
+[2026-05-04 11:46:21.226] [INFO] [ImageService] Panel generated successfully: a65298a9-73a2-4bdf-a584-fbd993f85430
+[2026-05-04 11:46:21.378] [INFO] [ImageService] generatePanelImageCore: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, resolution=1536x1024
+[2026-05-04 11:46:21.410] [INFO] [ImageService] buildPromptForPanel input: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, page=1, index=5, scene='现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的引信。', visualPromptCn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', visualPromptEn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', characters=[青柠]
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:21.535] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:21.535] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:46:21.535] [INFO] [ImageService] buildPromptForPanel: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:21.535] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:46:21.535] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptTarget=character, editPromptLen=457
+[2026-05-04 11:46:21.535] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, parts=7 after scene/visual
+[2026-05-04 11:46:21.535] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, panelChars=青柠, charDesc=1, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:46:21.535] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, finalParts=14
+[2026-05-04 11:46:21.535] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:46:21.535] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=character, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:21.535] [INFO] [ImageService] Prompt built: len=1003, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-l...
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] Final panel prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptLen=1003, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent; right side dissolves into translucent watercolor memory — faded notebook page with hand-drawn lime flower and child's signature. Young woman's finger touches the dividing line between realities. Color scheme: left — lime green & warm wood; right — pale lime-pink & misty sepia. Delicate linework, poetic symbolism, shoujo literary tone, 现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的伏笔。, 象征性中景 shot, camera angle 分裂视角：左实右虚，中央笔记本为锚点, mood 伏笔浮现，静水流深
+[2026-05-04 11:46:21.535] [DEBUG] [ImageService] Final panel negative prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:46:21.535] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:46:21.566] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:46:21.566] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:46:21.566] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:46:21.566] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:46:21.566] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:46:21.566] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:46:39.457] [ERROR] [QwenImageClient] Sync request response body: {"request_id":"727a3a08-dd56-921a-baf2-9aec62e4e78c","code":"DataInspectionFailed","message":"Input data may contain inappropriate content. For details, see: https://help.aliyun.com/zh/model-studio/error-code#inappropriate-content"}
+[2026-05-04 11:46:39.458] [ERROR] [QwenImageClient] Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request
+[2026-05-04 11:46:39.458] [ERROR] [QwenImageClient] API request failed: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request
+[2026-05-04 11:46:39.458] [WARN] [ImageService] Panel 9e7406e5-4632-4682-8411-f7462ae85bb0 generation failed (attempt 1/3): Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request, retrying in 10s...
+[2026-05-04 11:46:49.467] [INFO] [ImageService] generatePanelImageCore: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, resolution=1536x1024
+[2026-05-04 11:46:49.500] [INFO] [ImageService] buildPromptForPanel input: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, page=1, index=5, scene='现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的引信。', visualPromptCn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', visualPromptEn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', characters=[青柠]
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:49.530] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:49.530] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:46:49.530] [INFO] [ImageService] buildPromptForPanel: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:46:49.530] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:49.530] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:46:49.530] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptTarget=character, editPromptLen=457
+[2026-05-04 11:46:49.546] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, parts=7 after scene/visual
+[2026-05-04 11:46:49.546] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, panelChars=青柠, charDesc=1, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:46:49.546] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, finalParts=14
+[2026-05-04 11:46:49.546] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:46:49.546] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=character, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:46:49.546] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:46:49.546] [INFO] [ImageService] Prompt built: len=1003, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-l...
+[2026-05-04 11:46:49.546] [DEBUG] [ImageService] Final panel prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptLen=1003, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent; right side dissolves into translucent watercolor memory — faded notebook page with hand-drawn lime flower and child's signature. Young woman's finger touches the dividing line between realities. Color scheme: left — lime green & warm wood; right — pale lime-pink & misty sepia. Delicate linework, poetic symbolism, shoujo literary tone, 现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的伏笔。, 象征性中景 shot, camera angle 分裂视角：左实右虚，中央笔记本为锚点, mood 伏笔浮现，静水流深
+[2026-05-04 11:46:49.546] [DEBUG] [ImageService] Final panel negative prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:46:49.546] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:46:49.561] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:46:49.561] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:46:49.561] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:46:49.561] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:46:49.561] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:46:49.561] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:46:49.765] [ERROR] [QwenImageClient] Sync request response body: {"code":"Throttling.RateQuota","message":"Requests rate limit exceeded, please try again later. For details, see: https://help.aliyun.com/zh/model-studio/error-code#rate-limit","request_id":"a8bd231c-cac6-953d-b0f8-f48c41a18ea7"}
+[2026-05-04 11:46:49.765] [ERROR] [QwenImageClient] Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests
+[2026-05-04 11:46:49.765] [ERROR] [QwenImageClient] API request failed: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests
+[2026-05-04 11:46:49.765] [WARN] [ImageService] Panel 9e7406e5-4632-4682-8411-f7462ae85bb0 generation failed (attempt 2/3): Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Too Many Requests, retrying in 20s...
+[2026-05-04 11:47:09.778] [INFO] [ImageService] generatePanelImageCore: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, resolution=1536x1024
+[2026-05-04 11:47:09.813] [INFO] [ImageService] buildPromptForPanel input: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, page=1, index=5, scene='现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的引信。', visualPromptCn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', visualPromptEn='Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent', characters=[青柠]
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: resolved novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: fetching character refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:47:09.843] [INFO] [ImageService] fetchCharacterRefs: 2 chars [陈伯, 青柠], refImages=2
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: character refs loaded=2, refImages=2
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: fetching scene refs for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:47:09.843] [INFO] [ImageService] fetchSceneRefs: 1 scenes [拾光书店内景], refImages=3
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: scene refs loaded=1, refImages=3
+[2026-05-04 11:47:09.843] [INFO] [ImageService] buildPromptForPanel: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, novelId=a27fd054-bb73-46e4-ae68-da9f2ea454e7, characters=2, scenes=1
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: invoking PromptBuilder for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:47:09.843] [DEBUG] [PromptBuilder] buildPanelPrompt entered: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, mode=3x2, charRefs=2, sceneRefs=1
+[2026-05-04 11:47:09.843] [DEBUG] [PromptBuilder] buildPanelPrompt stage1: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptTarget=character, editPromptLen=457
+[2026-05-04 11:47:09.843] [DEBUG] [PromptBuilder] buildPanelPrompt stage2: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, parts=7 after scene/visual
+[2026-05-04 11:47:09.843] [DEBUG] [PromptBuilder] buildPanelPrompt stage3: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, panelChars=青柠, charDesc=1, primaryCharRef=characters/0e9d75fa/reference., primarySceneRef=(none)
+[2026-05-04 11:47:09.843] [DEBUG] [PromptBuilder] buildPanelPrompt stage4: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, finalParts=14
+[2026-05-04 11:47:09.843] [INFO] [PromptBuilder] buildPanelPrompt: panelChars=[青柠], charRefs=2, sceneRef=(none), primaryRef=characters/0e9d75fa/reference.
+[2026-05-04 11:47:09.843] [INFO] [PromptBuilder] buildPanelPrompt selection: promptTarget=character, selectedRefType=character, selectedRef=characters/0e9d75fa/reference., dialogueSpeakers=[青柠]
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] buildPromptForPanel: PromptBuilder returned for panelId=9e7406e5-4632-4682-8411-f7462ae85bb0
+[2026-05-04 11:47:09.843] [INFO] [ImageService] Prompt built: len=1003, refImages=3, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-l...
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] Final panel prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, promptLen=1003, negativeLen=445, prompt=manga panel illustration, strictly preserve character identity, outfit, and scene continuity, face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: Split-panel manga composition: left side shows realistic 'Shiguang Bookstore' counter with ivy window and gardenia scent; right side dissolves into translucent watercolor memory — faded notebook page with hand-drawn lime flower and child's signature. Young woman's finger touches the dividing line between realities. Color scheme: left — lime green & warm wood; right — pale lime-pink & misty sepia. Delicate linework, poetic symbolism, shoujo literary tone, 现实与记忆在笔记本边缘悄然接壤：左侧是此刻的拾光书店，青柠指尖停驻；右侧是泛黄扉页上一朵稚拙青柠花——那场与陈伯的相遇，原来不是起点，而是时光早已埋好的伏笔。, 象征性中景 shot, camera angle 分裂视角：左实右虚，中央笔记本为锚点, mood 伏笔浮现，静水流深
+[2026-05-04 11:47:09.843] [DEBUG] [ImageService] Final panel negative prompt: panelId=9e7406e5-4632-4682-8411-f7462ae85bb0, negativePrompt=nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, cropped face, overexposed, underexposed, photorealistic, realistic, photo, photograph, real person, realistic skin texture, real human, 3d render, cgi, split background, half black half white, gradient background, dark background, black border, frame, shadow on background, double image, split image, duplicated, distorted face, monochrome, grayscale, black and white
+[2026-05-04 11:47:09.843] [INFO] [ImageService] Loading reference image: characters/0e9d75fa/reference.png (full path: E:/QingningComic/qingning/comic/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/bin/data/characters/0e9d75fa/reference.png)
+[2026-05-04 11:47:09.876] [INFO] [ImageService] Loaded reference image: 1723621 bytes
+[2026-05-04 11:47:09.876] [INFO] [ImageService] Reference image size: 1024x1440
+[2026-05-04 11:47:09.876] [INFO] [ImageService] Multiple reference images detected (3), using first as primary
+[2026-05-04 11:47:09.876] [INFO] [ImageService] Using image provider: qwen, hasRefImage: 1
+[2026-05-04 11:47:09.876] [INFO] [QwenImageClient] generate() called, shouldMock=0, initialized=1, apiKey.isEmpty=0
+[2026-05-04 11:47:49.784] [INFO] [QwenImageClient] Sending request to: https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation, model: qwen-image-max-2025-12-30
+[2026-05-04 11:48:07.896] [ERROR] [QwenImageClient] Sync request response body: {"request_id":"0df790e3-19c5-909c-a8dc-9b45f032e893","code":"DataInspectionFailed","message":"Input data may contain inappropriate content. For details, see: https://help.aliyun.com/zh/model-studio/error-code#inappropriate-content"}
+[2026-05-04 11:48:07.911] [ERROR] [QwenImageClient] Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request
+[2026-05-04 11:48:07.911] [ERROR] [QwenImageClient] API request failed: Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request
+[2026-05-04 11:48:07.911] [ERROR] [ImageService] Panel generation failed after 3 attempts: 9e7406e5-4632-4682-8411-f7462ae85bb0 - Error transferring https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation - server replied: Bad Request
+[2026-05-04 11:48:08.013] [INFO] [ImageService] Batch completed: 5 success, 1 failed
+[2026-05-04 11:48:08.092] [INFO] [TaskRegistry] Batch generation task completed: {
+    "failed": 1,
+    "message": "Batch generation completed",
+    "status": "completed",
+    "success": 5,
+    "total": 6
+}
+
+[2026-05-04 11:48:08.202] [INFO] [TaskWorker] Task completed: 68f83e54-f5ac-43b0-9307-dae716baa80c
+[2026-05-04 11:48:08.239] [INFO] [AnalysisService] onTaskCompleted: taskId=68f83e54-f5ac-43b0-9307-dae716baa80c
+[2026-05-04 11:48:08.239] [DEBUG] [AnalysisService] Ignoring non-storyboard task completion: taskId=68f83e54-f5ac-43b0-9307-dae716baa80c, type=GeneratePanels
+[2026-05-04 11:48:08.336] [INFO] [NovelDetailPage] Batch image generation finished, reloading 6 panels from database
+[2026-05-04 11:48:08.764] [INFO] [PanelPreviewWidget] Populated 6 panels for chapter 1
+[2026-05-04 11:48:36.559] [INFO] [Application] QingningComic exiting...

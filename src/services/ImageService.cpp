@@ -40,6 +40,9 @@
 #include <cmath>
 
 namespace {
+constexpr int kBatchPanelMaxRetries = 3;
+constexpr int kBatchNextItemDelayMs = 100;
+
 QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
 {
     QJsonObject json;
@@ -65,6 +68,16 @@ QByteArray imageToPngBytes(const QImage& image)
         return QByteArray();
     }
     return bufferData;
+}
+
+ImageService::GenerateMode parseTaskMode(const QString& modeStr)
+{
+    return ImageModeUtils::generateModeFromString(modeStr);
+}
+
+bool isPresetTaskMode(const QString& modeStr)
+{
+    return ImageModeUtils::isPresetModeString(modeStr);
 }
 
 QRectF faceEditRegionImpl(const Panel& panel, int width, int height)
@@ -802,6 +815,47 @@ void ImageService::startBatchGeneration(const QStringList& panelIds, const Resol
     LOG_INFO("ImageService", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
 
     QTimer::singleShot(0, this, &ImageService::processNextPanel);
+}
+
+bool ImageService::takeNextBatchItem(QString& panelId, int& currentIndex, int& total, ResolutionConfig& resolution)
+{
+    if (!shouldAdvanceToNextBatchItem()) {
+        completeBatchGeneration();
+        return false;
+    }
+
+    panelId = m_pendingPanelIds[m_currentProcessIndex];
+    currentIndex = m_currentProcessIndex;
+    total = m_pendingPanelIds.size();
+    resolution = m_currentResolution;
+    return true;
+}
+
+void ImageService::completeBatchGeneration()
+{
+    BatchResult finalResult = m_batchResult;
+    finishBatch();
+
+    LOG_INFO("ImageService", QString("Batch completed: %1 success, %2 failed")
+        .arg(finalResult.successCount).arg(finalResult.failedCount));
+
+    emit imageBatchCompleted(finalResult);
+}
+
+bool ImageService::recordBatchItemResult(const QString& panelId, const GenerateResult& result, int maxRetries)
+{
+    m_batchResult.results.append(result);
+
+    if (result.success) {
+        m_batchResult.successCount++;
+        emit panelGenerated(result);
+        return true;
+    }
+
+    m_batchResult.failedCount++;
+    LOG_ERROR("ImageService", QString("Panel generation failed after %1 attempts: %2 - %3")
+        .arg(maxRetries).arg(panelId).arg(result.errorMessage));
+    return false;
 }
 
 void ImageService::generatePanelImages(const QStringList& panelIds, GenerateMode mode)
@@ -1544,8 +1598,18 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
             return false;
         }
 
+        const QString promptPreview = ctx.prompt.left(2000).replace('\n', ' ').replace('\r', ' ');
+        const QString negativePreview = ctx.negativePrompt.left(500).replace('\n', ' ').replace('\r', ' ');
         LOG_INFO("ImageService", QString("Prompt built: len=%1, refImages=%2, prompt=%3...")
             .arg(ctx.prompt.length()).arg(ctx.referenceImages.size()).arg(ctx.prompt.left(100)));
+        LOG_DEBUG("ImageService", QString("Final panel prompt: panelId=%1, promptLen=%2, negativeLen=%3, prompt=%4")
+            .arg(ctx.panelId)
+            .arg(ctx.prompt.length())
+            .arg(ctx.negativePrompt.length())
+            .arg(promptPreview));
+        LOG_DEBUG("ImageService", QString("Final panel negative prompt: panelId=%1, negativePrompt=%2")
+            .arg(ctx.panelId)
+            .arg(negativePreview));
 
         return true;
     } catch (const std::exception& e) {
@@ -1907,15 +1971,11 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
     TaskData task = TaskData::fromJson(taskJson);
 
     const QString modeStr = task.params.value("mode").toString();
-    if (modeStr.isEmpty() || modeStr == QLatin1String("preview") || modeStr == QLatin1String("hd")) {
-        return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
-    }
-
-    if (ImageModeUtils::isPresetModeString(modeStr)) {
+    if (isPresetTaskMode(modeStr)) {
         return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::presetModeFromString(modeStr)));
     }
 
-    return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
+    return generateResultToJson(generatePanelImage(task.panelId, parseTaskMode(modeStr)));
 }
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)
@@ -1995,25 +2055,14 @@ void ImageService::processNextPanel()
 
     {
         QMutexLocker locker(&m_mutex);
-        if (!shouldAdvanceToNextBatchItem()) {
-            BatchResult finalResult = m_batchResult;
-            finishBatch();
-
-            LOG_INFO("ImageService", QString("Batch completed: %1 success, %2 failed")
-                .arg(finalResult.successCount).arg(finalResult.failedCount));
-
-            emit imageBatchCompleted(finalResult);
+        if (!takeNextBatchItem(panelId, currentIndex, total, resolution)) {
             return;
         }
-        panelId = m_pendingPanelIds[m_currentProcessIndex];
-        currentIndex = m_currentProcessIndex;
-        total = m_pendingPanelIds.size();
-        resolution = m_currentResolution;
     }
 
     emit batchProgressChanged(currentIndex + 1, total, tr("\u6b63\u5728\u5904\u7406..."));
     
-    QtConcurrent::run(this, &ImageService::processPanelAsync, panelId, resolution, currentIndex, total);
+    QtConcurrent::run(this, &ImageService::processPanelAsync, panelId, resolution);
 }
 
 bool ImageService::shouldAdvanceToNextBatchItem() const
@@ -2023,36 +2072,22 @@ bool ImageService::shouldAdvanceToNextBatchItem() const
 
 void ImageService::queueNextBatchItemProcessing()
 {
-    QTimer::singleShot(100, this, &ImageService::processNextPanel);
+    QTimer::singleShot(kBatchNextItemDelayMs, this, &ImageService::processNextPanel);
 }
 
-void ImageService::processPanelAsync(const QString& panelId, const ResolutionConfig& resolution, int currentIndex, int total)
+void ImageService::processPanelAsync(const QString& panelId, const ResolutionConfig& resolution)
 {
-    Q_UNUSED(currentIndex)
-    Q_UNUSED(total)
-    
-    const int MAX_RETRIES = 3;
-    GenerateResult result = generateWithRetryInternal(panelId, resolution, MAX_RETRIES);
+    const int maxRetries = kBatchPanelMaxRetries;
+    GenerateResult result = generateWithRetryInternal(panelId, resolution, maxRetries);
     
     bool cancelled = false;
     {
         QMutexLocker locker(&m_mutex);
         cancelled = m_batchCancelled;
         if (!cancelled) {
-            if (result.success) {
-                m_batchResult.successCount++;
-            } else {
-                m_batchResult.failedCount++;
-                LOG_ERROR("ImageService", QString("Panel generation failed after %1 attempts: %2 - %3")
-                    .arg(MAX_RETRIES).arg(panelId).arg(result.errorMessage));
-            }
-            m_batchResult.results.append(result);
+            recordBatchItemResult(panelId, result, maxRetries);
+            m_currentProcessIndex++;
         }
-        m_currentProcessIndex++;
-    }
-    
-    if (!cancelled && result.success) {
-        emit panelGenerated(result);
     }
     
     queueNextBatchItemProcessing();

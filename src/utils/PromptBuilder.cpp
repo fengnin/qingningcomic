@@ -163,63 +163,6 @@ namespace {
         return description;
     }
 
-    void collectPanelCharacterPrompts(const QJsonArray& characters,
-                                      const QMap<QString, QJsonObject>& characterRefs,
-                                      const QStringList& dialogueSpeakers,
-                                      QStringList& panelCharNames,
-                                      QStringList& characterDescriptions,
-                                      QString& primaryCharacterRef)
-    {
-        for (const auto& charVal : characters) {
-            const QJsonObject charObj = charVal.toObject();
-            const QString charName = charObj["name"].toString();
-            panelCharNames.append(charName);
-
-            QString matchedName = charName;
-            if (!characterRefs.contains(charName)) {
-                const QString normalized = normalizeCharacterNameForRefs(charName);
-                if (characterRefs.contains(normalized)) {
-                    matchedName = normalized;
-                }
-            }
-
-            const QString pose = charObj["pose"].toString();
-            const QString expression = charObj["expression"].toString();
-
-            if (!characterRefs.contains(matchedName)) {
-                const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, QJsonObject());
-                if (!charDesc.isEmpty()) {
-                    characterDescriptions.append(charDesc);
-                }
-                continue;
-            }
-
-            const QJsonObject fullChar = characterRefs.value(matchedName);
-            const QJsonObject appearance = fullChar["appearance"].toObject();
-            const QStringList portraitPaths = normalizeListLocal(fullChar["portraitPaths"].toArray());
-
-            const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, appearance);
-            if (!charDesc.isEmpty()) {
-                characterDescriptions.append(charDesc);
-            }
-
-            const QString role = fullChar["role"].toString().trimmed();
-            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedName);
-            const bool isCoreRole = role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
-                || role.contains(QString::fromUtf8("\u4e3b\u89d2"), Qt::CaseInsensitive);
-
-            if (primaryCharacterRef.isEmpty() && (isDialogSpeaker || isCoreRole)) {
-                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
-            }
-            if (primaryCharacterRef.isEmpty()) {
-                primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
-            }
-        }
-    }
-
     void appendPanelVisualDescriptors(const QJsonObject& panel, QStringList& parts)
     {
         const QString shotType = panel["shotType"].toString();
@@ -247,37 +190,112 @@ namespace {
         }
     }
 
-    QString selectPanelReference(const QString& promptTarget,
-                                 const QString& editIntent,
-                                 const QString& editPrompt,
-                                 const QString& primaryCharacterRef,
-                                 const QString& primarySceneRef,
-                                 QString& selectedRefType)
+    struct PanelCharacterPromptData
     {
-        const QString normalizedPromptTarget = promptTarget.trimmed().toLower();
+        QStringList panelCharNames;
+        QStringList characterDescriptions;
+        QString primaryCharacterRef;
+    };
+
+    PanelCharacterPromptData collectPanelCharacterPromptData(const QJsonArray& characters,
+                                                              const QMap<QString, QJsonObject>& characterRefs,
+                                                              const QStringList& dialogueSpeakers)
+    {
+        PanelCharacterPromptData data;
+
+        for (const auto& charVal : characters) {
+            const QJsonObject charObj = charVal.toObject();
+            const QString charName = charObj["name"].toString();
+            data.panelCharNames.append(charName);
+
+            QString matchedName = charName;
+            if (!characterRefs.contains(charName)) {
+                const QString normalized = normalizeCharacterNameForRefs(charName);
+                if (characterRefs.contains(normalized)) {
+                    matchedName = normalized;
+                }
+            }
+
+            const QString pose = charObj["pose"].toString();
+            const QString expression = charObj["expression"].toString();
+
+            if (!characterRefs.contains(matchedName)) {
+                const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, QJsonObject());
+                if (!charDesc.isEmpty()) {
+                    data.characterDescriptions.append(charDesc);
+                }
+                continue;
+            }
+
+            const QJsonObject fullChar = characterRefs.value(matchedName);
+            const QJsonObject appearance = fullChar["appearance"].toObject();
+            const QStringList portraitPaths = normalizeListLocal(fullChar["portraitPaths"].toArray());
+
+            const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, appearance);
+            if (!charDesc.isEmpty()) {
+                data.characterDescriptions.append(charDesc);
+            }
+
+            const QString role = fullChar["role"].toString().trimmed();
+            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedName);
+            const bool isCoreRole = role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
+                || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
+                || role.contains(QString::fromUtf8("\u4e3b\u89d2"), Qt::CaseInsensitive);
+
+            if (data.primaryCharacterRef.isEmpty() && (isDialogSpeaker || isCoreRole)) {
+                data.primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
+            }
+            if (data.primaryCharacterRef.isEmpty()) {
+                data.primaryCharacterRef = firstNonEmptyPortrait(portraitPaths);
+            }
+        }
+
+        return data;
+    }
+
+    QString selectReferenceForExplicitTarget(const QString& normalizedPromptTarget,
+                                             const QString& primaryCharacterRef,
+                                             const QString& primarySceneRef,
+                                             QString& selectedRefType)
+    {
+        if (normalizedPromptTarget == QStringLiteral("scene")) {
+            if (!primarySceneRef.isEmpty()) {
+                selectedRefType = QStringLiteral("scene");
+                return primarySceneRef;
+            }
+            if (!primaryCharacterRef.isEmpty()) {
+                selectedRefType = QStringLiteral("character");
+                return primaryCharacterRef;
+            }
+            return QString();
+        }
+
+        if (normalizedPromptTarget == QStringLiteral("character")) {
+            if (!primaryCharacterRef.isEmpty()) {
+                selectedRefType = QStringLiteral("character");
+                return primaryCharacterRef;
+            }
+            if (!primarySceneRef.isEmpty()) {
+                selectedRefType = QStringLiteral("scene");
+                return primarySceneRef;
+            }
+        }
+
+        return QString();
+    }
+
+    QString selectFallbackPanelReference(const QString& normalizedPromptTarget,
+                                         const QString& primaryCharacterRef,
+                                         const QString& primarySceneRef,
+                                         const QString& editPrompt,
+                                         const QString& editIntent,
+                                         QString& selectedRefType)
+    {
         const bool preferSceneReference = PromptTargetUtils::shouldPreferSceneReferenceForEditIntent(
             editIntent,
             editPrompt);
-
-        if (normalizedPromptTarget == QStringLiteral("scene") && !primarySceneRef.isEmpty()) {
-            selectedRefType = QStringLiteral("scene");
-            return primarySceneRef;
-        }
-
-        if (normalizedPromptTarget == QStringLiteral("scene") && !primaryCharacterRef.isEmpty()) {
-            selectedRefType = QStringLiteral("character");
-            return primaryCharacterRef;
-        }
-
-        if (normalizedPromptTarget == QStringLiteral("character") && !primaryCharacterRef.isEmpty()) {
-            selectedRefType = QStringLiteral("character");
-            return primaryCharacterRef;
-        }
-
-        if (normalizedPromptTarget == QStringLiteral("character") && !primarySceneRef.isEmpty()) {
-            selectedRefType = QStringLiteral("scene");
-            return primarySceneRef;
-        }
 
         if (preferSceneReference && !primarySceneRef.isEmpty()) {
             selectedRefType = QStringLiteral("scene");
@@ -301,6 +319,66 @@ namespace {
 
         selectedRefType.clear();
         return QString();
+    }
+
+    QString selectPanelReference(const QString& promptTarget,
+                                 const QString& editIntent,
+                                 const QString& editPrompt,
+                                 const QString& primaryCharacterRef,
+                                 const QString& primarySceneRef,
+                                  QString& selectedRefType)
+    {
+        const QString normalizedPromptTarget = promptTarget.trimmed().toLower();
+        QString selectedRef = selectReferenceForExplicitTarget(normalizedPromptTarget,
+                                                                primaryCharacterRef,
+                                                                primarySceneRef,
+                                                                selectedRefType);
+        if (!selectedRef.isEmpty() || normalizedPromptTarget == QStringLiteral("scene")
+            || normalizedPromptTarget == QStringLiteral("character")) {
+            return selectedRef;
+        }
+
+        return selectFallbackPanelReference(normalizedPromptTarget,
+                                            primaryCharacterRef,
+                                            primarySceneRef,
+                                            editPrompt,
+                                            editIntent,
+                                            selectedRefType);
+    }
+
+    QStringList buildPanelReferenceUris(const QString& selectedRef, const QString& primaryCharacterRef)
+    {
+        QStringList refUris;
+        if (!selectedRef.isEmpty()) {
+            refUris.append(selectedRef);
+        }
+        if (!primaryCharacterRef.isEmpty() && !refUris.contains(primaryCharacterRef)) {
+            refUris.append(primaryCharacterRef);
+        }
+        return refUris;
+    }
+
+    void logPanelPromptSelection(const QJsonObject& panel,
+                                 const QString& promptTarget,
+                                 const QString& selectedRefType,
+                                 const QString& selectedRef,
+                                 const QString& primarySceneRef,
+                                 const QString& primaryCharacterRef,
+                                 const QStringList& panelCharNames,
+                                 const QStringList& dialogueSpeakers)
+    {
+        LOG_INFO("PromptBuilder", QString("buildPanelPrompt: panelChars=[%1], charRefs=%2, sceneRef=%3, primaryRef=%4")
+            .arg(panelCharNames.join(", "))
+            .arg(panel.contains("characters") ? panel["characters"].toArray().size() : 0)
+            .arg(primarySceneRef.isEmpty() ? "(none)" : primarySceneRef.left(30))
+            .arg(primaryCharacterRef.isEmpty() ? "(none)" : primaryCharacterRef.left(30)));
+
+        LOG_INFO("PromptBuilder", QString("buildPanelPrompt selection: promptTarget=%1, selectedRefType=%2, selectedRef=%3, dialogueSpeakers=[%4]")
+            .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
+            .arg(selectedRefType.isEmpty() ? "(none)" : selectedRefType)
+            .arg(selectedRef.isEmpty() ? "(none)" : selectedRef.left(30))
+            .arg(dialogueSpeakers.join(", ")));
+        Q_UNUSED(panel);
     }
     
     const QMap<QString, QString> EXPRESSION_MAPPING = buildMapping({
@@ -914,17 +992,17 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QJsonObject background = panel["background"].toObject();
     QString sceneId = background["sceneId"].toString();
     QString sceneName = background["setting"].toString();
+    QString panelSceneText = panel["scene"].toString();
 
     QString visualPrompt = panel["visualPrompt"].toString().trimmed();
     QString visualPromptEn = panel["visualPromptEn"].toString().trimmed();
     QString editPrompt = combineEditPrompt(visualPrompt, visualPromptEn);
     QString editIntent = panel["editIntent"].toString().trimmed();
-    QString panelSceneText = panel["scene"].toString();
     const QString promptTarget = PromptTargetUtils::resolveEditPromptTarget(
         panel,
         options.value("promptTarget").toString(),
         editPrompt,
-        panelSceneText);
+        panel["scene"].toString());
     LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage1: panelId=%1, promptTarget=%2, editPromptLen=%3")
         .arg(panel.value("id").toString())
         .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
@@ -944,32 +1022,26 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     
     QStringList dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
     QString primarySceneRef = resolveSceneRefPath(sceneRefs, sceneId, sceneName);
-    
-    QStringList characterDescriptions;
-    QString primaryCharacterRef;
-    QStringList panelCharNames;
-    collectPanelCharacterPrompts(panel["characters"].toArray(),
-                                 characterRefs,
-                                 dialogueSpeakers,
-                                 panelCharNames,
-                                 characterDescriptions,
-                                 primaryCharacterRef);
+
+    const PanelCharacterPromptData characterData = collectPanelCharacterPromptData(panel["characters"].toArray(),
+                                                                                  characterRefs,
+                                                                                  dialogueSpeakers);
     LOG_DEBUG("PromptBuilder", QString("buildPanelPrompt stage3: panelId=%1, panelChars=%2, charDesc=%3, primaryCharRef=%4, primarySceneRef=%5")
         .arg(panel.value("id").toString())
-        .arg(panelCharNames.join(", "))
-        .arg(characterDescriptions.size())
-        .arg(primaryCharacterRef.isEmpty() ? "(none)" : primaryCharacterRef.left(30))
+        .arg(characterData.panelCharNames.join(", "))
+        .arg(characterData.characterDescriptions.size())
+        .arg(characterData.primaryCharacterRef.isEmpty() ? "(none)" : characterData.primaryCharacterRef.left(30))
         .arg(primarySceneRef.isEmpty() ? "(none)" : primarySceneRef.left(30)));
     
-    if (!characterDescriptions.isEmpty()) {
-        parts.append(QString("character identity lock: %1").arg(characterDescriptions.join("; ")));
+    if (!characterData.characterDescriptions.isEmpty()) {
+        parts.append(QString("character identity lock: %1").arg(characterData.characterDescriptions.join("; ")));
     }
 
     QString selectedRefType;
     QString selectedRef = selectPanelReference(promptTarget,
                                                editIntent,
                                                editPrompt,
-                                               primaryCharacterRef,
+                                               characterData.primaryCharacterRef,
                                                primarySceneRef,
                                                selectedRefType);
 
@@ -989,25 +1061,17 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         .arg(panel.value("id").toString())
         .arg(parts.size()));
     
-    QStringList refUris;
-    if (!selectedRef.isEmpty()) {
-        refUris.append(selectedRef);
-    }
-    
-    LOG_INFO("PromptBuilder", QString("buildPanelPrompt: panelChars=[%1], charRefs=%2, sceneRef=%3, primaryRef=%4")
-        .arg(panelCharNames.join(", "))
-        .arg(characterRefs.size())
-        .arg(primarySceneRef.isEmpty() ? "(none)" : primarySceneRef.left(30))
-        .arg(primaryCharacterRef.isEmpty() ? "(none)" : primaryCharacterRef.left(30)));
-
-    LOG_INFO("PromptBuilder", QString("buildPanelPrompt selection: promptTarget=%1, selectedRefType=%2, selectedRef=%3, dialogueSpeakers=[%4]")
-        .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
-        .arg(selectedRefType.isEmpty() ? "(none)" : selectedRefType)
-        .arg(selectedRef.isEmpty() ? "(none)" : selectedRef.left(30))
-        .arg(dialogueSpeakers.join(", ")));
+    logPanelPromptSelection(panel,
+                            promptTarget,
+                            selectedRefType,
+                            selectedRef,
+                            primarySceneRef,
+                            characterData.primaryCharacterRef,
+                            characterData.panelCharNames,
+                            dialogueSpeakers);
 
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
-    return { prompt, DEFAULT_NEGATIVE_PROMPT + PANEL_NEGATIVE_EXTRA, refUris };
+    return { prompt, DEFAULT_NEGATIVE_PROMPT + PANEL_NEGATIVE_EXTRA, buildPanelReferenceUris(selectedRef, characterData.primaryCharacterRef) };
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &scene,

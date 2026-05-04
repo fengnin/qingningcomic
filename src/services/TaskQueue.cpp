@@ -30,6 +30,11 @@ bool upsertTaskRow(DatabaseManager* db, const TaskData& task)
     return db->insert(kJobsTable, data);
 }
 
+bool writeTaskRow(DatabaseManager* db, const TaskData& task)
+{
+    return upsertTaskRow(db, task);
+}
+
 bool updateTaskProgressRow(DatabaseManager* db, const QString& taskId, int progress)
 {
     if (!db) {
@@ -91,11 +96,7 @@ void TaskQueue::start()
     connect(this, &TaskQueue::taskProgress, this, &TaskQueue::onTaskProgress, Qt::QueuedConnection);
     
     for (int i = 0; i < m_maxConcurrent; ++i) {
-        TaskWorker* worker = new TaskWorker(this);
-        connect(worker, &TaskWorker::taskStarted, this, &TaskQueue::taskStarted);
-        connect(worker, &TaskWorker::taskProgress, this, &TaskQueue::taskProgress);
-        connect(worker, &TaskWorker::taskCompleted, this, &TaskQueue::taskCompleted);
-        connect(worker, &TaskWorker::taskFailed, this, &TaskQueue::taskFailed);
+        TaskWorker* worker = createWorker();
         m_workers.append(worker);
         worker->start();
     }
@@ -111,11 +112,9 @@ void TaskQueue::stop()
     m_running = false;
 
     m_condition.wakeAll();
-    
+
     for (TaskWorker* worker : m_workers) {
-        worker->stop();
-        worker->wait();
-        worker->deleteLater();
+        stopWorker(worker);
     }
     m_workers.clear();
     
@@ -241,6 +240,12 @@ void TaskQueue::registerHandler(TaskType type, TaskHandler handler)
     m_handlers[type] = handler;
 }
 
+void TaskQueue::unregisterHandler(TaskType type)
+{
+    QMutexLocker locker(&m_mutex);
+    m_handlers.remove(type);
+}
+
 void TaskQueue::onTaskProgress(const QString& taskId, int progress, const QString& message)
 {
     Q_UNUSED(message);
@@ -271,13 +276,13 @@ void TaskQueue::saveTaskToDatabase(const TaskData& task)
         db->reconnectIfNeeded();
     }
 
-    if (upsertTaskRow(db, task)) {
+    if (writeTaskRow(db, task)) {
         return;
     }
 
     const QString error = db->lastError();
     if (isTransientDatabaseError(error) && db->reconnectIfNeeded()) {
-        upsertTaskRow(db, task);
+        writeTaskRow(db, task);
     }
 }
 
@@ -312,6 +317,36 @@ void TaskQueue::loadTasksFromDatabase()
 TaskData* TaskQueue::getTaskRef(const QString& taskId)
 {
     return m_tasks.contains(taskId) ? &m_tasks[taskId] : nullptr;
+}
+
+void TaskQueue::attachWorkerSignals(TaskWorker* worker)
+{
+    if (!worker) {
+        return;
+    }
+
+    connect(worker, &TaskWorker::taskStarted, this, &TaskQueue::taskStarted);
+    connect(worker, &TaskWorker::taskProgress, this, &TaskQueue::taskProgress);
+    connect(worker, &TaskWorker::taskCompleted, this, &TaskQueue::taskCompleted);
+    connect(worker, &TaskWorker::taskFailed, this, &TaskQueue::taskFailed);
+}
+
+TaskWorker* TaskQueue::createWorker()
+{
+    TaskWorker* worker = new TaskWorker(this);
+    attachWorkerSignals(worker);
+    return worker;
+}
+
+void TaskQueue::stopWorker(TaskWorker* worker)
+{
+    if (!worker) {
+        return;
+    }
+
+    worker->stop();
+    worker->wait();
+    worker->deleteLater();
 }
 
 // ==================== TaskWorker 实现 ====================

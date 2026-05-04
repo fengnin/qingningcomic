@@ -204,6 +204,7 @@ private:
     void cleanupRequest(QNetworkReply* reply, const QString& key);
     void cancelAllRequests();
     QJsonObject parseJsonResponse(const QByteArray& data);
+    QJsonObject parseReplyJson(QNetworkReply* reply, const QString& requestId, int* statusCode = nullptr);
     void emitResult(RequestType type, const QString& requestId, const GenerateResult& result);
     void emitPendingResult(const QString& requestId, const GenerateResult& result);
     void handleTaskSuccess(const QJsonObject& output, const QString& requestId);

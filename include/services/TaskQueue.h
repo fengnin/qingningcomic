@@ -38,6 +38,7 @@ public:
     int maxConcurrent() const;
     
     void registerHandler(TaskType type, TaskHandler handler);
+    void unregisterHandler(TaskType type);
 
 signals:
     void taskEnqueued(const QString& taskId);
@@ -57,6 +58,9 @@ private:
     void saveTaskToDatabase(const TaskData& task);
     void loadTasksFromDatabase();
     TaskData* getTaskRef(const QString& taskId);
+    void attachWorkerSignals(TaskWorker* worker);
+    TaskWorker* createWorker();
+    void stopWorker(TaskWorker* worker);
 
     static TaskQueue* m_instance;
     static std::once_flag m_instanceOnceFlag;

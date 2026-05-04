@@ -113,6 +113,8 @@ private:
     void finishChangeRequestProgress(bool success, const QString& message);
     void updateChapterHints(const QList<Storyboard>& storyboards);
     void updateChapterUI(int targetChapter);
+    void refreshAddChapterUI();
+    int nextAvailableChapterNumber() const;
     QLabel* createCompactTag(const QString &text, int fontSize = 12);
     QWidget* createHBoxLayoutRow(const std::initializer_list<QWidget*> &widgets, int spacing = 8);
     void startAutoImageGeneration(int chapter);
@@ -155,13 +157,16 @@ private:
     void refreshStoryboardItems(const QList<Panel>& panels);
     QList<Panel> loadPanelsFromDatabase() const;
     void refreshPanelsAfterBatchGeneration();
+    void preparePanelBatchGenerationUI();
     void startPanelBatchGeneration(const QList<Panel>& panels, ImageService::BatchPresetMode presetMode);
-    void finalizePanelBatchGeneration(const QJsonObject& result, bool success, const QString& errorMessage = QString());
+    void beginPanelBatchGenerationUI(int panelCount);
+    void finishPanelBatchGenerationUI(bool success, const QString& message = QString(),
+                                      const QJsonObject& result = QJsonObject());
+    void resetPanelBatchGenerationUI();
     void resetPanelBatchGenerationControls();
     bool isPanelBatchTaskForNovel(const QString& taskId, const QString& novelId) const;
     void clearPanelBatchTaskState();
-    void handlePanelBatchGenerationFailure(const QString& errorMessage,
-                                           AnalysisProgressWidget::State progressState = AnalysisProgressWidget::State::Failed);
+    void handlePanelBatchGenerationFailure(const QString& errorMessage);
     void onPanelBatchTaskProgress(const QString& taskId, int progress, const QString& message);
     void onPanelBatchTaskCompleted(const QString& taskId, const QJsonObject& result);
     void onPanelBatchTaskFailed(const QString& taskId, const QString& error);

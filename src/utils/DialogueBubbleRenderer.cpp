@@ -20,8 +20,13 @@ QList<BubbleLayout> DialogueBubbleRenderer::layoutBubblesInternal(const LayoutCo
     int maxBubbleWidth = static_cast<int>(context.imageWidth * style.maxBubbleWidthRatio);
     maxBubbleWidth = qBound(100, maxBubbleWidth, 500);
 
-    qreal leftColumnY = style.topMargin;
-    qreal rightColumnY = style.topMargin;
+    qreal startY = style.topMargin;
+    if (context.usePanelPositioning) {
+        startY = qMax<qreal>(style.topMargin, context.imageHeight * 0.14);
+    }
+
+    qreal leftColumnY = startY;
+    qreal rightColumnY = startY;
     layouts.reserve(context.dialogues->size());
 
     for (int i = 0; i < context.dialogues->size(); ++i) {
@@ -143,7 +148,7 @@ QImage DialogueBubbleRenderer::render(const QImage& baseImage, const QList<Dialo
 
     const Style& style = mutableStyle();
     for (const BubbleLayout& layout : layouts) {
-        drawBubbleFrame(painter, layout, style);
+        drawBubble(painter, layout, style);
     }
 
     painter.end();
@@ -189,7 +194,7 @@ QImage DialogueBubbleRenderer::renderForPanel(const Panel& panel, const QImage& 
 
     const Style& style = mutableStyle();
     for (const BubbleLayout& layout : layouts) {
-        drawBubbleFrame(painter, layout, style);
+        drawBubble(painter, layout, style);
     }
 
     painter.end();
@@ -252,15 +257,15 @@ QPointF DialogueBubbleRenderer::calculateFacePosition(
 {
     Q_UNUSED(shotType);
 
-    double characterY = imageHeight * 0.55;
+    double characterY = imageHeight * 0.32;
 
     double characterX;
     switch (charPos) {
         case CharacterPosition::Left:
-            characterX = imageWidth * 0.25;
+            characterX = imageWidth * 0.24;
             break;
         case CharacterPosition::Right:
-            characterX = imageWidth * 0.75;
+            characterX = imageWidth * 0.76;
             break;
         case CharacterPosition::Center:
         default:

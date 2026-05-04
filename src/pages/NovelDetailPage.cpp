@@ -714,9 +714,6 @@ void NovelDetailPage::setChapterNumber(int chapterNumber)
     m_currentChapter = chapterNumber;
     m_selectedPanelNumber = 0;
     m_selectedPanelId.clear();
-    if (m_chapterNumberSpin) {
-        m_chapterNumberSpin->setValue(chapterNumber);
-    }
     if (m_panelPreviewWidget) {
         m_panelPreviewWidget->setChapter(chapterNumber);
     }
@@ -811,12 +808,7 @@ void NovelDetailPage::updateChapterHints(const QList<Storyboard>& storyboards)
         m_chapterNumberSpin->setExistingChapters(existingChapters);
     }
     
-    int nextChapter = 1;
-    while (existingChapters.contains(nextChapter)) {
-        nextChapter++;
-    }
-    
-    updateChapterUI(nextChapter);
+    refreshAddChapterUI();
 }
 
 void NovelDetailPage::updateChapterUI(int targetChapter)
@@ -828,6 +820,39 @@ void NovelDetailPage::updateChapterUI(int targetChapter)
     if (m_addChapterBtn) {
         m_addChapterBtn->setText(QStringLiteral("添加章节 %1").arg(targetChapter));
     }
+}
+
+int NovelDetailPage::nextAvailableChapterNumber() const
+{
+    int nextChapter = 1;
+    if (m_chapterCards.isEmpty()) {
+        return nextChapter;
+    }
+
+    QSet<int> existingChapters;
+    for (const ChapterCard* card : m_chapterCards) {
+        if (card) {
+            existingChapters.insert(card->chapterNumber());
+        }
+    }
+
+    while (existingChapters.contains(nextChapter)) {
+        ++nextChapter;
+    }
+
+    return nextChapter;
+}
+
+void NovelDetailPage::refreshAddChapterUI()
+{
+    const int nextChapter = nextAvailableChapterNumber();
+
+    if (m_chapterNumberSpin) {
+        QSignalBlocker blocker(m_chapterNumberSpin);
+        m_chapterNumberSpin->setValue(nextChapter);
+    }
+
+    updateChapterUI(nextChapter);
 }
 
 QLabel* NovelDetailPage::createCompactTag(const QString &text, int fontSize)
@@ -1036,6 +1061,8 @@ QWidget* NovelDetailPage::createFeatureSection()
 
 QWidget* NovelDetailPage::createAddChapterCard()
 {
+    const int nextChapter = nextAvailableChapterNumber();
+
     QFrame *card = createFeatureCardFrame();
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
@@ -1047,7 +1074,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_chapterNumberSpin = new ChapterSpinBox();
     m_chapterNumberSpin->setMinimum(1);
     m_chapterNumberSpin->setMaximum(9999);
-    m_chapterNumberSpin->setValue(m_completedChapterCount + 1);
+    m_chapterNumberSpin->setValue(nextChapter);
     m_chapterNumberSpin->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     connect(m_chapterNumberSpin, &ChapterSpinBox::valueChanged, this, &NovelDetailPage::onChapterNumberChanged);
     layout->addWidget(m_chapterNumberSpin);
@@ -1055,7 +1082,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_chapterHintLabel = createLabel(
         QString("当前已完成 %1 章，默认生成第 %2 章")
             .arg(m_completedChapterCount)
-            .arg(m_completedChapterCount + 1),
+            .arg(nextChapter),
         m_colorHint, 12);
     layout->addWidget(m_chapterHintLabel);
     
@@ -1067,7 +1094,7 @@ QWidget* NovelDetailPage::createAddChapterCard()
     m_chapterTextEdit->setStyleSheet(inputStyle());
     layout->addWidget(m_chapterTextEdit);
     
-    QWidget *btnRow = createButtonRow(m_addChapterBtn, QString("添加章节 %1").arg(m_completedChapterCount + 1), tr("就绪"));
+    QWidget *btnRow = createButtonRow(m_addChapterBtn, QString("添加章节 %1").arg(nextChapter), tr("就绪"));
     connect(m_addChapterBtn, &QPushButton::clicked, this, &NovelDetailPage::onAddChapterClicked);
     layout->addWidget(btnRow);
     
@@ -1345,12 +1372,7 @@ void NovelDetailPage::updateDisplay()
         m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
     }
     
-    if (m_chapterNumberSpin) {
-        QSignalBlocker blocker(m_chapterNumberSpin);
-        m_chapterNumberSpin->setValue(m_currentChapter);
-    }
-
-    updateChapterUI(m_currentChapter);
+    refreshAddChapterUI();
 
     StoryboardViewModel* vm = StoryboardViewModel::instance();
     if (vm->isAnalyzing()) {
@@ -1447,24 +1469,10 @@ void NovelDetailPage::syncChapterSelectionFromStoryboards(const QList<Storyboard
         return;
     }
 
-    bool currentExists = false;
-    for (const Storyboard& storyboard : storyboards) {
-        if (storyboard.chapterNumber() == m_currentChapter) {
-            currentExists = true;
-            break;
-        }
-    }
-    if (!currentExists) {
-        m_currentChapter = storyboards.first().chapterNumber();
-    }
-
     if (m_chapterCountLabel) {
         m_chapterCountLabel->setText(QString("章节数: %1").arg(m_completedChapterCount));
     }
-    if (m_chapterNumberSpin && m_chapterNumberSpin->value() != m_currentChapter) {
-        QSignalBlocker blocker(m_chapterNumberSpin);
-        m_chapterNumberSpin->setValue(m_currentChapter);
-    }
+    refreshAddChapterUI();
 }
 
 void NovelDetailPage::refreshChapterCardsOnly()
@@ -1657,44 +1665,38 @@ void NovelDetailPage::refreshPanelsAfterBatchGeneration()
     }
 }
 
-void NovelDetailPage::startPanelBatchGeneration(const QList<Panel>& panels, ImageService::BatchPresetMode presetMode)
+void NovelDetailPage::preparePanelBatchGenerationUI()
 {
-    QStringList panelIds;
-    panelIds.reserve(panels.size());
-    for (const Panel& panel : panels) {
-        panelIds.append(panel.id());
+    if (m_generatePanelsBtn) {
+        m_generatePanelsBtn->setEnabled(false);
+        m_generatePanelsBtn->setText(tr("生成中..."));
     }
-
-    if (panelIds.isEmpty()) {
-        handlePanelBatchGenerationFailure(tr("分镜数据为空"), AnalysisProgressWidget::State::Idle);
-        QMessageBox::warning(this, tr("无面板"), tr("当前分镜没有面板数据"));
-        return;
-    }
-
-    const QString modeStr = ImageModeUtils::presetModeString(presetMode);
 
     if (m_panelGenerateProgress) {
+        m_panelGenerateProgress->reset();
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
         m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(TR("正在排队生成面板图像 0/%1").arg(panelIds.size()));
+        m_panelGenerateProgress->setProgressText(tr("正在准备分镜数据..."));
     }
 
-    LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
-    QTimer::singleShot(0, this, [this, panelIds, modeStr]() {
-        m_panelBatchTaskId = StoryboardViewModel::instance()->enqueueBatchPanelImageGeneration(panelIds, modeStr);
-        if (m_panelBatchTaskId.isEmpty()) {
-            LOG_ERROR("NovelDetailPage", "Failed to enqueue panel batch generation task");
-            handlePanelBatchGenerationFailure(tr("面板生成任务创建失败"));
-            return;
-        }
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->beginBatchRefresh();
+    }
 
-        m_panelBatchNovelId = m_currentNovel.id();
+    m_panelBatchRefreshPending = true;
 
-        LOG_INFO("NovelDetailPage", QString("Panel batch task enqueued: %1").arg(m_panelBatchTaskId));
-    });
+    if (m_analysisProgress && m_analysisProgress->currentState() != AnalysisProgressWidget::State::Processing) {
+        m_analysisProgress->reset();
+    }
 }
 
-void NovelDetailPage::finalizePanelBatchGeneration(const QJsonObject& result, bool success, const QString& errorMessage)
+void NovelDetailPage::beginPanelBatchGenerationUI(int panelCount)
+{
+    preparePanelBatchGenerationUI();
+    LOG_INFO("NovelDetailPage", QString("Starting batch generation for %1 panels").arg(panelCount));
+}
+
+void NovelDetailPage::finishPanelBatchGenerationUI(bool success, const QString& message, const QJsonObject& result)
 {
     if (!m_panelGenerateProgress) {
         return;
@@ -1709,15 +1711,55 @@ void NovelDetailPage::finalizePanelBatchGeneration(const QJsonObject& result, bo
 
     m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Failed);
     m_panelGenerateProgress->setProgress(0);
-    m_panelGenerateProgress->setProgressText(errorMessage.isEmpty() ? tr("面板生成失败") : errorMessage);
+    m_panelGenerateProgress->setProgressText(message.isEmpty() ? tr("面板生成失败") : message);
 }
 
-void NovelDetailPage::resetPanelBatchGenerationControls()
+void NovelDetailPage::resetPanelBatchGenerationUI()
 {
     if (m_generatePanelsBtn) {
         m_generatePanelsBtn->setEnabled(true);
         m_generatePanelsBtn->setText(tr("开始生成"));
     }
+    clearPanelBatchTaskState();
+}
+
+void NovelDetailPage::startPanelBatchGeneration(const QList<Panel>& panels, ImageService::BatchPresetMode presetMode)
+{
+    QStringList panelIds;
+    panelIds.reserve(panels.size());
+    for (const Panel& panel : panels) {
+        panelIds.append(panel.id());
+    }
+
+    if (panelIds.isEmpty()) {
+        handlePanelBatchGenerationFailure(tr("分镜数据为空"));
+        QMessageBox::warning(this, tr("无面板"), tr("当前分镜没有面板数据"));
+        return;
+    }
+
+    const QString modeStr = ImageModeUtils::presetModeString(presetMode);
+
+    beginPanelBatchGenerationUI(panelIds.size());
+    if (m_panelGenerateProgress) {
+        m_panelGenerateProgress->setProgressText(TR("正在排队生成面板图像 0/%1").arg(panelIds.size()));
+    }
+
+    QTimer::singleShot(0, this, [this, panelIds, modeStr]() {
+        m_panelBatchTaskId = StoryboardViewModel::instance()->enqueueBatchPanelImageGeneration(panelIds, modeStr);
+        if (m_panelBatchTaskId.isEmpty()) {
+            LOG_ERROR("NovelDetailPage", "Failed to enqueue panel batch generation task");
+            handlePanelBatchGenerationFailure(tr("面板生成任务创建失败"));
+            return;
+        }
+
+        m_panelBatchNovelId = m_currentNovel.id();
+
+        LOG_INFO("NovelDetailPage", QString("Panel batch task enqueued: %1").arg(m_panelBatchTaskId));
+    });
+}
+void NovelDetailPage::resetPanelBatchGenerationControls()
+{
+    resetPanelBatchGenerationUI();
     clearPanelBatchTaskState();
 }
 
@@ -1743,7 +1785,7 @@ void NovelDetailPage::onPanelBatchTaskCompleted(const QString& taskId, const QJs
     }
 
     const bool success = result.value("status").toString() == QLatin1String("completed");
-    finalizePanelBatchGeneration(result, success, success ? QString() : result.value("message").toString());
+    finishPanelBatchGenerationUI(success, success ? QString() : result.value("message").toString(), result);
     if (success) {
         refreshPanelsAfterBatchGeneration();
     }
@@ -1790,14 +1832,9 @@ void NovelDetailPage::clearPanelBatchTaskState()
     m_panelBatchNovelId.clear();
 }
 
-void NovelDetailPage::handlePanelBatchGenerationFailure(const QString& errorMessage,
-                                                        AnalysisProgressWidget::State progressState)
+void NovelDetailPage::handlePanelBatchGenerationFailure(const QString& errorMessage)
 {
-    if (m_panelGenerateProgress) {
-        m_panelGenerateProgress->setState(progressState);
-        m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(errorMessage.isEmpty() ? tr("面板生成失败") : errorMessage);
-    }
+    finishPanelBatchGenerationUI(false, errorMessage);
 
     if (m_panelPreviewWidget) {
         m_panelPreviewWidget->endBatchRefresh(false);
@@ -2076,7 +2113,7 @@ void NovelDetailPage::setAnalysisStatus(AnalysisStatusManager::Status status, co
     if (status == AnalysisStatusManager::Status::Processing) {
         buttonText = tr("分析中...");
     } else if (status == AnalysisStatusManager::Status::Ready) {
-        buttonText = QString("添加章节 %1").arg(m_completedChapterCount + 1);
+        buttonText = QString("添加章节 %1").arg(nextAvailableChapterNumber());
     }
     
     if (m_addChapterBtn && m_statusLabelMap.contains(m_addChapterBtn)) {
@@ -2174,24 +2211,7 @@ void NovelDetailPage::onGeneratePanelsClicked()
         }
     }
 
-    m_generatePanelsBtn->setEnabled(false);
-    m_generatePanelsBtn->setText(tr("生成中..."));
-    
-    if (m_panelGenerateProgress) {
-        m_panelGenerateProgress->reset();
-        m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
-        m_panelGenerateProgress->setProgress(0);
-        m_panelGenerateProgress->setProgressText(tr("正在准备分镜数据..."));
-    }
-
-    if (m_panelPreviewWidget) {
-        m_panelPreviewWidget->beginBatchRefresh();
-    }
-    m_panelBatchRefreshPending = true;
-
-    if (m_analysisProgress && m_analysisProgress->currentState() != AnalysisProgressWidget::State::Processing) {
-        m_analysisProgress->reset();
-    }
+    preparePanelBatchGenerationUI();
 
     if (!m_currentPanels.isEmpty()) {
         startPanelBatchGeneration(m_currentPanels, presetMode);
