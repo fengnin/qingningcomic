@@ -8,7 +8,6 @@
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
 #include <QUuid>
-#include <QJsonDocument>
 #include <QMutexLocker>
 #include <QSqlError>
 
@@ -337,10 +336,19 @@ Panel StoryboardService::getPanel(const QString& panelId)
 
 bool StoryboardService::updatePanel(const QString& panelId, const QJsonObject& content)
 {
-    QString contentStr = serializeJson(content);
-    QString previewPath = content["previewS3Key"].toString();
-    QString hdPath = content["hdS3Key"].toString();
-    QString visualPrompt = content["visualPrompt"].toString();
+    QVariantMap existingRow = m_db->selectOne("panels", "id = ?", QVariantList() << panelId);
+    if (existingRow.isEmpty()) {
+        emitError("updatePanel", QStringLiteral("Panel not found: %1").arg(panelId));
+        return false;
+    }
+
+    Panel panel = buildPanelFromMap(existingRow);
+    const QJsonObject mergedContent = panel.applyUpdatesKeepingStableFields(content);
+
+    QString contentStr = serializeJson(mergedContent);
+    QString previewPath = mergedContent["previewS3Key"].toString();
+    QString hdPath = mergedContent["hdS3Key"].toString();
+    QString visualPrompt = mergedContent["visualPrompt"].toString();
     
     QVariantMap data;
     data["content"] = contentStr;

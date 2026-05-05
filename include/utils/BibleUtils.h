@@ -408,6 +408,91 @@ inline QString inferNarrativeRole(const QString& name, const QString& descriptio
     return QString();
 }
 
+// 从角色名兜底推断年龄
+inline int inferAge(const QString& role, const QString& name)
+{
+    const QString combined = (role + " " + name).toLower();
+
+    static const QStringList elderTokens = {
+        QString::fromUtf8("老年"),
+        QString::fromUtf8("老人"),
+        QString::fromUtf8("老者"),
+        QString::fromUtf8("爷爷"),
+        QString::fromUtf8("祖父"),
+        QString::fromUtf8("外公"),
+        QString::fromUtf8("奶奶"),
+        QString::fromUtf8("祖母"),
+        QString::fromUtf8("外婆")
+    };
+    if (containsAny(combined, elderTokens)) {
+        return 65;
+    }
+
+    static const QStringList matureMaleTokens = {
+        QString::fromUtf8("伯伯"),
+        QString::fromUtf8("叔叔"),
+        QString::fromUtf8("伯"),
+        QString::fromUtf8("叔"),
+        QString::fromUtf8("舅舅"),
+        QString::fromUtf8("舅")
+    };
+    if (containsAny(combined, matureMaleTokens)) {
+        return 50;
+    }
+
+    static const QStringList matureFemaleTokens = {
+        QString::fromUtf8("阿姨"),
+        QString::fromUtf8("姑姑"),
+        QString::fromUtf8("婶婶"),
+        QString::fromUtf8("姨"),
+        QString::fromUtf8("姑"),
+        QString::fromUtf8("婶")
+    };
+    if (containsAny(combined, matureFemaleTokens)) {
+        return 45;
+    }
+
+    static const QStringList parentTokens = {
+        QString::fromUtf8("父亲"),
+        QString::fromUtf8("母亲"),
+        QString::fromUtf8("爸爸"),
+        QString::fromUtf8("妈妈"),
+        QString::fromUtf8("家长")
+    };
+    if (containsAny(combined, parentTokens)) {
+        return 45;
+    }
+
+    static const QStringList youngAdultTokens = {
+        QString::fromUtf8("青年"),
+        QString::fromUtf8("成人"),
+        QString::fromUtf8("大学生")
+    };
+    if (containsAny(combined, youngAdultTokens)) {
+        return 22;
+    }
+
+    static const QStringList teenTokens = {
+        QString::fromUtf8("少年"),
+        QString::fromUtf8("学生"),
+        QString::fromUtf8("男孩"),
+        QString::fromUtf8("女孩")
+    };
+    if (containsAny(combined, teenTokens)) {
+        return 16;
+    }
+
+    static const QStringList childTokens = {
+        QString::fromUtf8("儿童"),
+        QString::fromUtf8("孩子")
+    };
+    if (containsAny(combined, childTokens)) {
+        return 8;
+    }
+
+    return 0;
+}
+
 // ==================== 翻译函数（英文转中文） ====================
 
 namespace Translation {

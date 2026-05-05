@@ -7,8 +7,11 @@
 #include "utils/PromptBuilder.h"
 #include "utils/AppConfig.h"
 #include "utils/BibleUtils.h"
+#include "utils/ImageBorderTrimmer.h"
+#include "utils/LogSummaryUtils.h"
 #include "utils/Logger.h"
 #include <QJsonArray>
+#include <QImage>
 #include <QTimer>
 
 using namespace BibleUtils::SceneTextFilter;
@@ -48,6 +51,24 @@ QString pendingRequestLabel(const PendingImageRequest& request)
     return request.type == BibleImageConstants::TYPE_CHARACTER
         ? request.character.name()
         : request.scene.name();
+}
+
+bool isRateLimitError(const QString& errorMessage)
+{
+    const QString lower = errorMessage.trimmed().toLower();
+    return lower.contains(QStringLiteral("429"))
+        || lower.contains(QStringLiteral("too many requests"))
+        || lower.contains(QStringLiteral("flowlimitexceeded"));
+}
+
+int retryDelayMsForError(const QString& errorMessage, int retryCount)
+{
+    if (isRateLimitError(errorMessage)) {
+        const int exponent = qMax(0, retryCount);
+        const int delayMs = 5000 * (1 << qMin(exponent, 3));
+        return qMin(delayMs, 30000);
+    }
+    return 1000;
 }
 
 PendingImageRequest createPendingRequest(const QString& type,
@@ -106,6 +127,7 @@ void dispatchBibleImageRequest(const QString& provider,
     QwenImageClient::instance()->generateAsync(
         buildBibleQwenOptions(prompt, negativePrompt, requestId, type));
 }
+
 }
 
 BibleImageService* BibleImageService::m_instance = nullptr;
@@ -284,7 +306,7 @@ void BibleImageService::handleImageGenerated(const QString& requestId, const QBy
         if (retryCount < MAX_RETRY_COUNT) {
             LOG_WARNING("BibleImageService", QString("Image generation failed (attempt %1/%2): %3, retrying...")
                 .arg(retryCount + 1).arg(MAX_RETRY_COUNT).arg(errorMessage));
-            retryRequest(requestId);
+            retryRequest(requestId, errorMessage);
             return;
         }
         handleRetryExhausted(requestId, errorMessage);
@@ -293,7 +315,7 @@ void BibleImageService::handleImageGenerated(const QString& requestId, const QBy
     scheduleNextItem();
 }
 
-void BibleImageService::retryRequest(const QString& requestId)
+void BibleImageService::retryRequest(const QString& requestId, const QString& errorMessage)
 {
     bool found = false;
     PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, requestId, &found);
@@ -315,7 +337,11 @@ void BibleImageService::retryRequest(const QString& requestId)
         .arg(request.retryCount).arg(MAX_RETRY_COUNT));
     
     if (!request.prompt.isEmpty()) {
-        QTimer::singleShot(1000, this, [this, requestId, request]() {
+        const int delayMs = retryDelayMsForError(errorMessage, request.retryCount);
+        LOG_WARNING("BibleImageService", QString("Retry delay for %1: %2 ms")
+            .arg(pendingRequestLabel(request))
+            .arg(delayMs));
+        QTimer::singleShot(delayMs, this, [this, requestId, request]() {
             startImageGeneration(requestId, request.prompt, request.negativePrompt,
                                  request.type, request.character, request.scene);
         });
@@ -327,14 +353,37 @@ void BibleImageService::retryRequest(const QString& requestId)
 void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteArray& imageData)
 {
     const PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, requestId);
+    QByteArray processedImageData = imageData;
+    bool borderTrimmed = false;
+
+    if (request.type == BibleImageConstants::TYPE_SCENE) {
+        processedImageData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &borderTrimmed);
+    }
+
+    if (borderTrimmed) {
+        QImage originalImage;
+        QImage processedImage;
+        originalImage.loadFromData(imageData);
+        processedImage.loadFromData(processedImageData);
+        if (!originalImage.isNull() && !processedImage.isNull()) {
+            LOG_INFO("BibleImageService", QString(
+                "Post-processed bible image: type=%1, borderTrimmed=%2, from %4x%5 to %6x%7")
+                .arg(request.type)
+                .arg(borderTrimmed)
+                .arg(originalImage.width())
+                .arg(originalImage.height())
+                .arg(processedImage.width())
+                .arg(processedImage.height()));
+        }
+    }
     QString imagePath;
     bool savedOk = false;
 
     if (request.type == BibleImageConstants::TYPE_CHARACTER) {
-        imagePath = saveCharacterImage(request, imageData);
+        imagePath = saveCharacterImage(request, processedImageData);
         savedOk = !imagePath.isEmpty();
     } else if (request.type == BibleImageConstants::TYPE_SCENE) {
-        imagePath = saveSceneImage(request, imageData);
+        imagePath = saveSceneImage(request, processedImageData);
         savedOk = !imagePath.isEmpty();
     }
     
@@ -479,6 +528,14 @@ void BibleImageService::startImageGeneration(const QString& requestId, const QSt
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_pendingRequests[requestId] = createPendingRequest(type, character, scene, prompt, negativePrompt);
     }
+
+    LOG_INFO("BibleImageService", QString(
+        "Dispatching image request: requestId=%1, type=%2, promptLen=%3, negativeLen=%4, promptHead=%5")
+        .arg(requestId)
+        .arg(type)
+        .arg(prompt.length())
+        .arg(negativePrompt.length())
+        .arg(LogSummaryUtils::summarizeText(prompt)));
     
     dispatchBibleImageRequest(AppConfig::instance()->imageService().provider,
                               requestId,
@@ -513,6 +570,18 @@ void BibleImageService::processNextItem()
         hasMore = processNextCharacter();
     } else if (currentType == BibleImageConstants::TYPE_SCENE && currentSceneIndex < pendingScenesSize) {
         hasMore = processNextScene();
+    }
+
+    int inFlightRequestCount = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        inFlightRequestCount = m_pendingRequests.size();
+    }
+
+    if (inFlightRequestCount > 0) {
+        LOG_DEBUG("BibleImageService", QString("Waiting for %1 in-flight image request(s) before queueing next item")
+            .arg(inFlightRequestCount));
+        return;
     }
 
     bool shouldQueueNext = false;
@@ -631,8 +700,17 @@ PromptBuilder::PromptResult BibleImageService::buildCharacterPortraitPrompt(cons
     options["mode"] = "preview";
     options["view"] = "front";
     options["pose"] = "standing";
-    
-    return PromptBuilder::buildCharacterPrompt(characterJson, options);
+
+    PromptBuilder::PromptResult result = PromptBuilder::buildCharacterPrompt(characterJson, options);
+    LOG_INFO("BibleImageService", QString(
+        "Character portrait prompt built: name=%1, promptLen=%2, negativeLen=%3, refs=%4, promptHead=%5, negativeHead=%6")
+        .arg(character.name())
+        .arg(result.text.length())
+        .arg(result.negativePrompt.length())
+        .arg(result.referenceImages.size())
+        .arg(LogSummaryUtils::summarizeText(result.text))
+        .arg(LogSummaryUtils::summarizeText(result.negativePrompt)));
+    return result;
 }
 
 QJsonObject BibleImageService::buildAppearanceJson(const CharacterAppearance& app)

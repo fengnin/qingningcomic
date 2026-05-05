@@ -281,6 +281,7 @@ void PanelCard::setPreviewPixmap(const QPixmap &pixmap)
     if (m_previewLabel) {
         m_previewLabel->setPixmap(pixmap);
         m_previewLabel->setText("");
+        m_previewLabel->setStyleSheet("background: transparent; border: none;");
     }
     
     if (m_editorWidget) {

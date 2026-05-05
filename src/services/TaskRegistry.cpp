@@ -5,6 +5,7 @@
 #include "services/AnalysisService.h"
 #include "services/NovelService.h"
 #include "utils/AnalysisJobUtils.h"
+#include "utils/BatchGenerationUtils.h"
 #include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
 #include <QJsonDocument>
@@ -62,16 +63,22 @@ void updateTaskNovelStatus(const QString& novelId, NovelStatus status)
 void setPanelBatchResult(TaskData& task, const ImageService::BatchResult& result, const QString& errorMessage)
 {
     task.result = buildBatchResult(result.successCount, result.failedCount, result.totalCount);
-    if (errorMessage.isEmpty()) {
+    const bool success = BatchGenerationUtils::isBatchGenerationSuccessful(result.failedCount, errorMessage);
+    if (success) {
         task.result["status"] = "completed";
         task.result["message"] = "Batch generation completed";
         updateTaskNovelStatus(task.novelId, NovelStatus::Completed);
         return;
     }
 
-    task.result["errorMessage"] = errorMessage;
+    const QString failureMessage = BatchGenerationUtils::buildBatchFailureMessage(
+        result.successCount,
+        result.failedCount,
+        result.totalCount,
+        errorMessage);
+    task.result["errorMessage"] = failureMessage;
     task.result["status"] = "failed";
-    task.result["message"] = errorMessage;
+    task.result["message"] = failureMessage;
     updateTaskNovelStatus(task.novelId, NovelStatus::Error);
 }
 

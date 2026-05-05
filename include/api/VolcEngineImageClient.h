@@ -149,6 +149,10 @@ private:
     QJsonObject parseJsonResponse(const QByteArray& data);
     GenerateResult createErrorResult(const QString& requestId, const QString& message) const;
     void setError(const QString& message);
+    void applyRequestThrottle();
+    void noteRequestStarted();
+    void noteRateLimitHit();
+    void handleRateLimitResponse(QNetworkReply* reply);
     
     template<typename T>
     T executeSyncRequest(std::function<T(QNetworkAccessManager*)> operation, int timeoutMs);
@@ -160,6 +164,10 @@ private:
     QNetworkAccessManager* m_networkManager;
     QString m_lastError;
     bool m_initialized;
+    QMutex m_requestThrottleMutex;
+    qint64 m_nextAllowedRequestAtMs = 0;
+    int m_minRequestIntervalMs = 1500;
+    int m_rateLimitBackoffMs = 5000;
 
     QMap<QString, QNetworkReply*> m_activeRequests;
     QMap<QString, GenerateOptions> m_pendingOptions;

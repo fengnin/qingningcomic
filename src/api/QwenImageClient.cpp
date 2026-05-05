@@ -316,10 +316,9 @@ void QwenImageClient::sendAsyncRequest(const GenerateOptions& options, RequestTy
 {
     const QString requestId = resolveRequestId(options.requestId);
     const QString url = resolveRequestUrl(type);
-    const QJsonObject payload = buildAsyncRequestBody(options, type);
     const bool useAsyncMode = isWanxModel(resolveRequestModel(type));
 
-    dispatchPreparedAsyncRequest(requestId, url, payload, type, options.prompt, useAsyncMode);
+    dispatchPreparedAsyncRequest(requestId, url, buildAsyncRequestBody(options, type), type, options.prompt, useAsyncMode);
     if (type == RequestType::Generate) {
         storePendingRequest(requestId, options);
     } else {
@@ -331,10 +330,9 @@ void QwenImageClient::sendAsyncRequest(const EditOptions& options, RequestType t
 {
     const QString requestId = resolveRequestId(options.requestId);
     const QString url = resolveRequestUrl(type);
-    const QJsonObject payload = buildEditRequestBody(options);
     const bool useAsyncMode = isWanxModel(resolveRequestModel(type));
 
-    dispatchPreparedAsyncRequest(requestId, url, payload, type, options.prompt, useAsyncMode);
+    dispatchPreparedAsyncRequest(requestId, url, buildEditRequestBody(options), type, options.prompt, useAsyncMode);
     storePendingRequest(requestId, options);
 }
 
@@ -743,7 +741,7 @@ QJsonObject QwenImageClient::pollTaskSync(const QString& taskId)
     return QJsonObject();
 }
 
-QByteArray QwenImageClient::downloadImage(const QString& url)
+QByteArray QwenImageClient::downloadImage(const QString& url) const
 {
     QNetworkRequest request{QUrl(url)};
     QNetworkAccessManager manager;
@@ -752,7 +750,6 @@ QByteArray QwenImageClient::downloadImage(const QString& url)
     SyncRequestResult netResult = waitForNetworkReply(reply.data(), DOWNLOAD_TIMEOUT);
     return netResult.success ? netResult.data : QByteArray();
 }
-
 
 QwenImageClient::GenerateResult QwenImageClient::extractImageFromResponse(const QJsonObject& response)
 {
@@ -773,20 +770,14 @@ QwenImageClient::GenerateResult QwenImageClient::parseSyncResponse(const QJsonOb
     result.timestamp = QDateTime::currentMSecsSinceEpoch();
     
     QString inlineImageUrl = extractInlineImageUrl(response);
-    if (!inlineImageUrl.isEmpty()) {
-        result.imageUrl = inlineImageUrl;
-        result.success = true;
-        result.mimeType = "image/png";
+    if (populateResultFromUrl(result, inlineImageUrl)) {
         return result;
     }
 
     QJsonObject output = response["output"].toObject();
 
     QString imageUrl = extractImageUrl(output);
-    if (!imageUrl.isEmpty()) {
-        result.imageUrl = imageUrl;
-        result.success = true;
-        result.mimeType = "image/png";
+    if (populateResultFromUrl(result, imageUrl)) {
         return result;
     }
     
@@ -794,10 +785,7 @@ QwenImageClient::GenerateResult QwenImageClient::parseSyncResponse(const QJsonOb
     if (!dataArray.isEmpty()) {
         QJsonObject firstData = dataArray.first().toObject();
         imageUrl = firstData["url"].toString();
-        if (!imageUrl.isEmpty()) {
-            result.imageUrl = imageUrl;
-            result.success = true;
-            result.mimeType = "image/png";
+        if (populateResultFromUrl(result, imageUrl)) {
             return result;
         }
         
@@ -884,10 +872,7 @@ QwenImageClient::GenerateResult QwenImageClient::parseAsyncResponse(const QJsonO
     }
 
     QString inlineImageUrl = extractInlineImageUrl(response);
-    if (!inlineImageUrl.isEmpty()) {
-        result.imageUrl = inlineImageUrl;
-        result.success = true;
-        result.mimeType = "image/png";
+    if (populateResultFromUrl(result, inlineImageUrl)) {
         result.timestamp = QDateTime::currentMSecsSinceEpoch();
         return result;
     }
@@ -898,17 +883,30 @@ QwenImageClient::GenerateResult QwenImageClient::parseAsyncResponse(const QJsonO
     QJsonObject firstResult = results.first().toObject();
     QString imageUrl = firstResult["url"].toString();
     
-    if (!imageUrl.isEmpty()) {
-        result.imageData = downloadImage(imageUrl);
-        result.success = !result.imageData.isEmpty();
-        result.mimeType = "image/png";
-    }
+    populateResultFromUrl(result, imageUrl);
     
     result.width = firstResult["width"].toInt();
     result.height = firstResult["height"].toInt();
     result.timestamp = QDateTime::currentMSecsSinceEpoch();
     
     return result;
+}
+
+bool QwenImageClient::populateResultFromUrl(GenerateResult& result, const QString& imageUrl) const
+{
+    if (imageUrl.isEmpty()) {
+        return false;
+    }
+
+    result.imageUrl = imageUrl;
+    result.imageData = downloadImage(imageUrl);
+    result.success = !result.imageData.isEmpty();
+    result.mimeType = QStringLiteral("image/png");
+
+    if (!result.success) {
+        result.errorMessage = QStringLiteral("Failed to download generated image");
+    }
+    return result.success;
 }
 
 

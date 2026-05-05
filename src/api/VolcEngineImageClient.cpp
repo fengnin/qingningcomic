@@ -1,6 +1,7 @@
 #include "api/VolcEngineImageClient.h"
 #include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
+#include "utils/LogSummaryUtils.h"
 #include "utils/Logger.h"
 #include <QNetworkRequest>
 #include <QJsonDocument>
@@ -52,6 +53,50 @@ bool VolcEngineImageClient::shouldMock() const
         m_config.accessKey.isEmpty() || m_config.secretKey.isEmpty();
 }
 
+void VolcEngineImageClient::applyRequestThrottle()
+{
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    int delayMs = 0;
+    {
+        QMutexLocker locker(&m_requestThrottleMutex);
+        if (m_nextAllowedRequestAtMs > nowMs) {
+            delayMs = static_cast<int>(m_nextAllowedRequestAtMs - nowMs);
+        }
+    }
+
+    if (delayMs > 0) {
+        QThread::msleep(static_cast<unsigned long>(delayMs));
+    }
+
+    noteRequestStarted();
+}
+
+void VolcEngineImageClient::noteRequestStarted()
+{
+    QMutexLocker locker(&m_requestThrottleMutex);
+    m_nextAllowedRequestAtMs = QDateTime::currentMSecsSinceEpoch() + m_minRequestIntervalMs;
+}
+
+void VolcEngineImageClient::noteRateLimitHit()
+{
+    QMutexLocker locker(&m_requestThrottleMutex);
+    const qint64 backoffUntil = QDateTime::currentMSecsSinceEpoch() + m_rateLimitBackoffMs;
+    if (backoffUntil > m_nextAllowedRequestAtMs) {
+        m_nextAllowedRequestAtMs = backoffUntil;
+    }
+}
+
+void VolcEngineImageClient::handleRateLimitResponse(QNetworkReply* reply)
+{
+    if (!reply) {
+        return;
+    }
+
+    if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 429) {
+        noteRateLimitHit();
+    }
+}
+
             // 异步生成入口
 
 void VolcEngineImageClient::generateAsync(const GenerateOptions& options)
@@ -67,6 +112,8 @@ void VolcEngineImageClient::generateAsync(const GenerateOptions& options)
         emit generateCompleted(generatePlaceholder(options.prompt));
         return;
     }
+
+    applyRequestThrottle();
     
     QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
     QString url = buildApiUrl();
@@ -103,6 +150,8 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const Gene
         LOG_INFO("VolcEngineImageClient", QString("Using placeholder for prompt: %1").arg(options.prompt.left(100)));
         return generatePlaceholder(options.prompt);
     }
+
+    applyRequestThrottle();
     
             // 优先走参考图生成
     if (!options.referenceImage.isEmpty()) {
@@ -244,6 +293,8 @@ void VolcEngineImageClient::onReplyFinished()
             .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());
         
         LOG_ERROR("VolcEngineImageClient", errorMsg);
+
+        handleRateLimitResponse(reply);
         
         cleanupRequest(reply, requestId);
         emit generateCompleted(createErrorResult(requestId, errorMsg));
@@ -371,6 +422,7 @@ QJsonObject VolcEngineImageClient::sendSyncRequest(const QString& url, const QJs
         }
         
         if (reply->error() != QNetworkReply::NoError) {
+            handleRateLimitResponse(reply);
             setError(reply->errorString());
             reply->deleteLater();
             return QJsonObject();
@@ -445,6 +497,17 @@ QJsonObject VolcEngineImageClient::buildGenerateRequestBody(const GenerateOption
     if (options.usePreLlm) {
         body["use_pre_llm"] = true;
     }
+
+    LOG_DEBUG("VolcEngineImageClient", QString(
+        "buildGenerateRequestBody: reqKey=%1, hasRefImage=%2, promptLen=%3, negativeLen=%4, width=%5, height=%6, returnUrl=%7, promptHead=%8")
+        .arg(m_config.reqKey)
+        .arg(!options.referenceImage.isEmpty())
+        .arg(options.prompt.length())
+        .arg(options.negativePrompt.length())
+        .arg(options.width)
+        .arg(options.height)
+        .arg(options.returnUrl)
+        .arg(LogSummaryUtils::summarizeText(options.prompt)));
     
     return body;
 }
@@ -471,6 +534,16 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
         payload["width"] = options.width;
         payload["height"] = options.height;
     }
+
+    LOG_DEBUG("VolcEngineImageClient", QString(
+        "buildReferenceSubmitPayload: reqKey=%1, promptLen=%2, negativeLen=%3, width=%4, height=%5, refBytes=%6, promptHead=%7")
+        .arg(m_config.img2imgReqKey)
+        .arg(options.prompt.length())
+        .arg(options.negativePrompt.length())
+        .arg(options.width)
+        .arg(options.height)
+        .arg(options.referenceImage.size())
+        .arg(LogSummaryUtils::summarizeText(options.prompt)));
 
     return payload;
 }

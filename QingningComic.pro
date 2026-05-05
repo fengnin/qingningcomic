@@ -85,11 +85,13 @@ SOURCES += \
     src/utils/UserSession.cpp \
     src/utils/JsonRepairAdapter.cpp \
     src/utils/PromptBuilder.cpp \
+    src/utils/DialogueSpeakerSideUtils.cpp \
     src/utils/AsyncImageLoader.cpp \
     src/utils/ImageModeUtils.cpp \
     src/utils/ExportUtils.cpp \
     src/utils/ExportRenderer.cpp \
     src/utils/DialogueBubbleRenderer.cpp \
+    src/utils/ImageBorderTrimmer.cpp \
     src/utils/RetryPolicy.cpp \
     src/utils/ExportDataHelper.cpp \
     src/components/SuccessDialog.cpp \
@@ -186,9 +188,11 @@ HEADERS += \
     include/utils/SchemaToPrompt.h \
     include/utils/JsonRepairAdapter.h \
     include/utils/PromptBuilder.h \
+    include/utils/DialogueSpeakerSideUtils.h \
     include/utils/ImageModeUtils.h \
     include/utils/RetryPolicy.h \
     include/utils/DialogueBubbleRenderer.h \
+    include/utils/ImageBorderTrimmer.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \
     include/components/ImageViewerDialog.h \

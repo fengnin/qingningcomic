@@ -1,5 +1,7 @@
 
 #include "models/Panel.h"
+#include "utils/DialogueSpeakerSideUtils.h"
+#include "utils/DialogueTextUtils.h"
 #include "utils/Logger.h"
 
 namespace {
@@ -23,6 +25,14 @@ namespace {
         return result;
     }
 
+    QString formatDialogueLineText(const DialogueLine& line)
+    {
+        if (line.text.isEmpty()) {
+            return line.speaker;
+        }
+        return QString::fromUtf8(u8"%1\uff1a%2").arg(line.speaker, line.text);
+    }
+
     template<typename T, typename Selector>
     QStringList collectStrings(const QList<T>& items, Selector selector)
     {
@@ -32,6 +42,19 @@ namespace {
             result << selector(item);
         }
         return result;
+    }
+
+    void copyIfPresent(QJsonObject& target, const QJsonObject& source, const QString& key)
+    {
+        if (source.contains(key)) {
+            target[key] = source.value(key);
+        }
+    }
+
+    void copyStableContentFields(QJsonObject& target, const QJsonObject& source)
+    {
+        copyIfPresent(target, source, "background");
+        copyIfPresent(target, source, "sceneId");
     }
 }
 
@@ -49,9 +72,20 @@ QJsonObject Panel::content() const
     obj["cameraAngle"] = m_cameraAngle;
     obj["visualPrompt"] = m_visualPrompt;
     obj["visualPromptEn"] = m_visualPromptEn;
+    copyStableContentFields(obj, m_rawContent);
     obj["characters"] = charactersToJsonArray();
     obj["dialogue"] = dialogueToJsonArray();
     return obj;
+}
+
+QJsonObject Panel::applyUpdatesKeepingStableFields(const QJsonObject& updates) const
+{
+    QJsonObject merged = m_rawContent;
+    for (auto it = updates.begin(); it != updates.end(); ++it) {
+        merged[it.key()] = it.value();
+    }
+    copyStableContentFields(merged, m_rawContent);
+    return merged;
 }
 
 void Panel::setContent(const QJsonObject& content)
@@ -90,11 +124,7 @@ QString Panel::dialogueText() const
     if (m_dialogue.isEmpty()) {
         return QString::fromUtf8(u8"\u65e0\u5bf9\u767d");
     }
-    return collectStrings(m_dialogue, [](const DialogueLine& line) {
-        return line.text.isEmpty()
-            ? line.speaker
-            : QString::fromUtf8(u8"%1\uff1a%2").arg(line.speaker, line.text);
-    }).join(QString::fromUtf8(u8"\uff1b"));
+    return collectStrings(m_dialogue, formatDialogueLineText).join(QString::fromUtf8(u8"\uff1b"));
 }
 
 QJsonArray Panel::charactersToJsonArray() const
@@ -118,7 +148,8 @@ QJsonArray Panel::dialogueToJsonArray() const
         arr.append(QJsonObject{
             {"speaker", d.speaker},
             {"text", d.text},
-            {"bubbleType", d.bubbleType}
+            {"bubbleType", d.bubbleType},
+            {"speakerSide", d.speakerSide}
         });
     }
     return arr;
@@ -162,14 +193,24 @@ void Panel::parseCharacters(const QJsonObject& content)
 
 void Panel::parseDialogue(const QJsonObject& content)
 {
-    auto parser = [](const QJsonObject& obj) -> DialogueLine {
-        return {
-            obj["speaker"].toString(),
-            obj["text"].toString(),
-            obj["bubbleType"].toString("speech")
-        };
-    };
-    m_dialogue = parseJsonArray<DialogueLine>(content["dialogue"], parser, "dialogue");
+    m_dialogue.clear();
+
+    const QJsonArray dialogueArray = DialogueTextUtils::normalizeDialogueArray(content["dialogue"].toArray());
+    m_dialogue.reserve(dialogueArray.size());
+    for (const QJsonValue& value : dialogueArray) {
+        if (!value.isObject()) {
+            continue;
+        }
+
+        const QJsonObject obj = value.toObject();
+        const QString speakerSide = DialogueSpeakerSideUtils::normalize(
+            obj.value("speakerSide").toString(obj.value("speaker_side").toString()));
+        m_dialogue.append(DialogueLine(
+            obj.value("speaker").toString(),
+            obj.value("text").toString(),
+            obj.value("bubbleType").toString("speech"),
+            speakerSide));
+    }
 }
 
 void Panel::clear()

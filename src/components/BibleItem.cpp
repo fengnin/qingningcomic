@@ -13,7 +13,6 @@
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QPixmapCache>
-#include <QPainter>
 
 namespace {
     using EditorStyles::TRANSPARENT_BG;
@@ -151,6 +150,15 @@ namespace {
             {"narrativeRole", markAllFields || AnalysisFieldUtils::valueChanged(details.narrativeRole, original.narrativeRole)}
         }, MANUAL_SOURCE);
     }
+
+    QPixmap scalePixmapToFillCenterCrop(const QPixmap& pixmap, const QSize& size)
+    {
+        QPixmap scaled = pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        const int cropX = qMax(0, (scaled.width() - size.width()) / 2);
+        const int cropY = qMax(0, (scaled.height() - size.height()) / 2);
+        return scaled.copy(cropX, cropY, size.width(), size.height());
+    }
+
 }
 BibleItem::BibleItem(const QString &name, const QStringList &details, BibleType type, QWidget *parent)
     : QFrame(parent)
@@ -741,31 +749,19 @@ void BibleItem::onAsyncImageLoaded(const QString& id, const QString& cacheKey, c
 
 void BibleItem::displayProcessedImage(const QPixmap& pixmap)
 {
-    QPixmap displayPixmap = trimWhiteBorders(pixmap);
+    QPixmap displayPixmap = (m_bibleType == BibleType::Scene)
+        ? trimWhiteBorders(pixmap)
+        : pixmap;
     
     if (displayPixmap.isNull()) {
         return;
     }
 
     if (m_bibleType == BibleType::Character) {
-        displayPixmap = displayPixmap.scaled(
-            BibleItemConstants::LABEL_SIZE,
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation);
+        displayPixmap = scalePixmapToFillCenterCrop(displayPixmap, BibleItemConstants::LABEL_SIZE);
         m_imageLabel->setAlignment(Qt::AlignCenter);
     } else {
-        displayPixmap = displayPixmap.scaled(
-            BibleItemConstants::LABEL_SIZE,
-            Qt::KeepAspectRatioByExpanding,
-            Qt::SmoothTransformation);
-
-        const int cropX = qMax(0, (displayPixmap.width() - BibleItemConstants::LABEL_WIDTH) / 2);
-        const int cropY = qMax(0, (displayPixmap.height() - BibleItemConstants::LABEL_HEIGHT) / 2);
-        displayPixmap = displayPixmap.copy(
-            cropX,
-            cropY,
-            BibleItemConstants::LABEL_WIDTH,
-            BibleItemConstants::LABEL_HEIGHT);
+        displayPixmap = scalePixmapToFillCenterCrop(displayPixmap, BibleItemConstants::LABEL_SIZE);
         m_imageLabel->setAlignment(Qt::AlignCenter);
     }
 

@@ -260,6 +260,7 @@ void PanelEditorWidget::setPreviewPixmap(const QPixmap &pixmap)
             PREVIEW_WIDTH, PREVIEW_HEIGHT,
             Qt::KeepAspectRatio, Qt::SmoothTransformation));
         m_previewLabel->setText("");
+        m_previewLabel->setStyleSheet("background: transparent; border: none;");
     }
 }
 

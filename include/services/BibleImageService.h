@@ -65,7 +65,7 @@ private:
     void handleImageGenerated(const QString& requestId, const QByteArray& imageData, bool success, const QString& errorMessage);
     void startImageGeneration(const QString& requestId, const QString& prompt, const QString& negativePrompt, const QString& type, const Character& character, const Scene& scene);
     void saveAndEmitResult(const QString& requestId, const QByteArray& imageData);
-    void retryRequest(const QString& requestId);
+    void retryRequest(const QString& requestId, const QString& errorMessage);
     void clearPendingRequest(const QString& requestId);
     bool maybeFinishBatch();
     void scheduleNextItem();

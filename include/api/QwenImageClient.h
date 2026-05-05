@@ -114,7 +114,7 @@ public:
     bool shouldMock() const;
     GenerateResult generatePlaceholder(const QString& prompt = QString());
     static QString sizeToString(ImageSize size, int width = 0, int height = 0);
-    QByteArray downloadImage(const QString& url);
+    QByteArray downloadImage(const QString& url) const;
 
 signals:
     void generateCompleted(const QwenImageClient::GenerateResult& result);
@@ -195,6 +195,7 @@ private:
     GenerateResult parseAsyncResponse(const QJsonObject& response);
     QString extractImageUrl(const QJsonObject& output) const;
     QString extractInlineImageUrl(const QJsonObject& response) const;
+    bool populateResultFromUrl(GenerateResult& result, const QString& imageUrl) const;
     QString extractTaskId(const QJsonObject& response) const;
     QString extractResponseErrorMessage(const QJsonObject& response) const;
 

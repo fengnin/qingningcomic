@@ -1169,6 +1169,18 @@ void enrichCharacterCoreIdentityFromText(ExtractedCharacter& extracted, const QS
             setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
         }
     }
+
+    if (extracted.age <= 0) {
+        const int roleBasedAge = BibleUtils::Inference::inferAge(extracted.role, extracted.name);
+        if (roleBasedAge > 0) {
+            extracted.age = roleBasedAge;
+            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
+            LOG_DEBUG("CharacterExtractor", QString("Inferred age from role/name for '%1': role=%2, age=%3")
+                .arg(extracted.name)
+                .arg(extracted.role)
+                .arg(extracted.age));
+        }
+    }
 }
 
 void enrichCharacterFromContext(ExtractedCharacter& extracted, const QString& context)

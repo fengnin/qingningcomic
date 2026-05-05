@@ -10,6 +10,7 @@
 #include "utils/BibleUtils.h"
 #include "utils/JsonUtils.h"
 #include "utils/SceneKeyUtils.h"
+#include "utils/DialogueTextUtils.h"
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QJsonDocument>
@@ -1114,7 +1115,9 @@ QJsonObject QwenClient::normalizePanel(const QJsonObject& panel, int index,
     QJsonArray chars = getArrayField(panel, "characters");
     normalized["characters"] = chars.isEmpty() ? QJsonArray() : normalizeCharacters(chars, extractedChars);
     
-    normalized["dialogue"] = getArrayField(panel, "dialogue");
+    normalized["dialogue"] = DialogueTextUtils::normalizeDialogueArray(
+        getArrayField(panel, "dialogue"),
+        panel.value("sourceText").toString());
     normalized["visualPrompt"] = getStringFieldAny(panel, {"visualPrompt", "visual_prompt", "imagePrompt", "image_prompt"});
     normalized["visualPromptEn"] = getStringFieldAny(panel, {"visualPromptEn", "visual_prompt_en", "imagePromptEn", "image_prompt_en"});
     
@@ -1181,7 +1184,9 @@ QJsonObject QwenClient::convertSceneToPanel(const QJsonObject& sceneObj, int ind
     panel["shotType"] = getStringFieldAny(sceneObj, {"shotType", "shot_type"}, "medium");
     panel["cameraAngle"] = getStringFieldAny(sceneObj, {"cameraAngle", "camera_movement", "camera_angle"}, "eye-level");
     panel["characters"] = extractCharactersFromScene(sceneObj, visualDesc);
-    panel["dialogue"] = getArrayField(sceneObj, "dialogue");
+    panel["dialogue"] = DialogueTextUtils::normalizeDialogueArray(
+        getArrayField(sceneObj, "dialogue"),
+        sceneObj.value("sourceText").toString());
     panel["visualPrompt"] = getStringFieldAny(sceneObj, {"visualPrompt", "visual_prompt", "imagePrompt", "image_prompt", "visual_description"}, "");
     panel["visualPromptEn"] = getStringFieldAny(sceneObj, {"visualPromptEn", "visual_prompt_en", "imagePromptEn", "image_prompt_en"}, "");
     

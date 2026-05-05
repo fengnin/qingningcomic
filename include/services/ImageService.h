@@ -155,6 +155,7 @@ private:
         QByteArray editMaskData;
         QString s3Key;
         QStringList referenceImages;
+        QString primaryReferenceImagePath;
         QByteArray refImageData;
         int refImageWidth = 0;
         int refImageHeight = 0;
@@ -229,6 +230,8 @@ private:
                                                       const ResolutionConfig& resolution) const;
     QJsonObject buildPanelPromptOptions(const GenerationContext& ctx, const QJsonObject& panelJson) const;
     void appendUniqueReferenceImages(QStringList& target, const QStringList& source) const;
+    QString selectPrimaryReferenceImagePath(const GenerationContext& ctx) const;
+    void limitReferenceImagesForProvider(GenerationContext& ctx) const;
     bool shouldAdvanceToNextBatchItem() const;
     void queueNextBatchItemProcessing();
 

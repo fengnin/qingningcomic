@@ -41,6 +41,7 @@
 #include "utils/ChangeRequestUiUtils.h"
 #include "utils/ChangeRequestTargetUtils.h"
 #include "utils/BibleUtils.h"
+#include "utils/DialogueSpeakerSideUtils.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -497,20 +498,80 @@ namespace {
         return charInfos;
     }
 
-    QStringList buildPanelDialogueInfo(const QJsonArray& dialogueArray)
+    QString inferDialogueSideForDisplay(const QString& speaker, const QStringList& characterNames, int dialogueIndex)
+    {
+        if (speaker.isEmpty()) {
+            return QString();
+        }
+
+        if (characterNames.size() == 1) {
+            return QStringLiteral("center");
+        }
+
+        const int matchedIndex = characterNames.indexOf(speaker);
+        if (matchedIndex < 0) {
+            return QString();
+        }
+
+        if (characterNames.size() >= 2) {
+            if (matchedIndex == 0) {
+                return QStringLiteral("left");
+            }
+            if (matchedIndex == 1) {
+                return QStringLiteral("right");
+            }
+        }
+
+        if ((dialogueIndex % 2) == 0) {
+            return QStringLiteral("left");
+        }
+        return QStringLiteral("right");
+    }
+
+    QStringList buildPanelDialogueInfo(const QJsonArray& dialogueArray, const QJsonArray& characterArray)
     {
         QStringList dialogueInfos;
-        for (const QJsonValue& d : dialogueArray) {
+        QStringList characterNames;
+        characterNames.reserve(characterArray.size());
+        for (const QJsonValue& value : characterArray) {
+            const QJsonObject obj = value.toObject();
+            const QString name = obj.value("name").toString().trimmed();
+            if (!name.isEmpty()) {
+                characterNames.append(name);
+            }
+        }
+
+        for (int i = 0; i < dialogueArray.size(); ++i) {
+            const QJsonValue& d = dialogueArray.at(i);
             const QJsonObject dialogueObj = d.toObject();
             const QString speaker = dialogueObj["speaker"].toString();
+            QString speakerSide = dialogueObj["speakerSide"].toString(dialogueObj["speaker_side"].toString());
+            if (speakerSide.isEmpty()) {
+                speakerSide = inferDialogueSideForDisplay(speaker, characterNames, i);
+            }
             const QString text = dialogueObj["text"].toString();
             if (!speaker.isEmpty() && speaker != "narration") {
-                dialogueInfos << QString("%1: %2").arg(speaker, text);
+                const QString displaySpeaker = DialogueSpeakerSideUtils::labelWithSide(speaker, speakerSide);
+                dialogueInfos << QString("%1: %2").arg(displaySpeaker, text);
             } else if (!text.isEmpty()) {
                 dialogueInfos << text;
             }
         }
         return dialogueInfos;
+    }
+
+    QStringList characterNamesFromJson(const QJsonArray& characters)
+    {
+        QStringList names;
+        names.reserve(characters.size());
+        for (const QJsonValue& value : characters) {
+            const QJsonObject obj = value.toObject();
+            const QString name = obj.value("name").toString().trimmed();
+            if (!name.isEmpty()) {
+                names.append(name);
+            }
+        }
+        return names;
     }
     // ========== 辅助函数 ==========
     QWidget* createTransparentWidget()
@@ -1554,8 +1615,9 @@ QPair<int, QStringList> NovelDetailPage::parsePanelToItem(const Panel& panel) co
         cameraAngle = content["camera_angle"].toString();
     }
     
-    const QStringList charInfos = buildPanelCharacterInfo(content["characters"].toArray());
-    const QStringList dialogueInfos = buildPanelDialogueInfo(content["dialogue"].toArray());
+    const QJsonArray characterArray = content["characters"].toArray();
+    const QStringList charInfos = buildPanelCharacterInfo(characterArray);
+    const QStringList dialogueInfos = buildPanelDialogueInfo(content["dialogue"].toArray(), characterArray);
     
     QString visualPrompt = panel.visualPrompt();
     QString visualPromptEn = panel.visualPromptEn();
@@ -1744,7 +1806,15 @@ void NovelDetailPage::startPanelBatchGeneration(const QList<Panel>& panels, Imag
         m_panelGenerateProgress->setProgressText(TR("正在排队生成面板图像 0/%1").arg(panelIds.size()));
     }
 
-    QTimer::singleShot(0, this, [this, panelIds, modeStr]() {
+    const QString novelId = m_currentNovel.id();
+    QTimer::singleShot(0, this, [this, panelIds, modeStr, novelId]() {
+        if (m_currentNovel.id() != novelId) {
+            LOG_WARNING("NovelDetailPage", QString("Skipped batch enqueue because novel changed: %1 -> %2")
+                .arg(novelId, m_currentNovel.id()));
+            handlePanelBatchGenerationFailure(tr("当前小说已切换，已取消面板生成"));
+            return;
+        }
+
         m_panelBatchTaskId = StoryboardViewModel::instance()->enqueueBatchPanelImageGeneration(panelIds, modeStr);
         if (m_panelBatchTaskId.isEmpty()) {
             LOG_ERROR("NovelDetailPage", "Failed to enqueue panel batch generation task");
@@ -1752,7 +1822,7 @@ void NovelDetailPage::startPanelBatchGeneration(const QList<Panel>& panels, Imag
             return;
         }
 
-        m_panelBatchNovelId = m_currentNovel.id();
+        m_panelBatchNovelId = novelId;
 
         LOG_INFO("NovelDetailPage", QString("Panel batch task enqueued: %1").arg(m_panelBatchTaskId));
     });
@@ -2636,25 +2706,49 @@ void NovelDetailPage::onStoryboardDataChanged(const QString &panelId, int panelN
     if (panel.id().isEmpty()) {
         return;
     }
-    
-    QJsonObject content = panel.rawContent();
+
+    StoryboardViewModel::instance()->updatePanel(
+        panelId,
+        buildStoryboardUpdateContent(panel,
+                                     scene,
+                                     shotType,
+                                     cameraAngle,
+                                     characters,
+                                     dialogue,
+                                     visualPrompt,
+                                     visualPromptEn));
+}
+
+QJsonObject NovelDetailPage::buildStoryboardUpdateContent(const Panel& panel,
+                                                          const QString& scene,
+                                                          const QString& shotType,
+                                                          const QString& cameraAngle,
+                                                          const QString& characters,
+                                                          const QString& dialogue,
+                                                          const QString& visualPrompt,
+                                                          const QString& visualPromptEn) const
+{
+    const QJsonArray originalDialogue = panel.rawContent().value("dialogue").toArray();
+    QJsonObject content = panel.applyUpdatesKeepingStableFields(QJsonObject());
     content["scene"] = scene;
     content["shotType"] = shotType;
     content["cameraAngle"] = cameraAngle;
-    content["characters"] = parseCharactersToJson(characters);
-    content["dialogue"] = parseDialogueToJson(dialogue);
-    
+    const QJsonArray parsedCharacters = parseCharactersToJson(characters);
+    const QStringList parsedCharacterNames = characterNamesFromJson(parsedCharacters);
+    content["characters"] = parsedCharacters;
+    content["dialogue"] = parseDialogueToJson(dialogue, originalDialogue, parsedCharacterNames);
+
     if (!visualPrompt.isEmpty()) {
         content["visualPrompt"] = visualPrompt;
     }
     if (!visualPromptEn.isEmpty()) {
         content["visualPromptEn"] = visualPromptEn;
     }
-    
-    StoryboardViewModel::instance()->updatePanel(panelId, content);
+
+    return content;
 }
 
-QJsonArray NovelDetailPage::parseCharactersToJson(const QString& characters)
+QJsonArray NovelDetailPage::parseCharactersToJson(const QString& characters) const
 {
     QJsonArray charArray;
     QStringList charItems = characters.split("|", Qt::SkipEmptyParts);
@@ -2692,21 +2786,60 @@ QJsonArray NovelDetailPage::parseCharactersToJson(const QString& characters)
     return charArray;
 }
 
-QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue)
+QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue,
+                                                const QJsonArray& originalDialogue,
+                                                const QStringList& characterNames) const
 {
     QJsonArray dialogueArray;
     QStringList dialogueItems = dialogue.split("|", Qt::SkipEmptyParts);
-    
-    for (const QString &item : dialogueItems) {
+    const int originalCount = originalDialogue.size();
+
+    for (int i = 0; i < dialogueItems.size(); ++i) {
+        const QString &item = dialogueItems.at(i);
         QString trimmed = item.trimmed();
         if (trimmed.isEmpty()) continue;
         
         QJsonObject dialogueObj;
-        int colonPos = trimmed.indexOf(":");
+        const int asciiColonPos = trimmed.indexOf(":");
+        const int fullWidthColonPos = trimmed.indexOf(QString::fromUtf8("："));
+        int colonPos = -1;
+        if (asciiColonPos > 0 && fullWidthColonPos > 0) {
+            colonPos = qMin(asciiColonPos, fullWidthColonPos);
+        } else if (asciiColonPos > 0) {
+            colonPos = asciiColonPos;
+        } else if (fullWidthColonPos > 0) {
+            colonPos = fullWidthColonPos;
+        }
         
         if (colonPos > 0) {
-            dialogueObj["speaker"] = trimmed.left(colonPos).trimmed();
+            QString speaker = trimmed.left(colonPos).trimmed();
+            QString speakerSide;
+            DialogueSpeakerSideUtils::splitLabelAndSide(speaker, speakerSide);
+
+            if (speakerSide.isEmpty() && i < originalCount) {
+                const QJsonObject originalItem = originalDialogue.at(i).toObject();
+                speakerSide = originalItem.value("speakerSide").toString(originalItem.value("speaker_side").toString());
+            }
+
+            if (speakerSide.isEmpty() && !characterNames.isEmpty()) {
+                const QString normalizedSpeaker = speaker.trimmed();
+                const int matchedIndex = characterNames.indexOf(normalizedSpeaker);
+                if (matchedIndex >= 0) {
+                    if (characterNames.size() == 1) {
+                        speakerSide = QStringLiteral("center");
+                    } else if (matchedIndex == 0) {
+                        speakerSide = QStringLiteral("left");
+                    } else if (matchedIndex == 1) {
+                        speakerSide = QStringLiteral("right");
+                    }
+                }
+            }
+
+            dialogueObj["speaker"] = speaker;
             dialogueObj["text"] = trimmed.mid(colonPos + 1).trimmed();
+            if (!speakerSide.isEmpty()) {
+                dialogueObj["speakerSide"] = speakerSide;
+            }
         } else {
             dialogueObj["speaker"] = "narration";
             dialogueObj["text"] = trimmed;

@@ -30,10 +30,13 @@ struct DialogueLine {
     QString speaker;
     QString text;
     QString bubbleType;
+    QString speakerSide;
     
     DialogueLine() : bubbleType(QStringLiteral("speech")) {}
     DialogueLine(const QString &s, const QString &t, const QString &bt = QStringLiteral("speech"))
         : speaker(s), text(t), bubbleType(bt) {}
+    DialogueLine(const QString &s, const QString &t, const QString &bt, const QString &side)
+        : speaker(s), text(t), bubbleType(bt), speakerSide(side) {}
 };
 Q_DECLARE_METATYPE(DialogueLine)
 
@@ -118,6 +121,7 @@ public:
     void addDialogue(const DialogueLine& line) { m_dialogue.append(line); }
 
     QJsonObject content() const;
+    QJsonObject applyUpdatesKeepingStableFields(const QJsonObject& updates) const;
     void setContent(const QJsonObject& content);
     
     void mergeContent(const QJsonObject& extraContent);

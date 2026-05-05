@@ -170,6 +170,14 @@ private:
     void onPanelBatchTaskProgress(const QString& taskId, int progress, const QString& message);
     void onPanelBatchTaskCompleted(const QString& taskId, const QJsonObject& result);
     void onPanelBatchTaskFailed(const QString& taskId, const QString& error);
+    QJsonObject buildStoryboardUpdateContent(const Panel& panel,
+                                             const QString& scene,
+                                             const QString& shotType,
+                                             const QString& cameraAngle,
+                                             const QString& characters,
+                                             const QString& dialogue,
+                                             const QString& visualPrompt,
+                                             const QString& visualPromptEn) const;
     QPair<int, QStringList> parsePanelToItem(const Panel& panel) const;
     void clearLayout(QLayout *layout);
     void updateChapterSelection(int chapterNumber);
@@ -191,8 +199,10 @@ private:
     void requestBibleRefresh();
     void applyDeferredBibleRefresh();
     
-    QJsonArray parseCharactersToJson(const QString& characters);
-    QJsonArray parseDialogueToJson(const QString& dialogue);
+    QJsonArray parseCharactersToJson(const QString& characters) const;
+    QJsonArray parseDialogueToJson(const QString& dialogue,
+                                   const QJsonArray& originalDialogue = QJsonArray(),
+                                   const QStringList& characterNames = QStringList()) const;
     QString collectChangeRequestText() const;
     QJsonObject buildChangeRequestContext() const;
     void bindChangeRequestResultHandlers(ChangeRequestService* service);

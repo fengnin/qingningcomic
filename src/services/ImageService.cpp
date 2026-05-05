@@ -4,9 +4,11 @@
 #include "utils/SingletonUtils.h"
 #include "utils/PromptBuilder.h"
 #include "utils/ImageModeUtils.h"
+#include "utils/ImageBorderTrimmer.h"
 #include "utils/FaceEditPromptUtils.h"
 #include "utils/LocalEditPromptUtils.h"
 #include "utils/PromptTargetUtils.h"
+#include "utils/LogSummaryUtils.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
 #include "api/StorageClient.h"
@@ -34,27 +36,99 @@
 #include <QPainter>
 #include <QRadialGradient>
 #include <QSqlQuery>
+#include <QIODevice>
 #include <QtConcurrent>
 #include <QThread>
 #include <QTimer>
 #include <cmath>
+#include <functional>
 
 namespace {
 constexpr int kBatchPanelMaxRetries = 3;
 constexpr int kBatchNextItemDelayMs = 100;
 
-QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
+QString edgeSampleSummary(const QImage& image)
 {
-    QJsonObject json;
-    json["success"] = result.success;
-    json["panelId"] = result.panelId;
-    json["imageUrl"] = result.imageUrl;
-    json["s3Key"] = result.s3Key;
-    json["errorMessage"] = result.errorMessage;
-    json["width"] = result.width;
-    json["height"] = result.height;
-    json["timestamp"] = result.timestamp;
-    return json;
+    if (image.isNull()) {
+        return QStringLiteral("null");
+    }
+
+    const QPoint samples[] = {
+        QPoint(0, 0),
+        QPoint(qMax(0, image.width() - 1), 0),
+        QPoint(0, qMax(0, image.height() - 1)),
+        QPoint(qMax(0, image.width() - 1), qMax(0, image.height() - 1)),
+        QPoint(image.width() / 2, 0),
+        QPoint(image.width() / 2, qMax(0, image.height() - 1)),
+        QPoint(0, image.height() / 2),
+        QPoint(qMax(0, image.width() - 1), image.height() / 2)
+    };
+
+    QStringList parts;
+    for (const QPoint& pt : samples) {
+        const QColor c = image.pixelColor(pt);
+        parts.append(QStringLiteral("(%1,%2)=%3,%4,%5,%6")
+            .arg(pt.x())
+            .arg(pt.y())
+            .arg(c.red())
+            .arg(c.green())
+            .arg(c.blue())
+            .arg(c.alpha()));
+    }
+    return parts.join(QStringLiteral(" | "));
+}
+
+QString edgeRingSummary(const QImage& image, int ringWidth)
+{
+    if (image.isNull() || ringWidth <= 0) {
+        return QStringLiteral("null");
+    }
+
+    const int w = image.width();
+    const int h = image.height();
+    const int maxRing = qMin(qMin(w, h) / 2, ringWidth);
+    if (maxRing <= 0) {
+        return QStringLiteral("empty");
+    }
+
+    const int borderThreshold = 42;
+
+    const std::function<QString(const std::function<bool(int, int)>&)> sampleStats =
+        [&](const std::function<bool(int, int)>& predicate) -> QString {
+            int total = 0;
+            int dark = 0;
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    if (!predicate(x, y)) {
+                        continue;
+                    }
+                    ++total;
+                    const QColor c = image.pixelColor(x, y);
+                    const int luminance = static_cast<int>(0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue());
+                    if (luminance <= borderThreshold) {
+                        ++dark;
+                    }
+                }
+            }
+            return QStringLiteral("%1/%2").arg(dark).arg(total);
+        };
+
+    const QStringList rings = {
+        QStringLiteral("r1=%1").arg(sampleStats([&](int x, int y) {
+            return x < 1 || y < 1 || x >= w - 1 || y >= h - 1;
+        })),
+        QStringLiteral("r2=%1").arg(sampleStats([&](int x, int y) {
+            return x < 2 || y < 2 || x >= w - 2 || y >= h - 2;
+        })),
+        QStringLiteral("r4=%1").arg(sampleStats([&](int x, int y) {
+            return x < 4 || y < 4 || x >= w - 4 || y >= h - 4;
+        })),
+        QStringLiteral("r8=%1").arg(sampleStats([&](int x, int y) {
+            return x < 8 || y < 8 || x >= w - 8 || y >= h - 8;
+        }))
+    };
+
+    return rings.join(QStringLiteral(" | "));
 }
 
 QByteArray imageToPngBytes(const QImage& image)
@@ -70,6 +144,20 @@ QByteArray imageToPngBytes(const QImage& image)
     return bufferData;
 }
 
+QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
+{
+    QJsonObject json;
+    json["success"] = result.success;
+    json["panelId"] = result.panelId;
+    json["imageUrl"] = result.imageUrl;
+    json["s3Key"] = result.s3Key;
+    json["errorMessage"] = result.errorMessage;
+    json["width"] = result.width;
+    json["height"] = result.height;
+    json["timestamp"] = result.timestamp;
+    return json;
+}
+
 ImageService::GenerateMode parseTaskMode(const QString& modeStr)
 {
     return ImageModeUtils::generateModeFromString(modeStr);
@@ -78,6 +166,19 @@ ImageService::GenerateMode parseTaskMode(const QString& modeStr)
 bool isPresetTaskMode(const QString& modeStr)
 {
     return ImageModeUtils::isPresetModeString(modeStr);
+}
+
+QString selectPrimaryReferencePath(const QStringList& referenceImages,
+                                   const QString& sourceImagePath,
+                                   const QString& primaryReferenceImagePath)
+{
+    if (!sourceImagePath.isEmpty() && referenceImages.contains(sourceImagePath)) {
+        return sourceImagePath;
+    }
+    if (!primaryReferenceImagePath.isEmpty() && referenceImages.contains(primaryReferenceImagePath)) {
+        return primaryReferenceImagePath;
+    }
+    return referenceImages.isEmpty() ? QString() : referenceImages.first();
 }
 
 QRectF faceEditRegionImpl(const Panel& panel, int width, int height)
@@ -726,8 +827,16 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
             emit progressChanged(tr("正在渲染对话气泡..."), 65);
             QImage baseImage;
             if (baseImage.loadFromData(ctx.imageData)) {
+                LOG_DEBUG("ImageService", QString("Bubble render input edge samples: %1")
+                    .arg(edgeSampleSummary(baseImage)));
+                LOG_DEBUG("ImageService", QString("Bubble render input edge rings: %1")
+                    .arg(edgeRingSummary(baseImage, 8)));
                 QImage withBubbles = DialogueBubbleRenderer::renderForPanel(ctx.panel, baseImage);
                 if (!withBubbles.isNull()) {
+                    LOG_DEBUG("ImageService", QString("Bubble render output edge samples: %1")
+                        .arg(edgeSampleSummary(withBubbles)));
+                    LOG_DEBUG("ImageService", QString("Bubble render output edge rings: %1")
+                        .arg(edgeRingSummary(withBubbles, 8)));
                     QBuffer buffer(&ctx.imageData);
                     buffer.open(QIODevice::WriteOnly);
                     if (withBubbles.save(&buffer, "PNG")) {
@@ -1163,6 +1272,22 @@ bool ImageService::finalizeGeneratedImage(GenerationContext& ctx, const QByteArr
     }
 
     ctx.imageData = normalizeImageSize(imageData, targetWidth, targetHeight);
+    const QByteArray before = ctx.imageData;
+    const QByteArray after = ImageBorderTrimmer::trimDarkBorderImageData(before);
+    if (after != before) {
+        QImage beforeImage;
+        QImage afterImage;
+        beforeImage.loadFromData(before);
+        afterImage.loadFromData(after);
+        if (!beforeImage.isNull() && !afterImage.isNull()) {
+            LOG_INFO("ImageService", QString("Trimmed dark border from %1x%2 to %3x%4")
+                .arg(beforeImage.width())
+                .arg(beforeImage.height())
+                .arg(afterImage.width())
+                .arg(afterImage.height()));
+        }
+    }
+    ctx.imageData = after;
     return applyFaceOnlyEditPostProcess(ctx);
 }
 
@@ -1207,7 +1332,9 @@ bool ImageService::loadReferenceImage(GenerationContext& ctx)
         ctx.referenceImages = ctx.referenceImages.mid(0, config.maxRefImages);
     }
     
-    QString refPath = ctx.referenceImages.first();
+    const QString refPath = selectPrimaryReferencePath(ctx.referenceImages,
+                                                        ctx.sourceImagePath,
+                                                        ctx.primaryReferenceImagePath);
     QString fullPath = FileStorage::instance()->getFullPath(refPath);
     
     LOG_INFO("ImageService", QString("Loading reference image: %1 (full path: %2)")
@@ -1284,8 +1411,17 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     options.height = resolution.height;
     options.seed = -1;
     options.returnUrl = true;
-    
+
     const QByteArray& referenceImage = referenceImageForEdit(ctx.editSourceImageData, ctx.refImageData, ctx.faceOnlyEdit);
+    LOG_INFO("ImageService", QString(
+        "VolcEngine request prepared: panelId=%1, provider=%2, hasRefImage=%3, faceOnly=%4, promptLen=%5, negativeLen=%6, promptHead=%7")
+        .arg(ctx.panelId)
+        .arg(config.name)
+        .arg(!referenceImage.isEmpty())
+        .arg(ctx.faceOnlyEdit)
+        .arg(ctx.prompt.length())
+        .arg(ctx.negativePrompt.length())
+        .arg(LogSummaryUtils::summarizeText(ctx.prompt)));
     if (ctx.allowReferenceEdit && !referenceImage.isEmpty()) {
         options.referenceImage = referenceImage;
         LOG_INFO("ImageService", "Using img2img API with reference image");
@@ -1592,6 +1728,10 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         ctx.prompt = result.text;
         ctx.negativePrompt = result.negativePrompt;
         appendUniqueReferenceImages(ctx.referenceImages, result.referenceImages);
+        if (!result.referenceImages.isEmpty()) {
+            ctx.primaryReferenceImagePath = result.referenceImages.first();
+        }
+        limitReferenceImagesForProvider(ctx);
         
         if (ctx.prompt.isEmpty()) {
             setError(tr("提示词构建为空"));
@@ -1647,6 +1787,40 @@ void ImageService::appendUniqueReferenceImages(QStringList& target, const QStrin
     for (const QString& ref : source) {
         if (!ref.isEmpty() && !target.contains(ref)) {
             target.append(ref);
+        }
+    }
+}
+
+QString ImageService::selectPrimaryReferenceImagePath(const GenerationContext& ctx) const
+{
+    if (!ctx.primaryReferenceImagePath.isEmpty()) {
+        return ctx.primaryReferenceImagePath;
+    }
+
+    if (!ctx.sourceImagePath.isEmpty()) {
+        return ctx.sourceImagePath;
+    }
+
+    return ctx.referenceImages.isEmpty() ? QString() : ctx.referenceImages.first();
+}
+
+void ImageService::limitReferenceImagesForProvider(GenerationContext& ctx) const
+{
+    const ProviderConfig config = getProviderConfig();
+    const QString primaryRef = selectPrimaryReferenceImagePath(ctx);
+    if (primaryRef.isEmpty()) {
+        if (config.name == QLatin1String("volcengine")) {
+            ctx.referenceImages.clear();
+        }
+        return;
+    }
+
+    if (config.name == QLatin1String("volcengine")) {
+        ctx.referenceImages.clear();
+        ctx.referenceImages.append(primaryRef);
+        ctx.primaryReferenceImagePath = primaryRef;
+        if (!ctx.referenceImages.contains(primaryRef)) {
+            ctx.referenceImages.prepend(primaryRef);
         }
     }
 }
