@@ -90,7 +90,6 @@ SOURCES += \
     src/utils/ImageModeUtils.cpp \
     src/utils/ExportUtils.cpp \
     src/utils/ExportRenderer.cpp \
-    src/utils/DialogueBubbleRenderer.cpp \
     src/utils/ImageBorderTrimmer.cpp \
     src/utils/RetryPolicy.cpp \
     src/utils/ExportDataHelper.cpp \
@@ -191,7 +190,6 @@ HEADERS += \
     include/utils/DialogueSpeakerSideUtils.h \
     include/utils/ImageModeUtils.h \
     include/utils/RetryPolicy.h \
-    include/utils/DialogueBubbleRenderer.h \
     include/utils/ImageBorderTrimmer.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \

@@ -138,8 +138,8 @@ void VolcEngineImageClient::generateAsync(const GenerateOptions& options)
 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const GenerateOptions& options)
 {
-    LOG_INFO("VolcEngineImageClient", QString("generate() called, shouldMock=%1, hasRefImage=%2")
-        .arg(shouldMock()).arg(!options.referenceImage.isEmpty()));
+    LOG_INFO("VolcEngineImageClient", QString("generate() called, shouldMock=%1, refCount=%2")
+        .arg(shouldMock()).arg(options.referenceImages.size()));
     
     if (options.prompt.isEmpty()) {
         LOG_WARNING("VolcEngineImageClient", "Prompt is required");
@@ -153,8 +153,8 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const Gene
 
     applyRequestThrottle();
     
-            // 优先走参考图生成
-    if (!options.referenceImage.isEmpty()) {
+    // 优先走参考图生成（多图版支持最多5张参考图）
+    if (!options.referenceImages.isEmpty()) {
         return generateWithReference(options);
     }
     
@@ -229,8 +229,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
 {
     QString queryUrl = QString("%1?Action=CVSync2AsyncGetResult&Version=2022-08-31").arg(m_config.baseUrl);
     
-    const int maxAttempts = 60;
-    const int pollInterval = 2000;
+    const int maxAttempts = 45;
     
     LOG_INFO("VolcEngineImageClient", QString("Polling task result: taskId=%1, maxAttempts=%2")
         .arg(taskId).arg(maxAttempts));
@@ -241,6 +240,8 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
         if (response.isEmpty()) {
             LOG_WARNING("VolcEngineImageClient", QString("Query attempt %1 failed: %2")
                 .arg(attempt + 1).arg(m_lastError));
+            
+            int pollInterval = (attempt < 15) ? 2000 : 3000;
             QThread::msleep(pollInterval);
             continue;
         }
@@ -254,6 +255,8 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
             if (errorCode == "InvalidCredential") {
                 return createErrorResult(options.requestId, QString("Invalid credential: %1").arg(errorMessage));
             }
+            
+            int pollInterval = (attempt < 15) ? 2000 : 3000;
             QThread::msleep(pollInterval);
             continue;
         }
@@ -271,6 +274,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
             return createErrorResult(options.requestId, QString("Task result not found or expired: %1").arg(status));
         }
         
+        int pollInterval = (attempt < 15) ? 2000 : 3000;
         QThread::msleep(pollInterval);
     }
     
@@ -499,15 +503,14 @@ QJsonObject VolcEngineImageClient::buildGenerateRequestBody(const GenerateOption
     }
 
     LOG_DEBUG("VolcEngineImageClient", QString(
-        "buildGenerateRequestBody: reqKey=%1, hasRefImage=%2, promptLen=%3, negativeLen=%4, width=%5, height=%6, returnUrl=%7, promptHead=%8")
+        "buildGenerateRequestBody: reqKey=%1, refCount=%2, promptLen=%3, negativeLen=%4, width=%5, height=%6, returnUrl=%7")
         .arg(m_config.reqKey)
-        .arg(!options.referenceImage.isEmpty())
+        .arg(options.referenceImages.size())
         .arg(options.prompt.length())
         .arg(options.negativePrompt.length())
         .arg(options.width)
         .arg(options.height)
-        .arg(options.returnUrl)
-        .arg(LogSummaryUtils::summarizeText(options.prompt)));
+        .arg(options.returnUrl));
     
     return body;
 }
@@ -522,9 +525,42 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
         payload["negative_prompt"] = options.negativePrompt;
     }
 
+    // 构建多图数组（最多5张）
     QJsonArray imageDataArray;
-    imageDataArray.append(QString(options.referenceImage.toBase64()));
+    int maxImages = qMin(options.referenceImages.size(), 5);
+    
+    LOG_INFO("VolcEngineImageClient", QString("构建多图请求: reqKey=%1, 输入参考图=%2, 将发送=%3")
+        .arg(m_config.img2imgReqKey)
+        .arg(options.referenceImages.size())
+        .arg(maxImages));
+    
+    qint64 totalBytes = 0;
+    for (int i = 0; i < maxImages; ++i) {
+        const QByteArray& imgData = options.referenceImages.at(i);
+        imageDataArray.append(QString(imgData.toBase64()));
+        totalBytes += imgData.size();
+        
+        // 详细日志：每张参考图的信息
+        LOG_INFO("VolcEngineImageClient", QString("  参考图[%1]: 原始大小=%2bytes, base64大小=%3bytes")
+            .arg(i + 1)
+            .arg(imgData.size())
+            .arg(QString(imgData.toBase64()).size()));
+    }
     payload["binary_data_base64"] = imageDataArray;
+
+    // 添加参考图类型列表（ref_type_list）
+    // IP: 主体特征（角色外观）, ID: 人脸特征, STYLE: 风格特征（场景/背景）, AUTO: 自动匹配
+    if (!options.refTypeList.isEmpty() && options.refTypeList.size() >= maxImages) {
+        QJsonArray refTypeArray;
+        for (int i = 0; i < maxImages; ++i) {
+            refTypeArray.append(options.refTypeList.at(i));
+        }
+        payload["ref_type_list"] = refTypeArray;
+        
+        LOG_INFO("VolcEngineImageClient", QString("  ref_type_list: %1").arg(options.refTypeList.mid(0, maxImages).join(", ")));
+    } else if (!options.referenceImages.isEmpty()) {
+        LOG_INFO("VolcEngineImageClient", "  ref_type_list: 未指定，使用默认AUTO");
+    }
 
     if (options.seed >= 0) {
         payload["seed"] = options.seed;
@@ -535,15 +571,14 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
         payload["height"] = options.height;
     }
 
-    LOG_DEBUG("VolcEngineImageClient", QString(
-        "buildReferenceSubmitPayload: reqKey=%1, promptLen=%2, negativeLen=%3, width=%4, height=%5, refBytes=%6, promptHead=%7")
-        .arg(m_config.img2imgReqKey)
+    LOG_INFO("VolcEngineImageClient", QString(
+        "请求构建完成: promptLen=%1, negativeLen=%2, width=%3, height=%4, refCount=%5, totalBytes=%6")
         .arg(options.prompt.length())
         .arg(options.negativePrompt.length())
         .arg(options.width)
         .arg(options.height)
-        .arg(options.referenceImage.size())
-        .arg(LogSummaryUtils::summarizeText(options.prompt)));
+        .arg(maxImages)
+        .arg(totalBytes));
 
     return payload;
 }

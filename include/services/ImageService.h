@@ -6,6 +6,7 @@
 #include "api/QwenImageClient.h"
 #include "utils/RetryPolicy.h"
 #include "utils/SingletonUtils.h"
+#include "utils/Logger.h"
 #include <QJsonObject>
 #include <QVariantMap>
 #include <QByteArray>
@@ -13,6 +14,8 @@
 #include <QRectF>
 #include <QSize>
 #include <QMutex>
+#include <atomic>
+#include <QFuture>
 
 class Character;
 class Scene;
@@ -95,6 +98,14 @@ public:
         QList<GenerateResult> results;
     };
 
+    // 面板参考图数据结构
+    // 用于存储面板生成所需的角色和场景参考信息
+    struct PanelReferenceData {
+        QMap<QString, QJsonObject> characterRefs;      // 角色参考信息（key: 角色名或ID）
+        QMap<QString, QJsonObject> sceneRefs;          // 场景参考信息（key: 场景名或ID）
+        QStringList allAvailableRefImages;             // 所有可用的参考图路径列表
+    };
+
     GenerateResult generatePanelImage(const QString& panelId, GenerateMode mode = GenerateMode::Preview);
     GenerateResult generatePanelImage(const QString& panelId, GenerateMode mode, const EditHint& hint);
     void generatePanelImages(const QStringList& panelIds, GenerateMode mode = GenerateMode::Preview);
@@ -127,7 +138,7 @@ signals:
 
 public:
     explicit ImageService(QObject* parent = nullptr);
-    ~ImageService();
+    virtual ~ImageService();  // 修改为虚函数，确保正确的多态销毁
 
 private:
     struct GenerationContext {
@@ -187,6 +198,7 @@ private:
     QMap<QString, QJsonObject> fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages);
     QJsonObject buildSceneRef(const Scene& scene, QStringList& outReferenceImages);
     QMap<QString, QJsonObject> fetchSceneRefs(const QString& novelId, QStringList& outReferenceImages);
+    PanelReferenceData fetchPanelReferenceData(const QString& novelId);
     
     void runBatchGeneration();
     
@@ -235,16 +247,60 @@ private:
     bool shouldAdvanceToNextBatchItem() const;
     void queueNextBatchItemProcessing();
 
+    template<typename Func>
+    GenerateResult executeWithErrorHandling(const QString& operationName, Func&& func)
+    {
+        try {
+            return func();
+        } catch (const std::exception& e) {
+            const QString errorMsg = QString::fromUtf8(e.what());
+            LOG_ERROR("ImageService",
+                QString("%1 exception: %2").arg(operationName).arg(errorMsg));
+            return createErrorResult(QString(), errorMsg);
+        } catch (...) {
+            LOG_ERROR("ImageService",
+                QString("%1 unknown exception").arg(operationName));
+            return createErrorResult(QString(),
+                tr("%1过程中发生未知错误").arg(operationName));
+        }
+    }
+
+    template<typename Func>
+    bool executeWithErrorHandlingBool(const QString& operationName, Func&& func)
+    {
+        try {
+            return func();
+        } catch (const std::exception& e) {
+            const QString errorMsg = QString::fromUtf8(e.what());
+            LOG_ERROR("ImageService",
+                QString("%1 exception: %2").arg(operationName).arg(errorMsg));
+            setError(TR_FMT("%1 failed: %2", operationName, errorMsg));
+            return false;
+        } catch (...) {
+            LOG_ERROR("ImageService",
+                QString("%1 unknown exception").arg(operationName));
+            setError(tr("%1时发生异常").arg(operationName));
+            return false;
+        }
+    }
+
     mutable QMutex m_mutex;
     QString m_currentPanelId;
     GenerateMode m_currentMode;
     ResolutionConfig m_currentResolution;
     QStringList m_pendingPanelIds;
     BatchResult m_batchResult;
-    int m_currentProcessIndex = 0;
-    bool m_batchCancelled = false;
-    QString m_currentPresetMode;
     
+    // 🔧 优化：使用原子变量替代部分锁保护的状态
+    std::atomic<int> m_currentProcessIndex{0};  // 原子计数器
+    std::atomic<bool> m_batchCancelled{false};   // 原子标志
+    
+    QString m_currentPresetMode;
+
+    // 线程安全和生命周期管理
+    std::atomic<bool> m_destroyed{false};  // 原子标志：对象是否已被销毁
+    QList<QFuture<void>> m_runningTasks;   // 跟踪运行中的后台任务
+
     RetryPolicy* m_dbRetryPolicy;
     RetryPolicy* m_apiRetryPolicy;
 };

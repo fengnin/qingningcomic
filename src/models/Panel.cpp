@@ -1,6 +1,5 @@
 
 #include "models/Panel.h"
-#include "utils/DialogueSpeakerSideUtils.h"
 #include "utils/DialogueTextUtils.h"
 #include "utils/Logger.h"
 
@@ -203,13 +202,10 @@ void Panel::parseDialogue(const QJsonObject& content)
         }
 
         const QJsonObject obj = value.toObject();
-        const QString speakerSide = DialogueSpeakerSideUtils::normalize(
-            obj.value("speakerSide").toString(obj.value("speaker_side").toString()));
         m_dialogue.append(DialogueLine(
             obj.value("speaker").toString(),
             obj.value("text").toString(),
-            obj.value("bubbleType").toString("speech"),
-            speakerSide));
+            obj.value("bubbleType").toString("speech")));
     }
 }
 

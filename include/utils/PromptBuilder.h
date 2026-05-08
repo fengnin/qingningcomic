@@ -28,13 +28,27 @@ public:
 
     static QString filterHumanKeywords(const QString &text);
 
-private:
     static QStringList normalizeList(const QJsonValue &value);
     static QString formatHair(const QJsonObject &appearance);
     static QString formatCharacterDescriptor(const QString &name, 
                                               const QString &pose, 
                                               const QString &expression);
     static QString buildCharacterAppearance(const QJsonObject &appearance);
+    static QString firstNonEmptyPortrait(const QStringList &portraitPaths);
+
+    struct PanelCharacterPromptData {
+        QStringList panelCharNames;
+        QStringList characterDescriptions;
+        QString primaryCharacterRef;
+        QStringList allCharacterRefs;
+    };
+
+    static QString testBuildBibleLockBlock(const PanelCharacterPromptData &data,
+                                            const QMap<QString, QJsonObject> &characterRefs);
+    static QString buildBibleLockBlock(const PanelCharacterPromptData& data,
+                                        const QMap<QString, QJsonObject>& characterRefs);
+
+private:
     static QString matchSceneDetails(const QMap<QString, QJsonObject> &sceneRefs,
                                       const QString &sceneId,
                                       const QString &sceneName);

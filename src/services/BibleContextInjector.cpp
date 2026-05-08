@@ -496,7 +496,23 @@ QString BibleContextInjector::buildContextPrompt(
         .arg(chapterNumber > 0 ? QString::number(chapterNumber) : QString::fromUtf8("?"));
 
     if (!characters.isEmpty()) {
-        userMessage += QString::fromUtf8("【现有角色圣经】请在生成的 characters 数组中包含以下所有角色，并保持其 appearance 不变：\n");
+        userMessage += QString::fromUtf8("【🔒 角色外观锁定（必须严格遵守）】\n");
+        userMessage += QString::fromUtf8(
+            "以下角色的外观特征是【不可更改的权威设定】。\n"
+            "在生成每个面板的 visualPrompt 时，**必须**准确使用以下特征：\n\n"
+
+            "⚠️ 绝对禁止的错误：\n"
+            "- 不得修改或忽略 appearance 中的任何字段值（如发色、年龄、眼睛颜色等）！\n"
+            "- 不得将角色年龄改大或改小（如老年人不能画成年轻人）！\n"
+            "- 不得遗漏 features 字段中的标志性身体特征（如斑、纹、疤等）！\n\n"
+
+            "✅ 正确做法：\n"
+            "- visualPrompt 中的角色外观描述必须与 Bible 的 appearance 字段完全一致\n"
+            "- 年龄特征必须准确体现（如高龄角色需强调老年特征）\n"
+            "- features 字段中的关键特征必须在 visualPrompt 中体现\n\n"
+
+            "📋 完整角色数据（appearance字段不可违反）：\n"
+        );
         userMessage += QString::fromUtf8(QJsonDocument(characters).toJson(QJsonDocument::Indented));
         userMessage += QString::fromUtf8("\n\n");
     }

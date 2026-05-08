@@ -41,7 +41,7 @@
 #include "utils/ChangeRequestUiUtils.h"
 #include "utils/ChangeRequestTargetUtils.h"
 #include "utils/BibleUtils.h"
-#include "utils/DialogueSpeakerSideUtils.h"
+#include "utils/ShotTypeHelper.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -498,61 +498,18 @@ namespace {
         return charInfos;
     }
 
-    QString inferDialogueSideForDisplay(const QString& speaker, const QStringList& characterNames, int dialogueIndex)
-    {
-        if (speaker.isEmpty()) {
-            return QString();
-        }
-
-        if (characterNames.size() == 1) {
-            return QStringLiteral("center");
-        }
-
-        const int matchedIndex = characterNames.indexOf(speaker);
-        if (matchedIndex < 0) {
-            return QString();
-        }
-
-        if (characterNames.size() >= 2) {
-            if (matchedIndex == 0) {
-                return QStringLiteral("left");
-            }
-            if (matchedIndex == 1) {
-                return QStringLiteral("right");
-            }
-        }
-
-        if ((dialogueIndex % 2) == 0) {
-            return QStringLiteral("left");
-        }
-        return QStringLiteral("right");
-    }
-
     QStringList buildPanelDialogueInfo(const QJsonArray& dialogueArray, const QJsonArray& characterArray)
     {
+        Q_UNUSED(characterArray);
+        
         QStringList dialogueInfos;
-        QStringList characterNames;
-        characterNames.reserve(characterArray.size());
-        for (const QJsonValue& value : characterArray) {
-            const QJsonObject obj = value.toObject();
-            const QString name = obj.value("name").toString().trimmed();
-            if (!name.isEmpty()) {
-                characterNames.append(name);
-            }
-        }
-
         for (int i = 0; i < dialogueArray.size(); ++i) {
             const QJsonValue& d = dialogueArray.at(i);
             const QJsonObject dialogueObj = d.toObject();
             const QString speaker = dialogueObj["speaker"].toString();
-            QString speakerSide = dialogueObj["speakerSide"].toString(dialogueObj["speaker_side"].toString());
-            if (speakerSide.isEmpty()) {
-                speakerSide = inferDialogueSideForDisplay(speaker, characterNames, i);
-            }
             const QString text = dialogueObj["text"].toString();
             if (!speaker.isEmpty() && speaker != "narration") {
-                const QString displaySpeaker = DialogueSpeakerSideUtils::labelWithSide(speaker, speakerSide);
-                dialogueInfos << QString("%1: %2").arg(displaySpeaker, text);
+                dialogueInfos << QString("%1: %2").arg(speaker, text);
             } else if (!text.isEmpty()) {
                 dialogueInfos << text;
             }
@@ -2790,9 +2747,11 @@ QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue,
                                                 const QJsonArray& originalDialogue,
                                                 const QStringList& characterNames) const
 {
+    Q_UNUSED(originalDialogue);
+    Q_UNUSED(characterNames);
+    
     QJsonArray dialogueArray;
     QStringList dialogueItems = dialogue.split("|", Qt::SkipEmptyParts);
-    const int originalCount = originalDialogue.size();
 
     for (int i = 0; i < dialogueItems.size(); ++i) {
         const QString &item = dialogueItems.at(i);
@@ -2813,33 +2772,8 @@ QJsonArray NovelDetailPage::parseDialogueToJson(const QString& dialogue,
         
         if (colonPos > 0) {
             QString speaker = trimmed.left(colonPos).trimmed();
-            QString speakerSide;
-            DialogueSpeakerSideUtils::splitLabelAndSide(speaker, speakerSide);
-
-            if (speakerSide.isEmpty() && i < originalCount) {
-                const QJsonObject originalItem = originalDialogue.at(i).toObject();
-                speakerSide = originalItem.value("speakerSide").toString(originalItem.value("speaker_side").toString());
-            }
-
-            if (speakerSide.isEmpty() && !characterNames.isEmpty()) {
-                const QString normalizedSpeaker = speaker.trimmed();
-                const int matchedIndex = characterNames.indexOf(normalizedSpeaker);
-                if (matchedIndex >= 0) {
-                    if (characterNames.size() == 1) {
-                        speakerSide = QStringLiteral("center");
-                    } else if (matchedIndex == 0) {
-                        speakerSide = QStringLiteral("left");
-                    } else if (matchedIndex == 1) {
-                        speakerSide = QStringLiteral("right");
-                    }
-                }
-            }
-
             dialogueObj["speaker"] = speaker;
             dialogueObj["text"] = trimmed.mid(colonPos + 1).trimmed();
-            if (!speakerSide.isEmpty()) {
-                dialogueObj["speakerSide"] = speakerSide;
-            }
         } else {
             dialogueObj["speaker"] = "narration";
             dialogueObj["text"] = trimmed;

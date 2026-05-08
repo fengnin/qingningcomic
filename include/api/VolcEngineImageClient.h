@@ -53,7 +53,7 @@ public:
         QString region = "cn-north-1";
         QString service = "cv";
         QString reqKey = "high_aes_general_v30l_zt2i";  // Seedream 3.0 文生图
-        QString img2imgReqKey = "seed3l_single_ip";     // Seedream 3.0 图生图（角色特征保持）
+        QString img2imgReqKey = "seed3l_multi_ip";      // Seedream 3.0 图生图多图版（最多5张参考图）
         int requestTimeout = 120000;
         bool forceMock = false;
     };
@@ -68,7 +68,8 @@ public:
         bool returnUrl = true;  // 返回URL而非Base64
         QString requestId;
         bool usePreLlm = false; // 开启文本扩写
-        QByteArray referenceImage; // 参考图片数据（用于图生图）
+        QList<QByteArray> referenceImages; // 参考图片数据列表（用于图生图，最多5张）
+        QStringList refTypeList;            // 参考图类型列表（IP/ID/STYLE/AUTO），长度必须等于referenceImages
     };
 
     struct GenerateResult {

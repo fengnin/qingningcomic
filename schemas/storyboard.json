@@ -117,11 +117,13 @@
           },
           "shotType": {
             "type": "string",
-            "description": "Camera shot distance/framing."
+            "enum": ["远景", "中景", "近景", "特写", "全景", "远全景"],
+            "description": "Camera shot distance/framing. Must be one of: 远景, 中景, 近景, 特写, 全景, 远全景"
           },
           "cameraAngle": {
             "type": "string",
-            "description": "Camera angle perspective."
+            "enum": ["俯视", "仰视", "平视", "倾斜", "鸟瞰", "虫视"],
+            "description": "Camera angle perspective. Must be one of: 俯视, 仰视, 平视, 倾斜, 鸟瞰, 虫视"
           },
           "composition": {
             "type": "object",
