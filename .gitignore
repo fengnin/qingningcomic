@@ -38,3 +38,8 @@ qwen.log
 # 6. 忽略系统文件
 Thumbs.db
 .DS_Store
+
+# 7. 忽略临时文件和 Claude 工作目录
+temp_*
+.claude/
+src/控制台.txt

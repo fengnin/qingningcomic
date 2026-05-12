@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(/e/Qt/Tools/mingw810_64/bin/g++.exe -std=gnu++11 -fsyntax-only -IE:/QingningComic/qingning/comic/include -IE:/QingningComic/qingning/comic/src -IE:/Qt/5.15.2/mingw81_64/include -IE:/Qt/5.15.2/mingw81_64/include/QtCore E:/QingningComic/qingning/comic/src/models/Panel.cpp)",
-      "Bash(xxd \"/d/10300/Documents/0.png\")"
-    ]
-  }
-}
