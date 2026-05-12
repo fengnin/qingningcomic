@@ -6,6 +6,7 @@
 #include "services/SceneExtractor.h"
 #include "utils/PromptBuilder.h"
 #include "utils/AppConfig.h"
+#include "utils/BackgroundWhitener.h"
 #include "utils/BibleUtils.h"
 #include "utils/ImageBorderTrimmer.h"
 #include "utils/LogSummaryUtils.h"
@@ -355,9 +356,39 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
     const PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, requestId);
     QByteArray processedImageData = imageData;
     bool borderTrimmed = false;
+    bool backgroundWhitened = false;
 
     if (request.type == BibleImageConstants::TYPE_SCENE) {
         processedImageData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &borderTrimmed);
+    } else if (request.type == BibleImageConstants::TYPE_CHARACTER) {
+        QImage originalImage;
+        originalImage.loadFromData(imageData);
+        const qint64 originalArea = (qint64)originalImage.width() * originalImage.height();
+
+        bool didTrim = false;
+        QByteArray trimmedData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &didTrim);
+
+        if (didTrim) {
+            QImage trimmedImage;
+            trimmedImage.loadFromData(trimmedData);
+            const qint64 trimmedArea = (qint64)trimmedImage.width() * trimmedImage.height();
+
+            if (trimmedArea < originalArea * 2 / 5) {
+                LOG_WARNING("BibleImageService", QString(
+                    "角色图片裁剪过度 (%1x%2 -> %3x%4, 面积比=%5%), 跳过裁剪")
+                    .arg(originalImage.width()).arg(originalImage.height())
+                    .arg(trimmedImage.width()).arg(trimmedImage.height())
+                    .arg(QString::number(trimmedArea * 100.0 / originalArea, 'f', 1) + "%"));
+            } else {
+                processedImageData = trimmedData;
+                borderTrimmed = true;
+            }
+        }
+
+        if (!processedImageData.isEmpty()) {
+            processedImageData = BackgroundWhitener::fillWhiteBackgroundImageData(processedImageData, 240);
+            backgroundWhitened = true;
+        }
     }
 
     if (borderTrimmed) {
@@ -375,6 +406,12 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
                 .arg(processedImage.width())
                 .arg(processedImage.height()));
         }
+    }
+
+    if (backgroundWhitened) {
+        LOG_INFO("BibleImageService", QString(
+            "Post-processed character image: background whitened, size=%1 bytes")
+            .arg(processedImageData.size()));
     }
     QString imagePath;
     bool savedOk = false;

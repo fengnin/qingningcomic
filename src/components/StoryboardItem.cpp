@@ -14,11 +14,11 @@ namespace {
 }
 
 StoryboardItem::StoryboardItem(int panelNumber, const QString &panelId,
-                               const QString &scene, 
+                               const QString &scene,
                                const QString &shotType, const QString &cameraAngle,
                                const QString &characters, const QString &dialogue,
-                               const QString &visualPrompt, const QString &visualPromptEn, 
-                               QWidget *parent)
+                               const QString &visualPrompt, const QString &visualPromptEn,
+                               const QString &visualPromptCn, QWidget *parent)
     : EditorCardBase(parent)
     , m_panelNumberLabel(nullptr)
     , m_sceneLabel(nullptr)
@@ -35,6 +35,7 @@ StoryboardItem::StoryboardItem(int panelNumber, const QString &panelId,
     , m_dialogue(dialogue)
     , m_visualPrompt(visualPrompt)
     , m_visualPromptEn(visualPromptEn)
+    , m_visualPromptCn(visualPromptCn)
     , m_sceneEdit(nullptr)
     , m_shotTypeCombo(nullptr)
     , m_cameraCombo(nullptr)
@@ -69,13 +70,8 @@ void StoryboardItem::setupUI()
     QString dialogueTitle = QString::fromUtf8("对白");
     QString emptyDialogue = QString::fromUtf8("(空)");
     
-    QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
-    QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
-    QString shotTypeInfo = shotTypeDisplay;
-    if (!cameraAngleDisplay.isEmpty()) {
-        shotTypeInfo = QString("%1 / %2").arg(shotTypeDisplay, cameraAngleDisplay);
-    }
-    
+    QString shotTypeInfo = formatShotTypeDisplay(m_shotType, m_cameraAngle);
+
     mainLayout->addWidget(createHeaderRow());
     mainLayout->addWidget(createInfoRow(sceneTitle, m_sceneLabel, m_scene, true));
     mainLayout->addWidget(createInfoRow(shotTypeTitle, m_shotTypeLabel, shotTypeInfo));
@@ -160,6 +156,21 @@ void StoryboardItem::setVisualPrompt(const QString &prompt)
 void StoryboardItem::setVisualPromptEn(const QString &prompt)
 {
     m_visualPromptEn = prompt;
+}
+
+void StoryboardItem::setVisualPromptCn(const QString &prompt)
+{
+    m_visualPromptCn = prompt;
+}
+
+QString StoryboardItem::formatShotTypeDisplay(const QString &shotType, const QString &cameraAngle) const
+{
+    QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(shotType);
+    QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(cameraAngle);
+    if (!cameraAngleDisplay.isEmpty()) {
+        return QString("%1 / %2").arg(shotTypeDisplay, cameraAngleDisplay);
+    }
+    return shotTypeDisplay;
 }
 
 void StoryboardItem::onEditBtnClicked()
@@ -257,7 +268,8 @@ void StoryboardItem::syncDataToEditor()
     
     if (m_charactersEdit) m_charactersEdit->setPlainText(m_characters);
     if (m_dialogueEdit) m_dialogueEdit->setPlainText(m_dialogue);
-    if (m_imagenPromptEdit) m_imagenPromptEdit->setPlainText(m_visualPrompt);
+    if (m_imagenPromptEdit) m_imagenPromptEdit->setPlainText(
+        m_visualPromptCn.isEmpty() ? m_visualPrompt : m_visualPromptCn);
 }
 
 QWidget* StoryboardItem::createComboBoxGroup(const QString &title1, QComboBox *&combo1, const QStringList &items1,
@@ -347,17 +359,11 @@ void StoryboardItem::onSaveClicked()
     m_cameraAngle = m_cameraCombo->currentText();
     m_characters = m_charactersEdit->toPlainText().trimmed();
     m_dialogue = m_dialogueEdit->toPlainText().trimmed();
-    m_visualPrompt = m_imagenPromptEdit->toPlainText().trimmed();
+    m_visualPromptCn = m_imagenPromptEdit->toPlainText().trimmed();
     
     m_sceneLabel->setText(m_scene);
     
-    QString shotTypeDisplay = ShotTypeHelper::ShotType::toChinese(m_shotType);
-    QString cameraAngleDisplay = ShotTypeHelper::CameraAngle::toChinese(m_cameraAngle);
-    QString shotTypeInfo = shotTypeDisplay;
-    if (!cameraAngleDisplay.isEmpty()) {
-        shotTypeInfo = QString("%1 / %2").arg(shotTypeDisplay, cameraAngleDisplay);
-    }
-    m_shotTypeLabel->setText(shotTypeInfo);
+    m_shotTypeLabel->setText(formatShotTypeDisplay(m_shotType, m_cameraAngle));
     
     m_charactersLabel->setText(m_characters);
     
@@ -366,7 +372,7 @@ void StoryboardItem::onSaveClicked()
     
     LOG_INFO("StoryboardItem", QString("onSaveClicked: emitting dataChanged signal"));
     
-    emit dataChanged(m_panelId, m_panelNumber, m_scene, m_shotType, m_cameraAngle, m_characters, m_dialogue, m_visualPrompt, m_visualPromptEn);
+    emit dataChanged(m_panelId, m_panelNumber, m_scene, m_shotType, m_cameraAngle, m_characters, m_dialogue, m_visualPrompt, m_visualPromptEn, m_visualPromptCn);
     
     hideEditorCard();
 }

@@ -41,6 +41,19 @@
 
 class ChangeRequestService;
 
+struct StoryboardItemData {
+    int panelNumber = 0;
+    QString panelId;
+    QString scene;
+    QString shotType;
+    QString cameraAngle;
+    QString characters;
+    QString dialogue;
+    QString visualPrompt;
+    QString visualPromptEn;
+    QString visualPromptCn;
+};
+
 class NovelDetailPage : public QWidget
 {
     Q_OBJECT
@@ -90,7 +103,8 @@ private slots:
     void onStoryboardDataChanged(const QString &panelId, int panelNumber, const QString &scene,
                                   const QString &shotType, const QString &cameraAngle,
                                   const QString &characters, const QString &dialogue,
-                                  const QString &visualPrompt, const QString &visualPromptEn);
+                                  const QString &visualPrompt, const QString &visualPromptEn,
+                                  const QString &visualPromptCn);
     void onBibleImageBatchProgress(int current, int total, const QString& type);
     void onAllBibleImagesCompleted(int successCount, int failedCount);
     void onAllImageGenerationCompleted();
@@ -177,8 +191,9 @@ private:
                                              const QString& characters,
                                              const QString& dialogue,
                                              const QString& visualPrompt,
-                                             const QString& visualPromptEn) const;
-    QPair<int, QStringList> parsePanelToItem(const Panel& panel) const;
+                                             const QString& visualPromptEn,
+                                             const QString& visualPromptCn) const;
+    StoryboardItemData parsePanelToItem(const Panel& panel) const;
     void clearLayout(QLayout *layout);
     void updateChapterSelection(int chapterNumber);
     

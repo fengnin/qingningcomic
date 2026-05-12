@@ -219,6 +219,11 @@
                   "default": "speech",
                   "description": "Type of dialogue bubble."
                 },
+                "speakerSide": {
+                  "type": "string",
+                  "enum": ["left", "right", "center"],
+                  "description": "Position of the speaker in the panel. Use 'left' if the speaker is on the left side of the panel, 'right' if on the right side, 'center' if centered. Required when there are multiple characters in the panel."
+                },
                 "emotion": {
                   "type": "string",
                   "description": "Emotional tone of the dialogue."
@@ -228,11 +233,15 @@
           },
           "visualPrompt": {
             "type": "string",
-            "description": "Primary prompt for AI image generation."
+            "description": "Primary prompt for AI image generation (English)."
           },
           "visualPromptEn": {
             "type": "string",
             "description": "English prompt kept for compatibility and downstream tools."
+          },
+          "visualPromptCn": {
+            "type": "string",
+            "description": "Chinese version of visualPrompt for display in the editor UI. Must match visualPrompt content exactly, just in Chinese."
           },
           "narrativeFunction": {
             "type": "string",

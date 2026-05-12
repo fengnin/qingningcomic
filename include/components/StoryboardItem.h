@@ -10,11 +10,12 @@ class StoryboardItem : public EditorCardBase
 
 public:
     explicit StoryboardItem(int panelNumber, const QString &panelId,
-                           const QString &scene, 
+                           const QString &scene,
                            const QString &shotType, const QString &cameraAngle,
                            const QString &characters, const QString &dialogue,
                            const QString &visualPrompt = QString(),
-                           const QString &visualPromptEn = QString(), QWidget *parent = nullptr);
+                           const QString &visualPromptEn = QString(),
+                           const QString &visualPromptCn = QString(), QWidget *parent = nullptr);
     
     void setScene(const QString &scene);
     void setShotType(const QString &shotType);
@@ -23,15 +24,17 @@ public:
     void setDialogue(const QString &dialogue);
     void setVisualPrompt(const QString &prompt);
     void setVisualPromptEn(const QString &prompt);
+    void setVisualPromptCn(const QString &prompt);
     int panelNumber() const { return m_panelNumber; }
     QString panelId() const { return m_panelId; }
 
 signals:
     void editClicked(int panelNumber);
-    void dataChanged(const QString &panelId, int panelNumber, const QString &scene, 
+    void dataChanged(const QString &panelId, int panelNumber, const QString &scene,
                      const QString &shotType, const QString &cameraAngle,
                      const QString &characters, const QString &dialogue,
-                     const QString &visualPrompt, const QString &visualPromptEn);
+                     const QString &visualPrompt, const QString &visualPromptEn,
+                     const QString &visualPromptCn);
 
 private slots:
     void onEditBtnClicked();
@@ -48,6 +51,7 @@ private:
     QWidget* createComboBoxGroup(const QString &title1, QComboBox *&combo1, const QStringList &items1,
                                   const QString &title2, QComboBox *&combo2, const QStringList &items2);
     QWidget* createComboBoxWithArrow(QComboBox *&combo, const QStringList &items);
+    QString formatShotTypeDisplay(const QString &shotType, const QString &cameraAngle) const;
     
     QLabel *m_panelNumberLabel;
     QLabel *m_sceneLabel;
@@ -65,6 +69,7 @@ private:
     QString m_dialogue;
     QString m_visualPrompt;
     QString m_visualPromptEn;
+    QString m_visualPromptCn;
     
     QTextEdit *m_sceneEdit;
     QComboBox *m_shotTypeCombo;

@@ -60,6 +60,7 @@ class Panel
     Q_PROPERTY(QString cameraAngle READ cameraAngle WRITE setCameraAngle)
     Q_PROPERTY(QString visualPrompt READ visualPrompt WRITE setVisualPrompt)
     Q_PROPERTY(QString visualPromptEn READ visualPromptEn WRITE setVisualPromptEn)
+    Q_PROPERTY(QString visualPromptCn READ visualPromptCn WRITE setVisualPromptCn)
     Q_PROPERTY(QString status READ status WRITE setStatus)
     Q_PROPERTY(QString previewS3Key READ previewS3Key WRITE setPreviewS3Key)
     Q_PROPERTY(QString hdS3Key READ hdS3Key WRITE setHdS3Key)
@@ -96,6 +97,9 @@ public:
 
     QString visualPromptEn() const { return m_visualPromptEn; }
     void setVisualPromptEn(const QString& prompt) { m_visualPromptEn = prompt; }
+
+    QString visualPromptCn() const { return m_visualPromptCn; }
+    void setVisualPromptCn(const QString& prompt) { m_visualPromptCn = prompt; }
 
     QString status() const { return m_status; }
     void setStatus(const QString& status) { m_status = status; }
@@ -159,6 +163,7 @@ private:
     QString m_cameraAngle;
     QString m_visualPrompt;
     QString m_visualPromptEn;
+    QString m_visualPromptCn;
     QString m_status = QStringLiteral("pending");
     QString m_previewS3Key;
     QString m_hdS3Key;

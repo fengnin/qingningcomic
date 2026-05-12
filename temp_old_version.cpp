@@ -1,44 +1,9 @@
 #include "services/ChangeRequestService.h"
 #include "api/QwenClient.h"
 #include "services/ImageService.h"
-#include "services/StoryboardService.h"
 #include "utils/UserSession.h"
 #include "data/FileStorage.h"
-#include "api/QwenImageClient.h"
-#include "api/VolcEngineImageClient.h"
 #include "utils/Logger.h"
-#include <QImage>
-
-namespace {
-    QByteArray extractImageFromResult(
-        const QString& providerName,
-        const QByteArray& imageData,
-        const QString& imageUrl)
-    {
-        if (!imageData.isEmpty()) {
-            return imageData;
-        }
-        
-        if (!imageUrl.isEmpty()) {
-            LOG_INFO("ChangeRequest", QString("从 URL 下载编辑后的图片: %1").arg(imageUrl.left(100)));
-            
-            QByteArray downloaded;
-            if (providerName == "volcengine") {
-                downloaded = VolcEngineImageClient::instance()->downloadImage(imageUrl);
-            } else {
-                downloaded = QwenImageClient::instance()->downloadImage(imageUrl);
-            }
-            
-            if (downloaded.isEmpty()) {
-                LOG_ERROR("ChangeRequest", QString("无法下载编辑后的图片: %1").arg(imageUrl));
-            }
-            
-            return downloaded;
-        }
-        
-        return QByteArray();
-    }
-}
 #include "utils/ChangeRequestCreationUtils.h"
 #include "utils/ChangeRequestParseUtils.h"
 #include "utils/ChangeRequestExecutionUtils.h"
@@ -1271,8 +1236,6 @@ QJsonObject ChangeRequestService::executeArtOperation(
         }
 
         QJsonObject generationResult;
-
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, mode, generationResult, editHint)) {
             restorePanelAfterFailedArtEdit(originalPanel, dsl.targetId);
             throw std::runtime_error(m_lastError.toStdString());
@@ -1371,9 +1334,7 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
 
     QList<DialogueLine> dialogues = panel.dialogue();
 
-    // DSL schema uses "text"; "newText" kept as fallback for older DSL versions
-    QString newText = op.params["text"].toString();
-    if (newText.isEmpty()) newText = op.params["newText"].toString();
+    QString newText = op.params["newText"].toString();
     QString speaker = op.params["speaker"].toString();
     QString dialogueId = op.params["dialogueId"].toString();
 
@@ -1429,23 +1390,10 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
         }
         
         if (!updated) {
-            // No dialogueId or speaker match — replace first dialogue if exists, otherwise append
-            if (!dialogues.isEmpty()) {
-                dialogues[0].text = newText;
-                if (!speaker.isEmpty()) dialogues[0].speaker = speaker;
-            } else {
-                dialogues.append(newDialogue);
-            }
+            dialogues.append(newDialogue);
         }
 
         if (!updatePanelDialogue(dsl.targetId, dialogues)) {
-            throw std::runtime_error(m_lastError.toStdString());
-        }
-
-        QJsonObject generationResult;
-        ImageService::EditHint editHint;
-        editHint.forceProvider = QStringLiteral("qwen");
-        if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
     }
@@ -1826,7 +1774,6 @@ bool ChangeRequestService::runPanelImageGeneration(const QString& panelId,
             .arg(strategyName)
             .arg(editHint.expression));
     }
-    
     ImageService::GenerateResult genResult = m_imageService->regeneratePanelImage(panelId, generateMode, editHint);
     if (!genResult.success) {
         m_lastError = genResult.errorMessage;
@@ -1842,139 +1789,6 @@ bool ChangeRequestService::runPanelImageGeneration(const QString& panelId,
         .arg(panelId)
         .arg(mode)
         .arg(genResult.s3Key));
-    return true;
-}
-
-bool ChangeRequestService::executeDirectPanelEdit(const QString& panelId,
-                                                   const QString& editPrompt,
-                                                   const QString& mode,
-                                                   QJsonObject& output)
-{
-    LOG_INFO("ChangeRequest", QString("开始轻量级面板编辑: panelId=%1, mode=%2, promptLen=%3")
-        .arg(panelId)
-        .arg(mode)
-        .arg(editPrompt.length()));
-
-    Panel panel = StoryboardService::instance()->getPanel(panelId);
-    if (panel.id().isEmpty()) {
-        m_lastError = QStringLiteral("面板不存在");
-        LOG_ERROR("ChangeRequest", QString("面板不存在: %1").arg(panelId));
-        return false;
-    }
-
-    QString imagePath = (mode == "hd") ? panel.hdS3Key() : panel.previewS3Key();
-    if (imagePath.isEmpty()) {
-        m_lastError = QStringLiteral("面板图片路径为空");
-        LOG_ERROR("ChangeRequest", QString("面板图片路径为空: panelId=%1, mode=%2").arg(panelId).arg(mode));
-        return false;
-    }
-
-    QByteArray originalImage;
-    if (imagePath.startsWith("http")) {
-        originalImage = QwenImageClient::instance()->downloadImage(imagePath);
-    } else {
-        originalImage = FileStorage::instance()->loadPanelImage(imagePath);
-    }
-
-    if (originalImage.isEmpty()) {
-        m_lastError = QStringLiteral("无法加载面板图片");
-        LOG_ERROR("ChangeRequest", QString("无法加载面板图片: %1").arg(imagePath));
-        return false;
-    }
-
-    QwenImageClient::EditOptions editOptions;
-    
-    QString enhancedPrompt = editPrompt;
-    if (editPrompt.contains(QStringLiteral("移除")) || editPrompt.contains(QStringLiteral("删除"))) {
-        enhancedPrompt = editPrompt + QStringLiteral("。注意：只修改指定内容，其他所有元素（背景、其他角色、构图、光影）必须完全保持原样不变。");
-    } else if (editPrompt.contains(QStringLiteral("替换")) || editPrompt.contains(QStringLiteral("换成"))) {
-        enhancedPrompt = editPrompt + QStringLiteral("。注意：只修改指定内容，其他所有元素必须完全保持原样不变。");
-    }
-    
-    editOptions.prompt = enhancedPrompt;
-    editOptions.sourceImage = originalImage;
-    editOptions.negativePrompt = QStringLiteral("nsfw, blurry, low quality, extra limbs, deformed hands, text watermark, logo, changing background, changing other characters, altering composition");
-
-    QImage tempImage;
-    tempImage.loadFromData(originalImage);
-    if (!tempImage.isNull()) {
-        editOptions.width = tempImage.width();
-        editOptions.height = tempImage.height();
-        editOptions.size = QwenImageClient::ImageSize::Custom;
-        LOG_DEBUG("ChangeRequest", QString("原图尺寸: %1x%2").arg(editOptions.width).arg(editOptions.height));
-    }
-
-    LOG_INFO("ChangeRequest", QString("当前图像提供商: %1, 编辑操作强制使用千问编辑 API")
-        .arg(ImageService::instance()->getProviderName()));
-
-    QByteArray editedImage;
-    LOG_INFO("ChangeRequest", QString("调用千问图像编辑 API: prompt=%1").arg(editPrompt.left(50)));
-    
-    QwenImageClient::GenerateResult result = QwenImageClient::instance()->edit(editOptions);
-    
-    if (!result.success) {
-        m_lastError = result.errorMessage;
-        LOG_ERROR("ChangeRequest", QString("千问编辑失败: %1").arg(result.errorMessage));
-        return false;
-    }
-    
-    editedImage = extractImageFromResult("qwen", result.imageData, result.imageUrl);
-
-    if (editedImage.isEmpty()) {
-        m_lastError = QStringLiteral("编辑后的图片数据为空");
-        LOG_ERROR("ChangeRequest", m_lastError);
-        return false;
-    }
-
-    LOG_INFO("ChangeRequest", QString("编辑后图片大小: %1 bytes, 准备保存到 preview 和 hd").arg(editedImage.size()));
-
-    QString previewPath = FileStorage::instance()->savePanelImage(panelId, editedImage, "preview");
-    LOG_INFO("ChangeRequest", QString("保存 preview 图片结果: %1").arg(previewPath.isEmpty() ? "失败" : previewPath));
-    
-    QString hdPath = FileStorage::instance()->savePanelImage(panelId, editedImage, "hd");
-    LOG_INFO("ChangeRequest", QString("保存 hd 图片结果: %1").arg(hdPath.isEmpty() ? "失败" : hdPath));
-    
-    if (previewPath.isEmpty() && hdPath.isEmpty()) {
-        m_lastError = FileStorage::instance()->lastError();
-        LOG_ERROR("ChangeRequest", QString("保存编辑后的图片失败: %1").arg(m_lastError));
-        return false;
-    }
-
-    if (!previewPath.isEmpty()) {
-        QString oldPreviewS3Key = panel.previewS3Key();
-        QString oldPreviewUrl = panel.previewUrl();
-        panel.setPreviewS3Key(previewPath);
-        panel.setPreviewUrl(FileStorage::instance()->getFullPath(previewPath));
-        LOG_INFO("ChangeRequest", QString("已更新 preview 图片: oldS3Key=%1, newS3Key=%2, oldUrl=%3, newUrl=%4")
-            .arg(oldPreviewS3Key, previewPath, oldPreviewUrl.left(50), panel.previewUrl().left(50)));
-    }
-    
-    if (!hdPath.isEmpty()) {
-        QString oldHdS3Key = panel.hdS3Key();
-        QString oldHdUrl = panel.hdUrl();
-        panel.setHdS3Key(hdPath);
-        panel.setHdUrl(FileStorage::instance()->getFullPath(hdPath));
-        LOG_INFO("ChangeRequest", QString("已更新 hd 图片: oldS3Key=%1, newS3Key=%2, oldUrl=%3, newUrl=%4")
-            .arg(oldHdS3Key, hdPath, oldHdUrl.left(50), panel.hdUrl().left(50)));
-    }
-
-    LOG_INFO("ChangeRequest", QString("准备更新面板数据库: panelId=%1, previewS3Key=%2, hdS3Key=%3")
-        .arg(panelId, panel.previewS3Key(), panel.hdS3Key()));
-
-    if (!updatePanel(panel)) {
-        LOG_ERROR("ChangeRequest", QString("更新面板数据库失败: %1").arg(m_lastError));
-        return false;
-    }
-
-    LOG_INFO("ChangeRequest", QString("面板数据库更新成功: panelId=%1").arg(panelId));
-
-    QString effectivePath = !hdPath.isEmpty() ? hdPath : previewPath;
-    output = ChangeRequestExecutionUtils::buildImageResult(effectivePath, mode, FileStorage::instance()->getFullPath(effectivePath));
-    LOG_INFO("ChangeRequest", QString("轻量级面板编辑完成: panelId=%1, previewPath=%2, hdPath=%3, outputUrl=%4")
-        .arg(panelId)
-        .arg(previewPath)
-        .arg(hdPath)
-        .arg(output.value("imageUrl").toString().left(80)));
     return true;
 }
 

@@ -87,9 +87,11 @@ SOURCES += \
     src/utils/PromptBuilder.cpp \
     src/utils/DialogueSpeakerSideUtils.cpp \
     src/utils/AsyncImageLoader.cpp \
+    src/utils/ImageColorUtils.cpp \
     src/utils/ImageModeUtils.cpp \
     src/utils/ExportUtils.cpp \
     src/utils/ExportRenderer.cpp \
+    src/utils/BackgroundWhitener.cpp \
     src/utils/ImageBorderTrimmer.cpp \
     src/utils/RetryPolicy.cpp \
     src/utils/ExportDataHelper.cpp \
@@ -188,8 +190,10 @@ HEADERS += \
     include/utils/JsonRepairAdapter.h \
     include/utils/PromptBuilder.h \
     include/utils/DialogueSpeakerSideUtils.h \
+    include/utils/ImageColorUtils.h \
     include/utils/ImageModeUtils.h \
     include/utils/RetryPolicy.h \
+    include/utils/BackgroundWhitener.h \
     include/utils/ImageBorderTrimmer.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \

@@ -1120,6 +1120,7 @@ QJsonObject QwenClient::normalizePanel(const QJsonObject& panel, int index,
         panel.value("sourceText").toString());
     normalized["visualPrompt"] = getStringFieldAny(panel, {"visualPrompt", "visual_prompt", "imagePrompt", "image_prompt"});
     normalized["visualPromptEn"] = getStringFieldAny(panel, {"visualPromptEn", "visual_prompt_en", "imagePromptEn", "image_prompt_en"});
+    normalized["visualPromptCn"] = getStringFieldAny(panel, {"visualPromptCn", "visual_prompt_cn"});
     
     extractSceneInfo(normalized, extractedScenes, sceneCounter, existingSceneLookup);
     
@@ -1189,6 +1190,7 @@ QJsonObject QwenClient::convertSceneToPanel(const QJsonObject& sceneObj, int ind
         sceneObj.value("sourceText").toString());
     panel["visualPrompt"] = getStringFieldAny(sceneObj, {"visualPrompt", "visual_prompt", "imagePrompt", "image_prompt", "visual_description"}, "");
     panel["visualPromptEn"] = getStringFieldAny(sceneObj, {"visualPromptEn", "visual_prompt_en", "imagePromptEn", "image_prompt_en"}, "");
+    panel["visualPromptCn"] = getStringFieldAny(sceneObj, {"visualPromptCn", "visual_prompt_cn"}, "");
     
     return panel;
 }

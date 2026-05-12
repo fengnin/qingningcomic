@@ -48,6 +48,7 @@ private:
     
     QString summarizeCharacter(const QJsonObject& character) const;
     QString summarizeScene(const QJsonObject& scene) const;
+    QString buildFewShotExamples();
 };
 
 #endif

@@ -67,6 +67,7 @@ QJsonObject QwenStoryboardMerger::normalizePanel(const QJsonObject& panel, int i
     
     normalized["visualPrompt"] = getStringValue(panel, "visualPrompt");
     normalized["visualPromptEn"] = getStringValue(panel, "visualPromptEn");
+    normalized["visualPromptCn"] = getStringValue(panel, "visualPromptCn");
     
     return normalized;
 }

@@ -55,6 +55,14 @@ namespace {
         copyIfPresent(target, source, "background");
         copyIfPresent(target, source, "sceneId");
     }
+
+    // Reads a string field from content, trying camelCase key first, then snake_case fallback.
+    QString readStringField(const QJsonObject& content, const QString& camelKey, const QString& snakeKey)
+    {
+        if (content.contains(camelKey)) return content[camelKey].toString();
+        if (content.contains(snakeKey)) return content[snakeKey].toString();
+        return QString();
+    }
 }
 
 Panel::Panel()
@@ -71,6 +79,7 @@ QJsonObject Panel::content() const
     obj["cameraAngle"] = m_cameraAngle;
     obj["visualPrompt"] = m_visualPrompt;
     obj["visualPromptEn"] = m_visualPromptEn;
+    obj["visualPromptCn"] = m_visualPromptCn;
     copyStableContentFields(obj, m_rawContent);
     obj["characters"] = charactersToJsonArray();
     obj["dialogue"] = dialogueToJsonArray();
@@ -156,25 +165,13 @@ QJsonArray Panel::dialogueToJsonArray() const
 
 void Panel::parseSceneFields(const QJsonObject& content)
 {
-    if (content.contains("scene")) {
-        m_scene = content["scene"].toString();
-    }
-    if (content.contains("shotType")) {
-        m_shotType = content["shotType"].toString();
-    }
-    if (content.contains("cameraAngle")) {
-        m_cameraAngle = content["cameraAngle"].toString();
-    }
-    if (content.contains("visualPrompt")) {
-        m_visualPrompt = content["visualPrompt"].toString();
-    } else if (content.contains("visual_prompt")) {
-        m_visualPrompt = content["visual_prompt"].toString();
-    }
-    if (content.contains("visualPromptEn")) {
-        m_visualPromptEn = content["visualPromptEn"].toString();
-    } else if (content.contains("visual_prompt_en")) {
-        m_visualPromptEn = content["visual_prompt_en"].toString();
-    }
+    if (content.contains("scene"))       m_scene       = content["scene"].toString();
+    if (content.contains("shotType"))    m_shotType    = content["shotType"].toString();
+    if (content.contains("cameraAngle")) m_cameraAngle = content["cameraAngle"].toString();
+
+    m_visualPrompt   = readStringField(content, "visualPrompt",   "visual_prompt");
+    m_visualPromptEn = readStringField(content, "visualPromptEn", "visual_prompt_en");
+    m_visualPromptCn = readStringField(content, "visualPromptCn", "visual_prompt_cn");
 }
 
 void Panel::parseCharacters(const QJsonObject& content)
@@ -205,7 +202,8 @@ void Panel::parseDialogue(const QJsonObject& content)
         m_dialogue.append(DialogueLine(
             obj.value("speaker").toString(),
             obj.value("text").toString(),
-            obj.value("bubbleType").toString("speech")));
+            obj.value("bubbleType").toString("speech"),
+            obj.value("speakerSide").toString()));
     }
 }
 
@@ -220,6 +218,7 @@ void Panel::clear()
     m_cameraAngle.clear();
     m_visualPrompt.clear();
     m_visualPromptEn.clear();
+    m_visualPromptCn.clear();
     m_status = "pending";
     m_previewS3Key.clear();
     m_hdS3Key.clear();

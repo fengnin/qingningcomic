@@ -106,7 +106,7 @@ namespace {
         }
 
         parameters["size"] = QwenImageClient::sizeToString(options.size, options.width, options.height);
-        parameters["prompt_extend"] = true;
+        parameters["prompt_extend"] = false;  // 编辑操作禁用prompt扩写，避免干扰编辑指令
 
         return parameters;
     }

@@ -13,6 +13,44 @@
 #include <QMessageAuthenticationCode>
 #include <QUrl>
 #include <QThread>
+#include <QImage>
+#include <QBuffer>
+#include <QByteArray>
+
+namespace {
+constexpr int kMaxPollingAttempts = 45;
+constexpr int kPollingThresholdAttempt = 15;
+constexpr int kPollingIntervalShort = 2000;
+constexpr int kPollingIntervalLong = 3000;
+constexpr int kRefImageMaxDimension = 768; // 参考图最大边长，超过则缩放
+
+int calculatePollingInterval(int attempt) {
+    return (attempt < kPollingThresholdAttempt)
+        ? kPollingIntervalShort
+        : kPollingIntervalLong;
+}
+
+// 将参考图缩放到最大边长不超过 kRefImageMaxDimension，以 JPEG 格式压缩后返回
+QByteArray resizeRefImageIfNeeded(const QByteArray& imgData)
+{
+    QImage img;
+    if (!img.loadFromData(imgData)) {
+        return imgData;
+    }
+
+    const int maxDim = qMax(img.width(), img.height());
+    const QImage& source = (maxDim > kRefImageMaxDimension)
+        ? img.scaled(kRefImageMaxDimension, kRefImageMaxDimension,
+                     Qt::KeepAspectRatio, Qt::SmoothTransformation)
+        : img;
+
+    QByteArray out;
+    QBuffer buf(&out);
+    buf.open(QIODevice::WriteOnly);
+    source.save(&buf, "JPEG", 85);
+    return out.isEmpty() ? imgData : out;
+}
+}
 
 VolcEngineImageClient* VolcEngineImageClient::m_instance = nullptr;
 QMutex VolcEngineImageClient::m_instanceMutex;
@@ -177,6 +215,59 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const Gene
 
         // 任务提交后开始轮询
 
+VolcEngineImageClient::GenerateResult VolcEngineImageClient::edit(const GenerateOptions& options)
+{
+    LOG_INFO("VolcEngineImageClient", QString("Using SeedEdit 3.0 API: prompt=%1").arg(options.prompt.left(50)));
+    
+    if (options.referenceImages.isEmpty()) {
+        LOG_ERROR("VolcEngineImageClient", "SeedEdit requires at least one reference image");
+        return createErrorResult(options.requestId, "SeedEdit requires at least one reference image");
+    }
+    
+    QString submitUrl = QString("%1?Action=CVSync2AsyncSubmitTask&Version=2022-08-31").arg(m_config.baseUrl);
+    
+    QJsonObject payload;
+    payload["req_key"] = m_config.seedEditReqKey;
+    payload["prompt"] = options.prompt;
+    
+    if (!options.negativePrompt.isEmpty()) {
+        payload["negative_prompt"] = options.negativePrompt;
+    }
+    
+    QJsonArray imageDataArray;
+    imageDataArray.append(QString(options.referenceImages.first().toBase64()));
+    payload["binary_data_base64"] = imageDataArray;
+    
+    if (options.width > 0 && options.height > 0) {
+        payload["width"] = options.width;
+        payload["height"] = options.height;
+    }
+    
+    LOG_INFO("VolcEngineImageClient", QString("Submitting SeedEdit task: reqKey=%1, promptLen=%2, imageSize=%3")
+        .arg(m_config.seedEditReqKey)
+        .arg(options.prompt.length())
+        .arg(options.referenceImages.first().size()));
+    
+    QJsonObject submitResponse = sendSyncRequest(submitUrl, payload);
+    
+    if (submitResponse.isEmpty()) {
+        LOG_ERROR("VolcEngineImageClient", QString("Submit task failed: %1").arg(m_lastError));
+        return createErrorResult(options.requestId, m_lastError.isEmpty() ? "Submit task failed" : m_lastError);
+    }
+    
+    QJsonObject data = submitResponse["data"].toObject();
+    QString taskId = data["task_id"].toString();
+    
+    if (taskId.isEmpty()) {
+        LOG_ERROR("VolcEngineImageClient", "No task_id in response");
+        return createErrorResult(options.requestId, "No task_id in response");
+    }
+    
+    LOG_INFO("VolcEngineImageClient", QString("SeedEdit task submitted, taskId: %1, polling for result...").arg(taskId));
+    
+    return pollTaskResult(taskId, options);
+}
+
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::generateWithReference(const GenerateOptions& options)
 {
     LOG_INFO("VolcEngineImageClient", "Using img2img API with reference image");
@@ -229,20 +320,17 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
 {
     QString queryUrl = QString("%1?Action=CVSync2AsyncGetResult&Version=2022-08-31").arg(m_config.baseUrl);
     
-    const int maxAttempts = 45;
-    
     LOG_INFO("VolcEngineImageClient", QString("Polling task result: taskId=%1, maxAttempts=%2")
-        .arg(taskId).arg(maxAttempts));
+        .arg(taskId).arg(kMaxPollingAttempts));
     
-    for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+    for (int attempt = 0; attempt < kMaxPollingAttempts; ++attempt) {
         QJsonObject response = sendSyncRequest(queryUrl, buildReferenceQueryPayload(taskId));
         
         if (response.isEmpty()) {
             LOG_WARNING("VolcEngineImageClient", QString("Query attempt %1 failed: %2")
                 .arg(attempt + 1).arg(m_lastError));
             
-            int pollInterval = (attempt < 15) ? 2000 : 3000;
-            QThread::msleep(pollInterval);
+            QThread::msleep(calculatePollingInterval(attempt));
             continue;
         }
         
@@ -256,8 +344,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
                 return createErrorResult(options.requestId, QString("Invalid credential: %1").arg(errorMessage));
             }
             
-            int pollInterval = (attempt < 15) ? 2000 : 3000;
-            QThread::msleep(pollInterval);
+            QThread::msleep(calculatePollingInterval(attempt));
             continue;
         }
         
@@ -274,8 +361,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
             return createErrorResult(options.requestId, QString("Task result not found or expired: %1").arg(status));
         }
         
-        int pollInterval = (attempt < 15) ? 2000 : 3000;
-        QThread::msleep(pollInterval);
+        QThread::msleep(calculatePollingInterval(attempt));
     }
     
     return createErrorResult(options.requestId, "Query task result failed");
@@ -427,7 +513,12 @@ QJsonObject VolcEngineImageClient::sendSyncRequest(const QString& url, const QJs
         
         if (reply->error() != QNetworkReply::NoError) {
             handleRateLimitResponse(reply);
+            const QByteArray errBody = reply->readAll();
             setError(reply->errorString());
+            if (!errBody.isEmpty()) {
+                LOG_ERROR("VolcEngineImageClient", QString("HTTP error body: %1")
+                    .arg(QString::fromUtf8(errBody.left(300))));
+            }
             reply->deleteLater();
             return QJsonObject();
         }
@@ -528,23 +619,25 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
     // 构建多图数组（最多5张）
     QJsonArray imageDataArray;
     int maxImages = qMin(options.referenceImages.size(), 5);
-    
+
     LOG_INFO("VolcEngineImageClient", QString("构建多图请求: reqKey=%1, 输入参考图=%2, 将发送=%3")
         .arg(m_config.img2imgReqKey)
         .arg(options.referenceImages.size())
         .arg(maxImages));
-    
+
     qint64 totalBytes = 0;
     for (int i = 0; i < maxImages; ++i) {
         const QByteArray& imgData = options.referenceImages.at(i);
-        imageDataArray.append(QString(imgData.toBase64()));
-        totalBytes += imgData.size();
-        
-        // 详细日志：每张参考图的信息
-        LOG_INFO("VolcEngineImageClient", QString("  参考图[%1]: 原始大小=%2bytes, base64大小=%3bytes")
+        const QByteArray compressed = resizeRefImageIfNeeded(imgData);
+        const QString b64 = QString(compressed.toBase64());
+        imageDataArray.append(b64);
+        totalBytes += compressed.size();
+
+        LOG_INFO("VolcEngineImageClient", QString("  参考图[%1]: 原始=%2bytes -> 压缩后=%3bytes, base64=%4bytes")
             .arg(i + 1)
             .arg(imgData.size())
-            .arg(QString(imgData.toBase64()).size()));
+            .arg(compressed.size())
+            .arg(b64.size()));
     }
     payload["binary_data_base64"] = imageDataArray;
 
@@ -570,6 +663,11 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
         payload["width"] = options.width;
         payload["height"] = options.height;
     }
+
+    // 关闭 prompt 改写，防止气泡方向等精确指令被模型改写掉
+    payload["use_rephraser"] = false;
+    // 适当提高文本一致性权重，使模型更遵从 prompt 中的位置指令
+    payload["guidance_scale1"] = 3.5;
 
     LOG_INFO("VolcEngineImageClient", QString(
         "请求构建完成: promptLen=%1, negativeLen=%2, width=%3, height=%4, refCount=%5, totalBytes=%6")

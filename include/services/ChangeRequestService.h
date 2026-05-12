@@ -123,6 +123,10 @@ private:
                                  const QString& mode,
                                  QJsonObject& output,
                                  const ImageService::EditHint& editHint = ImageService::EditHint());
+    bool executeDirectPanelEdit(const QString& panelId,
+                                const QString& editPrompt,
+                                const QString& mode,
+                                QJsonObject& output);
     QJsonObject buildStyleOverrides(const ChangeRequestOp& op) const;
     void restorePanelAfterFailedArtEdit(const Panel& originalPanel, const QString& panelId);
     bool writeChangeRequestStatus(const QString& crId, const QString& novelId, const QString& status, const QString& error = QString());

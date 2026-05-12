@@ -4,12 +4,9 @@
 #include "utils/SingletonUtils.h"
 #include "utils/PromptBuilder.h"
 #include "utils/ImageModeUtils.h"
-#include "utils/ImageBorderTrimmer.h"
 #include "utils/FaceEditPromptUtils.h"
 #include "utils/LocalEditPromptUtils.h"
 #include "utils/PromptTargetUtils.h"
-#include "utils/LogSummaryUtils.h"
-#include "utils/FileManager.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
 #include "api/StorageClient.h"
@@ -36,49 +33,12 @@
 #include <QPainter>
 #include <QRadialGradient>
 #include <QSqlQuery>
-#include <QIODevice>
 #include <QtConcurrent>
 #include <QThread>
 #include <QTimer>
-#include <QCoreApplication>
 #include <cmath>
-#include <functional>
 
 namespace {
-constexpr int kBatchPanelMaxRetries = 3;
-constexpr int kBatchNextItemDelayMs = 3000;
-
-constexpr int kRateLimitRetryBaseDelay = 30;
-constexpr int kNormalRetryBaseDelay = 5;
-
-bool isRateLimitError(const QString& errorMessage) {
-    const QString lower = errorMessage.trimmed().toLower();
-    return lower.contains(QStringLiteral("429"))
-        || lower.contains(QStringLiteral("too many requests"))
-        || lower.contains(QStringLiteral("flowlimitexceeded"));
-}
-
-int calculateRetryDelay(const QString& errorMessage, int retryCount) {
-    if (isRateLimitError(errorMessage)) {
-        return kRateLimitRetryBaseDelay * retryCount;
-    } else {
-        return static_cast<int>(std::pow(2, retryCount)) * kNormalRetryBaseDelay;
-    }
-}
-
-QByteArray imageToPngBytes(const QImage& image)
-{
-    QByteArray bufferData;
-    QBuffer buffer(&bufferData);
-    if (!buffer.open(QIODevice::WriteOnly)) {
-        return QByteArray();
-    }
-    if (!image.save(&buffer, "PNG")) {
-        return QByteArray();
-    }
-    return bufferData;
-}
-
 QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
 {
     QJsonObject json;
@@ -93,47 +53,17 @@ QJsonObject generateResultToJson(const ImageService::GenerateResult& result)
     return json;
 }
 
-QString determineRefType(const QString& refPath)
+QByteArray imageToPngBytes(const QImage& image)
 {
-    if (refPath.contains(QStringLiteral("characters/"))) {
-        return QStringLiteral("IP");
+    QByteArray bufferData;
+    QBuffer buffer(&bufferData);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        return QByteArray();
     }
-    if (refPath.contains(QStringLiteral("scenes/"))) {
-        return QStringLiteral("STYLE");
+    if (!image.save(&buffer, "PNG")) {
+        return QByteArray();
     }
-    return QStringLiteral("AUTO");
-}
-
-QStringList determineRefTypes(const QStringList& refPaths)
-{
-    QStringList types;
-    for (const QString& path : refPaths) {
-        types.append(determineRefType(path));
-    }
-    return types;
-}
-
-ImageService::GenerateMode parseTaskMode(const QString& modeStr)
-{
-    return ImageModeUtils::generateModeFromString(modeStr);
-}
-
-bool isPresetTaskMode(const QString& modeStr)
-{
-    return ImageModeUtils::isPresetModeString(modeStr);
-}
-
-QString selectPrimaryReferencePath(const QStringList& referenceImages,
-                                   const QString& sourceImagePath,
-                                   const QString& primaryReferenceImagePath)
-{
-    if (!sourceImagePath.isEmpty() && referenceImages.contains(sourceImagePath)) {
-        return sourceImagePath;
-    }
-    if (!primaryReferenceImagePath.isEmpty() && referenceImages.contains(primaryReferenceImagePath)) {
-        return primaryReferenceImagePath;
-    }
-    return referenceImages.isEmpty() ? QString() : referenceImages.first();
+    return bufferData;
 }
 
 QRectF faceEditRegionImpl(const Panel& panel, int width, int height)
@@ -502,7 +432,24 @@ void applyPresetResolutionForProvider(ImageService::BatchPresetMode presetMode,
                                       int& width,
                                       int& height)
 {
-    Q_UNUSED(providerName)
+    if (providerName == QLatin1String("volcengine")) {
+        switch (presetMode) {
+            case ImageService::BatchPresetMode::Square_1x1:
+                width = 1328;
+                height = 1328;
+                break;
+            case ImageService::BatchPresetMode::Standard_3x2:
+                width = 1584;
+                height = 1056;
+                break;
+            case ImageService::BatchPresetMode::Widescreen_16x9:
+                width = 1664;
+                height = 936;
+                break;
+        }
+        return;
+    }
+
     switch (presetMode) {
         case ImageService::BatchPresetMode::Square_1x1:
             width = 1024;
@@ -673,48 +620,21 @@ ImageService::ImageService(QObject* parent)
 
 ImageService::~ImageService()
 {
-    LOG_INFO("ImageService", "ImageService destructor called, cleaning up resources");
-
-    // 设置销毁标志，阻止新的后台任务启动
-    m_destroyed.store(true);
-
-    // 取消所有正在进行的批量生成任务
     cancelCurrentBatch();
-
-    // 等待所有后台任务完成，防止访问已销毁的对象
-    for (QFuture<void>& task : m_runningTasks) {
-        if (!task.isFinished()) {
-            task.waitForFinished();
-        }
-    }
-    m_runningTasks.clear();
-
-    LOG_INFO("ImageService", "ImageService cleanup completed");
 }
 
 void ImageService::cancelCurrentBatch()
 {
-    LOG_INFO("ImageService", "Cancelling current batch generation");
-
-    {
-        QMutexLocker locker(&m_mutex);
-        m_batchCancelled.store(true);  // 🔧 原子操作
-
-        // 调用基类的 cancelGeneration() 方法来同步设置 m_batchState.cancelled
-        // 这样可以避免直接访问私有成员
-        cancelGeneration();
-
-        m_pendingPanelIds.clear();
-        m_currentProcessIndex.store(0);  // 🔧 原子操作
-        m_currentPresetMode.clear();
-
-        // 注意：cancelGeneration() 已经调用了 setGenerating(false)，这里不需要重复设置
-        // 但我们需要重置 m_batchResult
-        m_batchResult = BatchResult();
-    }
-
+    QMutexLocker locker(&m_mutex);
+    m_batchCancelled = true;
+    m_pendingPanelIds.clear();
+    m_currentProcessIndex = 0;
+    m_currentPresetMode.clear();
+    
+    setGenerating(false);
+    m_batchResult = BatchResult();
+    
     emit batchGenerationCancelled();
-    LOG_INFO("ImageService", "Batch generation cancelled successfully");
 }
 
 ImageService::GenerateResult ImageService::generatePanelImageCore(const QString& panelId,
@@ -757,7 +677,6 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
     ctx.editRegionScale = hint.regionScale;
     ctx.editMaskCoreRatio = hint.maskCoreRatio;
     ctx.editMaskFeatherRatio = hint.maskFeatherRatio;
-    ctx.forceProvider = hint.forceProvider;
     ctx.editMaskData.clear();
     if (resolution.isPreset) {
         ctx.presetMode = resolution.presetName;
@@ -801,14 +720,18 @@ ImageService::GenerateResult ImageService::generatePanelImageCore(const QString&
         }
 
         LOG_INFO("ImageService", QString("Panel generated successfully: %1").arg(panelId));
-
+        
         resetState();
         return finalizeResult(ctx);
-    } catch (...) {
+    } catch (const std::exception& e) {
+        QString errorMsg = QString::fromUtf8(e.what());
+        LOG_ERROR("ImageService", QString("Exception during generation of panel %1: %2").arg(panelId).arg(errorMsg));
         resetState();
-        return executeWithErrorHandling(
-            QString("generation of panel %1").arg(panelId),
-            [&]() -> GenerateResult { throw; });
+        return createErrorResult(panelId, errorMsg);
+    } catch (...) {
+        LOG_ERROR("ImageService", QString("Unknown exception during generation of panel %1").arg(panelId));
+        resetState();
+        return createErrorResult(panelId, tr("生成过程中发生未知错误"));
     }
 }
 
@@ -852,8 +775,8 @@ void ImageService::startBatchGeneration(const QStringList& panelIds, const Resol
         QMutexLocker locker(&m_mutex);
         m_pendingPanelIds = panelIds;
         m_currentResolution = resolution;
-        m_currentProcessIndex.store(0);       // 🔧 原子操作
-        m_batchCancelled.store(false);        // 🔧 原子操作
+        m_currentProcessIndex = 0;
+        m_batchCancelled = false;
 
         m_batchResult = BatchResult();
         m_batchResult.totalCount = panelIds.size();
@@ -863,57 +786,6 @@ void ImageService::startBatchGeneration(const QStringList& panelIds, const Resol
     LOG_INFO("ImageService", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
 
     QTimer::singleShot(0, this, &ImageService::processNextPanel);
-}
-
-bool ImageService::takeNextBatchItem(QString& panelId, int& currentIndex, int& total, ResolutionConfig& resolution)
-{
-    if (!shouldAdvanceToNextBatchItem()) {
-        return false;
-    }
-
-    const int idx = m_currentProcessIndex.load();
-    panelId = m_pendingPanelIds[idx];
-    currentIndex = idx;
-    total = m_pendingPanelIds.size();
-    resolution = m_currentResolution;
-    return true;
-}
-
-void ImageService::completeBatchGeneration()
-{
-    LOG_INFO("ImageService", "Starting batch finalization...");
-
-    BatchResult finalResult;
-    {
-        QMutexLocker locker(&m_mutex);
-        finalResult = m_batchResult;
-    }
-
-    finishBatch();
-
-    LOG_INFO("ImageService", QString("Batch completed: %1 success, %2 failed")
-        .arg(finalResult.successCount).arg(finalResult.failedCount));
-
-    QCoreApplication::processEvents();
-
-    emit imageBatchCompleted(finalResult);
-    LOG_INFO("ImageService", "imageBatchCompleted signal emitted");
-}
-
-bool ImageService::recordBatchItemResult(const QString& panelId, const GenerateResult& result, int maxRetries)
-{
-    m_batchResult.results.append(result);
-
-    if (result.success) {
-        m_batchResult.successCount++;
-        emit panelGenerated(result);
-        return true;
-    }
-
-    m_batchResult.failedCount++;
-    LOG_ERROR("ImageService", QString("Panel generation failed after %1 attempts: %2 - %3")
-        .arg(maxRetries).arg(panelId).arg(result.errorMessage));
-    return false;
 }
 
 void ImageService::generatePanelImages(const QStringList& panelIds, GenerateMode mode)
@@ -1221,22 +1093,6 @@ bool ImageService::finalizeGeneratedImage(GenerationContext& ctx, const QByteArr
     }
 
     ctx.imageData = normalizeImageSize(imageData, targetWidth, targetHeight);
-    const QByteArray before = ctx.imageData;
-    const QByteArray after = ImageBorderTrimmer::trimDarkBorderImageData(before);
-    if (after != before) {
-        QImage beforeImage;
-        QImage afterImage;
-        beforeImage.loadFromData(before);
-        afterImage.loadFromData(after);
-        if (!beforeImage.isNull() && !afterImage.isNull()) {
-            LOG_INFO("ImageService", QString("Trimmed dark border from %1x%2 to %3x%4")
-                .arg(beforeImage.width())
-                .arg(beforeImage.height())
-                .arg(afterImage.width())
-                .arg(afterImage.height()));
-        }
-    }
-    ctx.imageData = after;
     return applyFaceOnlyEditPostProcess(ctx);
 }
 
@@ -1247,7 +1103,7 @@ ImageService::ProviderConfig ImageService::getProviderConfig() const
     
     if (provider == "volcengine") {
         config.name = "volcengine";
-        config.maxRefImages = 5;
+        config.maxRefImages = 1;
         config.supportsImg2Img = true;
         config.previewWidth = 1056;
         config.previewHeight = 1584;
@@ -1266,11 +1122,6 @@ ImageService::ProviderConfig ImageService::getProviderConfig() const
     return config;
 }
 
-QString ImageService::getProviderName() const
-{
-    return getProviderConfig().name;
-}
-
 bool ImageService::loadReferenceImage(GenerationContext& ctx)
 {
     if (ctx.referenceImages.isEmpty()) {
@@ -1286,9 +1137,7 @@ bool ImageService::loadReferenceImage(GenerationContext& ctx)
         ctx.referenceImages = ctx.referenceImages.mid(0, config.maxRefImages);
     }
     
-    const QString refPath = selectPrimaryReferencePath(ctx.referenceImages,
-                                                        ctx.sourceImagePath,
-                                                        ctx.primaryReferenceImagePath);
+    QString refPath = ctx.referenceImages.first();
     QString fullPath = FileStorage::instance()->getFullPath(refPath);
     
     LOG_INFO("ImageService", QString("Loading reference image: %1 (full path: %2)")
@@ -1365,55 +1214,11 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     options.height = resolution.height;
     options.seed = -1;
     options.returnUrl = true;
-
-    // 收集参考图（支持多张，最多5张）
-    if (ctx.allowReferenceEdit && !ctx.referenceImages.isEmpty()) {
-        LOG_INFO("ImageService", QString("开始收集参考图: panelId=%1, 待收集数量=%2")
-            .arg(ctx.panelId)
-            .arg(ctx.referenceImages.size()));
-        
-        int maxImages = qMin(ctx.referenceImages.size(), 5);
-        for (int i = 0; i < maxImages; ++i) {
-            const QString& refPath = ctx.referenceImages.at(i);
-            QString fullPath = FileStorage::instance()->getFullPath(refPath);
-            QByteArray refData = FileManager::readBinaryFile(fullPath);
-            
-            // 详细日志：每张参考图的加载情况
-            LOG_INFO("ImageService", QString("  参考图[%1]: path=%2, fullPath=%3, loaded=%4, size=%5bytes")
-                .arg(i + 1)
-                .arg(refPath)
-                .arg(fullPath)
-                .arg(!refData.isEmpty() ? "成功" : "失败")
-                .arg(refData.size()));
-            
-            if (!refData.isEmpty()) {
-                options.referenceImages.append(refData);
-            }
-        }
-        
-        options.refTypeList = determineRefTypes(ctx.referenceImages);
-        
-        LOG_INFO("ImageService", QString(
-            "VolcEngine 请求准备完成: panelId=%1, provider=%2, 最终参考图数量=%3/%4, promptLen=%5, negativeLen=%6")
-            .arg(ctx.panelId)
-            .arg(config.name)
-            .arg(options.referenceImages.size())
-            .arg(ctx.referenceImages.size())
-            .arg(ctx.prompt.length())
-            .arg(ctx.negativePrompt.length()));
-        LOG_INFO("ImageService", QString("使用图生图API (seed3l_multi_ip)，参考图数量: %1").arg(options.referenceImages.size()));
-        
-        // 输出参考图类型列表
-        if (!options.refTypeList.isEmpty()) {
-            LOG_INFO("ImageService", QString("  参考图类型(ref_type_list): %1").arg(options.refTypeList.join(", ")));
-        }
-    } else {
-        LOG_INFO("ImageService", QString(
-            "VolcEngine 请求准备完成: panelId=%1, provider=%2, 模式=文生图, promptLen=%3, negativeLen=%4")
-            .arg(ctx.panelId)
-            .arg(config.name)
-            .arg(ctx.prompt.length())
-            .arg(ctx.negativePrompt.length()));
+    
+    const QByteArray& referenceImage = referenceImageForEdit(ctx.editSourceImageData, ctx.refImageData, ctx.faceOnlyEdit);
+    if (ctx.allowReferenceEdit && !referenceImage.isEmpty()) {
+        options.referenceImage = referenceImage;
+        LOG_INFO("ImageService", "Using img2img API with reference image");
     }
     
     VolcEngineImageClient::GenerateResult result = client->generate(options);
@@ -1506,11 +1311,9 @@ QwenImageClient::EditOptions ImageService::buildQwenEditOptions(GenerationContex
                                                                 const ResolutionConfig& resolution) const
 {
     QwenImageClient::EditOptions options;
-    // 编辑操作只传原始指令，不传完整的6层prompt（含角色/场景描述会干扰编辑效果）
-    options.prompt = (!ctx.editDirective.isEmpty()) ? ctx.editDirective : ctx.prompt;
+    options.prompt = ctx.prompt;
     options.sourceImage = referenceImageForEdit(ctx.editSourceImageData, ctx.refImageData, ctx.faceOnlyEdit);
-    // 编辑操作使用简洁的negative prompt，避免干扰编辑效果
-    options.negativePrompt = QStringLiteral("nsfw, blurry, low quality, distorted, watermark");
+    options.negativePrompt = ctx.negativePrompt;
     const EditDimensions editDimensions = resolveEditDimensions(
         ctx.faceOnlyEdit && ctx.editTargetRect.isValid() && !ctx.editTargetRect.isEmpty()
             ? ctx.editTargetRect.width()
@@ -1534,11 +1337,8 @@ bool ImageService::executeImageGeneration(GenerationContext& ctx)
     ProviderConfig config = getProviderConfig();
     QString operationName = ctx.refImageData.isEmpty() ? "generateImage" : "generateWithReference";
     
-    LOG_INFO("ImageService", QString("图像提供商: %1, 有参考图数据: %2, 允许参考编辑: %3, 是否编辑操作: %4")
-        .arg(config.name)
-        .arg(!ctx.refImageData.isEmpty() ? "是" : "否")
-        .arg(ctx.allowReferenceEdit ? "是" : "否")
-        .arg((ctx.allowReferenceEdit && !ctx.refImageData.isEmpty()) ? "是(走千问编辑)" : "否(走生成)"));
+    LOG_INFO("ImageService", QString("Using image provider: %1, hasRefImage: %2")
+        .arg(config.name).arg(!ctx.refImageData.isEmpty()));
 
     if (ctx.faceOnlyEdit && !ctx.refImageData.isEmpty() && !prepareFaceOnlyEditContext(ctx)) {
         setError(tr("无法准备局部编辑区域"));
@@ -1546,22 +1346,9 @@ bool ImageService::executeImageGeneration(GenerationContext& ctx)
         return false;
     }
 
-    // 编辑操作判断：forceProvider="qwen" 时强制走千问（来自自然语言修改请求）；
-    // 否则按原逻辑：sourceImagePath 在 referenceImages 首位时视为编辑操作
-    const bool forceQwen = ctx.forceProvider == QStringLiteral("qwen");
-    const bool isEditOperation = forceQwen
-        || (!ctx.sourceImagePath.isEmpty()
-            && !ctx.refImageData.isEmpty()
-            && !ctx.referenceImages.isEmpty()
-            && ctx.referenceImages.first() == ctx.sourceImagePath);
-    if (isEditOperation && config.name == "volcengine") {
-        LOG_INFO("ImageService", QString("编辑操作强制使用千问编辑API (当前配置: %1, forceQwen: %2)")
-            .arg(config.name).arg(forceQwen ? "yes" : "no"));
-    }
-
     bool success = m_apiRetryPolicy->executeWithRetry(
         [&]() -> bool {
-            if (config.name == "volcengine" && !isEditOperation) {
+            if (config.name == "volcengine") {
                 return executeWithVolcEngine(ctx);
             } else {
                 return executeWithQwen(ctx);
@@ -1619,28 +1406,25 @@ bool ImageService::storeImage(GenerationContext& ctx)
         } else {
             QString modeStr = (ctx.mode == GenerateMode::Preview) ? "preview" : "hd";
             QString localPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, modeStr);
-
+            
             if (localPath.isEmpty()) {
                 setError(TR_FMT("Local save failed: %1", FileStorage::instance()->lastError()));
                 return false;
             }
-
+            
             ctx.s3Key = localPath;
             LOG_INFO("ImageService", QString("Image stored locally: %1").arg(localPath));
-
-            // hd 编辑结果同步写入 preview，确保 UI 能立即看到变化
-            if (ctx.mode == GenerateMode::HD) {
-                QString previewPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, "preview");
-                if (!previewPath.isEmpty()) {
-                    LOG_INFO("ImageService", QString("HD edit result synced to preview: %1").arg(previewPath));
-                }
-            }
         }
 
         return true;
+    } catch (const std::exception& e) {
+        LOG_ERROR("ImageService", QString("storeImage exception: %1").arg(e.what()));
+        setError(TR_FMT("Store image failed: %1", e.what()));
+        return false;
     } catch (...) {
-        return executeWithErrorHandlingBool("storeImage",
-            [&]() -> bool { throw; });
+        LOG_ERROR("ImageService", "storeImage unknown exception");
+        setError(tr("保存图像时发生异常"));
+        return false;
     }
 }
 
@@ -1690,7 +1474,6 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
 
     try {
         QJsonObject panelJson = buildPanelJson(ctx.panel);
-        
         QStringList panelCharacterNames;
         for (const auto& value : panelJson.value("characters").toArray()) {
             const QJsonObject charObj = value.toObject();
@@ -1701,9 +1484,8 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         }
 
         const QString sceneText = panelJson.value("scene").toString().trimmed();
+        const QString visualPromptCn = panelJson.value("visualPrompt").toString().trimmed();
         const QString visualPromptEn = panelJson.value("visualPromptEn").toString().trimmed();
-        const QString visualPromptCn = panelJson.value("visualPromptCn").toString().trimmed();
-
         LOG_INFO("ImageService", QString(
             "buildPromptForPanel input: panelId=%1, page=%2, index=%3, scene='%4', visualPromptCn='%5', visualPromptEn='%6', characters=[%7]")
             .arg(ctx.panelId)
@@ -1717,89 +1499,47 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: resolved novelId=%1").arg(novelId));
 
-        // 获取面板生成所需的参考图数据
-        // 注意：这里获取的是所有可用的参考图，实际使用时由 PromptBuilder 智能选择
-        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching reference data for panelId=%1").arg(ctx.panelId));
-        PanelReferenceData refData = fetchPanelReferenceData(novelId);
-        LOG_DEBUG("ImageService", QString("buildPromptForPanel: reference data loaded, characters=%1, scenes=%2, refImages=%3")
-            .arg(refData.characterRefs.size())
-            .arg(refData.sceneRefs.size())
-            .arg(refData.allAvailableRefImages.size()));
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching character refs for panelId=%1").arg(ctx.panelId));
+        QMap<QString, QJsonObject> characterRefs = fetchCharacterRefs(novelId, ctx.referenceImages);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: character refs loaded=%1, refImages=%2")
+            .arg(characterRefs.size())
+            .arg(ctx.referenceImages.size()));
+
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching scene refs for panelId=%1").arg(ctx.panelId));
+        QMap<QString, QJsonObject> sceneRefs = fetchSceneRefs(novelId, ctx.referenceImages);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: scene refs loaded=%1, refImages=%2")
+            .arg(sceneRefs.size())
+            .arg(ctx.referenceImages.size()));
         
         LOG_INFO("ImageService", QString("buildPromptForPanel: panelId=%1, novelId=%2, characters=%3, scenes=%4")
-            .arg(ctx.panelId).arg(novelId).arg(refData.characterRefs.size()).arg(refData.sceneRefs.size()));
+            .arg(ctx.panelId).arg(novelId).arg(characterRefs.size()).arg(sceneRefs.size()));
         
-        // 有参考图时直接启用图生图模式，避免后续二次构建 prompt
-        if (!refData.allAvailableRefImages.isEmpty() && !ctx.allowReferenceEdit) {
-            ctx.allowReferenceEdit = true;
-            LOG_INFO("ImageService", QString("Enabling img2img mode due to character/scene reference images: %1")
-                .arg(refData.allAvailableRefImages.first()));
-        }
-
-        // editDirective 需要在 allowReferenceEdit=true 后、构建 prompt 前赋值（用英文版给图像模型）
-        const QString visualPromptForEdit = visualPromptEn.isEmpty()
-            ? panelJson.value("visualPrompt").toString().trimmed()
-            : visualPromptEn;
-        if (ctx.allowReferenceEdit && !visualPromptForEdit.isEmpty()) {
-            ctx.editDirective = visualPromptForEdit;
-        }
-
         QJsonObject options = buildPanelPromptOptions(ctx, panelJson);
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: invoking PromptBuilder for panelId=%1").arg(ctx.panelId));
-        PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, refData.characterRefs, refData.sceneRefs, options);
-
+        PromptBuilder::PromptResult result = PromptBuilder::buildPanelPrompt(panelJson, characterRefs, sceneRefs, options);
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: PromptBuilder returned for panelId=%1").arg(ctx.panelId));
 
         ctx.prompt = result.text;
         ctx.negativePrompt = result.negativePrompt;
-        ctx.referenceImages = result.referenceImages;
-        if (!result.referenceImages.isEmpty()) {
-            ctx.primaryReferenceImagePath = result.referenceImages.first();
-        }
-
-        // 编辑操作：确保面板原图排在参考图列表最前面
-        // buildPromptForPanel 会覆盖 ctx.referenceImages，导致 prepareEditReferenceImages
-        // 预置的原图路径丢失，进而使 loadReferenceImage 无法识别原图，编辑操作退化为生成操作
-        if (ctx.allowReferenceEdit && !ctx.sourceImagePath.isEmpty()
-            && !ctx.referenceImages.contains(ctx.sourceImagePath)) {
-            ctx.referenceImages.prepend(ctx.sourceImagePath);
-            LOG_INFO("ImageService", QString("编辑模式：将面板原图补回参考图列表首位: %1").arg(ctx.sourceImagePath));
-        }
-
-        LOG_INFO("ImageService", QString("Panel reference images selected: panelId=%1, needed=%2, total=%3")
-            .arg(ctx.panelId)
-            .arg(result.referenceImages.size())
-            .arg(refData.allAvailableRefImages.size()));
-        if (!result.referenceImages.isEmpty()) {
-            for (int i = 0; i < result.referenceImages.size(); ++i) {
-                LOG_INFO("ImageService", QString("  Panel ref[%1]: %2").arg(i+1).arg(result.referenceImages.at(i)));
-            }
-        }
-
-        limitReferenceImagesForProvider(ctx);
+        appendUniqueReferenceImages(ctx.referenceImages, result.referenceImages);
         
         if (ctx.prompt.isEmpty()) {
             setError(tr("提示词构建为空"));
             return false;
         }
 
-        const QString promptPreview = ctx.prompt.left(2000).replace('\n', ' ').replace('\r', ' ');
-        const QString negativePreview = ctx.negativePrompt.left(500).replace('\n', ' ').replace('\r', ' ');
         LOG_INFO("ImageService", QString("Prompt built: len=%1, refImages=%2, prompt=%3...")
             .arg(ctx.prompt.length()).arg(ctx.referenceImages.size()).arg(ctx.prompt.left(100)));
-        LOG_DEBUG("ImageService", QString("Final panel prompt: panelId=%1, promptLen=%2, negativeLen=%3, prompt=%4")
-            .arg(ctx.panelId)
-            .arg(ctx.prompt.length())
-            .arg(ctx.negativePrompt.length())
-            .arg(promptPreview));
-        LOG_DEBUG("ImageService", QString("Final panel negative prompt: panelId=%1, negativePrompt=%2")
-            .arg(ctx.panelId)
-            .arg(negativePreview));
 
         return true;
+    } catch (const std::exception& e) {
+        setError(QString("Prompt build failed: %1").arg(e.what()));
+        return false;
+
     } catch (...) {
-        return executeWithErrorHandlingBool("buildPromptForPanel",
-            [&]() -> bool { throw; });
+        LOG_ERROR("ImageService", "buildPromptForPanel unknown exception");
+        setError(tr("构建提示词时发生异常"));
+        return false;
     }
 }
 
@@ -1810,25 +1550,6 @@ QJsonObject ImageService::buildPanelPromptOptions(const GenerationContext& ctx, 
         ? ctx.presetMode
         : ((ctx.mode == GenerateMode::HD) ? "hd" : "preview");
     options["promptTarget"] = PromptTargetUtils::classifyPanelPromptTarget(panelJson);
-    
-    // 🔑 关键修复：确保 isImg2Img 参数根据实际模式正确设置
-    // 原来使用 ctx.allowReferenceEdit 可能导致 img2img 模式下 isImg2Img=false
-    // 从而让 PromptBuilder 走文生图分支（不生成 [气泡]）
-    // 
-    // 判断逻辑：
-    // - presetMode 不为空 → 批量生成模式（如图生图）→ isImg2Img=true
-    // - allowReferenceEdit=true → 允许参考图编辑 → isImg2Img=true
-    // - mode=HD → 高清模式通常是图生图 → isImg2Img=true
-    bool shouldBeImg2Img = (!ctx.presetMode.isEmpty() ||   // 有预设模式 = 图生图
-                           ctx.allowReferenceEdit ||         // 允许参考编辑 = 图生图
-                           ctx.mode == GenerateMode::HD);     // HD 模式通常也是图生图
-    
-    options["isImg2Img"] = shouldBeImg2Img;
-    
-    LOG_DEBUG("ImageService", QString("buildPromptForPanel: mode=%1, isImg2Img=%2, allowRefEdit=%3")
-        .arg(static_cast<int>(ctx.mode))
-        .arg(options["isImg2Img"].toBool() ? "true" : "false")
-        .arg(ctx.allowReferenceEdit ? "true" : "false"));
 
     if (ctx.presetMode.isEmpty()) {
         return options;
@@ -1847,47 +1568,6 @@ void ImageService::appendUniqueReferenceImages(QStringList& target, const QStrin
         if (!ref.isEmpty() && !target.contains(ref)) {
             target.append(ref);
         }
-    }
-}
-
-QString ImageService::selectPrimaryReferenceImagePath(const GenerationContext& ctx) const
-{
-    if (!ctx.primaryReferenceImagePath.isEmpty()) {
-        return ctx.primaryReferenceImagePath;
-    }
-
-    if (!ctx.sourceImagePath.isEmpty()) {
-        return ctx.sourceImagePath;
-    }
-
-    return ctx.referenceImages.isEmpty() ? QString() : ctx.referenceImages.first();
-}
-
-void ImageService::limitReferenceImagesForProvider(GenerationContext& ctx) const
-{
-    const ProviderConfig config = getProviderConfig();
-    const QString primaryRef = selectPrimaryReferenceImagePath(ctx);
-    if (primaryRef.isEmpty()) {
-        if (config.name == QLatin1String("volcengine")) {
-            ctx.referenceImages.clear();
-        }
-        return;
-    }
-
-    if (config.name == QLatin1String("volcengine")) {
-        // VolcEngine 多图版 API 支持最多5张参考图
-        // 确保 primaryRef 在第一位
-        QStringList orderedRefs;
-        orderedRefs.append(primaryRef);
-        
-        for (const QString& ref : ctx.referenceImages) {
-            if (!orderedRefs.contains(ref) && orderedRefs.size() < 5) {
-                orderedRefs.append(ref);
-            }
-        }
-        
-        ctx.referenceImages = orderedRefs;
-        ctx.primaryReferenceImagePath = primaryRef;
     }
 }
 
@@ -2001,43 +1681,6 @@ QMap<QString, QJsonObject> ImageService::fetchSceneRefs(const QString& novelId, 
         .arg(scenes.size()).arg(sceneNames.join(", ")).arg(outReferenceImages.size()));
     
     return sceneRefs;
-}
-
-/**
- * @brief 获取面板生成所需的参考图数据
- * 
- * 该函数从小说中提取所有角色和场景的参考信息，用于后续的面板生成。
- * 
- * 业务逻辑：
- * 1. 获取小说中的所有角色信息（包括参考图路径）
- * 2. 获取小说中的所有场景信息（包括参考图路径）
- * 3. 收集所有可用的参考图路径到 allAvailableRefImages
- * 
- * 注意：这里收集的是所有可用的参考图，实际使用时由 PromptBuilder 智能选择
- * 面板实际需要的参考图（通过 ctx.referenceImages = result.referenceImages）
- * 
- * @param novelId 小说ID
- * @return PanelReferenceData 包含角色、场景参考信息和所有可用参考图路径
- */
-ImageService::PanelReferenceData ImageService::fetchPanelReferenceData(const QString& novelId)
-{
-    PanelReferenceData data;
-    
-    if (novelId.isEmpty()) {
-        LOG_WARNING("ImageService", "fetchPanelReferenceData: novelId is empty");
-        return data;
-    }
-    
-    data.characterRefs = fetchCharacterRefs(novelId, data.allAvailableRefImages);
-    data.sceneRefs = fetchSceneRefs(novelId, data.allAvailableRefImages);
-    
-    LOG_INFO("ImageService", QString("fetchPanelReferenceData: novelId=%1, characters=%2, scenes=%3, totalRefImages=%4")
-        .arg(novelId)
-        .arg(data.characterRefs.size())
-        .arg(data.sceneRefs.size())
-        .arg(data.allAvailableRefImages.size()));
-    
-    return data;
 }
 
 QString ImageService::fetchNovelIdByStoryboardId(const QString& storyboardId)
@@ -2209,16 +1852,20 @@ QString ImageService::enqueuePanelImageGeneration(const QString& panelId, BatchP
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, GenerateMode mode)
 {
-    return panelIds.isEmpty()
-        ? QString()
-        : enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::generateModeString(mode), panelIds);
+    if (panelIds.isEmpty()) {
+        return QString();
+    }
+
+    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::generateModeString(mode), panelIds);
 }
 
 QString ImageService::enqueueBatchPanelImageGeneration(const QStringList& panelIds, BatchPresetMode presetMode)
 {
-    return panelIds.isEmpty()
-        ? QString()
-        : enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::presetModeString(presetMode), panelIds);
+    if (panelIds.isEmpty()) {
+        return QString();
+    }
+
+    return enqueuePanelTask(QString(), TaskType::GeneratePanels, ImageModeUtils::presetModeString(presetMode), panelIds);
 }
 
 QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelIds, GenerateMode mode)
@@ -2229,6 +1876,7 @@ QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelI
     for (const QString& panelId : panelIds) {
         taskIds.append(enqueuePanelImageGeneration(panelId, mode));
     }
+
     return taskIds;
 }
 
@@ -2240,6 +1888,7 @@ QStringList ImageService::enqueuePanelImageGenerations(const QStringList& panelI
     for (const QString& panelId : panelIds) {
         taskIds.append(enqueuePanelImageGeneration(panelId, presetMode));
     }
+
     return taskIds;
 }
 
@@ -2248,28 +1897,60 @@ QJsonObject ImageService::handleGeneratePanelImageTask(const QJsonObject& taskJs
     TaskData task = TaskData::fromJson(taskJson);
 
     const QString modeStr = task.params.value("mode").toString();
-    if (isPresetTaskMode(modeStr)) {
+    if (modeStr.isEmpty() || modeStr == QLatin1String("preview") || modeStr == QLatin1String("hd")) {
+        return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
+    }
+
+    if (ImageModeUtils::isPresetModeString(modeStr)) {
         return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::presetModeFromString(modeStr)));
     }
 
-    return generateResultToJson(generatePanelImage(task.panelId, parseTaskMode(modeStr)));
+    return generateResultToJson(generatePanelImage(task.panelId, ImageModeUtils::generateModeFromString(modeStr)));
 }
 
 QJsonObject ImageService::buildPanelJson(const Panel& panel)
 {
-    QJsonObject json = panel.content();
-    if (!json.contains("id")) {
+    QJsonObject json = panel.rawContent();
+    if (json.isEmpty()) {
         json["id"] = panel.id();
-    }
-    if (!json.contains("page")) {
         json["page"] = panel.page();
-    }
-    if (!json.contains("index")) {
         json["index"] = panel.index();
-    }
-    if (!json.contains("status")) {
+        json["scene"] = panel.scene();
+        json["shotType"] = panel.shotType();
+        json["cameraAngle"] = panel.cameraAngle();
+        json["visualPrompt"] = panel.visualPrompt();
+        json["visualPromptEn"] = panel.visualPromptEn();
         json["status"] = panel.status();
+    } else {
+        if (!json.contains("id")) {
+            json["id"] = panel.id();
+        }
+        if (!json.contains("status")) {
+            json["status"] = panel.status();
+        }
     }
+    
+    QJsonArray charactersArray;
+    for (const auto& c : panel.characters()) {
+        QJsonObject charObj;
+        charObj["charId"] = c.charId;
+        charObj["name"] = c.name;
+        charObj["pose"] = c.pose;
+        charObj["expression"] = c.expression;
+        charactersArray.append(charObj);
+    }
+    json["characters"] = charactersArray;
+    
+    QJsonArray dialogueArray;
+    for (const auto& d : panel.dialogue()) {
+        QJsonObject dialogueObj;
+        dialogueObj["speaker"] = d.speaker;
+        dialogueObj["text"] = d.text;
+        dialogueObj["bubbleType"] = d.bubbleType;
+        dialogueArray.append(dialogueObj);
+    }
+    json["dialogue"] = dialogueArray;
+    
     return json;
 }
 
@@ -2282,74 +1963,34 @@ QString ImageService::generateS3Key(const QString& panelId, GenerateMode mode)
         .arg(modeStr);
 }
 
-ImageService::GenerateResult ImageService::generateWithRetryInternal(const QString& panelId, 
-                                                       const ResolutionConfig& resolution, 
-                                                       int maxRetries)
+ImageService::GenerateResult ImageService::generateWithRetryInternal(const QString& panelId, const ResolutionConfig& resolution, int maxRetries)
 {
     GenerateResult result;
     int retryCount = 0;
-
+    
     while (retryCount < maxRetries) {
-        // 检查对象是否已被销毁
-        if (m_destroyed.load()) {
-            LOG_WARNING("ImageService", "generateWithRetryInternal: Object destroyed, aborting");
-            return createErrorResult(panelId, tr("服务已关闭"));
-        }
-
-        // 检查是否已取消（更频繁地检查，提高响应速度）
         {
-            // 🔧 优化：使用原子变量检查取消状态，无需加锁
-            if (m_batchCancelled.load() || isCancelled()) {
-                LOG_INFO("ImageService", QString("generateWithRetryInternal: Generation cancelled for panel %1").arg(panelId));
-                return createErrorResult(panelId, tr("用户取消了操作"));
+            QMutexLocker locker(&m_mutex);
+            if (m_batchCancelled) {
+                return createErrorResult(panelId, tr("\u7528\u6237\u53d6\u6d88\u4e86\u64cd\u4f5c"));
             }
         }
-
+        
         result = generatePanelImageInternal(panelId, resolution);
-
+        
         if (result.success) {
             return result;
         }
-
+        
         retryCount++;
         if (retryCount < maxRetries) {
-            int delaySeconds = calculateRetryDelay(result.errorMessage, retryCount);
-            
-            if (isRateLimitError(result.errorMessage)) {
-                LOG_WARNING("ImageService", QString("[限流保护] Panel %1 API限流 (attempt %2/%3), retrying in %4s...")
-                    .arg(panelId).arg(retryCount).arg(maxRetries).arg(delaySeconds));
-            } else {
-                LOG_WARNING("ImageService", QString("Panel %1 generation failed (attempt %2/%3): %4, retrying in %5s...")
-                    .arg(panelId).arg(retryCount).arg(maxRetries).arg(result.errorMessage).arg(delaySeconds));
-            }
-            
-            int totalWaitMs = delaySeconds * 1000;
-            int waitedMs = 0;
-
-            while (waitedMs < totalWaitMs) {
-                // 每100ms检查一次取消状态
-                if (m_destroyed.load()) {
-                    LOG_WARNING("ImageService", "generateWithRetryInternal: Object destroyed during retry wait");
-                    return createErrorResult(panelId, tr("服务已关闭"));
-                }
-
-                {
-                    // 🔧 优化：使用原子变量检查取消状态
-                    if (m_batchCancelled.load() || isCancelled()) {
-                        LOG_INFO("ImageService", QString("generateWithRetryInternal: Cancelled during retry wait for panel %1").arg(panelId));
-                        return createErrorResult(panelId, tr("用户取消了操作"));
-                    }
-                }
-
-                QThread::msleep(20);  // 缩短到 20ms，提高响应性
-                waitedMs += 20;
-            }
+            int delaySeconds = static_cast<int>(std::pow(2, retryCount)) * 5;
+            LOG_WARNING("ImageService", QString("Panel %1 generation failed (attempt %2/%3): %4, retrying in %5s...")
+                .arg(panelId).arg(retryCount).arg(maxRetries).arg(result.errorMessage).arg(delaySeconds));
+            QThread::msleep(delaySeconds * 1000);
         }
     }
-
-    LOG_ERROR("ImageService", QString("Panel %1 generation failed after %2 attempts: %3")
-        .arg(panelId).arg(maxRetries).arg(result.errorMessage));
-
+    
     return result;
 }
 
@@ -2365,95 +2006,72 @@ ImageService::GenerateResult ImageService::generateWithRetry(const QString& pane
 
 void ImageService::processNextPanel()
 {
-    if (m_destroyed.load()) {
-        LOG_WARNING("ImageService", "Object destroyed, skipping panel processing");
-        return;
-    }
-
     QString panelId;
     int currentIndex = 0;
     int total = 0;
     ResolutionConfig resolution;
 
-    const bool hasMorePanels = [this, &panelId, &currentIndex, &total, &resolution]() -> bool {
-        QMutexLocker locker(&m_mutex);
-        return takeNextBatchItem(panelId, currentIndex, total, resolution);
-    }();
-
-    if (!hasMorePanels) {
-        completeBatchGeneration();
-        return;
-    }
-
-    emit batchProgressChanged(currentIndex + 1, total, tr("正在处理..."));
-
-    const QFuture<void> future = QtConcurrent::run(this, &ImageService::processPanelAsync, panelId, resolution);
-
     {
         QMutexLocker locker(&m_mutex);
-        m_runningTasks.append(future);
+        if (!shouldAdvanceToNextBatchItem()) {
+            BatchResult finalResult = m_batchResult;
+            finishBatch();
 
-        for (auto it = m_runningTasks.begin(); it != m_runningTasks.end(); ) {
-            if (it->isFinished()) {
-                it = m_runningTasks.erase(it);
-            } else {
-                ++it;
-            }
+            LOG_INFO("ImageService", QString("Batch completed: %1 success, %2 failed")
+                .arg(finalResult.successCount).arg(finalResult.failedCount));
+
+            emit imageBatchCompleted(finalResult);
+            return;
         }
+        panelId = m_pendingPanelIds[m_currentProcessIndex];
+        currentIndex = m_currentProcessIndex;
+        total = m_pendingPanelIds.size();
+        resolution = m_currentResolution;
     }
+
+    emit batchProgressChanged(currentIndex + 1, total, tr("\u6b63\u5728\u5904\u7406..."));
+    
+    QtConcurrent::run(this, &ImageService::processPanelAsync, panelId, resolution, currentIndex, total);
 }
 
 bool ImageService::shouldAdvanceToNextBatchItem() const
 {
-    return !m_batchCancelled.load() && m_currentProcessIndex.load() < m_pendingPanelIds.size();
+    return !m_batchCancelled && m_currentProcessIndex < m_pendingPanelIds.size();
 }
-
 
 void ImageService::queueNextBatchItemProcessing()
 {
-    LOG_INFO("ImageService", "queueNextBatchItemProcessing: invoked, scheduling next panel...");
-
-    // 检查对象是否有效
-    if (m_destroyed.load()) {
-        LOG_WARNING("ImageService", "queueNextBatchItemProcessing: Object is destroyed, skipping");
-        return;
-    }
-
-    QTimer::singleShot(kBatchNextItemDelayMs, this, &ImageService::processNextPanel);
+    QTimer::singleShot(100, this, &ImageService::processNextPanel);
 }
 
-void ImageService::processPanelAsync(const QString& panelId, const ResolutionConfig& resolution)
+void ImageService::processPanelAsync(const QString& panelId, const ResolutionConfig& resolution, int currentIndex, int total)
 {
-    // 检查对象是否已被销毁，防止访问已失效的对象
-    if (m_destroyed.load()) {
-        LOG_WARNING("ImageService", "processPanelAsync: Object is being destroyed, aborting");
-        return;
-    }
-
-    const int maxRetries = kBatchPanelMaxRetries;
-    GenerateResult result = generateWithRetryInternal(panelId, resolution, maxRetries);
-
+    Q_UNUSED(currentIndex)
+    Q_UNUSED(total)
+    
+    const int MAX_RETRIES = 3;
+    GenerateResult result = generateWithRetryInternal(panelId, resolution, MAX_RETRIES);
+    
     bool cancelled = false;
     {
         QMutexLocker locker(&m_mutex);
-        cancelled = m_batchCancelled.load();  // 🔧 原子读取
-
-        // 再次检查对象有效性（可能在处理过程中被销毁）
-        if (m_destroyed.load()) {
-            LOG_WARNING("ImageService", "processPanelAsync: Object destroyed during processing");
-            return;
-        }
-
+        cancelled = m_batchCancelled;
         if (!cancelled) {
-            recordBatchItemResult(panelId, result, maxRetries);
-            int newIndex = m_currentProcessIndex.fetch_add(1) + 1;  // 🔧 原子递增
-            LOG_INFO("ImageService", QString("recordBatchItemResult: panelId=%1, currentIndex=%2/%3")
-                .arg(panelId).arg(newIndex).arg(m_pendingPanelIds.size()));
+            if (result.success) {
+                m_batchResult.successCount++;
+            } else {
+                m_batchResult.failedCount++;
+                LOG_ERROR("ImageService", QString("Panel generation failed after %1 attempts: %2 - %3")
+                    .arg(MAX_RETRIES).arg(panelId).arg(result.errorMessage));
+            }
+            m_batchResult.results.append(result);
         }
+        m_currentProcessIndex++;
     }
-
-    // 使用 QMetaObject::invokeMethod 确保在主线程调用，避免跨线程问题
-    QMetaObject::invokeMethod(this, [this]() {
-        queueNextBatchItemProcessing();
-    }, Qt::QueuedConnection);
+    
+    if (!cancelled && result.success) {
+        emit panelGenerated(result);
+    }
+    
+    queueNextBatchItemProcessing();
 }

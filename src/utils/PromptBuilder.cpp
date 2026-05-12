@@ -116,6 +116,71 @@ namespace {
         {QString::fromUtf8("\u5927\u8fdc\u666f"), "extreme wide shot"}
     });
 
+    const QMap<QString, QString> CAMERA_ANGLE_MAPPING = buildMapping({
+        {"eye-level", "eye-level angle"},
+        {"low-angle", "low angle"},
+        {"high-angle", "high angle"},
+        {"bird's-eye", "bird's eye view"},
+        {"worm's-eye", "worm's eye view"},
+        {"dutch", "dutch angle"},
+        {QString::fromUtf8("\u5e73\u89c6"), "eye-level angle"},
+        {QString::fromUtf8("\u4f4e\u89d2"), "low angle"},
+        {QString::fromUtf8("\u4ef0\u89c6"), "high angle"},
+        {QString::fromUtf8("\u4fef\u89c6"), "bird's eye view"},
+        {QString::fromUtf8("\u87f1\u89c6"), "worm's eye view"},
+        {QString::fromUtf8("\u6b63\u9762"), "frontal view"},
+        {QString::fromUtf8("\u659c\u9762"), "three-quarter view"}
+    });
+
+    bool isJsonValueEmpty(const QJsonValue& value)
+    {
+        if (value.isNull() || value.isUndefined()) return true;
+        if (value.isString()) return value.toString().trimmed().isEmpty();
+        return false;
+    }
+
+    QStringList parseClothingList(const QJsonValue& clothingValue)
+    {
+        QStringList clothingList;
+        
+        if (clothingValue.isArray()) {
+            for (const auto& item : clothingValue.toArray()) {
+                if (!item.toString().isEmpty()) {
+                    clothingList << item.toString();
+                }
+            }
+        } else if (clothingValue.isString()) {
+            clothingList = clothingValue.toString().split(QStringLiteral("，"));
+            clothingList.removeAll(QStringLiteral(""));
+        }
+        
+        return clothingList;
+    }
+
+    QString buildGenderLabel(const QString& genderText)
+    {
+        if (genderText.isEmpty()) {
+            return QString();
+        }
+        
+        if (genderText.contains(QStringLiteral("男"), Qt::CaseInsensitive)) {
+            return QStringLiteral("男性");
+        } else if (genderText.contains(QStringLiteral("女"), Qt::CaseInsensitive)) {
+            return QStringLiteral("女性");
+        }
+        
+        return genderText;
+    }
+
+    static const QStringList HAIR_COLOR_CONFLICT_INDICATORS = {
+        QStringLiteral("黑褐色"),
+        QStringLiteral("棕色"),
+        QStringLiteral("黑色头发"),
+        QStringLiteral("brown hair"),
+        QStringLiteral("black hair"),
+        QStringLiteral("dark hair")
+    };
+
     QString normalizeCharacterNameForRefs(const QString& name)
     {
         if (name.isEmpty()) {
@@ -372,43 +437,32 @@ namespace {
         return false;
     }
 
-    QString resolveBubbleDesc(const QString& bubbleType)
+    // 根据 speakerSide 字段或角色顺序推断说话者位置标记
+    // 返回 "左" / "右" / "" (无位置信息)
+    QString resolveSpeakerSideMarker(const QString& speakerSide,
+                                      const QString& speaker,
+                                      const QJsonArray& characters)
     {
-        const QString type = bubbleType.toLower().trimmed();
-        
-        if (type == QStringLiteral("thought") || type == QString::fromUtf8("思考")) {
-            return QStringLiteral("思考气泡");
-        }
-        if (type == QStringLiteral("narration") || type == QStringLiteral("旁白")) {
-            return QStringLiteral("旁白框");
-        }
-        if (type == QStringLiteral("scream") || type == QStringLiteral("shout")
-            || type == QString::fromUtf8("尖叫") || type == QString::fromUtf8("大喊")) {
-            return QStringLiteral("爆炸气泡");
-        }
-        if (type == QStringLiteral("whisper") || type == QString::fromUtf8("低语")) {
-            return QStringLiteral("虚线气泡");
-        }
-        return QStringLiteral("对话气泡");
-    }
+        // 优先使用明确设置的 speakerSide
+        const QString normalized = speakerSide.trimmed().toLower();
+        if (normalized == QStringLiteral("left"))   return QStringLiteral("左");
+        if (normalized == QStringLiteral("right"))  return QStringLiteral("右");
+        if (normalized == QStringLiteral("center")) return QStringLiteral("中");
 
-    QString resolvePositionHint(const QString& speakerSide)
-    {
-        const QString normalized = DialogueSpeakerSideUtils::normalize(speakerSide);
-        
-        if (normalized == QStringLiteral("left")) {
-            return QStringLiteral("画面左侧的");
-        }
-        if (normalized == QStringLiteral("right")) {
-            return QStringLiteral("画面右侧的");
-        }
-        if (normalized == QStringLiteral("center")) {
-            return QStringLiteral("画面中央的");
+        // 回退：多角色面板按角色数组顺序推断（第1个=左，第2个=右）
+        if (characters.size() >= 2) {
+            const QString first  = characters.at(0).toObject().value("name").toString().trimmed();
+            const QString second = characters.at(1).toObject().value("name").toString().trimmed();
+            if (!speaker.isEmpty()) {
+                if (speaker == first)  return QStringLiteral("左");
+                if (speaker == second) return QStringLiteral("右");
+            }
         }
         return QString();
     }
 
-    QString formatDialogueForPrompt(const QJsonArray& dialogue)
+    QString formatDialogueForPrompt(const QJsonArray& dialogue,
+                                     const QJsonArray& characters = QJsonArray())
     {
         if (dialogue.isEmpty()) {
             LOG_WARNING("PromptBuilder", "formatDialogueForPrompt: dialogue array is EMPTY!");
@@ -420,7 +474,8 @@ namespace {
         QStringList entries;
         for (int i = 0; i < dialogue.size() && i < 2; ++i) {
             const QJsonObject line = dialogue.at(i).toObject();
-            const QString speaker = line["speaker"].toString().trimmed();
+            const QString speaker     = line["speaker"].toString().trimmed();
+            const QString speakerSide = line["speakerSide"].toString().trimmed();
             QString text = line["text"].toString().trimmed();
 
             if (text.isEmpty()) {
@@ -433,9 +488,21 @@ namespace {
                 text = text.left(10) + "..";
             }
 
-            // 位置标记格式: "对话内容"@说话者
-            // 引号内=气泡文字(模型会渲染), @后=位置指引(不渲染)
-            entries.append(QString("\"%1\"@%2").arg(text, speaker));
+            // 解析说话者位置（用于气泡尾巴方向）
+            const QString sideMarker = resolveSpeakerSideMarker(speakerSide, speaker, characters);
+
+            // 气泡格式: [气泡@位置](说话者)"内容"  或  [气泡](说话者)"内容"（无位置时）
+            // 位置放在气泡标签上，与说话者名字分离，AI 更容易识别方向指令
+            if (!sideMarker.isEmpty()) {
+                entries.append(QString("[气泡@%1](%2)\"%3\"").arg(sideMarker, speaker, text));
+            } else {
+                entries.append(QString("[气泡](%1)\"%2\"").arg(speaker, text));
+            }
+
+            LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speaker=%2, side=%3, sideMarker=%4")
+                .arg(i).arg(speaker)
+                .arg(speakerSide.isEmpty() ? "(none)" : speakerSide)
+                .arg(sideMarker.isEmpty() ? "(none)" : sideMarker));
         }
 
         if (entries.isEmpty()) {
@@ -443,8 +510,8 @@ namespace {
             return QString();
         }
 
-        // 输出: [气泡] + 内容@位置 + 字体样式 (总计约35-45字符)
-        const QString result = QStringLiteral("[气泡]%1, printed font").arg(entries.join("; "));
+        // 输出: [气泡@位置](说话者)"内容", printed font
+        const QString result = QStringLiteral("%1, printed font").arg(entries.join("; "));
         LOG_INFO("PromptBuilder", QString("formatDialogueForPrompt: result='%1' (len=%2)")
             .arg(result).arg(result.length()));
         return result;
@@ -455,9 +522,23 @@ namespace {
     // 核心理念: 用途声明 + Bible锁定 + 强约束 = 稳定高质量输出
 
     QString buildStableBibleLock(const PromptBuilder::PanelCharacterPromptData& characterData,
-                                  const QMap<QString, QJsonObject>& characterRefs)
+                                  const QMap<QString, QJsonObject>& characterRefs,
+                                  const QString& editIntent = QString())
     {
         QStringList lockItems;
+        
+        const bool skipClothing = editIntent == QStringLiteral("replace_attribute");
+        const bool skipCharacter = editIntent == QStringLiteral("replace_subject") 
+                                 || editIntent == QStringLiteral("remove_subject");
+        
+        if (skipCharacter) {
+            LOG_INFO("PromptBuilder", QString("editIntent=%1, 完全跳过角色圣经锁定").arg(editIntent));
+            return QString();
+        }
+        
+        if (skipClothing) {
+            LOG_INFO("PromptBuilder", QString("editIntent=%1, 跳过 clothing 字段的圣经锁定").arg(editIntent));
+        }
 
         for (const auto& charName : characterData.panelCharNames) {
             QString matchedName = charName;
@@ -486,7 +567,7 @@ namespace {
                 const QString& key = it.key();
                 const QJsonValue& value = it.value();
 
-                if (value.isNull() || value.isUndefined() || value.toString().trimmed().isEmpty()) {
+                if (isJsonValueEmpty(value)) {
                     continue;
                 }
 
@@ -508,31 +589,34 @@ namespace {
                 } else if (key == QStringLiteral("eyeColor")) {
                     descParts << QString(QStringLiteral("%1眼睛")).arg(value.toString());
                 } else if (key == QStringLiteral("clothing")) {
-                    QStringList clothingList;
-                    if (value.isArray()) {
-                        for (const auto& item : value.toArray()) {
-                            if (!item.toString().isEmpty()) {
-                                clothingList << item.toString();
-                            }
-                        }
-                    } else if (value.isString()) {
-                        clothingList << value.toString();
+                    if (skipClothing) {
+                        LOG_DEBUG("PromptBuilder", QString("  跳过 clothing 锁定: editIntent=%1").arg(editIntent));
+                        continue;
                     }
+                    
+                    QStringList clothingList = parseClothingList(value);
+                    
+                    LOG_DEBUG("PromptBuilder", QString(
+                        "  解析到衣服列表 (%1件): %2")
+                        .arg(clothingList.size())
+                        .arg(clothingList.join(", ")));
+                    
                     if (!clothingList.isEmpty()) {
-                        descParts << clothingList.first();
+                        const QString allClothing = clothingList.join(QStringLiteral("、"));
+                        descParts << QString(QStringLiteral("[%1(必须!)]")).arg(allClothing);
+                        
+                        LOG_INFO("PromptBuilder", QString(
+                            "  ✅ Bible Lock包含完整衣服: [%1(must!)]")
+                            .arg(allClothing));
+                    } else {
+                        LOG_WARNING("PromptBuilder", 
+                            "  ⚠️ 角色衣服列表为空！");
                     }
                 }
             }
 
             if (age > 0) {
-                QString genderLabel;
-                if (!genderText.isEmpty()) {
-                    if (genderText.contains(QStringLiteral("男"), Qt::CaseInsensitive)) {
-                        genderLabel = QStringLiteral("男性");
-                    } else if (genderText.contains(QStringLiteral("女"), Qt::CaseInsensitive)) {
-                        genderLabel = QStringLiteral("女性");
-                    }
-                }
+                const QString genderLabel = buildGenderLabel(genderText);
                 descParts.insert(1, QString(QStringLiteral("%1岁%2")).arg(age).arg(genderLabel));
             }
 
@@ -577,16 +661,84 @@ namespace {
         return text.left(maxLen - 2);
     }
 
+    QStringList detectVisualPromptConflicts(const QString& visualPrompt,
+                                           const QMap<QString, QJsonObject>& characterRefs)
+    {
+        QStringList conflicts;
+
+        if (visualPrompt.isEmpty() || characterRefs.isEmpty()) {
+            return conflicts;
+        }
+
+        LOG_INFO("PromptBuilder", QString(
+            "🔍 开始visualPrompt与Bible冲突检测 (visualPrompt长度: %1字符, 角色数: %2)")
+            .arg(visualPrompt.length()).arg(characterRefs.size()));
+        
+        LOG_DEBUG("PromptBuilder", QString(
+            "visualPrompt内容: %1...")
+            .arg(visualPrompt.left(150)));
+
+        for (auto it = characterRefs.begin(); it != characterRefs.end(); ++it) {
+            const QString& charName = it.key();
+            const QJsonObject& charData = it.value();
+            const QJsonObject appearance = charData["appearance"].toObject();
+
+            if (!visualPrompt.contains(charName)) {
+                continue;
+            }
+
+            const QString hairColor = appearance["hairColor"].toString().trimmed();
+            if (!hairColor.isEmpty()) {
+                for (const auto& indicator : HAIR_COLOR_CONFLICT_INDICATORS) {
+                    if (visualPrompt.contains(indicator, Qt::CaseInsensitive)) {
+                        conflicts << QString(QStringLiteral(
+                            "⚠️ 角色'%1'发色冲突：Bible指定'%2'，但visualPrompt包含'%3'"))
+                            .arg(charName, hairColor, indicator);
+                        break;
+                    }
+                }
+            }
+
+            const QJsonValue clothingValue = appearance["clothing"];
+            if (!isJsonValueEmpty(clothingValue)) {
+                const QStringList bibleClothingList = parseClothingList(clothingValue);
+
+                for (const auto& bibleClothing : bibleClothingList) {
+                    if (!visualPrompt.contains(bibleClothing, Qt::CaseInsensitive)) {
+                        conflicts << QString(QStringLiteral(
+                            "⚠️ 角色'%1'衣服缺失：Bible指定'%2'，但visualPrompt未包含"))
+                            .arg(charName, bibleClothing);
+                    }
+                }
+            }
+        }
+
+        if (!conflicts.isEmpty()) {
+            LOG_WARNING("PromptBuilder", QString("visualPrompt与Bible冲突检测 (%1项):")
+                .arg(conflicts.size()));
+            for (const auto& conflict : conflicts) {
+                LOG_WARNING("PromptBuilder", conflict);
+            }
+        }
+
+        return conflicts;
+    }
+
     QString buildSceneVisualLayer(const QJsonObject& panel)
     {
-        const QString visualPrompt = panel["visualPrompt"].toString().trimmed();
+        // 优先用中文版：更紧凑，同等字符数包含更多背景信息
+        const QString visualPromptCn = panel["visualPromptCn"].toString().trimmed();
+        const QString visualPromptEn = panel["visualPrompt"].toString().trimmed();
         const QString sceneText = panel["scene"].toString().trimmed();
 
-        const QString source = !visualPrompt.isEmpty() ? visualPrompt : sceneText;
+        const QString source = !visualPromptCn.isEmpty() ? visualPromptCn
+                             : !visualPromptEn.isEmpty() ? visualPromptEn
+                             : sceneText;
         if (source.isEmpty()) return QString();
 
-        const QString result = truncateSmart(source, 60);
-        LOG_INFO("PromptBuilder", QString("Scene visual: %1").arg(result));
+        const QString result = truncateSmart(source, 100);
+        LOG_INFO("PromptBuilder", QString("Scene visual (pre-budget-cap, lang=%1): %2")
+            .arg(visualPromptCn.isEmpty() ? "en/scene" : "cn").arg(result.left(60)));
         return result;
     }
 
@@ -612,11 +764,12 @@ namespace {
 
         QString composition;
         if (!shotType.isEmpty()) {
-            composition = QString("%1镜头").arg(shotType);
+            composition = SHOT_TYPE_MAPPING.value(shotType, QString("%1镜头").arg(shotType));
         }
         if (!cameraAngle.isEmpty()) {
+            const QString standardizedAngle = CAMERA_ANGLE_MAPPING.value(cameraAngle, cameraAngle);
             if (!composition.isEmpty()) composition += ",";
-            composition += cameraAngle;
+            composition += standardizedAngle;
         }
 
         if (!composition.isEmpty()) {
@@ -683,27 +836,34 @@ namespace {
                                            const QMap<QString, QJsonObject>& characterRefs)
     {
         QStringList parts;
-        static const int TOTAL_BUDGET = 280;
+        static const int TOTAL_BUDGET = 350;
 
         LOG_INFO("PromptBuilder", QString("Building 6-layer prompt (budget: %1 chars)").arg(TOTAL_BUDGET));
 
         // Layer 0: 用途声明 (~20字符)
         parts << "[PURPOSE], manga panel, for readers";
 
-        // Layer 1: Bible角色锁定 (~100字符) - 稳定性核心
-        const QString bibleLock = buildStableBibleLock(characterData, characterRefs);
+        // Layer 1: Bible角色锁定 - 稳定性核心，不截断
+        const QString editIntent = panel.value("editIntent").toString().trimmed();
+        const QString bibleLock = buildStableBibleLock(characterData, characterRefs, editIntent);
         if (!bibleLock.isEmpty()) {
             parts << bibleLock;
         }
 
-        // Layer 2: 场景+视觉 (~35字符)
+        // Layer 2: 场景+视觉 - 动态预算：总预算减去已用字符，最少40最多90
         const QString sceneVisual = buildSceneVisualLayer(panel);
         if (!sceneVisual.isEmpty()) {
-            parts << truncateSmart(sceneVisual, 35);
+            const int usedSoFar = parts.join("，").length();
+            // 为 Layer 3/4/5 保留约 120 字符
+            const int sceneVisualBudget = qBound(40, TOTAL_BUDGET - usedSoFar - 120, 90);
+            LOG_INFO("PromptBuilder", QString("Scene visual budget: %1 chars (used=%2, total=%3)")
+                .arg(sceneVisualBudget).arg(usedSoFar).arg(TOTAL_BUDGET));
+            parts << truncateSmart(sceneVisual, sceneVisualBudget);
         }
 
-        // Layer 3: [气泡]文字 (~40字符) - 已优化：限制12字 + 紧凑格式
-        const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray());
+        // Layer 3: [气泡]文字 (~40字符) - 已优化：限制12字 + 紧凑格式 + 位置标记
+        const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray(),
+                                                             panel["characters"].toArray());
         if (!dialogueStr.isEmpty()) {
             parts << dialogueStr;
         }
@@ -1063,7 +1223,18 @@ QString PromptBuilder::buildBibleLockBlock(const PanelCharacterPromptData& data,
             const QString& key = it.key();
             const QJsonValue& value = it.value();
 
-            if (value.isNull() || value.isUndefined() || value.toString().trimmed().isEmpty()) {
+            if (value.isNull() || value.isUndefined()) {
+                continue;
+            }
+
+            // 特殊处理：数值类型（int/double）的toString()可能返回空字符串
+            // 只有字符串类型才进行空值检查，其他类型（int/double/array/object）都保留
+            bool isEmptyString = false;
+            if (value.isString()) {
+                isEmptyString = value.toString().trimmed().isEmpty();
+            }
+            
+            if (!value.isArray() && !value.isObject() && !value.isDouble() && isEmptyString) {
                 continue;
             }
 
@@ -1497,7 +1668,9 @@ void PromptBuilder::appendScenePromptDetails(QStringList& parts, const QJsonObje
     addListIfNotEmpty(parts, normalizeList(scene["history"]), "history:");
     appendVariationDescs(parts, scene["timeVariations"].toArray(), TIME_OF_DAY_MAPPING, "timeOfDay", "time variations");
     appendVariationDescs(parts, scene["weatherVariations"].toArray(), WEATHER_MAPPING, "weather", "weather variations");
-    addIfNotEmpty(parts, sanitizeSceneText(scene["narrativeRole"].toString()));
+    // narrativeRole是叙事性描述，不应加入场景图片生成prompt
+    // 避免AI根据"温柔重逢"等叙事性词汇生成人物
+    // addIfNotEmpty(parts, sanitizeSceneText(scene["narrativeRole"].toString()));
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObject &character,
@@ -1584,6 +1757,9 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
 
     QStringList parts;
 
+    const QString visualPromptForCheck = panel["visualPrompt"].toString().trimmed();
+    detectVisualPromptConflicts(visualPromptForCheck, characterRefs);
+
     if (isImg2Img) {
         // 图生图使用五层优化架构（≤280字符，充分利用数据库字段）
         parts = buildOptimizedImg2ImgParts(panel, characterData, characterRefs);
@@ -1624,7 +1800,8 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         }
         
         // 5. TEXT - 文字
-        addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray()));
+        addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray(),
+                                                      panel["characters"].toArray()));
         
         // 6. STYLE - 风格
         parts << "[风格] 日漫风格，全彩，高质量渲染";

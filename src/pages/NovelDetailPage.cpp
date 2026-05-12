@@ -25,6 +25,7 @@
 #include "utils/EncodingUtils.h"
 #include "utils/ImageModeUtils.h"
 #include "utils/Logger.h"
+#include "utils/AsyncImageLoader.h"
 #include "components/SuccessDialog.h"
 #include "components/ConfirmDialog.h"
 #include "components/DeleteConfirmDialog.h"
@@ -989,7 +990,7 @@ QWidget* NovelDetailPage::createHeaderSection()
     m_changeRequestOverviewProgress = new AnalysisProgressWidget();
     m_changeRequestOverviewProgress->reset();
 
-    m_analyzeBtn = createButton(tr("分析分镜"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
+    m_analyzeBtn = createButton(tr("重新分析"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
     connect(m_analyzeBtn, &QPushButton::clicked, this, &NovelDetailPage::onAnalyzeClicked);
     
     m_viewExportsBtn = createButton(tr("查看导出"), primaryButtonStyle(), 130, EditorStyles::Constants::BTN_HEIGHT);
@@ -1550,38 +1551,36 @@ void NovelDetailPage::onChapterDeleteRequested(int chapterNumber)
     });
 }
 
-QPair<int, QStringList> NovelDetailPage::parsePanelToItem(const Panel& panel) const
+StoryboardItemData NovelDetailPage::parsePanelToItem(const Panel& panel) const
 {
     QJsonObject content = panel.rawContent();
-    
+
     QString scene = content["scene"].toString();
-    if (scene.isEmpty()) {
-        scene = content["description"].toString();
-    }
-    
+    if (scene.isEmpty()) scene = content["description"].toString();
+
     QString shotType = content["shotType"].toString();
-    if (shotType.isEmpty()) {
-        shotType = content["shot_type"].toString();
-    }
-    if (shotType.isEmpty()) {
-        shotType = content["shotTypeEn"].toString();
-    }
-    
+    if (shotType.isEmpty()) shotType = content["shot_type"].toString();
+    if (shotType.isEmpty()) shotType = content["shotTypeEn"].toString();
+
     QString cameraAngle = content["cameraAngle"].toString();
-    if (cameraAngle.isEmpty()) {
-        cameraAngle = content["camera_angle"].toString();
-    }
-    
+    if (cameraAngle.isEmpty()) cameraAngle = content["camera_angle"].toString();
+
     const QJsonArray characterArray = content["characters"].toArray();
     const QStringList charInfos = buildPanelCharacterInfo(characterArray);
     const QStringList dialogueInfos = buildPanelDialogueInfo(content["dialogue"].toArray(), characterArray);
-    
-    QString visualPrompt = panel.visualPrompt();
-    QString visualPromptEn = panel.visualPromptEn();
-    
-    int panelNum = (panel.page() - 1) * 6 + panel.index() + 1;
-    
-    return {panelNum, {panel.id(), scene, shotType, cameraAngle, charInfos.join(" | "), dialogueInfos.join(" | "), visualPrompt, visualPromptEn}};
+
+    StoryboardItemData data;
+    data.panelNumber   = (panel.page() - 1) * 6 + panel.index() + 1;
+    data.panelId       = panel.id();
+    data.scene         = scene;
+    data.shotType      = shotType;
+    data.cameraAngle   = cameraAngle;
+    data.characters    = charInfos.join(" | ");
+    data.dialogue      = dialogueInfos.join(" | ");
+    data.visualPrompt  = panel.visualPrompt();
+    data.visualPromptEn = panel.visualPromptEn();
+    data.visualPromptCn = panel.visualPromptCn();
+    return data;
 }
 
 void NovelDetailPage::clearLayout(QLayout *layout)
@@ -1616,6 +1615,8 @@ void NovelDetailPage::refreshStoryboardItems(const QList<Panel>& panels)
         return;
     }
     
+    AsyncImageLoader::instance()->clearCache();
+    
     QVBoxLayout *containerLayout = qobject_cast<QVBoxLayout*>(m_storyboardContainer->layout());
     if (!containerLayout) {
         LOG_WARNING("NovelDetailPage", "refreshStoryboardItems: containerLayout is null");
@@ -1625,24 +1626,20 @@ void NovelDetailPage::refreshStoryboardItems(const QList<Panel>& panels)
     m_currentPanels = panels;
     clearLayout(containerLayout);
 
-    QList<QPair<int, QStringList>> storyboardItems;
-    for (const Panel& panel : panels) {
-        storyboardItems.append(parsePanelToItem(panel));
-    }
-
     int createdCount = 0;
-    for (const auto &item : storyboardItems) {
-        const QStringList parts = item.second;
+    for (const Panel& panel : panels) {
+        const StoryboardItemData data = parsePanelToItem(panel);
         StoryboardItem *storyboardItem = new StoryboardItem(
-            item.first,
-            parts.value(0),
-            parts.value(1),
-            parts.value(2),
-            parts.value(3),
-            parts.value(4),
-            parts.value(5),
-            parts.value(6),
-            parts.value(7)
+            data.panelNumber,
+            data.panelId,
+            data.scene,
+            data.shotType,
+            data.cameraAngle,
+            data.characters,
+            data.dialogue,
+            data.visualPrompt,
+            data.visualPromptEn,
+            data.visualPromptCn
         );
         connect(storyboardItem, &StoryboardItem::dataChanged, this, &NovelDetailPage::onStoryboardDataChanged);
         containerLayout->addWidget(storyboardItem);
@@ -1691,6 +1688,13 @@ void NovelDetailPage::preparePanelBatchGenerationUI()
         m_generatePanelsBtn->setText(tr("生成中..."));
     }
 
+    if (m_statusLabelMap.contains(m_generatePanelsBtn)) {
+        m_statusLabelMap[m_generatePanelsBtn]->setText(tr("生成中..."));
+        m_statusLabelMap[m_generatePanelsBtn]->setStyleSheet("color: #F59E0B; font-size: 14px;");
+    } else {
+        LOG_WARNING("NovelDetailPage", "m_generatePanelsBtn not found in m_statusLabelMap");
+    }
+
     if (m_panelGenerateProgress) {
         m_panelGenerateProgress->reset();
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Processing);
@@ -1725,12 +1729,20 @@ void NovelDetailPage::finishPanelBatchGenerationUI(bool success, const QString& 
         m_panelGenerateProgress->setProgress(100);
         m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Completed);
         m_panelGenerateProgress->setResult(result);
+        if (m_statusLabelMap.contains(m_generatePanelsBtn)) {
+            m_statusLabelMap[m_generatePanelsBtn]->setText(tr("完成"));
+            m_statusLabelMap[m_generatePanelsBtn]->setStyleSheet("color: #10B981; font-size: 14px;");
+        }
         return;
     }
 
     m_panelGenerateProgress->setState(AnalysisProgressWidget::State::Failed);
     m_panelGenerateProgress->setProgress(0);
     m_panelGenerateProgress->setProgressText(message.isEmpty() ? tr("面板生成失败") : message);
+    if (m_statusLabelMap.contains(m_generatePanelsBtn)) {
+        m_statusLabelMap[m_generatePanelsBtn]->setText(tr("失败"));
+        m_statusLabelMap[m_generatePanelsBtn]->setStyleSheet("color: #EF4444; font-size: 14px;");
+    }
 }
 
 void NovelDetailPage::resetPanelBatchGenerationUI()
@@ -1738,6 +1750,10 @@ void NovelDetailPage::resetPanelBatchGenerationUI()
     if (m_generatePanelsBtn) {
         m_generatePanelsBtn->setEnabled(true);
         m_generatePanelsBtn->setText(tr("开始生成"));
+    }
+    if (m_statusLabelMap.contains(m_generatePanelsBtn)) {
+        m_statusLabelMap[m_generatePanelsBtn]->setText(tr("就绪"));
+        m_statusLabelMap[m_generatePanelsBtn]->setStyleSheet("color: #6B7280; font-size: 14px;");
     }
     clearPanelBatchTaskState();
 }
@@ -2647,18 +2663,19 @@ void NovelDetailPage::onChapterNumberChanged(int value)
     updateChapterUI(value);
 }
 
-void NovelDetailPage::onStoryboardDataChanged(const QString &panelId, int panelNumber, 
-                                               const QString &scene, const QString &shotType, 
+void NovelDetailPage::onStoryboardDataChanged(const QString &panelId, int panelNumber,
+                                               const QString &scene, const QString &shotType,
                                                const QString &cameraAngle,
                                                const QString &characters, const QString &dialogue,
-                                               const QString &visualPrompt, const QString &visualPromptEn)
+                                               const QString &visualPrompt, const QString &visualPromptEn,
+                                               const QString &visualPromptCn)
 {
     Q_UNUSED(panelNumber);
-    
+
     if (panelId.isEmpty()) {
         return;
     }
-    
+
     Panel panel = StoryboardViewModel::instance()->getPanel(panelId);
     if (panel.id().isEmpty()) {
         return;
@@ -2673,7 +2690,8 @@ void NovelDetailPage::onStoryboardDataChanged(const QString &panelId, int panelN
                                      characters,
                                      dialogue,
                                      visualPrompt,
-                                     visualPromptEn));
+                                     visualPromptEn,
+                                     visualPromptCn));
 }
 
 QJsonObject NovelDetailPage::buildStoryboardUpdateContent(const Panel& panel,
@@ -2683,7 +2701,8 @@ QJsonObject NovelDetailPage::buildStoryboardUpdateContent(const Panel& panel,
                                                           const QString& characters,
                                                           const QString& dialogue,
                                                           const QString& visualPrompt,
-                                                          const QString& visualPromptEn) const
+                                                          const QString& visualPromptEn,
+                                                          const QString& visualPromptCn) const
 {
     const QJsonArray originalDialogue = panel.rawContent().value("dialogue").toArray();
     QJsonObject content = panel.applyUpdatesKeepingStableFields(QJsonObject());
@@ -2700,6 +2719,9 @@ QJsonObject NovelDetailPage::buildStoryboardUpdateContent(const Panel& panel,
     }
     if (!visualPromptEn.isEmpty()) {
         content["visualPromptEn"] = visualPromptEn;
+    }
+    if (!visualPromptCn.isEmpty()) {
+        content["visualPromptCn"] = visualPromptCn;
     }
 
     return content;

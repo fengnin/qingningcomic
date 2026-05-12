@@ -1,4 +1,5 @@
 #include "utils/ImageBorderTrimmer.h"
+#include "utils/ImageColorUtils.h"
 
 #include <QBuffer>
 #include <QColor>
@@ -11,14 +12,9 @@ namespace {
     constexpr int kBlackThreshold = 42;
     constexpr int kDarkBorderMinRatio = 3;
 
-    int luminance(const QColor& color)
-    {
-        return static_cast<int>(0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue());
-    }
-
     bool isDarkPixel(const QColor& color)
     {
-        return luminance(color) <= kBlackThreshold;
+        return ImageColorUtils::luminance(color) <= kBlackThreshold;
     }
 
     bool rowLooksLikeBorder(const QImage& image, int y)

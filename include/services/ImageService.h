@@ -53,6 +53,7 @@ public:
         double regionScale;
         double maskCoreRatio;
         double maskFeatherRatio;
+        QString forceProvider;
 
         EditHint()
             : strategy(Strategy::Default)
@@ -64,6 +65,7 @@ public:
             , regionScale(1.15)
             , maskCoreRatio(0.90)
             , maskFeatherRatio(0.10)
+            , forceProvider()
         {}
 
         bool isEnabled() const { return faceOnly || strategy != Strategy::Default || !expression.isEmpty(); }
@@ -128,6 +130,8 @@ public:
     static QString preferredPanelSourceImagePath(const Panel& panel, GenerateMode mode);
 
     void cancelCurrentBatch();
+    
+    QString getProviderName() const;
 
 signals:
     void panelGenerated(const ImageService::GenerateResult& result);
@@ -161,6 +165,7 @@ private:
         QRect editTargetRect;
         QByteArray editSourceImageData;
         QString prompt;
+        QString editDirective;  // 编辑操作的原始指令（仅用于千问编辑API，不含角色/场景描述）
         QString negativePrompt;
         QByteArray imageData;
         QByteArray editMaskData;
@@ -170,6 +175,7 @@ private:
         QByteArray refImageData;
         int refImageWidth = 0;
         int refImageHeight = 0;
+        QString forceProvider;
     };
 
     struct ProviderConfig {
