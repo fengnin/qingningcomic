@@ -12,22 +12,28 @@ namespace {
         QString::fromUtf8("Japanese manga style, anime aesthetics, clean screentone line art, "
                           "high contrast, expressive faces, vibrant color palette");
 
-    const QString DEFAULT_NEGATIVE_PROMPT = 
+    const QString DEFAULT_NEGATIVE_PROMPT =
         QString::fromUtf8("nsfw, blurry, low quality, extra limbs, deformed hands, "
                           "text watermark, logo, cropped face, overexposed, underexposed, "
                           "photorealistic, realistic, photo, photograph, real person, "
                           "realistic skin texture, real human, 3d render, cgi, "
                           "split background, half black half white, gradient background, "
-                          "dark background, black border, frame, shadow on background, "
+                          "dark background, black background, black backdrop, black area, black region, black border, frame, shadow on background, "
                           "gray background, grey background, gray backdrop, grey backdrop, "
                           "gray shadow, grey shadow, background shading, soft shadow, "
                           "double image, split image, duplicated, distorted face, "
                           "comic page, multi-panel layout, multi panel layout, "
                           "triptych, diptych, contact sheet, collage, montage, "
-                          "split panel, multiple frames, three-panel, four-panel");
+                          "split panel, multiple frames, three-panel, four-panel, "
+                          "duplicate person, extra person not in description, "
+                          "multiple instances of same character, clone of character, "
+                          "two women when only one described, two men when only one described");
 
-    const QString CHARACTER_NEGATIVE_EXTRA = 
-        ", monochrome, grayscale, black and white, dark side, "
+    const QString NEGATIVE_MONO_PREFIX = QStringLiteral(", monochrome, grayscale, black and white, ");
+
+    const QString CHARACTER_NEGATIVE_EXTRA =
+        NEGATIVE_MONO_PREFIX +
+        "dark side, black background, black area, black region, colored background, "
         "multiple people, two people, group photo, extra person, clone, "
         "multiple faces, extra faces, duplicate face, "
         "background face, face in background, "
@@ -37,12 +43,14 @@ namespace {
         "multiple views, dual perspective, overlay, superimposed";
 
     const QString SCENE_NEGATIVE_EXTRA =
-        ", monochrome, grayscale, black and white, "
-        "person, people, human, character, figure, face, body, "
-        "portrait, anime character, manga character, girl, boy, man, woman";
+        NEGATIVE_MONO_PREFIX +
+        "person, people, human, character, figure, face, body, silhouette, "
+        "portrait, anime character, manga character, girl, boy, man, woman, "
+        "standing figure, sitting figure, walking figure, "
+        "人物, 人, 角色, 女孩, 男孩, 女性, 男性, 人影, 站立的人, 坐着的人";
 
-    const QString PANEL_NEGATIVE_EXTRA = 
-        ", monochrome, grayscale, black and white, "
+    const QString PANEL_NEGATIVE_EXTRA =
+        NEGATIVE_MONO_PREFIX +
         "comic page, multi-panel layout, multi panel layout, "
         "triptych, diptych, contact sheet, collage, montage, "
         "split panel, multiple frames, three-panel, four-panel";
@@ -157,20 +165,6 @@ namespace {
         return clothingList;
     }
 
-    QString buildGenderLabel(const QString& genderText)
-    {
-        if (genderText.isEmpty()) {
-            return QString();
-        }
-        
-        if (genderText.contains(QStringLiteral("男"), Qt::CaseInsensitive)) {
-            return QStringLiteral("男性");
-        } else if (genderText.contains(QStringLiteral("女"), Qt::CaseInsensitive)) {
-            return QStringLiteral("女性");
-        }
-        
-        return genderText;
-    }
 
     static const QStringList HAIR_COLOR_CONFLICT_INDICATORS = {
         QStringLiteral("黑褐色"),
@@ -438,31 +432,58 @@ namespace {
     }
 
     // 根据 speakerSide 字段或角色顺序推断说话者位置标记
-    // 返回 "左" / "右" / "" (无位置信息)
-    QString resolveSpeakerSideMarker(const QString& speakerSide,
-                                      const QString& speaker,
-                                      const QJsonArray& characters)
+    // 根据角色外观和位置生成完整气泡描述
+    // 例: "a speech bubble with 'xxx' inside, above-left, tail pointing toward the young woman on the left"
+    QString buildBubbleDesc(const QString& text,
+                             const QString& speaker,
+                             const QString& speakerSide,
+                             const QMap<QString, QJsonObject>& characterRefs)
     {
-        // 优先使用明确设置的 speakerSide
-        const QString normalized = speakerSide.trimmed().toLower();
-        if (normalized == QStringLiteral("left"))   return QStringLiteral("左");
-        if (normalized == QStringLiteral("right"))  return QStringLiteral("右");
-        if (normalized == QStringLiteral("center")) return QStringLiteral("中");
-
-        // 回退：多角色面板按角色数组顺序推断（第1个=左，第2个=右）
-        if (characters.size() >= 2) {
-            const QString first  = characters.at(0).toObject().value("name").toString().trimmed();
-            const QString second = characters.at(1).toObject().value("name").toString().trimmed();
-            if (!speaker.isEmpty()) {
-                if (speaker == first)  return QStringLiteral("左");
-                if (speaker == second) return QStringLiteral("右");
-            }
+        QString matchedName = speaker;
+        if (!characterRefs.contains(speaker)) {
+            const QString normalized = normalizeCharacterNameForRefs(speaker);
+            if (characterRefs.contains(normalized))
+                matchedName = normalized;
         }
-        return QString();
+
+        QString ageDesc;
+        QString genderDesc;
+        if (characterRefs.contains(matchedName)) {
+            const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
+            const int age = appearance["age"].toInt(-1);
+            const QString gender = appearance["gender"].toString().trimmed();
+
+            if (age >= 55)       ageDesc = "elderly";
+            else if (age >= 40)  ageDesc = "middle-aged";
+            else if (age >= 0)   ageDesc = "young";
+
+            if (gender == QStringLiteral("女") || gender.toLower() == "female")
+                genderDesc = "woman";
+            else if (gender == QStringLiteral("男") || gender.toLower() == "male")
+                genderDesc = "man";
+        }
+
+        const QString person = (!ageDesc.isEmpty() && !genderDesc.isEmpty())
+            ? QString("%1 %2").arg(ageDesc, genderDesc)
+            : (!genderDesc.isEmpty() ? genderDesc : "person");
+
+        if (speakerSide == QStringLiteral("left")) {
+            return QString("a speech bubble with \"%1\" written inside it, "
+                           "positioned above-left, tail pointing toward the %2 on the left")
+                   .arg(text, person);
+        }
+        if (speakerSide == QStringLiteral("right")) {
+            return QString("a speech bubble with \"%1\" written inside it, "
+                           "positioned above-right, tail pointing toward the %2 on the right")
+                   .arg(text, person);
+        }
+        return QString("a speech bubble with \"%1\" written inside it, "
+                       "tail pointing toward the %2")
+               .arg(text, person);
     }
 
     QString formatDialogueForPrompt(const QJsonArray& dialogue,
-                                     const QJsonArray& characters = QJsonArray())
+                                     const QMap<QString, QJsonObject>& characterRefs = QMap<QString, QJsonObject>())
     {
         if (dialogue.isEmpty()) {
             LOG_WARNING("PromptBuilder", "formatDialogueForPrompt: dialogue array is EMPTY!");
@@ -483,26 +504,18 @@ namespace {
                 continue;
             }
 
-            // 关键优化：限制文字长度到12字（提升渲染准确率！）
-            if (text.length() > 12) {
-                text = text.left(10) + "..";
-            }
+            // 去掉书名号《》，避免模型把文字渲染到书封上
+            text.remove(QRegularExpression(QStringLiteral("《[^》]*》")));
+            text = text.trimmed();
+            if (text.isEmpty()) continue;
 
-            // 解析说话者位置（用于气泡尾巴方向）
-            const QString sideMarker = resolveSpeakerSideMarker(speakerSide, speaker, characters);
+            const QString bubbleDesc = buildBubbleDesc(text, speaker, speakerSide, characterRefs);
+            entries.append(bubbleDesc);
 
-            // 气泡格式: [气泡@位置](说话者)"内容"  或  [气泡](说话者)"内容"（无位置时）
-            // 位置放在气泡标签上，与说话者名字分离，AI 更容易识别方向指令
-            if (!sideMarker.isEmpty()) {
-                entries.append(QString("[气泡@%1](%2)\"%3\"").arg(sideMarker, speaker, text));
-            } else {
-                entries.append(QString("[气泡](%1)\"%2\"").arg(speaker, text));
-            }
-
-            LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speaker=%2, side=%3, sideMarker=%4")
+            LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speaker=%2, side=%3, bubble='%4'")
                 .arg(i).arg(speaker)
                 .arg(speakerSide.isEmpty() ? "(none)" : speakerSide)
-                .arg(sideMarker.isEmpty() ? "(none)" : sideMarker));
+                .arg(bubbleDesc));
         }
 
         if (entries.isEmpty()) {
@@ -510,8 +523,7 @@ namespace {
             return QString();
         }
 
-        // 输出: [气泡@位置](说话者)"内容", printed font
-        const QString result = QStringLiteral("%1, printed font").arg(entries.join("; "));
+        const QString result = entries.join(", ");
         LOG_INFO("PromptBuilder", QString("formatDialogueForPrompt: result='%1' (len=%2)")
             .arg(result).arg(result.length()));
         return result;
@@ -519,132 +531,7 @@ namespace {
 
     // ========== 图生图 Prompt 六层组装架构 v2.0 ==========
     // 基于 awesome-gpt-image-2 社区最佳实践 + 小红书GPT-Image-2指南
-    // 核心理念: 用途声明 + Bible锁定 + 强约束 = 稳定高质量输出
-
-    QString buildStableBibleLock(const PromptBuilder::PanelCharacterPromptData& characterData,
-                                  const QMap<QString, QJsonObject>& characterRefs,
-                                  const QString& editIntent = QString())
-    {
-        QStringList lockItems;
-        
-        const bool skipClothing = editIntent == QStringLiteral("replace_attribute");
-        const bool skipCharacter = editIntent == QStringLiteral("replace_subject") 
-                                 || editIntent == QStringLiteral("remove_subject");
-        
-        if (skipCharacter) {
-            LOG_INFO("PromptBuilder", QString("editIntent=%1, 完全跳过角色圣经锁定").arg(editIntent));
-            return QString();
-        }
-        
-        if (skipClothing) {
-            LOG_INFO("PromptBuilder", QString("editIntent=%1, 跳过 clothing 字段的圣经锁定").arg(editIntent));
-        }
-
-        for (const auto& charName : characterData.panelCharNames) {
-            QString matchedName = charName;
-            if (!characterRefs.contains(charName)) {
-                const QString normalized = normalizeCharacterNameForRefs(charName);
-                if (characterRefs.contains(normalized)) {
-                    matchedName = normalized;
-                }
-            }
-
-            if (!characterRefs.contains(matchedName)) {
-                continue;
-            }
-
-            const QJsonObject fullChar = characterRefs.value(matchedName);
-            const QJsonObject appearance = fullChar["appearance"].toObject();
-
-            QStringList descParts;
-            descParts << charName;
-
-            int age = -1;
-            QString genderText;
-            QString hairColor;
-
-            for (auto it = appearance.begin(); it != appearance.end(); ++it) {
-                const QString& key = it.key();
-                const QJsonValue& value = it.value();
-
-                if (isJsonValueEmpty(value)) {
-                    continue;
-                }
-
-                if (key == QStringLiteral("age")) {
-                    if (value.isDouble()) {
-                        age = value.toInt();
-                    } else {
-                        bool ok = false;
-                        age = value.toString().toInt(&ok);
-                        if (!ok) age = -1;
-                    }
-                } else if (key == QStringLiteral("gender")) {
-                    genderText = value.toString();
-                } else if (key == QStringLiteral("hairColor")) {
-                    hairColor = value.toString();
-                    descParts << QString(QStringLiteral("【%1(必须!)】")).arg(hairColor);
-                } else if (key == QStringLiteral("hairStyle")) {
-                    descParts << value.toString();
-                } else if (key == QStringLiteral("eyeColor")) {
-                    descParts << QString(QStringLiteral("%1眼睛")).arg(value.toString());
-                } else if (key == QStringLiteral("clothing")) {
-                    if (skipClothing) {
-                        LOG_DEBUG("PromptBuilder", QString("  跳过 clothing 锁定: editIntent=%1").arg(editIntent));
-                        continue;
-                    }
-                    
-                    QStringList clothingList = parseClothingList(value);
-                    
-                    LOG_DEBUG("PromptBuilder", QString(
-                        "  解析到衣服列表 (%1件): %2")
-                        .arg(clothingList.size())
-                        .arg(clothingList.join(", ")));
-                    
-                    if (!clothingList.isEmpty()) {
-                        const QString allClothing = clothingList.join(QStringLiteral("、"));
-                        descParts << QString(QStringLiteral("[%1(必须!)]")).arg(allClothing);
-                        
-                        LOG_INFO("PromptBuilder", QString(
-                            "  ✅ Bible Lock包含完整衣服: [%1(must!)]")
-                            .arg(allClothing));
-                    } else {
-                        LOG_WARNING("PromptBuilder", 
-                            "  ⚠️ 角色衣服列表为空！");
-                    }
-                }
-            }
-
-            if (age > 0) {
-                const QString genderLabel = buildGenderLabel(genderText);
-                descParts.insert(1, QString(QStringLiteral("%1岁%2")).arg(age).arg(genderLabel));
-            }
-
-            const QString features = fullChar[QStringLiteral("features")].toString();
-            if (!features.isEmpty()) {
-                const QStringList featureList = features.split(QStringLiteral("，"));
-                if (!featureList.isEmpty()) {
-                    if (featureList.size() <= 3) {
-                        descParts << featureList.join(QStringLiteral("、"));
-                    } else {
-                        descParts << featureList.first();
-                    }
-                }
-            }
-
-            if (descParts.size() <= 1) {
-                continue;
-            }
-
-            lockItems << descParts.join(QStringLiteral(", "));
-        }
-
-        if (lockItems.isEmpty()) return QString();
-
-        const QString result = QString(QStringLiteral("【🔒 角色锁定】%1")).arg(lockItems.join(QStringLiteral("；")));
-        LOG_INFO("PromptBuilder", QString("Bible lock: %1").arg(result.left(80)));
-        return result;
-    }
+    // 核心理念: 外观注入场景描述 = 自然连贯 + 无冲突
 
     QString truncateSmart(const QString& text, int maxLen)
     {
@@ -724,111 +611,134 @@ namespace {
         return conflicts;
     }
 
-    QString buildSceneVisualLayer(const QJsonObject& panel)
+    // 发色+发型合并，避免"白色、稀疏短发"语义断裂，也避免"白发齐肩直发"重复"发"字
+    // hairColor="白发" + hairStyle="齐肩直发" → "白色齐肩直发"（去掉 hairColor 末尾的"发"）
+    QString mergeHairCn(const QJsonObject& appearance)
     {
-        // 优先用中文版：更紧凑，同等字符数包含更多背景信息
-        const QString visualPromptCn = panel["visualPromptCn"].toString().trimmed();
-        const QString visualPromptEn = panel["visualPrompt"].toString().trimmed();
-        const QString sceneText = panel["scene"].toString().trimmed();
-
-        const QString source = !visualPromptCn.isEmpty() ? visualPromptCn
-                             : !visualPromptEn.isEmpty() ? visualPromptEn
-                             : sceneText;
-        if (source.isEmpty()) return QString();
-
-        const QString result = truncateSmart(source, 100);
-        LOG_INFO("PromptBuilder", QString("Scene visual (pre-budget-cap, lang=%1): %2")
-            .arg(visualPromptCn.isEmpty() ? "en/scene" : "cn").arg(result.left(60)));
-        return result;
+        const QString color = appearance["hairColor"].toString().trimmed();
+        const QString style = appearance["hairStyle"].toString().trimmed();
+        if (color.isEmpty()) return style;
+        if (style.isEmpty()) return color;
+        // hairColor 以"发"结尾时（如"白发"、"黑发"），去掉末尾"发"再拼 hairStyle
+        if (color.endsWith(QStringLiteral("发"))) {
+            return color.left(color.length() - 1) + style;
+        }
+        return color + style;
     }
 
-    QString buildCharacterActionLayer(const PromptBuilder::PanelCharacterPromptData& characterData)
+    // 服装列表智能合并：将内外搭服装合并为单句描述
+    // 防止AI把同一角色的多件衣服理解为多个独立角色（如"白衬衫"+"蓝围裙"→生成两个女孩）
+    // 输入: ["浅蓝色棉麻围裙", "白色短袖衬衫", "及膝牛仔裙"]
+    // 输出: "内搭白色短袖衬衫、外穿浅蓝色棉麻围裙及膝牛仔裙"
+    QString mergeClothingForSingleEntity(const QStringList& clothingList)
     {
-        if (characterData.characterDescriptions.isEmpty()) return QString();
+        if (clothingList.isEmpty()) return QString();
+        if (clothingList.size() == 1) return clothingList.first();
 
-        const QString allActions = characterData.characterDescriptions.join("；");
-        const QString result = truncateSmart(allActions, 45);
+        static const QRegularExpression innerWearPattern(
+            QStringLiteral("(T恤|短袖|长袖|衬衫|内衣|打底|背心)"),
+            QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression outerWearPattern(
+            QStringLiteral("(围裙|外套|大衣|风衣|夹克|马甲|背心裙|连衣裙|牛仔)"),
+            QRegularExpression::CaseInsensitiveOption);
 
-        LOG_INFO("PromptBuilder", QString("Character action: %1").arg(result));
-        return result;
-    }
-    
-    QString buildStyleCompositionLayer(const QJsonObject& panel, int remainingBudget)
-    {
-        QStringList layer5;
-        int currentLen = 0;
+        QStringList innerItems;
+        QStringList outerItems;
+        QStringList otherItems;
 
-        // 5a. 构图指令 (~25字符)
-        const QString shotType = panel["shotType"].toString().trimmed();
-        const QString cameraAngle = panel["cameraAngle"].toString().trimmed();
-
-        QString composition;
-        if (!shotType.isEmpty()) {
-            composition = SHOT_TYPE_MAPPING.value(shotType, QString("%1镜头").arg(shotType));
-        }
-        if (!cameraAngle.isEmpty()) {
-            const QString standardizedAngle = CAMERA_ANGLE_MAPPING.value(cameraAngle, cameraAngle);
-            if (!composition.isEmpty()) composition += ",";
-            composition += standardizedAngle;
-        }
-
-        if (!composition.isEmpty()) {
-            const int addLen = composition.length() + 2;
-            if (currentLen + addLen <= remainingBudget) {
-                layer5.append(composition);
-                currentLen += addLen;
+        for (const auto& item : clothingList) {
+            if (innerWearPattern.match(item).hasMatch()) {
+                innerItems << item;
+            } else if (outerWearPattern.match(item).hasMatch()) {
+                outerItems << item;
+            } else {
+                otherItems << item;
             }
         }
 
-        // 5b. 氛围/情绪 (~15字符)
-        const QString mood = panel["atmosphere"].toObject()["mood"].toString().trimmed();
-        if (!mood.isEmpty()) {
-            const QString moodStr = QString("%1氛围").arg(mood);
-            const int addLen = moodStr.length() + 2;
-            if (currentLen + addLen <= remainingBudget) {
-                layer5.append(moodStr);
-                currentLen += addLen;
+        QStringList merged;
+        if (!innerItems.isEmpty() && !outerItems.isEmpty()) {
+            merged << QString("内搭%1").arg(innerItems.join(QStringLiteral("、")));
+            merged << QString("外穿%1").arg(outerItems.join(QStringLiteral("")));
+        } else if (!innerItems.isEmpty()) {
+            merged << innerItems.join(QStringLiteral("、"));
+        } else if (!outerItems.isEmpty()) {
+            merged << outerItems.join(QStringLiteral(""));
+        }
+
+        if (!otherItems.isEmpty()) {
+            if (!merged.isEmpty()) {
+                merged.last() += otherItems.join(QStringLiteral(""));
+            } else {
+                merged << otherItems.join(QStringLiteral("、"));
             }
         }
 
-        // 5c. 风格增强 (~20字符)
-        const QString styleEnhanced = "日漫全彩细腻线条";
-        int addLen = styleEnhanced.length() + 2;
-        if (currentLen + addLen <= remainingBudget) {
-            layer5.append(styleEnhanced);
-            currentLen += addLen;
+        return merged.join(QStringLiteral("、"));
+    }
+
+    // 构建单个角色的外观括注，格式：【发色发型、服装】
+    QString buildCharAppearanceNote(const QString& charName,
+                                     const QMap<QString, QJsonObject>& characterRefs,
+                                     bool skipClothing)
+    {
+        QString matchedName = charName;
+        if (!characterRefs.contains(charName)) {
+            const QString normalized = normalizeCharacterNameForRefs(charName);
+            if (characterRefs.contains(normalized))
+                matchedName = normalized;
+        }
+        if (!characterRefs.contains(matchedName)) return QString();
+
+        const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
+        QStringList parts;
+
+        const QString hair = mergeHairCn(appearance);
+        if (!hair.isEmpty()) parts << hair;
+
+        if (!skipClothing) {
+            const QStringList clothing = parseClothingList(appearance["clothing"]);
+            if (!clothing.isEmpty()) parts << mergeClothingForSingleEntity(clothing);
         }
 
-        // 5d. 强约束层 - 基于GPT-Image-2最佳实践 (~35字符)
-        QStringList strongConstraints;
+        if (parts.isEmpty()) return QString();
+        return QString(QStringLiteral("【%1】")).arg(parts.join(QStringLiteral("、")));
+    }
 
-        // A. 角色一致性约束（最重要！）
-        strongConstraints << "preserve character identity";
-        strongConstraints << "maintain facial features exactly";
-        strongConstraints << "keep hair color and style unchanged";
+    // 将 visualPromptCn 中的角色名替换为 角色名【外观括注】，使外观与场景融为一体
+    QString injectBibleIntoScene(const QString& visualPromptCn,
+                                  const PromptBuilder::PanelCharacterPromptData& characterData,
+                                  const QMap<QString, QJsonObject>& characterRefs,
+                                  bool skipClothing)
+    {
+        static const QRegularExpression RE_BOOK_TITLE(QStringLiteral("《([^》]*)》"));
+        static const QRegularExpression RE_SINGLE_QUOTE(QStringLiteral("'([^']*)'"));
 
-        // B. 质量约束
-        strongConstraints << "sharp focus on subject";
-        strongConstraints << "no face distortion or deformation";
+        QString result = visualPromptCn;
+        // 去掉书名号/单引号括号，保留内容，避免模型把引号内文字渲染成图像文字
+        result.replace(RE_BOOK_TITLE,    QStringLiteral("\\1"));
+        result.replace(RE_SINGLE_QUOTE,  QStringLiteral("\\1"));
 
-        // C. 漫画特定约束
-        strongConstraints << "manga-style proportions";
-        strongConstraints << "consistent line art quality";
-        strongConstraints << "no watermark or logo";
+        for (const auto& charName : characterData.panelCharNames) {
+            const QString note = buildCharAppearanceNote(charName, characterRefs, skipClothing);
+            if (note.isEmpty()) continue;
 
-        const QString constraintsStr = strongConstraints.join(", ");
-        addLen = constraintsStr.length() + 2;
-        if (currentLen + addLen <= remainingBudget && !constraintsStr.isEmpty()) {
-            layer5.append(constraintsStr);
-            currentLen += addLen;
+            // 找第一次出现且后面未已注入【的位置
+            const int pos = result.indexOf(charName);
+            if (pos < 0) continue;
+            const int after = pos + charName.length();
+            if (after < result.length() && result.at(after) == QChar(0x3010)) continue; // 已有【
+
+            result.replace(pos, charName.length(), charName + note);
+            LOG_INFO("PromptBuilder", QString("  注入外观: %1%2").arg(charName, note));
         }
-
-        if (layer5.isEmpty()) return QString();
-
-        const QString result = layer5.join(",");
-        LOG_INFO("PromptBuilder", QString("Style+constraints: %1 (%2/%3 chars)")
-            .arg(result).arg(currentLen).arg(remainingBudget));
         return result;
+    }
+
+    bool shouldSkipClothing(const QString& editIntent)
+    {
+        return editIntent.contains(QStringLiteral("replace_attribute"))
+            || editIntent.contains(QStringLiteral("replace_subject"));
     }
 
     QStringList buildOptimizedImg2ImgParts(const QJsonObject& panel,
@@ -836,61 +746,51 @@ namespace {
                                            const QMap<QString, QJsonObject>& characterRefs)
     {
         QStringList parts;
-        static const int TOTAL_BUDGET = 350;
+        static const int TOTAL_BUDGET = 400;
 
-        LOG_INFO("PromptBuilder", QString("Building 6-layer prompt (budget: %1 chars)").arg(TOTAL_BUDGET));
+        LOG_INFO("PromptBuilder", QString("Building 2-layer prompt (budget: %1 chars)").arg(TOTAL_BUDGET));
 
-        // Layer 0: 用途声明 (~20字符)
+        const QString editIntent = panel.value("editIntent").toString().trimmed();
+        const bool skipClothing = shouldSkipClothing(editIntent);
+
+        // Layer 0: 用途声明 — 告知模型这是漫画面板，帮助理解[气泡]标记
         parts << "[PURPOSE], manga panel, for readers";
 
-        // Layer 1: Bible角色锁定 - 稳定性核心，不截断
-        const QString editIntent = panel.value("editIntent").toString().trimmed();
-        const QString bibleLock = buildStableBibleLock(characterData, characterRefs, editIntent);
-        if (!bibleLock.isEmpty()) {
-            parts << bibleLock;
+        // Layer 1: 场景/编辑指令+外观融合
+        // 编辑模式(editIntent非空)时，visualPrompt已被ChangeRequestService替换为编辑指令
+        // 批量生成时editIntent为空，走原始visualPromptCn/sceneText逻辑，两条链路互不影响
+        QString baseScene;
+        if (!editIntent.isEmpty()) {
+            baseScene = panel["visualPrompt"].toString().trimmed();
+            if (!baseScene.isEmpty()) {
+                baseScene = buildEditDirective(baseScene, "scene", editIntent);
+            }
+        } else {
+            const QString visualPromptCn = panel["visualPromptCn"].toString().trimmed();
+            const QString sceneText = panel["scene"].toString().trimmed();
+            baseScene = !visualPromptCn.isEmpty() ? visualPromptCn : sceneText;
         }
 
-        // Layer 2: 场景+视觉 - 动态预算：总预算减去已用字符，最少40最多90
-        const QString sceneVisual = buildSceneVisualLayer(panel);
-        if (!sceneVisual.isEmpty()) {
-            const int usedSoFar = parts.join("，").length();
-            // 为 Layer 3/4/5 保留约 120 字符
-            const int sceneVisualBudget = qBound(40, TOTAL_BUDGET - usedSoFar - 120, 90);
-            LOG_INFO("PromptBuilder", QString("Scene visual budget: %1 chars (used=%2, total=%3)")
-                .arg(sceneVisualBudget).arg(usedSoFar).arg(TOTAL_BUDGET));
-            parts << truncateSmart(sceneVisual, sceneVisualBudget);
+        if (!baseScene.isEmpty()) {
+            const QString injected = injectBibleIntoScene(baseScene, characterData, characterRefs, skipClothing);
+            parts << truncateSmart(injected, TOTAL_BUDGET - 50);
         }
 
-        // Layer 3: [气泡]文字 (~40字符) - 已优化：限制12字 + 紧凑格式 + 位置标记
+        // Layer 2: 对话气泡
         const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray(),
-                                                             panel["characters"].toArray());
+                                                             characterRefs);
         if (!dialogueStr.isEmpty()) {
             parts << dialogueStr;
         }
 
-        // Layer 4: 角色+动作 (~30字符)
-        const QString charAction = buildCharacterActionLayer(characterData);
-        if (!charAction.isEmpty()) {
-            parts << truncateSmart(charAction, 30);
-        }
-
-        // Layer 5: 构图+风格+强约束 (~55字符)
-        const int currentUsed = parts.join("，").length() + (parts.size() - 1) * 2;
-        const int remainingBudget = qMax(0, TOTAL_BUDGET - currentUsed - 10);
-
-        const QString styleComp = buildStyleCompositionLayer(panel, remainingBudget);
-        if (!styleComp.isEmpty()) {
-            parts << styleComp;
-        }
-
-        const int finalLength = parts.join("，").length();
+        const QString joined = parts.join("，");
         LOG_INFO("PromptBuilder", QString(
-            "6-layer complete: panelId=%1, layers=%2, length=%3/%4 (%5%)")
+            "2-layer complete: panelId=%1, layers=%2, length=%3/%4 (%5%)")
             .arg(panel.value("id").toString())
             .arg(parts.size())
-            .arg(finalLength)
+            .arg(joined.length())
             .arg(TOTAL_BUDGET)
-            .arg(qRound(static_cast<double>(finalLength) / TOTAL_BUDGET * 100)));
+            .arg(qRound(static_cast<double>(joined.length()) / TOTAL_BUDGET * 100)));
 
         return parts;
     }
@@ -1104,7 +1004,7 @@ namespace {
     void appendCharacterBackgroundParts(QStringList& parts)
     {
         parts << "flat even lighting";
-        parts << "pure white background only, isolated character on pure white seamless background, plain white background only, no gradient, no shadow, no backdrop, no studio background, completely empty background, clean white studio cutout";
+        parts << "pure white background only, isolated character on pure white seamless background, plain white background only, no black area, no dark area, no gradient, no shadow, no backdrop, no studio background, completely empty background, clean white studio cutout";
         parts << "line art with screentone shading, vibrant colors";
     }
 
@@ -1183,135 +1083,6 @@ QString PromptBuilder::firstNonEmptyPortrait(const QStringList &portraitPaths)
     return QString();
 }
 
-QString PromptBuilder::testBuildBibleLockBlock(const PanelCharacterPromptData &data,
-                                                 const QMap<QString, QJsonObject> &characterRefs)
-{
-    return buildBibleLockBlock(data, characterRefs);
-}
-
-QString PromptBuilder::buildBibleLockBlock(const PanelCharacterPromptData& data,
-                                             const QMap<QString, QJsonObject>& characterRefs)
-{
-    QStringList lockItems;
-
-    qDebug() << "===== buildBibleLockBlock CALLED =====";
-
-    for (const auto& charName : data.panelCharNames) {
-        QString matchedName = charName;
-        if (!characterRefs.contains(charName)) {
-            QString normalized = normalizeCharacterNameForRefs(charName);
-            if (characterRefs.contains(normalized)) {
-                matchedName = normalized;
-            }
-        }
-
-        if (!characterRefs.contains(matchedName)) {
-            continue;
-        }
-
-        const QJsonObject fullChar = characterRefs.value(matchedName);
-        const QJsonObject appearance = fullChar["appearance"].toObject();
-
-        QStringList descParts;
-        descParts << charName;
-
-        int age = -1;
-        QString genderText;
-        QString hairColor;
-
-        for (auto it = appearance.begin(); it != appearance.end(); ++it) {
-            const QString& key = it.key();
-            const QJsonValue& value = it.value();
-
-            if (value.isNull() || value.isUndefined()) {
-                continue;
-            }
-
-            // 特殊处理：数值类型（int/double）的toString()可能返回空字符串
-            // 只有字符串类型才进行空值检查，其他类型（int/double/array/object）都保留
-            bool isEmptyString = false;
-            if (value.isString()) {
-                isEmptyString = value.toString().trimmed().isEmpty();
-            }
-            
-            if (!value.isArray() && !value.isObject() && !value.isDouble() && isEmptyString) {
-                continue;
-            }
-
-            if (key == QStringLiteral("age")) {
-                if (value.isDouble()) {
-                    age = value.toInt();
-                } else {
-                    bool ok = false;
-                    age = value.toString().toInt(&ok);
-                    if (!ok) age = -1;
-                }
-            } else if (key == QStringLiteral("gender")) {
-                genderText = value.toString();
-            } else if (key == QStringLiteral("hairColor")) {
-                hairColor = value.toString();
-                descParts << QString(QStringLiteral("【%1(必须!)】")).arg(hairColor);
-            } else if (key == QStringLiteral("hairStyle")) {
-                descParts << value.toString();
-            } else if (key == QStringLiteral("eyeColor")) {
-                descParts << QString(QStringLiteral("%1眼睛")).arg(value.toString());
-            } else if (key == QStringLiteral("clothing")) {
-                QStringList clothingList;
-                if (value.isArray()) {
-                    for (const auto& item : value.toArray()) {
-                        if (!item.toString().isEmpty()) {
-                            clothingList << item.toString();
-                        }
-                    }
-                } else if (value.isString()) {
-                    clothingList << value.toString();
-                }
-                if (!clothingList.isEmpty()) {
-                    descParts << clothingList.first();
-                }
-            }
-        }
-
-        qDebug() << "After loop: age=" << age << "genderText=" << genderText;
-
-        if (age > 0) {
-            qDebug() << ">>> AGE BRANCH ENTERED! age=" << age;
-            QString genderLabel;
-            if (!genderText.isEmpty()) {
-                if (genderText.contains(QStringLiteral("男"), Qt::CaseInsensitive)) {
-                    genderLabel = QStringLiteral("男性");
-                } else if (genderText.contains(QStringLiteral("女"), Qt::CaseInsensitive)) {
-                    genderLabel = QStringLiteral("女性");
-                }
-            }
-            descParts.insert(1, QString(QStringLiteral("%1岁%2")).arg(age).arg(genderLabel));
-        }
-
-        QString features = fullChar[QStringLiteral("features")].toString();
-        if (!features.isEmpty()) {
-            QStringList featureList = features.split(QStringLiteral("，"));
-            if (!featureList.isEmpty()) {
-                if (featureList.size() <= 3) {
-                    descParts << featureList.join(QStringLiteral("、"));
-                } else {
-                    descParts << featureList.first();
-                }
-            }
-        }
-
-        if (descParts.size() <= 1) {
-            continue;
-        }
-
-        lockItems << descParts.join(QStringLiteral(", "));
-    }
-
-    if (lockItems.isEmpty()) {
-        return QString();
-    }
-
-    return QString(QStringLiteral("【🔒 角色外观锁定（不可更改）】%1")).arg(lockItems.join(QStringLiteral("；")));
-}
 
 QStringList PromptBuilder::normalizeList(const QJsonValue &value)
 {
@@ -1801,7 +1572,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         
         // 5. TEXT - 文字
         addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray(),
-                                                      panel["characters"].toArray()));
+                                                      characterRefs));
         
         // 6. STYLE - 风格
         parts << "[风格] 日漫风格，全彩，高质量渲染";
@@ -1816,9 +1587,9 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                             characterData.panelCharNames,
                             dialogueSpeakers);
 
-    // 图生图限制280中文字（官方建议300左右，留20字符缓冲），文生图限制300中文字
+    // 图生图限制350中文字（官方建议300左右，留50字符缓冲），文生图限制380中文字
     // 参考: https://www.volcengine.com/docs/85128/1798096 (seed3l_multi_ip 模型)
-    const int maxLen = isImg2Img ? 280 : 300;
+    const int maxLen = isImg2Img ? 350 : 380;
     QString prompt = truncatePrompt(parts, maxLen);
     return { prompt,
              DEFAULT_NEGATIVE_PROMPT + PANEL_NEGATIVE_EXTRA,
@@ -1836,7 +1607,7 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     QStringList parts;
     
     parts << "environment concept art" << "ultra detailed manga background"
-          << "empty scene, no characters"
+          << "empty scene, no characters, no people, no human figures, no silhouettes, 纯场景无人物"
           << "use as a strict environment reference, preserve architecture and atmosphere"
           << JAPANESE_MANGA_DIRECTIVE;
     

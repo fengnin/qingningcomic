@@ -192,3 +192,5 @@ QStringList Character::toDisplayStrings() const
     
     return lines;
 }
+
+#include "moc_Character.cpp"

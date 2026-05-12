@@ -43,11 +43,6 @@ public:
         QStringList allCharacterRefs;
     };
 
-    static QString testBuildBibleLockBlock(const PanelCharacterPromptData &data,
-                                            const QMap<QString, QJsonObject> &characterRefs);
-    static QString buildBibleLockBlock(const PanelCharacterPromptData& data,
-                                        const QMap<QString, QJsonObject>& characterRefs);
-
 private:
     static QString matchSceneDetails(const QMap<QString, QJsonObject> &sceneRefs,
                                       const QString &sceneId,

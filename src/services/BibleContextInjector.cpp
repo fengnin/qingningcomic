@@ -496,22 +496,18 @@ QString BibleContextInjector::buildContextPrompt(
         .arg(chapterNumber > 0 ? QString::number(chapterNumber) : QString::fromUtf8("?"));
 
     if (!characters.isEmpty()) {
-        userMessage += QString::fromUtf8("【🔒 角色外观锁定（必须严格遵守）】\n");
+        userMessage += QString::fromUtf8("【🔒 角色设定（必须严格遵守）】\n");
         userMessage += QString::fromUtf8(
-            "以下角色的外观特征是【不可更改的权威设定】。\n"
-            "在生成每个面板的 visualPrompt 时，**必须**准确使用以下特征：\n\n"
+            "以下是本章出现角色的完整设定数据，供生成 visualPrompt（英文）时参考。\n\n"
 
-            "⚠️ 绝对禁止的错误：\n"
-            "- 不得修改或忽略 appearance 中的任何字段值（如发色、年龄、眼睛颜色等）！\n"
-            "- 不得将角色年龄改大或改小（如老年人不能画成年轻人）！\n"
-            "- 不得遗漏 features 字段中的标志性身体特征（如斑、纹、疤等）！\n\n"
+            "⚠️ 两个字段的分工：\n"
+            "- visualPrompt（英文）：必须包含完整外观描述（发色、发型、眼色、服装等），供千问图像编辑模型使用\n"
+            "- visualPromptCn（中文）：禁止写外观描述，用角色名代替，只写场景、动作、光线、氛围\n\n"
 
-            "✅ 正确做法：\n"
-            "- visualPrompt 中的角色外观描述必须与 Bible 的 appearance 字段完全一致\n"
-            "- 年龄特征必须准确体现（如高龄角色需强调老年特征）\n"
-            "- features 字段中的关键特征必须在 visualPrompt 中体现\n\n"
+            "✅ visualPromptCn 正确示例：'青柠站在柜台后，午后暖光从玻璃门斜入'\n"
+            "❌ visualPromptCn 错误示例：'白发低马尾的年轻女性站在柜台后'\n\n"
 
-            "📋 完整角色数据（appearance字段不可违反）：\n"
+            "📋 角色数据（visualPrompt 英文版需参考 appearance 字段）：\n"
         );
         userMessage += QString::fromUtf8(QJsonDocument(characters).toJson(QJsonDocument::Indented));
         userMessage += QString::fromUtf8("\n\n");
@@ -579,64 +575,36 @@ QJsonArray BibleContextInjector::filterCharacters(const QString& text, const QJs
 QString BibleContextInjector::buildFewShotExamples()
 {
     return QString::fromUtf8(
-        "📌 **visualPrompt生成规范（必须严格遵循）**：\n\n"
+        "📌 **visualPromptCn 生成规范（必须严格遵循）**：\n\n"
 
-        "**核心原则：100%基于Bible数据生成**\n"
-        "- visualPrompt中的每个角色外观描述必须来自Bible的appearance字段\n"
-        "- 禁止编造或修改Bible中未定义的特征\n"
-        "- Bible是最高优先级，高于文学性、美观性或流畅性\n\n"
+        "**核心原则：visualPromptCn 只写场景，不写外观**\n"
+        "- visualPromptCn 中出现角色时，直接使用角色名，不描述发色、发型、眼色、服装\n"
+        "- 角色外观由 PromptBuilder 的 Bible lock 负责注入，此处不重复\n"
+        "- visualPromptCn 专注于：场景位置、动作姿态、光线氛围、构图关系\n\n"
 
-        "**✅ 正确的输出格式示例**\n\n"
+        "**✅ 正确的 visualPromptCn 示例**\n\n"
 
-        "**格式1 - 完整外观描述（推荐）**\n"
-        "'{发色}{发型}的{角色名}{年龄称谓}，身穿{衣服1}配{衣服2}及{衣服3}，{眼睛颜色}眼睛'\n"
-        "✓ 特征完整：包含Bible中的所有appearance字段\n"
-        "✓ 顺序合理：先整体印象，再细节特征\n"
-        "✓ 衣服具体：使用全称而非笼统描述\n\n"
+        "单角色场景：\n"
+        "'青柠站在柜台后，双手轻放桌面，午后暖光从拱形玻璃门斜入，照亮浮尘'\n"
+        "✓ 用角色名，不写外观\n"
+        "✓ 有具体位置和动作\n"
+        "✓ 有光线描述\n\n"
 
-        "**格式2 - 年龄特征强调（老年/幼年角色）**\n"
-        "'{年龄}岁{性别标签}{角色名}，{标志性特征}，身穿{衣服}'\n"
-        "✓ 年龄准确：必须体现年龄特征（皱纹/微驼/稚嫩等）\n"
-        "✓ 标志性特征：保留Bible中的features字段\n"
-        "✓ 衣服符合年龄：避免不符合年龄的着装\n\n"
+        "多角色场景：\n"
+        "'林阿姨将蛋糕盒轻放于柜台，青柠坐在柜台后微微抬头，两人视线相交'\n"
+        "✓ 两人都用角色名\n"
+        "✓ 位置关系清晰\n"
+        "✓ 有互动动作\n\n"
 
-        "**格式3 - 多角色场景**\n"
-        "'{角色A描述}在{位置A}，{角色B描述}在{位置B}，两人{互动方式}'\n"
-        "✓ 每个角色都保持完整的Bible特征\n"
-        "✓ 角色关系清晰\n"
-        "✓ 位置明确\n\n"
+        "**❌ 常见错误**\n\n"
+        "- 错误：'白发低马尾的年轻女性站在柜台后'\n"
+        "  ✓ 改为：'青柠站在柜台后'\n\n"
+        "- 错误：'浅亚麻色卷发的中年女性将蛋糕盒放在柜台'\n"
+        "  ✓ 改为：'林阿姨将蛋糕盒放在柜台'\n\n"
+        "- 错误：'穿围裙的女孩抬头看向来客'\n"
+        "  ✓ 改为：'青柠抬头看向来客'\n\n"
 
-        "**格式4 - 动作场景**\n"
-        "'{基础外观}正在{动作描述}，{衣服随动作的变化}'\n"
-        "✓ 基础外观不变：动作不能改变Bible定义的特征\n"
-        "✓ 衣服变化合理：只允许物理上合理的动态效果\n"
-        "✓ 不夸张化：避免不合理的动作描写\n\n"
-
-        "**❌ 常见错误及原因**\n\n"
-        "- 错误1：修改了Bible中定义的发色/发型/眼睛颜色\n"
-        "  ✗ 原因：未严格参考appearance字段\n"
-        "  ✓ 解决：逐项对照Bible的appearance字段\n\n"
-        "- 错误2：衣服描述过于笼统（如'连衣裙'代替具体的衣服组合）\n"
-        "  ✗ 原因：遗漏了clothing数组中的具体项\n"
-        "  ✓ 解决：列出clothing数组中的每一件衣服的全称\n\n"
-        "- 错误3：年龄特征不准确（如老年人画成年轻人）\n"
-        "  ✗ 原因：忽略了age字段的数值\n"
-        "  ✓ 解决：根据age值添加相应的年龄特征描写\n\n"
-        "- 错误4：丢失角色的标志性身体特征\n"
-        "  ✗ 原因：未检查features字段\n"
-        "  ✓ 解决：确保features中的关键特征体现在visualPrompt中\n\n"
-
-        "**⚠️ 强制检查清单（生成每个panel时必须验证）：**\n"
-        "□ 角色姓名是否与Bible一致？\n"
-        "□ 发色是否与hairColor完全匹配？\n"
-        "□ 发型是否与hairStyle一致？\n"
-        "□ 眼睛颜色是否与eyeColor正确？\n"
-        "□ 衣服是否完整列出clothing数组的所有项？（使用全称）\n"
-        "□ 年龄是否与age字段匹配？是否体现相应年龄特征？\n"
-        "□ features中的关键特征是否体现？\n"
-        "□ 如果任何一项不通过，必须修改visualPrompt直到完全符合Bible！\n\n"
-
-        "**💡 记住：Bible是绝对权威，visualPrompt只是Bible的可视化表达！**\n"
+        "**💡 记住：visualPromptCn 里看到外观描述就是错的，换成角色名！**\n"
     );
 }
 

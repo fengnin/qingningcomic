@@ -361,6 +361,10 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
     if (request.type == BibleImageConstants::TYPE_SCENE) {
         processedImageData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &borderTrimmed);
     } else if (request.type == BibleImageConstants::TYPE_CHARACTER) {
+        // 先白化背景，再检测暗边 — 避免模型生成的暗色背景被误判为需要裁剪的边框
+        processedImageData = BackgroundWhitener::fillWhiteBackgroundImageData(processedImageData, 240);
+        backgroundWhitened = true;
+
         QImage originalImage;
         originalImage.loadFromData(imageData);
         const qint64 originalArea = (qint64)originalImage.width() * originalImage.height();
@@ -383,11 +387,6 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
                 processedImageData = trimmedData;
                 borderTrimmed = true;
             }
-        }
-
-        if (!processedImageData.isEmpty()) {
-            processedImageData = BackgroundWhitener::fillWhiteBackgroundImageData(processedImageData, 240);
-            backgroundWhitened = true;
         }
     }
 

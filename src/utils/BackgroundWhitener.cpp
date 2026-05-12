@@ -5,12 +5,12 @@
 #include <QIODevice>
 #include <QQueue>
 #include <QVector>
+#include <algorithm>
 
 namespace {
-    // Max color distance from the corner seed to be considered background.
-    // Kept moderate: large enough to handle gradients/anti-aliasing,
-    // small enough to stop at character boundaries.
-    constexpr int FLOOD_TOLERANCE_SQ = 30 * 30; // compare squared distance to avoid sqrt
+    // Tighter tolerance: reduces bleed into light-colored clothing/hair.
+    // Background pixels are typically very close to the corner seed color.
+    constexpr int FLOOD_TOLERANCE_SQ = 18 * 18;
 
     int colorDistanceSq(QRgb a, QRgb b)
     {
@@ -20,37 +20,66 @@ namespace {
         return dr * dr + dg * dg + db * db;
     }
 
-    // Flood-fill from all 4 corners to find and whiten background pixels.
-    // Each corner seeds its own fill using that corner's pixel color.
-    // Only connected regions reachable from a corner are affected, so the
-    // character body is never touched regardless of its color.
+    // Sample a small border region around each corner and return the median color.
+    // More robust than a single pixel when the corner has anti-aliasing or noise.
+    QRgb sampleCornerColor(const QImage& image, int cornerX, int cornerY)
+    {
+        const int w = image.width();
+        const int h = image.height();
+        constexpr int SAMPLE_RADIUS = 4;
+
+        const int x0 = qBound(0, cornerX - SAMPLE_RADIUS, w - 1);
+        const int x1 = qBound(0, cornerX + SAMPLE_RADIUS, w - 1);
+        const int y0 = qBound(0, cornerY - SAMPLE_RADIUS, h - 1);
+        const int y1 = qBound(0, cornerY + SAMPLE_RADIUS, h - 1);
+
+        QVector<int> reds, greens, blues;
+        for (int y = y0; y <= y1; ++y) {
+            const QRgb* line = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+            for (int x = x0; x <= x1; ++x) {
+                reds   << qRed(line[x]);
+                greens << qGreen(line[x]);
+                blues  << qBlue(line[x]);
+            }
+        }
+
+        std::sort(reds.begin(),   reds.end());
+        std::sort(greens.begin(), greens.end());
+        std::sort(blues.begin(),  blues.end());
+
+        const int mid = reds.size() / 2;
+        return qRgb(reds[mid], greens[mid], blues[mid]);
+    }
+
     int floodFillBackground(QImage& image)
     {
-        const int width = image.width();
+        const int width  = image.width();
         const int height = image.height();
 
         QVector<bool> visited(width * height, false);
-        // Store flat index instead of QPoint to halve queue memory
         QQueue<int> queue;
 
-        const int corners[] = {
-            0,
-            width - 1,
-            (height - 1) * width,
-            (height - 1) * width + width - 1
+        // Four corners: sample median color from a small patch around each
+        struct Corner { int x; int y; };
+        const Corner corners[] = {
+            {0,         0         },
+            {width - 1, 0         },
+            {0,         height - 1},
+            {width - 1, height - 1}
         };
 
-        for (int cornerIdx : corners) {
-            if (visited[cornerIdx]) continue;
+        for (const Corner& c : corners) {
+            const int idx = c.y * width + c.x;
+            if (visited[idx]) continue;
 
-            const QRgb seedColor = image.pixel(cornerIdx % width, cornerIdx / width);
-            visited[cornerIdx] = true;
-            queue.enqueue(cornerIdx);
+            const QRgb seedColor = sampleCornerColor(image, c.x, c.y);
+            visited[idx] = true;
+            queue.enqueue(idx);
 
             while (!queue.isEmpty()) {
-                const int idx = queue.dequeue();
-                const int px = idx % width;
-                const int py = idx / width;
+                const int cur = queue.dequeue();
+                const int px  = cur % width;
+                const int py  = cur / width;
 
                 const int nx[] = {px - 1, px + 1, px,     px    };
                 const int ny[] = {py,     py,      py - 1, py + 1};
