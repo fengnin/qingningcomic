@@ -24,6 +24,14 @@ constexpr int kPollingIntervalShort = 2000;
 constexpr int kPollingIntervalLong = 3000;
 constexpr int kRefImageMaxDimension = 768; // 参考图最大边长，超过则缩放
 
+// 火山视觉 API 的终态错误码：再轮询也不会变成功，应立即放弃
+// 50511: Post Img Risk Not Pass（输出图风控未过）
+// 50412: Pre Img Risk Not Pass（输入图风控未过）
+// 50413: Pre Text Risk Not Pass（输入文本风控未过）
+bool isTerminalErrorCode(int code) {
+    return code == 50511 || code == 50412 || code == 50413;
+}
+
 int calculatePollingInterval(int attempt) {
     return (attempt < kPollingThresholdAttempt)
         ? kPollingIntervalShort
@@ -325,11 +333,17 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(cons
     
     for (int attempt = 0; attempt < kMaxPollingAttempts; ++attempt) {
         QJsonObject response = sendSyncRequest(queryUrl, buildReferenceQueryPayload(taskId));
-        
+
         if (response.isEmpty()) {
+            if (isTerminalErrorCode(m_lastErrorCode)) {
+                LOG_ERROR("VolcEngineImageClient", QString("终态错误码 %1，停止轮询: %2")
+                    .arg(m_lastErrorCode).arg(m_lastError));
+                return createErrorResult(options.requestId,
+                    QString("内容审核未通过 (code=%1)").arg(m_lastErrorCode));
+            }
             LOG_WARNING("VolcEngineImageClient", QString("Query attempt %1 failed: %2")
                 .arg(attempt + 1).arg(m_lastError));
-            
+
             QThread::msleep(calculatePollingInterval(attempt));
             continue;
         }
@@ -488,29 +502,30 @@ void VolcEngineImageClient::onReplyError(QNetworkReply::NetworkError error)
 
 QJsonObject VolcEngineImageClient::sendSyncRequest(const QString& url, const QJsonObject& payload)
 {
+    m_lastErrorCode = 0;
     try {
         QByteArray bodyData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
         QNetworkRequest request = createNetworkRequest(url, QString::fromUtf8(bodyData));
-        
+
         QNetworkAccessManager localManager;
         QNetworkReply* reply = localManager.post(request, bodyData);
-        
+
         QEventLoop loop;
         QTimer timer;
         timer.setSingleShot(true);
-        
+
         connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        
+
         timer.start(m_config.requestTimeout);
         loop.exec(QEventLoop::ExcludeUserInputEvents);
-        
+
         if (!timer.isActive()) {
             setError("Request timeout");
             reply->deleteLater();
             return QJsonObject();
         }
-        
+
         if (reply->error() != QNetworkReply::NoError) {
             handleRateLimitResponse(reply);
             const QByteArray errBody = reply->readAll();
@@ -518,6 +533,10 @@ QJsonObject VolcEngineImageClient::sendSyncRequest(const QString& url, const QJs
             if (!errBody.isEmpty()) {
                 LOG_ERROR("VolcEngineImageClient", QString("HTTP error body: %1")
                     .arg(QString::fromUtf8(errBody.left(300))));
+                const QJsonDocument errDoc = QJsonDocument::fromJson(errBody);
+                if (errDoc.isObject()) {
+                    m_lastErrorCode = errDoc.object().value("code").toInt();
+                }
             }
             reply->deleteLater();
             return QJsonObject();

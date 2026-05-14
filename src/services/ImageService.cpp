@@ -1690,7 +1690,7 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
 
     try {
         QJsonObject panelJson = buildPanelJson(ctx.panel);
-        
+
         QStringList panelCharacterNames;
         for (const auto& value : panelJson.value("characters").toArray()) {
             const QJsonObject charObj = value.toObject();
@@ -1704,6 +1704,38 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         const QString visualPromptEn = panelJson.value("visualPromptEn").toString().trimmed();
         const QString visualPromptCn = panelJson.value("visualPromptCn").toString().trimmed();
 
+        QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: resolved novelId=%1").arg(novelId));
+
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching reference data for panelId=%1").arg(ctx.panelId));
+        PanelReferenceData refData = fetchPanelReferenceData(novelId);
+        LOG_DEBUG("ImageService", QString("buildPromptForPanel: reference data loaded, characters=%1, scenes=%2, refImages=%3")
+            .arg(refData.characterRefs.size())
+            .arg(refData.sceneRefs.size())
+            .arg(refData.allAvailableRefImages.size()));
+
+        // 兜底：LLM 偶尔会把"逆光剪影/远景出场"的角色漏出 panel.characters。
+        // 扫场景文本与画面提示词，凡是圣经里有名字、文本里出现了、但 panel.characters 没列的，
+        // 自动补 {"name": ...}。下游 PromptBuilder 拿到名字即可注入圣经外观。
+        {
+            QJsonArray panelCharsArray = panelJson.value("characters").toArray();
+            const QString combined = sceneText + QStringLiteral(" ") + visualPromptCn;
+            for (auto it = refData.characterRefs.constBegin();
+                 it != refData.characterRefs.constEnd(); ++it) {
+                const QString bibleName = it.key().trimmed();
+                if (bibleName.isEmpty()) continue;
+                if (panelCharacterNames.contains(bibleName)) continue;
+                if (!combined.contains(bibleName)) continue;
+                QJsonObject augmented;
+                augmented["name"] = bibleName;
+                panelCharsArray.append(augmented);
+                panelCharacterNames.append(bibleName);
+                LOG_INFO("ImageService", QString("Auto-augmented missing character '%1' for panel %2 (matched in scene/visualPromptCn)")
+                    .arg(bibleName).arg(ctx.panelId));
+            }
+            panelJson["characters"] = panelCharsArray;
+        }
+
         LOG_INFO("ImageService", QString(
             "buildPromptForPanel input: panelId=%1, page=%2, index=%3, scene='%4', visualPromptCn='%5', visualPromptEn='%6', characters=[%7]")
             .arg(ctx.panelId)
@@ -1713,19 +1745,7 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
             .arg(visualPromptCn.left(120))
             .arg(visualPromptEn.left(120))
             .arg(panelCharacterNames.join(", ")));
-        
-        QString novelId = fetchNovelIdByStoryboardId(ctx.panel.storyboardId());
-        LOG_DEBUG("ImageService", QString("buildPromptForPanel: resolved novelId=%1").arg(novelId));
 
-        // 获取面板生成所需的参考图数据
-        // 注意：这里获取的是所有可用的参考图，实际使用时由 PromptBuilder 智能选择
-        LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching reference data for panelId=%1").arg(ctx.panelId));
-        PanelReferenceData refData = fetchPanelReferenceData(novelId);
-        LOG_DEBUG("ImageService", QString("buildPromptForPanel: reference data loaded, characters=%1, scenes=%2, refImages=%3")
-            .arg(refData.characterRefs.size())
-            .arg(refData.sceneRefs.size())
-            .arg(refData.allAvailableRefImages.size()));
-        
         LOG_INFO("ImageService", QString("buildPromptForPanel: panelId=%1, novelId=%2, characters=%3, scenes=%4")
             .arg(ctx.panelId).arg(novelId).arg(refData.characterRefs.size()).arg(refData.sceneRefs.size()));
         

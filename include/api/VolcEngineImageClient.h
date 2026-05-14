@@ -168,6 +168,7 @@ private:
     Config m_config;
     QNetworkAccessManager* m_networkManager;
     QString m_lastError;
+    int m_lastErrorCode = 0;
     bool m_initialized;
     QMutex m_requestThrottleMutex;
     qint64 m_nextAllowedRequestAtMs = 0;
