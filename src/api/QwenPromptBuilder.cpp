@@ -184,9 +184,10 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "**5. 对话场景必须包含气泡元素和说话者位置**\n"
         "- 如果 panel 的 dialogue 数组不为空，visualPrompt 必须包含：'speech bubble with text: \"xxx\"'\n"
         "- 必须描述对话双方的位置和视线方向\n"
-        "- 示例：'young woman sitting behind counter, speech bubble: \"爷爷，您找什么书？\" said by 青柠'\n"
-        "- dialogue 数组中每条对白必须设置 speakerSide 字段：说话者在画面左侧填 'left'，右侧填 'right'，居中填 'center'\n"
-        "- 示例：{\"speaker\": \"青柠\", \"text\": \"爷爷，您找什么书？\", \"speakerSide\": \"right\"}\n\n"
+        "- 示例：'character A on the left, character B on the right, speech bubble: \"xxx\" said by A'\n"
+        "- dialogue 数组中每条对白必须设置 speakerSide 字段：根据说话者在 visualPrompt 中描述的实际画面位置填写\n"
+        "- 说话者在画面左侧填 'left'，右侧填 'right'，居中填 'center'\n"
+        "- 重要：speakerSide 必须与 visualPrompt 中该角色的位置描述严格一致，不能随意填写\n\n"
 
         "**6. 光影描述要具体可执行**\n"
         "- ❌ 禁止：'柔光'、'逆光'、'光影交错'（过于抽象）\n"

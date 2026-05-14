@@ -121,6 +121,28 @@ void dispatchBibleImageRequest(const QString& provider,
         options.prompt = prompt;
         options.negativePrompt = negativePrompt;
         options.requestId = requestId;
+
+        // 根据图像类型优化参数（基于官方文档建议）
+        if (type == BibleImageConstants::TYPE_CHARACTER) {
+            // 角色立绘：中等CFG平衡约束与自然感
+            // ⚠️ 不要设置太高（如7.5+），否则AI会过度解读"reference sheet"为真实照片并添加阴影
+            options.scale = 4.5f;              // 平衡值：既保证背景纯净，又避免过度死板
+            options.seed = -1;                 // 保持随机性
+            options.usePreLlm = false;         // 关闭文本扩写
+            options.width = 1328;              // 官方推荐1.3K分辨率
+            options.height = 1328;
+        } else if (type == BibleImageConstants::TYPE_SCENE) {
+            // 场景参考图：低CFG允许更多创意
+            options.scale = 3.0f;              // 场景图需要一定自由度
+            options.seed = -1;
+            options.usePreLlm = false;
+            options.width = 1328;
+            options.height = 1328;
+        } else {
+            // 其他类型：使用默认值
+            options.scale = 2.5f;              // 官方默认值
+        }
+
         VolcEngineImageClient::instance()->generateAsync(options);
         return;
     }
@@ -562,7 +584,10 @@ void BibleImageService::startImageGeneration(const QString& requestId, const QSt
 {
     {
         std::lock_guard<std::mutex> lock(m_stateMutex);
+        const int existingRetryCount = m_pendingRequests.contains(requestId)
+            ? m_pendingRequests[requestId].retryCount : 0;
         m_pendingRequests[requestId] = createPendingRequest(type, character, scene, prompt, negativePrompt);
+        m_pendingRequests[requestId].retryCount = existingRetryCount;
     }
 
     LOG_INFO("BibleImageService", QString(

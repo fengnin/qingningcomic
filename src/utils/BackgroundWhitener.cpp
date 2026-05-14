@@ -8,9 +8,7 @@
 #include <algorithm>
 
 namespace {
-    // Tighter tolerance: reduces bleed into light-colored clothing/hair.
-    // Background pixels are typically very close to the corner seed color.
-    constexpr int FLOOD_TOLERANCE_SQ = 18 * 18;
+    constexpr int FLOOD_TOLERANCE_SQ = 15 * 15;
 
     int colorDistanceSq(QRgb a, QRgb b)
     {
@@ -59,7 +57,6 @@ namespace {
         QVector<bool> visited(width * height, false);
         QQueue<int> queue;
 
-        // Four corners: sample median color from a small patch around each
         struct Corner { int x; int y; };
         const Corner corners[] = {
             {0,         0         },
@@ -68,18 +65,48 @@ namespace {
             {width - 1, height - 1}
         };
 
+        // 动态容差：种子若偏离白色（avg<240），背景有色偏，需要更激进地清除
+        int dynamicToleranceSq = FLOOD_TOLERANCE_SQ;
+        bool hasColorCast = false;
+
+        for (const Corner& c : corners) {
+            const QRgb testSeed = sampleCornerColor(image, c.x, c.y);
+            const int seedAvg = (qRed(testSeed) + qGreen(testSeed) + qBlue(testSeed)) / 3;
+
+            if (seedAvg < 240) {
+                hasColorCast = true;
+                qDebug() << "BackgroundWhitener: 检测到背景色偏"
+                         << "corner(" << c.x << "," << c.y << ") seedAvg=" << seedAvg;
+
+                int deviation = 240 - seedAvg;
+                int adaptiveTolerance = 15 + (deviation / 3);
+                adaptiveTolerance = qMin(adaptiveTolerance, 30);
+                dynamicToleranceSq = adaptiveTolerance * adaptiveTolerance;
+
+                qDebug() << "BackgroundWhitener: 动态调整容差:"
+                         << FLOOD_TOLERANCE_SQ << "->" << dynamicToleranceSq
+                         << "(tolerance=" << adaptiveTolerance << ")";
+                break;
+            }
+        }
+
         for (const Corner& c : corners) {
             const int idx = c.y * width + c.x;
             if (visited[idx]) continue;
 
             const QRgb seedColor = sampleCornerColor(image, c.x, c.y);
+            qDebug() << "BackgroundWhitener: corner(" << c.x << "," << c.y << ")"
+                     << "seedColor=rgb(" << qRed(seedColor) << qGreen(seedColor) << qBlue(seedColor) << ")"
+                     << "toleranceSq=" << dynamicToleranceSq << (hasColorCast ? " [ADAPTIVE]" : "");
             visited[idx] = true;
             queue.enqueue(idx);
 
+            int cornerCount = 0;
             while (!queue.isEmpty()) {
                 const int cur = queue.dequeue();
                 const int px  = cur % width;
                 const int py  = cur / width;
+                ++cornerCount;
 
                 const int nx[] = {px - 1, px + 1, px,     px    };
                 const int ny[] = {py,     py,      py - 1, py + 1};
@@ -88,12 +115,13 @@ namespace {
                     if (x < 0 || x >= width || y < 0 || y >= height) continue;
                     const int nidx = y * width + x;
                     if (visited[nidx]) continue;
-                    if (colorDistanceSq(image.pixel(x, y), seedColor) <= FLOOD_TOLERANCE_SQ) {
+                    if (colorDistanceSq(image.pixel(x, y), seedColor) <= dynamicToleranceSq) {
                         visited[nidx] = true;
                         queue.enqueue(nidx);
                     }
                 }
             }
+            qDebug() << "BackgroundWhitener: corner(" << c.x << "," << c.y << ") filled" << cornerCount << "pixels";
         }
 
         int count = 0;
@@ -117,9 +145,63 @@ QImage BackgroundWhitener::fillWhiteBackground(const QImage& image, int /*whiteT
     }
 
     QImage result = image.convertToFormat(QImage::Format_ARGB32);
-    const int count = floodFillBackground(result);
-    qDebug() << "BackgroundWhitener: Flood-fill converted" << count << "pixels to white";
+
+    const int floodCount = floodFillBackground(result);
+    qDebug() << "BackgroundWhitener: Flood-fill converted" << floodCount << "pixels to white";
+
+    validateBackgroundPurity(result);
+
     return result;
+}
+
+// 验证背景纯度，输出警告信息（不修改图像）
+void BackgroundWhitener::validateBackgroundPurity(const QImage& image)
+{
+    const int width = image.width();
+    const int height = image.height();
+
+    const int margin = qMax(width, height) * 5 / 100;
+    int sampleCount = 0;
+    int impureCount = 0;
+    int maxDeviation = 0;
+
+    for (int y = 0; y < height; ++y) {
+        const QRgb* line = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+        for (int x = 0; x < width; ++x) {
+            bool isEdge = (x < margin || x >= width - margin ||
+                          y < margin || y >= height - margin);
+            if (!isEdge) continue;
+
+            const QRgb pixel = line[x];
+            const int avg = (qRed(pixel) + qGreen(pixel) + qBlue(pixel)) / 3;
+
+            sampleCount++;
+
+            if (avg < 250) {
+                impureCount++;
+                int deviation = 250 - avg;
+                if (deviation > maxDeviation) {
+                    maxDeviation = deviation;
+                }
+            }
+        }
+    }
+
+    if (sampleCount > 0) {
+        double impurityRatio = static_cast<double>(impureCount) / sampleCount * 100.0;
+
+        if (impurityRatio > 10.0) {
+            qWarning() << "BackgroundWhitener: 背景纯度不达标，非白像素占比:"
+                      << QString::number(impurityRatio, 'f', 1) << "%"
+                      << "最大偏差:" << maxDeviation;
+        } else if (impurityRatio > 3.0) {
+            qDebug() << "BackgroundWhitener: 背景有轻微杂质:"
+                    << QString::number(impurityRatio, 'f', 1) << "%";
+        } else {
+            qDebug() << "BackgroundWhitener: 背景纯度达标:"
+                    << QString::number(impurityRatio, 'f', 2) << "%";
+        }
+    }
 }
 
 QByteArray BackgroundWhitener::fillWhiteBackgroundImageData(const QByteArray& imageData, int whiteThreshold)

@@ -8,52 +8,83 @@
 #include <QRegularExpression>
 
 namespace {
-    const QString JAPANESE_MANGA_DIRECTIVE = 
+    const QString JAPANESE_MANGA_DIRECTIVE =
         QString::fromUtf8("Japanese manga style, anime aesthetics, clean screentone line art, "
                           "high contrast, expressive faces, vibrant color palette");
 
-    const QString DEFAULT_NEGATIVE_PROMPT =
-        QString::fromUtf8("nsfw, blurry, low quality, extra limbs, deformed hands, "
-                          "text watermark, logo, cropped face, overexposed, underexposed, "
-                          "photorealistic, realistic, photo, photograph, real person, "
-                          "realistic skin texture, real human, 3d render, cgi, "
-                          "split background, half black half white, gradient background, "
-                          "dark background, black background, black backdrop, black area, black region, black border, frame, shadow on background, "
-                          "gray background, grey background, gray backdrop, grey backdrop, "
-                          "gray shadow, grey shadow, background shading, soft shadow, "
-                          "double image, split image, duplicated, distorted face, "
-                          "comic page, multi-panel layout, multi panel layout, "
-                          "triptych, diptych, contact sheet, collage, montage, "
-                          "split panel, multiple frames, three-panel, four-panel, "
-                          "duplicate person, extra person not in description, "
-                          "multiple instances of same character, clone of character, "
-                          "two women when only one described, two men when only one described");
+    // ============================================================
+    // Negative Prompt 工厂：统一管理所有类型的否定词，消除重复
+    // ============================================================
+    namespace NegativePromptFactory {
 
-    const QString NEGATIVE_MONO_PREFIX = QStringLiteral(", monochrome, grayscale, black and white, ");
+        // 所有类型共用的基础否定词（只定义一次）
+        inline QString sharedBase() {
+            return QString::fromUtf8(
+                "nsfw, blurry, low quality, extra limbs, deformed hands, "
+                "text watermark, logo, cropped face, overexposed, underexposed"
+            );
+        }
 
-    const QString CHARACTER_NEGATIVE_EXTRA =
-        NEGATIVE_MONO_PREFIX +
-        "dark side, black background, black area, black region, colored background, "
-        "multiple people, two people, group photo, extra person, clone, "
-        "multiple faces, extra faces, duplicate face, "
-        "background face, face in background, "
-        "background character, another person, other person, secondary person, "
-        "background figure, small figure, tiny person, miniature, "
-        "composite image, collage, double exposure, split composition, "
-        "multiple views, dual perspective, overlay, superimposed";
+        // 通用风格禁止（防止AI生成错误的艺术风格）
+        inline QString styleRestrictions() {
+            return QStringLiteral(
+                "photorealistic, realistic, photo, photograph, real person, "
+                "realistic skin texture, real human, 3d render, cgi"
+            );
+        }
 
-    const QString SCENE_NEGATIVE_EXTRA =
-        NEGATIVE_MONO_PREFIX +
-        "person, people, human, character, figure, face, body, silhouette, "
-        "portrait, anime character, manga character, girl, boy, man, woman, "
-        "standing figure, sitting figure, walking figure, "
-        "人物, 人, 角色, 女孩, 男孩, 女性, 男性, 人影, 站立的人, 坐着的人";
+        // 背景纯净性要求（角色立绘+面板共用）
+        inline QString cleanBackground() {
+            return QStringLiteral(
+                "dark background, black background, black backdrop, "
+                "split background, half black half white, gradient background, "
+                "gray background, grey background, gray backdrop, grey backdrop, "
+                "gray shadow, grey shadow, background shading, soft shadow, "
+                "shadow on background, texture on background, pattern on background, "
+                "black border, frame"
+            );
+        }
 
-    const QString PANEL_NEGATIVE_EXTRA =
-        NEGATIVE_MONO_PREFIX +
-        "comic page, multi-panel layout, multi panel layout, "
-        "triptych, diptych, contact sheet, collage, montage, "
-        "split panel, multiple frames, three-panel, four-panel";
+        // 角色立绘专用：白底、无阴影、无背景干扰
+        inline QString forCharacter() {
+            return QStringLiteral(", monochrome, grayscale, black and white, ") +
+                sharedBase() + ", " +
+                styleRestrictions() + ", " +
+                cleanBackground() + ", " +
+                QStringLiteral(
+                    "silhouette, drop shadow, cast shadow, ambient occlusion, "
+                    "face in background, multiple people, extra person, duplicate person, "
+                    "background character, background figure"
+                );
+        }
+
+        // 场景图专用：无人物（纯环境参考图）
+        inline QString forScene() {
+            return QStringLiteral(", monochrome, grayscale, black and white, ") +
+                sharedBase() + ", " +
+                QStringLiteral(
+                    "person, people, human, character, figure, face, body, silhouette, "
+                    "portrait, anime character, manga character, girl, boy, man, woman, "
+                    "standing figure, sitting figure, walking figure, "
+                    "人物, 人, 角色, 女孩, 男孩, 女性, 男性, 人影"
+                );
+        }
+
+        // 面板专用：无多格布局、无色块分割
+        inline QString forPanel() {
+            return QStringLiteral(", monochrome, grayscale, black and white, ") +
+                sharedBase() + ", " +
+                styleRestrictions() + ", " +
+                cleanBackground() + ", " +
+                QStringLiteral(
+                    "double image, split image, duplicated, distorted face, "
+                    "duplicate person, extra person not in description, "
+                    "multiple instances of same character, clone of character, "
+                    "two women when only one described, two men when only one described, "
+                    "comic page, multi-panel layout, split frame, shadow on background"
+                );
+        }
+    }
 
     constexpr int MAX_PROMPT_LENGTH = 1200;
     
@@ -469,13 +500,13 @@ namespace {
 
         if (speakerSide == QStringLiteral("left")) {
             return QString("a speech bubble with \"%1\" written inside it, "
-                           "positioned above-left, tail pointing toward the %2 on the left")
-                   .arg(text, person);
+                           "positioned above-left, tail pointing toward the character on the left")
+                   .arg(text);
         }
         if (speakerSide == QStringLiteral("right")) {
             return QString("a speech bubble with \"%1\" written inside it, "
-                           "positioned above-right, tail pointing toward the %2 on the right")
-                   .arg(text, person);
+                           "positioned above-right, tail pointing toward the character on the right")
+                   .arg(text);
         }
         return QString("a speech bubble with \"%1\" written inside it, "
                        "tail pointing toward the %2")
@@ -696,6 +727,9 @@ namespace {
         const QString hair = mergeHairCn(appearance);
         if (!hair.isEmpty()) parts << hair;
 
+        const QString eyeColor = appearance["eyeColor"].toString().trimmed();
+        if (!eyeColor.isEmpty()) parts << eyeColor + "眼";
+
         if (!skipClothing) {
             const QStringList clothing = parseClothingList(appearance["clothing"]);
             if (!clothing.isEmpty()) parts << mergeClothingForSingleEntity(clothing);
@@ -723,14 +757,29 @@ namespace {
             const QString note = buildCharAppearanceNote(charName, characterRefs, skipClothing);
             if (note.isEmpty()) continue;
 
-            // 找第一次出现且后面未已注入【的位置
-            const int pos = result.indexOf(charName);
-            if (pos < 0) continue;
-            const int after = pos + charName.length();
-            if (after < result.length() && result.at(after) == QChar(0x3010)) continue; // 已有【
-
-            result.replace(pos, charName.length(), charName + note);
-            LOG_INFO("PromptBuilder", QString("  注入外观: %1%2").arg(charName, note));
+            // 替换所有出现的角色名，每次都注入外观括注
+            // 防止模型把角色名误解为同音词（如"青柠"→水果）
+            bool injected = false;
+            int searchFrom = 0;
+            while (true) {
+                const int pos = result.indexOf(charName, searchFrom);
+                if (pos < 0) break;
+                const int after = pos + charName.length();
+                if (after < result.length() && result.at(after) == QChar(0x3010)) {
+                    // 已有【，跳过
+                    searchFrom = after + 1;
+                    continue;
+                }
+                if (!injected) {
+                    result.replace(pos, charName.length(), charName + note);
+                    searchFrom = pos + charName.length() + note.length();
+                    injected = true;
+                    LOG_INFO("PromptBuilder", QString("  注入外观: %1%2").arg(charName, note));
+                } else {
+                    // 后续出现只保留名字，不重复外观——同一 prompt 内模型已建立关联
+                    searchFrom = pos + charName.length();
+                }
+            }
         }
         return result;
     }
@@ -743,7 +792,10 @@ namespace {
 
     QStringList buildOptimizedImg2ImgParts(const QJsonObject& panel,
                                            const PromptBuilder::PanelCharacterPromptData& characterData,
-                                           const QMap<QString, QJsonObject>& characterRefs)
+                                           const QMap<QString, QJsonObject>& characterRefs,
+                                           const QMap<QString, QJsonObject>& sceneRefs,
+                                           const QString& sceneId,
+                                           const QString& sceneName)
     {
         QStringList parts;
         static const int TOTAL_BUDGET = 400;
@@ -753,34 +805,96 @@ namespace {
         const QString editIntent = panel.value("editIntent").toString().trimmed();
         const bool skipClothing = shouldSkipClothing(editIntent);
 
-        // Layer 0: 用途声明 — 告知模型这是漫画面板，帮助理解[气泡]标记
-        parts << "[PURPOSE], manga panel, for readers";
-
-        // Layer 1: 场景/编辑指令+外观融合
-        // 编辑模式(editIntent非空)时，visualPrompt已被ChangeRequestService替换为编辑指令
-        // 批量生成时editIntent为空，走原始visualPromptCn/sceneText逻辑，两条链路互不影响
-        QString baseScene;
+        // 编辑模式 vs 批量生成: 两种完全不同的 prompt 策略
+        //
+        // [批量生成] 从零画新图 → 需要完整描述（用途+场景+外观+气泡）
+        // [局部编辑] 在已有图上改 → 原图已包含所有上下文，只需编辑指令(+可选气泡)
         if (!editIntent.isEmpty()) {
-            baseScene = panel["visualPrompt"].toString().trimmed();
-            if (!baseScene.isEmpty()) {
-                baseScene = buildEditDirective(baseScene, "scene", editIntent);
+            // 编辑模式: 直接使用原始编辑指令，不做 buildEditDirective 包装
+            // 原因: ① 包装前缀(~100字)比原始指令还长，全是废话(构图/光照原图里都有)
+            //       ② 原图通过参考图传入，AI 已知道画面全貌，只需说改什么
+            //       ③ 越短的 prompt 在局部编辑中效果越好，减少干扰
+            
+            const QString editPrompt = panel["visualPrompt"].toString().trimmed();
+            if (!editPrompt.isEmpty()) {
+                parts << editPrompt;
+            }
+            
+            // 编辑模式下的气泡：仅当对话内容与编辑相关时才保留
+            // 大多数局部编辑不涉及对话修改，加气泡反而浪费预算
+            const QJsonArray dialogue = panel["dialogue"].toArray();
+            if (!dialogue.isEmpty() && editIntent.contains(QStringLiteral("set_expression"))) {
+                const QString bubble = formatDialogueForPrompt(dialogue, characterRefs);
+                if (!bubble.isEmpty()) {
+                    parts << bubble;
+                }
             }
         } else {
+            // 批量生成模式: 完整的三层结构
+            
+            // Layer 0: 用途声明 — 告知模型这是漫画面板，帮助理解[气泡]标记
+            parts << "[PURPOSE], manga panel, for readers";
+
+            // Layer 1: 场景圣经环境 + visualPromptCn 动作描述 + 角色外观注入
+            QString baseScene;
             const QString visualPromptCn = panel["visualPromptCn"].toString().trimmed();
             const QString sceneText = panel["scene"].toString().trimmed();
             baseScene = !visualPromptCn.isEmpty() ? visualPromptCn : sceneText;
-        }
 
-        if (!baseScene.isEmpty()) {
-            const QString injected = injectBibleIntoScene(baseScene, characterData, characterRefs, skipClothing);
-            parts << truncateSmart(injected, TOTAL_BUDGET - 50);
-        }
+            // 场景圣经：building + atmosphere + anchorPoints + consistencyRules 前置拼入
+            // 和角色外观注入方式一致——都融入同一段文本
+            const QString sceneDesc = [&]() -> QString {
+                LOG_DEBUG("PromptBuilder", QString("  场景圣经查找: sceneId='%1', sceneName='%2', sceneRefs.keys=%3")
+                    .arg(sceneId, sceneName, QStringList(sceneRefs.keys()).join(",")));
+                QJsonObject matched;
+                if (!sceneId.isEmpty() && sceneRefs.contains(sceneId)) {
+                    matched = sceneRefs.value(sceneId)["details"].toObject();
+                } else if (!sceneName.isEmpty() && sceneRefs.contains(sceneName)) {
+                    matched = sceneRefs.value(sceneName)["details"].toObject();
+                } else {
+                    // 精确匹配失败，尝试模糊匹配：找包含关系的 key
+                    for (const QString& key : sceneRefs.keys()) {
+                        if (key.contains(sceneName) || sceneName.contains(key)) {
+                            matched = sceneRefs.value(key)["details"].toObject();
+                            break;
+                        }
+                    }
+                }
+                if (matched.isEmpty()) return QString();
+                QStringList p;
+                const QString building = matched["building"].toString().trimmed();
+                const QString atmosphere = matched["atmosphere"].toString().trimmed();
+                if (!building.isEmpty()) p << building;
+                if (!atmosphere.isEmpty()) p << atmosphere;
+                const QJsonArray anchors = matched["anchorPoints"].toArray();
+                for (const auto& a : anchors) {
+                    const QString s = a.toString().trimmed();
+                    if (!s.isEmpty()) p << s;
+                }
+                const QJsonArray rules = matched["consistencyRules"].toArray();
+                for (const auto& r : rules) {
+                    const QString s = r.toString().trimmed();
+                    if (!s.isEmpty()) p << s;
+                }
+                return p.join("，");
+            }();
+            if (!sceneDesc.isEmpty() && !baseScene.isEmpty()) {
+                const QString scenePrefix = truncateSmart(sceneDesc, 60);
+                baseScene = scenePrefix + "，" + baseScene;
+                LOG_INFO("PromptBuilder", QString("  注入场景圣经: %1").arg(scenePrefix));
+            }
 
-        // Layer 2: 对话气泡
-        const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray(),
-                                                             characterRefs);
-        if (!dialogueStr.isEmpty()) {
-            parts << dialogueStr;
+            if (!baseScene.isEmpty()) {
+                const QString injected = injectBibleIntoScene(baseScene, characterData, characterRefs, skipClothing);
+                parts << truncateSmart(injected, TOTAL_BUDGET - 50);
+            }
+
+            // Layer 2: 对话气泡
+            const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray(),
+                                                                 characterRefs);
+            if (!dialogueStr.isEmpty()) {
+                parts << dialogueStr;
+            }
         }
 
         const QString joined = parts.join("，");
@@ -997,8 +1111,10 @@ namespace {
 
     void appendCharacterFramingParts(QStringList& parts)
     {
+        // ✅ 职责分离：全部使用正面描述（无否定词）
+        // 原来使用 "avoid xxx"，现在改为正向引导
         parts << "full body shot, head-to-toe character framing, allow slight crop at edges if needed";
-        parts << "character fills most of the frame, subject is large and prominent, avoid tiny figure, avoid excessive empty space, keep full body visible";
+        parts << "character fills most of the frame, subject is large and prominent, compact composition with minimal empty space, keep full body visible";
     }
 
     void appendCharacterBackgroundParts(QStringList& parts)
@@ -1475,7 +1591,7 @@ PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObjec
     appendCharacterBackgroundParts(parts);
     
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
-    return { prompt, DEFAULT_NEGATIVE_PROMPT + CHARACTER_NEGATIVE_EXTRA, {} };
+    return { prompt, NegativePromptFactory::forCharacter(), {} };
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &panel,
@@ -1533,7 +1649,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
 
     if (isImg2Img) {
         // 图生图使用五层优化架构（≤280字符，充分利用数据库字段）
-        parts = buildOptimizedImg2ImgParts(panel, characterData, characterRefs);
+        parts = buildOptimizedImg2ImgParts(panel, characterData, characterRefs, sceneRefs, sceneId, sceneName);
     } else {
         // 文生图使用完整模式（≤300汉字）
         
@@ -1592,7 +1708,7 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     const int maxLen = isImg2Img ? 350 : 380;
     QString prompt = truncatePrompt(parts, maxLen);
     return { prompt,
-             DEFAULT_NEGATIVE_PROMPT + PANEL_NEGATIVE_EXTRA,
+             NegativePromptFactory::forPanel(),
              buildPanelReferenceUris(selectedRefType,
                                      selectedRef,
                                      characterData.primaryCharacterRef,
@@ -1627,5 +1743,5 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     parts << "high detail, volumetric lighting, cinematic environment, vibrant colors, full color";
     
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
-    return { prompt, DEFAULT_NEGATIVE_PROMPT + SCENE_NEGATIVE_EXTRA, {} };
+    return { prompt, NegativePromptFactory::forScene(), {} };
 }

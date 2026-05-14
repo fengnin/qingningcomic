@@ -1340,6 +1340,8 @@ QJsonObject ChangeRequestService::executeSetExpressionOperation(
     QJsonObject content = buildPanelContentForWrite(panel);
     const QString prompt = buildExpressionEditPrompt(panel, finalExpression);
     content["visualPrompt"] = prompt;
+    // 表情编辑也是局部编辑，必须设置 editIntent 让 PromptBuilder 走精简模式
+    content["editIntent"] = QStringLiteral("set_expression");
     panel.setVisualPrompt(prompt);
     panel.setContent(content);
     if (!updatePanel(panel)) {
@@ -1438,7 +1440,7 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
             }
         }
 
-        if (!updatePanelDialogue(dsl.targetId, dialogues)) {
+        if (!updatePanelDialogue(dsl.targetId, dialogues, newText)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
 
@@ -1743,7 +1745,8 @@ bool ChangeRequestService::updatePanel(const Panel& panel)
 
 bool ChangeRequestService::updatePanelDialogue(
     const QString& panelId,
-    const QList<DialogueLine>& dialogue)
+    const QList<DialogueLine>& dialogue,
+    const QString& newText)
 {
     Panel panel = loadPanelById(panelId);
     if (!panel.isValid()) {
@@ -1762,6 +1765,17 @@ bool ChangeRequestService::updatePanelDialogue(
 
     QJsonObject content = buildPanelContentForWrite(panel);
     content["dialogue"] = dialogueArray;
+    // 对话修改也是编辑操作，需要设置 editIntent 让 PromptBuilder 走编辑精简模式
+    // 否则会走批量生成分支导致整张图重绘而非局部编辑
+    // 替换 visualPrompt 为对话编辑指令，让 AI 只改气泡文字不改场景
+    // newText 为空时（如删除对话）不设置 editIntent，走批量生成重绘整图
+    if (!newText.isEmpty()) {
+        content["editIntent"] = QStringLiteral("rewrite_dialogue");
+        content["visualPrompt"] = QString(
+            "edit the speech bubble text to: %1, keep everything else in the image unchanged, "
+            "do not change characters, background, composition or any other elements")
+            .arg(newText);
+    }
 
     QVariantMap updates;
     updates["content"] = jsonToString(content);

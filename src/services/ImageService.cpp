@@ -1730,7 +1730,9 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
             .arg(ctx.panelId).arg(novelId).arg(refData.characterRefs.size()).arg(refData.sceneRefs.size()));
         
         // 有参考图时直接启用图生图模式，避免后续二次构建 prompt
-        if (!refData.allAvailableRefImages.isEmpty() && !ctx.allowReferenceEdit) {
+        // 但如果已有面板原图（编辑操作），不覆盖——编辑链路用原图，不用圣经参考图
+        if (!refData.allAvailableRefImages.isEmpty() && !ctx.allowReferenceEdit
+            && ctx.sourceImagePath.isEmpty()) {
             ctx.allowReferenceEdit = true;
             LOG_INFO("ImageService", QString("Enabling img2img mode due to character/scene reference images: %1")
                 .arg(refData.allAvailableRefImages.first()));
