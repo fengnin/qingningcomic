@@ -13,6 +13,7 @@ public:
         QString text;
         QString negativePrompt;
         QStringList referenceImages;
+        QMap<QString, QString> referenceImageTypes;
     };
 
     static PromptResult buildCharacterPrompt(const QJsonObject &character, 

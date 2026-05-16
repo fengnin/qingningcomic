@@ -9,6 +9,7 @@
 #include "utils/LocalEditPromptUtils.h"
 #include "utils/PromptTargetUtils.h"
 #include "utils/LogSummaryUtils.h"
+#include "utils/SceneKeyUtils.h"
 #include "utils/FileManager.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
@@ -104,11 +105,13 @@ QString determineRefType(const QString& refPath)
     return QStringLiteral("AUTO");
 }
 
-QStringList determineRefTypes(const QStringList& refPaths)
+QStringList determineRefTypes(const QStringList& refPaths,
+                              const QMap<QString, QString>& semanticTypes = {})
 {
     QStringList types;
     for (const QString& path : refPaths) {
-        types.append(determineRefType(path));
+        const QString semantic = semanticTypes.value(path);
+        types.append(!semantic.isEmpty() ? semantic : determineRefType(path));
     }
     return types;
 }
@@ -1391,7 +1394,7 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
             }
         }
         
-        options.refTypeList = determineRefTypes(ctx.referenceImages);
+        options.refTypeList = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
         
         LOG_INFO("ImageService", QString(
             "VolcEngine 请求准备完成: panelId=%1, provider=%2, 最终参考图数量=%3/%4, promptLen=%5, negativeLen=%6")
@@ -1775,6 +1778,7 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         ctx.prompt = result.text;
         ctx.negativePrompt = result.negativePrompt;
         ctx.referenceImages = result.referenceImages;
+        ctx.referenceImageTypes = result.referenceImageTypes;
         if (!result.referenceImages.isEmpty()) {
             ctx.primaryReferenceImagePath = result.referenceImages.first();
         }
@@ -2014,8 +2018,24 @@ QMap<QString, QJsonObject> ImageService::fetchSceneRefs(const QString& novelId, 
     QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(novelId);
     for (const Scene& scene : scenes) {
         QJsonObject sceneJson = buildSceneRef(scene, outReferenceImages);
-        sceneRefs[scene.name()] = sceneJson;
-        sceneRefs[scene.sceneId()] = sceneJson;
+        // 多形态索引：id(UUID) / sceneId(稳定key) / name(展示名) / 规范化name / 别名
+        // 配合查询侧（PromptBuilder）的规范化匹配，让"拾光书店内景/门口/柜台"等子位置
+        // 都能命中同一个"拾光书店"圣经条目
+        auto registerKey = [&sceneRefs, &sceneJson](const QString& key) {
+            const QString trimmed = key.trimmed();
+            if (trimmed.isEmpty() || sceneRefs.contains(trimmed)) {
+                return;
+            }
+            sceneRefs[trimmed] = sceneJson;
+        };
+        registerKey(scene.id());
+        registerKey(scene.sceneId());
+        registerKey(scene.name());
+        registerKey(SceneKeyUtils::normalizeSceneLabel(scene.name()));
+        const QStringList aliasKeys = SceneKeyUtils::buildSceneAliasKeys(scene.name(), scene.details());
+        for (const QString& key : aliasKeys) {
+            registerKey(key);
+        }
     }
     
     QStringList sceneNames = sceneRefs.keys();

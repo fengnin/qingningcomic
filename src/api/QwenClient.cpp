@@ -1121,10 +1121,59 @@ QJsonObject QwenClient::normalizePanel(const QJsonObject& panel, int index,
     normalized["visualPrompt"] = getStringFieldAny(panel, {"visualPrompt", "visual_prompt", "imagePrompt", "image_prompt"});
     normalized["visualPromptEn"] = getStringFieldAny(panel, {"visualPromptEn", "visual_prompt_en", "imagePromptEn", "image_prompt_en"});
     normalized["visualPromptCn"] = getStringFieldAny(panel, {"visualPromptCn", "visual_prompt_cn"});
-    
+
+    reconcileSpeakerSideFromFramePosition(normalized);
+
     extractSceneInfo(normalized, extractedScenes, sceneCounter, existingSceneLookup);
-    
+
     return normalized;
+}
+
+void QwenClient::reconcileSpeakerSideFromFramePosition(QJsonObject& panel)
+{
+    const QJsonArray dialogue = panel.value("dialogue").toArray();
+    if (dialogue.isEmpty()) {
+        return;
+    }
+
+    QMap<QString, QString> nameToFrameSide;
+    for (const QJsonValue& charVal : panel.value("characters").toArray()) {
+        const QJsonObject charObj = charVal.toObject();
+        const QString name = charObj.value("name").toString().trimmed();
+        const QString frameSide = charObj.value("framePosition").toString().trimmed().toLower();
+        if (name.isEmpty() || frameSide.isEmpty()) {
+            continue;
+        }
+        if (frameSide == QStringLiteral("left")
+            || frameSide == QStringLiteral("right")
+            || frameSide == QStringLiteral("center")) {
+            nameToFrameSide[name] = frameSide;
+        }
+    }
+
+    if (nameToFrameSide.isEmpty()) {
+        return;
+    }
+
+    QJsonArray updated;
+    bool anyChanged = false;
+    for (const QJsonValue& lineVal : dialogue) {
+        QJsonObject line = lineVal.toObject();
+        const QString speaker = line.value("speaker").toString().trimmed();
+        if (nameToFrameSide.contains(speaker)) {
+            const QString frameSide = nameToFrameSide.value(speaker);
+            const QString originalSide = line.value("speakerSide").toString().trimmed().toLower();
+            if (originalSide != frameSide) {
+                line["speakerSide"] = frameSide;
+                anyChanged = true;
+            }
+        }
+        updated.append(line);
+    }
+
+    if (anyChanged) {
+        panel["dialogue"] = updated;
+    }
 }
 
 void QwenClient::extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter, const QMap<QString, QString>& existingSceneLookup)
@@ -1140,19 +1189,31 @@ void QwenClient::extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>
         return;
     }
 
-    if (sceneId.isEmpty() && !sceneName.isEmpty()) {
-        const QStringList candidates = {
-            sceneName,
-            normalizeSceneLabel(sceneName),
-            sceneText.trimmed(),
-            normalizeSceneLabel(sceneText),
-            stableSceneId
+    // sceneId 非空但 lookup 找不到：可能是 LLM 编的 slug（如 shiguang_bookstore_interior）
+    // 或细化的子位置 id。把它也喂进反查 candidates，命中则替换、不命中则丢弃以走 stableSceneId 兜底。
+    {
+        QStringList candidates;
+        auto addCandidateForms = [&candidates](const QString& value) {
+            const QString trimmed = value.trimmed();
+            if (trimmed.isEmpty()) return;
+            candidates << trimmed
+                       << normalizeSceneLabel(trimmed)
+                       << SceneKeyUtils::buildSceneCoreKey(trimmed);
         };
+        addCandidateForms(sceneId);
+        addCandidateForms(sceneName);
+        addCandidateForms(sceneText);
+        if (!stableSceneId.isEmpty()) {
+            candidates << stableSceneId;
+        }
         const QString matchedId = SceneKeyUtils::resolveSceneLookupId(existingSceneLookup, candidates);
         if (!matchedId.isEmpty()) {
             background["sceneId"] = matchedId;
             panel["background"] = background;
             return;
+        }
+        if (!sceneId.isEmpty()) {
+            sceneId.clear();
         }
     }
 

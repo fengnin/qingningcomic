@@ -171,6 +171,7 @@ private:
         QByteArray editMaskData;
         QString s3Key;
         QStringList referenceImages;
+        QMap<QString, QString> referenceImageTypes;
         QString primaryReferenceImagePath;
         QByteArray refImageData;
         int refImageWidth = 0;

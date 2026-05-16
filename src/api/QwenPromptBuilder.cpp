@@ -53,7 +53,8 @@ QJsonObject getStoryboardExample()
                         "name": "李明",
                         "pose": "缓慢行走，微微低头",
                         "expression": "平静",
-                        "position": "中景"
+                        "position": "中景",
+                        "framePosition": "center"
                     }
                 ],
                 "dialogue": [],
@@ -185,9 +186,11 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "- 如果 panel 的 dialogue 数组不为空，visualPrompt 必须包含：'speech bubble with text: \"xxx\"'\n"
         "- 必须描述对话双方的位置和视线方向\n"
         "- 示例：'character A on the left, character B on the right, speech bubble: \"xxx\" said by A'\n"
-        "- dialogue 数组中每条对白必须设置 speakerSide 字段：根据说话者在 visualPrompt 中描述的实际画面位置填写\n"
-        "- 说话者在画面左侧填 'left'，右侧填 'right'，居中填 'center'\n"
-        "- 重要：speakerSide 必须与 visualPrompt 中该角色的位置描述严格一致，不能随意填写\n\n"
+        "- characters 数组中每个角色必须设置 framePosition 字段，标记其在【读者所看到的画面】中的水平位置\n"
+        "- 取值仅限：'left'（画面左半边）/ 'right'（画面右半边）/ 'center'（画面中央或仅一人时）\n"
+        "- framePosition 是【读者视角】，不是角色自身视角；与角色望向哪边无关，只看角色身体出现在画面哪边\n"
+        "- dialogue 数组中每条对白的 speakerSide 必须等于该 speaker 在 characters 里的 framePosition\n"
+        "- 示例：青柠 framePosition='right'、陈伯 framePosition='left'，青柠说话则 speakerSide='right'\n\n"
 
         "**6. 光影描述要具体可执行**\n"
         "- ❌ 禁止：'柔光'、'逆光'、'光影交错'（过于抽象）\n"

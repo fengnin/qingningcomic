@@ -2961,7 +2961,7 @@ void NovelDetailPage::onBibleItemUploadClicked(const QString &id, const QString 
         saveSceneBibleImage(m_currentNovel.id(), id, relativePath);
     }
 
-    requestBibleRefresh();
+    refreshBibleSection();
 }
 
 void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType type)
@@ -2969,14 +2969,14 @@ void NovelDetailPage::onBibleItemDeleteImageClicked(const QString &id, BibleType
     if (!DeleteConfirmDialog::showConfirm(this, tr("确认删除图片？"), tr("您即将删除此图片，此操作不可恢复。"))) {
         return;
     }
-    
+
     if (type == BibleType::Character) {
         deleteCharacterBibleImage(id);
     } else {
         deleteSceneBibleImage(m_currentNovel.id(), id);
     }
 
-    requestBibleRefresh();
+    refreshBibleSection();
 }
 
 void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType type)

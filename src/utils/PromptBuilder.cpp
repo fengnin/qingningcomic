@@ -6,6 +6,7 @@
 #include "utils/PromptTargetUtils.h"
 #include "utils/SceneKeyUtils.h"
 #include <QRegularExpression>
+#include <QSet>
 
 namespace {
     const QString JAPANESE_MANGA_DIRECTIVE =
@@ -87,7 +88,29 @@ namespace {
     }
 
     constexpr int MAX_PROMPT_LENGTH = 1200;
-    
+
+    // 火山引擎 prompt 字数估算：中文字 1 单元，连续英文字母/数字 1 单元，
+    // 标点、空格、其他符号不计。比纯字符数更贴近模型的实际 token 消耗。
+    int countPromptUnits(const QString& text)
+    {
+        int units = 0;
+        bool inWord = false;
+        for (const QChar& c : text) {
+            if (c.isLetterOrNumber()) {
+                if (c.unicode() >= 0x4E00 && c.unicode() <= 0x9FFF) {
+                    units++;
+                    inWord = false;
+                } else if (!inWord) {
+                    units++;
+                    inWord = true;
+                }
+            } else {
+                inWord = false;
+            }
+        }
+        return units;
+    }
+
     inline QString truncateText(const QString& text, int maxLen)
     {
         if (text.length() <= maxLen) return text;
@@ -400,38 +423,49 @@ namespace {
     }
 
     QStringList buildPanelReferenceUris(const QString& selectedRefType,
-                                        const QString& selectedRef,
                                         const QString& primaryCharacterRef,
                                         const QString& primarySceneRef,
-                                        const QStringList& allCharacterRefs)
+                                        const QStringList& allCharacterRefs,
+                                        QMap<QString, QString>& outRefTypes)
     {
-        Q_UNUSED(selectedRef);
         QStringList refUris;
         QStringList orderedRefs;
-        
+
         if (selectedRefType == QStringLiteral("scene")) {
             orderedRefs << primarySceneRef << allCharacterRefs;
-        } else if (selectedRefType == QStringLiteral("character")) {
-            orderedRefs << allCharacterRefs << primarySceneRef;
         } else {
             orderedRefs << primarySceneRef << allCharacterRefs;
         }
-        
+
+        Q_UNUSED(selectedRefType)
+
         LOG_INFO("PromptBuilder", QString("构建参考图列表: selectedRefType=%1, primaryCharacterRef=%2, primarySceneRef=%3, allCharacterRefs=%4")
             .arg(selectedRefType.isEmpty() ? "(无)" : selectedRefType)
             .arg(primaryCharacterRef.isEmpty() ? "(无)" : primaryCharacterRef)
             .arg(primarySceneRef.isEmpty() ? "(无)" : primarySceneRef)
             .arg(allCharacterRefs.size()));
-        
-        int refIndex = 0;
-        for (const QString& ref : orderedRefs) {
-            if (!ref.isEmpty() && !refUris.contains(ref)) {
-                refUris.append(ref);
-                refIndex++;
-                LOG_INFO("PromptBuilder", QString("  参考图[%1]: %2").arg(refIndex).arg(ref));
+
+        QSet<QString> characterSet;
+        for (const QString& ref : allCharacterRefs) {
+            if (!ref.isEmpty()) {
+                characterSet.insert(ref);
             }
         }
-        
+
+        for (const QString& ref : orderedRefs) {
+            if (ref.isEmpty() || refUris.contains(ref)) {
+                continue;
+            }
+            refUris.append(ref);
+            LOG_INFO("PromptBuilder", QString("  参考图[%1]: %2").arg(refUris.size()).arg(ref));
+
+            if (ref == primarySceneRef) {
+                outRefTypes.insert(ref, QStringLiteral("STYLE"));
+            } else if (characterSet.contains(ref)) {
+                outRefTypes.insert(ref, QStringLiteral("IP"));
+            }
+        }
+
         LOG_INFO("PromptBuilder", QString("最终参考图数量: %1").arg(refUris.size()));
         return refUris;
     }
@@ -470,47 +504,23 @@ namespace {
                              const QString& speakerSide,
                              const QMap<QString, QJsonObject>& characterRefs)
     {
-        QString matchedName = speaker;
-        if (!characterRefs.contains(speaker)) {
-            const QString normalized = normalizeCharacterNameForRefs(speaker);
-            if (characterRefs.contains(normalized))
-                matchedName = normalized;
-        }
+        Q_UNUSED(characterRefs)
 
-        QString ageDesc;
-        QString genderDesc;
-        if (characterRefs.contains(matchedName)) {
-            const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
-            const int age = appearance["age"].toInt(-1);
-            const QString gender = appearance["gender"].toString().trimmed();
-
-            if (age >= 55)       ageDesc = "elderly";
-            else if (age >= 40)  ageDesc = "middle-aged";
-            else if (age >= 0)   ageDesc = "young";
-
-            if (gender == QStringLiteral("女") || gender.toLower() == "female")
-                genderDesc = "woman";
-            else if (gender == QStringLiteral("男") || gender.toLower() == "male")
-                genderDesc = "man";
-        }
-
-        const QString person = (!ageDesc.isEmpty() && !genderDesc.isEmpty())
-            ? QString("%1 %2").arg(ageDesc, genderDesc)
-            : (!genderDesc.isEmpty() ? genderDesc : "person");
-
+        QString sideHint;
         if (speakerSide == QStringLiteral("left")) {
-            return QString("a speech bubble with \"%1\" written inside it, "
-                           "positioned above-left, tail pointing toward the character on the left")
-                   .arg(text);
+            sideHint = QStringLiteral("on the left");
+        } else if (speakerSide == QStringLiteral("right")) {
+            sideHint = QStringLiteral("on the right");
         }
-        if (speakerSide == QStringLiteral("right")) {
+
+        if (!sideHint.isEmpty()) {
             return QString("a speech bubble with \"%1\" written inside it, "
-                           "positioned above-right, tail pointing toward the character on the right")
-                   .arg(text);
+                           "tail pointing toward %2 %3")
+                   .arg(text, speaker, sideHint);
         }
         return QString("a speech bubble with \"%1\" written inside it, "
-                       "tail pointing toward the %2")
-               .arg(text, person);
+                       "tail pointing toward %2")
+               .arg(text, speaker);
     }
 
     QString formatDialogueForPrompt(const QJsonArray& dialogue,
@@ -739,6 +749,63 @@ namespace {
         return QString(QStringLiteral("【%1】")).arg(parts.join(QStringLiteral("、")));
     }
 
+    // 多级回退查找场景圣经条目，配合 fetchSceneRefs 的多形态索引，
+    // 把 LLM 给的子位置（"拾光书店门口"）归并回主条目（"拾光书店"）
+    QJsonObject findSceneBibleDetails(const QMap<QString, QJsonObject>& sceneRefs,
+                                       const QString& sceneId,
+                                       const QString& sceneName,
+                                       QString& outMatchedKey)
+    {
+        outMatchedKey.clear();
+        const QStringList lookupCandidates = {
+            sceneId,
+            sceneName,
+            SceneKeyUtils::normalizeSceneLabel(sceneId),
+            SceneKeyUtils::normalizeSceneLabel(sceneName),
+            SceneKeyUtils::buildSceneCoreKey(sceneId),
+            SceneKeyUtils::buildSceneCoreKey(sceneName)
+        };
+        for (const QString& candidate : lookupCandidates) {
+            const QString trimmed = candidate.trimmed();
+            if (trimmed.isEmpty()) continue;
+            if (sceneRefs.contains(trimmed)) {
+                outMatchedKey = trimmed;
+                return sceneRefs.value(trimmed)["details"].toObject();
+            }
+        }
+
+        // 兜底：双向 contains（处理"拾光书店"⊂"拾光书店内景"或反之的边角）
+        const QString needle = SceneKeyUtils::normalizeSceneLabel(sceneName).trimmed();
+        if (!needle.isEmpty()) {
+            for (auto it = sceneRefs.constBegin(); it != sceneRefs.constEnd(); ++it) {
+                const QString& key = it.key();
+                if (key.contains(needle) || needle.contains(key)) {
+                    outMatchedKey = key;
+                    return it.value()["details"].toObject();
+                }
+            }
+        }
+        return QJsonObject();
+    }
+
+    QString formatSceneBibleInjection(const QJsonObject& details)
+    {
+        QStringList parts;
+        const QString building = details["building"].toString().trimmed();
+        const QString atmosphere = details["atmosphere"].toString().trimmed();
+        if (!building.isEmpty()) parts << building;
+        if (!atmosphere.isEmpty()) parts << atmosphere;
+        for (const auto& a : details["anchorPoints"].toArray()) {
+            const QString s = a.toString().trimmed();
+            if (!s.isEmpty()) parts << s;
+        }
+        for (const auto& r : details["consistencyRules"].toArray()) {
+            const QString s = r.toString().trimmed();
+            if (!s.isEmpty()) parts << s;
+        }
+        return parts.join(QStringLiteral("，"));
+    }
+
     // 将 visualPromptCn 中的角色名替换为 角色名【外观括注】，使外观与场景融为一体
     QString injectBibleIntoScene(const QString& visualPromptCn,
                                   const PromptBuilder::PanelCharacterPromptData& characterData,
@@ -833,7 +900,7 @@ namespace {
             // 批量生成模式: 完整的三层结构
             
             // Layer 0: 用途声明 — 告知模型这是漫画面板，帮助理解[气泡]标记
-            parts << "[PURPOSE], manga panel, for readers";
+            parts << QString::fromUtf8("[用途]漫画分镜，面向读者");
 
             // Layer 1: 场景圣经环境 + visualPromptCn 动作描述 + 角色外观注入
             QString baseScene;
@@ -846,37 +913,14 @@ namespace {
             const QString sceneDesc = [&]() -> QString {
                 LOG_DEBUG("PromptBuilder", QString("  场景圣经查找: sceneId='%1', sceneName='%2', sceneRefs.keys=%3")
                     .arg(sceneId, sceneName, QStringList(sceneRefs.keys()).join(",")));
-                QJsonObject matched;
-                if (!sceneId.isEmpty() && sceneRefs.contains(sceneId)) {
-                    matched = sceneRefs.value(sceneId)["details"].toObject();
-                } else if (!sceneName.isEmpty() && sceneRefs.contains(sceneName)) {
-                    matched = sceneRefs.value(sceneName)["details"].toObject();
-                } else {
-                    // 精确匹配失败，尝试模糊匹配：找包含关系的 key
-                    for (const QString& key : sceneRefs.keys()) {
-                        if (key.contains(sceneName) || sceneName.contains(key)) {
-                            matched = sceneRefs.value(key)["details"].toObject();
-                            break;
-                        }
-                    }
+                QString matchedKey;
+                const QJsonObject details = findSceneBibleDetails(sceneRefs, sceneId, sceneName, matchedKey);
+                if (details.isEmpty()) {
+                    LOG_WARNING("PromptBuilder", QString("  场景圣经未命中: sceneId='%1', sceneName='%2'").arg(sceneId, sceneName));
+                    return QString();
                 }
-                if (matched.isEmpty()) return QString();
-                QStringList p;
-                const QString building = matched["building"].toString().trimmed();
-                const QString atmosphere = matched["atmosphere"].toString().trimmed();
-                if (!building.isEmpty()) p << building;
-                if (!atmosphere.isEmpty()) p << atmosphere;
-                const QJsonArray anchors = matched["anchorPoints"].toArray();
-                for (const auto& a : anchors) {
-                    const QString s = a.toString().trimmed();
-                    if (!s.isEmpty()) p << s;
-                }
-                const QJsonArray rules = matched["consistencyRules"].toArray();
-                for (const auto& r : rules) {
-                    const QString s = r.toString().trimmed();
-                    if (!s.isEmpty()) p << s;
-                }
-                return p.join("，");
+                LOG_DEBUG("PromptBuilder", QString("  场景圣经命中: matchedKey='%1'").arg(matchedKey));
+                return formatSceneBibleInjection(details);
             }();
             if (!sceneDesc.isEmpty() && !baseScene.isEmpty()) {
                 const QString scenePrefix = truncateSmart(sceneDesc, 60);
@@ -1163,30 +1207,30 @@ namespace {
         return parts.join(", ");
     }
 
-    QString truncatePrompt(const QStringList &parts, int maxLength) {
+    QString truncatePrompt(const QStringList &parts, int maxUnits) {
         QString result = parts.join(", ");
-        if (result.length() <= maxLength) {
+        if (countPromptUnits(result) <= maxUnits) {
             return result;
         }
-        
+
         QStringList truncated;
-        int currentLen = 0;
+        int currentUnits = 0;
         for (const QString &part : parts) {
-            int addLen = part.length() + 2;
-            if (currentLen + addLen > maxLength) {
+            int addUnits = countPromptUnits(part);
+            if (currentUnits + addUnits > maxUnits) {
                 break;
             }
             truncated.append(part);
-            currentLen += addLen;
+            currentUnits += addUnits;
         }
-        
+
         QString truncatedResult = truncated.join(", ");
-        
-        // 如果截断后为空，但原始内容不为空，则强制截取前 maxLength 个字符
+
+        // 兜底：如果按单元截断后为空，按字符数粗暴截（避免完全丢失内容）
         if (truncatedResult.isEmpty() && !result.isEmpty()) {
-            return result.left(maxLength);
+            return result.left(maxUnits);
         }
-        
+
         return truncatedResult;
     }
 }
@@ -1591,7 +1635,7 @@ PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObjec
     appendCharacterBackgroundParts(parts);
     
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
-    return { prompt, NegativePromptFactory::forCharacter(), {} };
+    return { prompt, NegativePromptFactory::forCharacter(), {}, {} };
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &panel,
@@ -1703,17 +1747,21 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                             characterData.panelCharNames,
                             dialogueSpeakers);
 
-    // 图生图限制350中文字（官方建议300左右，留50字符缓冲），文生图限制380中文字
+    // prompt 字数按 countPromptUnits 计：中文字 1 单元，连续英文字母/数字 1 单元，标点空格不计
+    // 图生图限制350单元（官方建议300，留50缓冲），文生图限制380单元
     // 参考: https://www.volcengine.com/docs/85128/1798096 (seed3l_multi_ip 模型)
     const int maxLen = isImg2Img ? 350 : 380;
     QString prompt = truncatePrompt(parts, maxLen);
+    QMap<QString, QString> refTypes;
+    QStringList refUris = buildPanelReferenceUris(selectedRefType,
+                                                   characterData.primaryCharacterRef,
+                                                   primarySceneRef,
+                                                   characterData.allCharacterRefs,
+                                                   refTypes);
     return { prompt,
              NegativePromptFactory::forPanel(),
-             buildPanelReferenceUris(selectedRefType,
-                                     selectedRef,
-                                     characterData.primaryCharacterRef,
-                                     primarySceneRef,
-                                     characterData.allCharacterRefs) };
+             refUris,
+             refTypes };
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &scene,
@@ -1743,5 +1791,5 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     parts << "high detail, volumetric lighting, cinematic environment, vibrant colors, full color";
     
     QString prompt = truncatePrompt(parts, MAX_PROMPT_LENGTH);
-    return { prompt, NegativePromptFactory::forScene(), {} };
+    return { prompt, NegativePromptFactory::forScene(), {}, {} };
 }

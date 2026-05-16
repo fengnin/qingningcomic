@@ -153,6 +153,58 @@ inline QString normalizeSceneLabel(QString text)
         }
     }
 
+    // 位置后缀剥离：把"拾光书店内景/门口/柜台/一角/书架区"统一归并为"拾光书店"
+    // 用循环处理嵌套后缀（如"柜台一角"先剥"一角"再剥"柜台"）
+    // 保护：剥后剩余必须 >=2 个字符，避免把"门口"这类独立场所名剥空
+    static const QStringList locationSuffixes = {
+        QString::fromUtf8("内景"),
+        QString::fromUtf8("外景"),
+        QString::fromUtf8("入口处"),
+        QString::fromUtf8("出口处"),
+        QString::fromUtf8("门口"),
+        QString::fromUtf8("门外"),
+        QString::fromUtf8("门前"),
+        QString::fromUtf8("门内"),
+        QString::fromUtf8("门后"),
+        QString::fromUtf8("入口"),
+        QString::fromUtf8("出口"),
+        QString::fromUtf8("柜台"),
+        QString::fromUtf8("前台"),
+        QString::fromUtf8("书架区"),
+        QString::fromUtf8("阅读区"),
+        QString::fromUtf8("休息区"),
+        QString::fromUtf8("展示区"),
+        QString::fromUtf8("等候区"),
+        QString::fromUtf8("接待区"),
+        QString::fromUtf8("候场区"),
+        QString::fromUtf8("一角"),
+        QString::fromUtf8("一隅"),
+        QString::fromUtf8("深处"),
+        QString::fromUtf8("角落"),
+        QString::fromUtf8("内部"),
+        QString::fromUtf8("外部"),
+        QString::fromUtf8("旁边"),
+        QString::fromUtf8("附近"),
+        QString::fromUtf8("周围"),
+        QString::fromUtf8("中央"),
+        QString::fromUtf8("中心")
+    };
+
+    bool locationStripped = true;
+    while (locationStripped) {
+        locationStripped = false;
+        for (const QString& suffix : locationSuffixes) {
+            if (result.endsWith(suffix)) {
+                const QString stripped = result.left(result.length() - suffix.length()).trimmed();
+                if (stripped.length() >= 2) {
+                    result = stripped;
+                    locationStripped = true;
+                    break;
+                }
+            }
+        }
+    }
+
     return stripSceneModifiers(result);
 }
 
