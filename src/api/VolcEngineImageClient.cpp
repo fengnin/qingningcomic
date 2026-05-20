@@ -687,8 +687,6 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
     payload["use_rephraser"] = false;
     // 适当提高文本一致性权重，使模型更遵从 prompt 中的位置指令
     payload["guidance_scale1"] = 3.5;
-    // 提高图像一致性，改善多角色场景下角色还原度（默认2.5，提高到4.5）
-    payload["guidance_scale2"] = 4.5;
 
     LOG_INFO("VolcEngineImageClient", QString(
         "请求构建完成: promptLen=%1, negativeLen=%2, width=%3, height=%4, refCount=%5, totalBytes=%6")

@@ -48,7 +48,7 @@ private:
     static QString matchSceneDetails(const QMap<QString, QJsonObject> &sceneRefs,
                                       const QString &sceneId,
                                       const QString &sceneName);
-    static QMap<QString, QString> extractDialogueSpeakers(const QJsonArray &dialogue);
+    static QStringList extractDialogueSpeakers(const QJsonArray &dialogue);
     static QString resolveSceneRefPath(const QMap<QString, QJsonObject> &sceneRefs,
                                         const QString &sceneId,
                                         const QString &sceneName);

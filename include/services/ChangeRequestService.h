@@ -116,16 +116,6 @@ private:
     ImageService::EditHint buildExpressionEditHint(const QString& expression) const;
     ImageService::EditHint buildSubjectReplacementEditHint(const QJsonObject& params) const;
     ImageService::EditHint buildLocalObjectReplacementEditHint() const;
-    struct PromptAndHint {
-        QString prompt;
-        ImageService::EditHint hint;
-    };
-    PromptAndHint buildPromptAndHintForEditIntent(const QJsonObject& params,
-                                                  const QString& action,
-                                                  const QString& editIntent,
-                                                  const QString& rawPrompt,
-                                                  const QString& sourceText,
-                                                  const Panel& panel) const;
     bool ensureChangeRequestColumns();
     QString resolveStoryboardIdForChangeRequest(const QString& novelId, const QJsonObject& context);
     QString resolveImageModeForPanel(const ChangeRequestOp& op, const Panel& panel) const;

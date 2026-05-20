@@ -10,8 +10,7 @@ TARGET = QingningComic
 TEMPLATE = app
 
 # C++11 标准
-CONFIG += c++11 precompile_header
-PRECOMPILED_HEADER = include/stable_pch.h
+CONFIG += c++11
 
 # 编码设置：解决中文乱码问题
 # MSVC 编译器使用 UTF-8 源文件编码
@@ -87,11 +86,6 @@ SOURCES += \
     src/utils/UserSession.cpp \
     src/utils/JsonRepairAdapter.cpp \
     src/utils/PromptBuilder.cpp \
-    src/utils/ChangeRequestIntentUtils.cpp \
-    src/utils/ChangeRequestParseUtils.cpp \
-    src/utils/SceneKeyUtils.cpp \
-    src/utils/PromptTargetUtils.cpp \
-    src/utils/BibleUtils.cpp \
     src/utils/DialogueSpeakerSideUtils.cpp \
     src/utils/AsyncImageLoader.cpp \
     src/utils/ImageColorUtils.cpp \
@@ -135,7 +129,6 @@ SOURCES += \
     src/components/PanelPreviewWidget.cpp
 
 HEADERS += \
-    include/stable_pch.h \
     include/AppInitializer.h \
     include/app/MainWindow.h \
     include/pages/DashboardPage.h \
