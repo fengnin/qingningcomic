@@ -358,7 +358,7 @@ void AnalysisService::saveResults(const QString& novelId, int chapterNumber, con
     SceneExtractor* sceneExtractor = SceneExtractor::instance();
 
     QList<ExtractedCharacter> extractedChars = characterExtractor->extractFromCharacters(result.characters, sourceText);
-    int savedCharCount = characterExtractor->saveCharacters(novelId, extractedChars);
+    int savedCharCount = characterExtractor->saveCharacters(novelId, extractedChars, chapterNumber);
     LOG_INFO("AnalysisService", QString("Saved %1 characters to database").arg(savedCharCount));
 
     QList<ExtractedScene> extractedScenes = sceneExtractor->extractFromScenes(result.scenes, sourceText);

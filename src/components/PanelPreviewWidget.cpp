@@ -4,25 +4,18 @@
 #include "services/ImageService.h"
 #include "services/StoryboardService.h"
 #include "viewmodels/StoryboardViewModel.h"
-#include "data/FileStorage.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
-#include "utils/AsyncImageLoader.h"
 #include "utils/LayoutUtils.h"
 #include <QLabel>
 #include <QAbstractScrollArea>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QCryptographicHash>
-#include <QFileInfo>
-#include <QPixmap>
 #include <QWheelEvent>
 #include <QScrollBar>
 
 namespace {
-constexpr int kPreviewWidth = 180;
-constexpr int kPreviewHeight = 190;
 
 void resetPanelLayout(QHBoxLayout* layout)
 {
@@ -58,98 +51,6 @@ void configurePanelContainer(QWidget* container, QHBoxLayout* layout)
     updatePanelContainerGeometry(container, layout);
 }
 
-QString resolvePreviewPath(const QString& previewUrl)
-{
-    if (previewUrl.isEmpty()) {
-        return QString();
-    }
-
-    if (previewUrl.startsWith(QLatin1String("http://")) || previewUrl.startsWith(QLatin1String("https://"))) {
-        return previewUrl;
-    }
-
-    const QFileInfo relativeInfo(previewUrl);
-    if (relativeInfo.exists()) {
-        return previewUrl;
-    }
-
-    if (FileStorage::instance()) {
-        const QString fullPath = FileStorage::instance()->getFullPath(previewUrl);
-        if (QFileInfo(fullPath).exists()) {
-            return fullPath;
-        }
-    }
-
-    return previewUrl;
-}
-
-bool isRemotePreviewUrl(const QString& previewUrl)
-{
-    return previewUrl.startsWith(QLatin1String("http://"))
-        || previewUrl.startsWith(QLatin1String("https://"));
-}
-
-QPixmap loadPreviewPixmap(const QString& path, const QSize& targetSize)
-{
-    QPixmap pixmap;
-    if (!pixmap.load(path)) {
-        return QPixmap();
-    }
-
-    if (pixmap.width() > targetSize.width() || pixmap.height() > targetSize.height()) {
-        pixmap = pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    }
-    return pixmap;
-}
-
-int panelNumberForCache(const Panel& panel)
-{
-    return (panel.page() - 1) * 6 + panel.index() + 1;
-}
-
-QString panelCacheId(int chapterNumber, const Panel& panel)
-{
-    const QString loadPath = resolvePreviewPath(panel.previewUrl());
-    if (loadPath.isEmpty()) {
-        return QString();
-    }
-
-    const QString hash = QString(QCryptographicHash::hash(loadPath.toUtf8(), QCryptographicHash::Md5).toHex());
-    return QStringLiteral("panel_%1_%2_%3")
-        .arg(chapterNumber)
-        .arg(panelNumberForCache(panel))
-        .arg(hash);
-}
-
-void preloadPanelPreviewCache(int chapterNumber, const QList<Panel>& panels)
-{
-    AsyncImageLoader* loader = AsyncImageLoader::instance();
-    if (!loader) {
-        return;
-    }
-
-    const QSize targetSize(kPreviewWidth, kPreviewHeight);
-
-    for (const Panel& panel : panels) {
-        const QString loadPath = resolvePreviewPath(panel.previewUrl());
-        if (loadPath.isEmpty() || isRemotePreviewUrl(loadPath)) {
-            continue;
-        }
-
-        const QString id = panelCacheId(chapterNumber, panel);
-        if (id.isEmpty()) {
-            continue;
-        }
-
-        const QString cacheKey = AsyncImageLoader::makeCacheKey(id, targetSize);
-        const QPixmap pixmap = loadPreviewPixmap(loadPath, targetSize);
-        if (pixmap.isNull()) {
-            continue;
-        }
-
-        loader->insertCache(cacheKey, pixmap);
-    }
-}
 }
 
 PanelPreviewWidget::PanelPreviewWidget(QWidget* parent)
@@ -269,7 +170,6 @@ void PanelPreviewWidget::renderPanels(const QList<Panel>& panels)
     }
 
     resetPanelView();
-    preloadPanelPreviewCache(m_currentChapter, panels);
     populateWithPanels(panels);
 }
 
@@ -285,8 +185,10 @@ void PanelPreviewWidget::showEmptyState()
 void PanelPreviewWidget::populateWithPanels(const QList<Panel>& panels)
 {
     m_panelCount = 0;
-    
+
     for (const Panel& panel : panels) {
+        LOG_DEBUG("PanelPreviewWidget", QString("populateWithPanels: panelId=%1, page=%2, index=%3, previewUrl=%4")
+            .arg(panel.id()).arg(panel.page()).arg(panel.index()).arg(panel.previewUrl().isEmpty() ? "(empty)" : panel.previewUrl().right(40)));
         PanelCard* panelCard = createPanelCard(panelNumberFor(panel), panelDescription(panel), panel.id(), panel.previewUrl());
         m_panelLayout->addWidget(panelCard);
         m_panelCount++;
@@ -351,10 +253,10 @@ PanelCard* PanelPreviewWidget::createPanelCard(int panelNum, const QString& desc
     }
     
     connect(panelCard, &PanelCard::clicked, this, &PanelPreviewWidget::onPanelCardClicked);
-    connect(panelCard, &PanelCard::imageClicked, this, [](const QString &imagePath) {
+    connect(panelCard, &PanelCard::dataChanged, this, &PanelPreviewWidget::onPanelDescriptionChanged);
+    connect(panelCard, &PanelCard::imageClicked, this, [](const QString& imagePath) {
         ImageViewerDialog::showImage(nullptr, imagePath);
     });
-    connect(panelCard, &PanelCard::dataChanged, this, &PanelPreviewWidget::onPanelDescriptionChanged);
     
     return panelCard;
 }
@@ -362,6 +264,22 @@ PanelCard* PanelPreviewWidget::createPanelCard(int panelNum, const QString& desc
 PanelCard* PanelPreviewWidget::panelCardForId(const QString& panelId) const
 {
     return m_panelCards.value(panelId, nullptr);
+}
+
+void PanelPreviewWidget::updatePanelDescription(const QString& panelId, const QString& description)
+{
+    PanelCard* card = panelCardForId(panelId);
+    if (card) {
+        card->setDescription(description);
+    }
+    for (Panel& panel : m_panels) {
+        if (panel.id() == panelId) {
+            QJsonObject content = panel.rawContent();
+            content["scene"] = description;
+            panel.setRawContent(content);
+            break;
+        }
+    }
 }
 
 void PanelPreviewWidget::syncPanelPreview(const QString& panelId, const QString& previewUrl, int width, int height)

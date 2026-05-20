@@ -61,6 +61,7 @@ signals:
     void deleteRequested(const QString &id, BibleType type);
     void uploadClicked(const QString &id, BibleType type);
     void deleteImageClicked(const QString &id, BibleType type);
+    void versionClicked(const QString &id, const QPoint &anchorGlobalPos);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -121,6 +122,7 @@ private:
     QLabel *m_imageLabel;
     QPushButton *m_editBtn;
     QPushButton *m_deleteBtn;
+    QPushButton *m_versionBtn = nullptr;
     
     // 数据
     QString m_name;

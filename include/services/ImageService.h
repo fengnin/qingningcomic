@@ -3,6 +3,7 @@
 
 #include "services/BatchImageProcessor.h"
 #include "models/Panel.h"
+#include "models/CharacterPortraitVersion.h"
 #include "api/QwenImageClient.h"
 #include "utils/RetryPolicy.h"
 #include "utils/SingletonUtils.h"
@@ -16,6 +17,8 @@
 #include <QMutex>
 #include <atomic>
 #include <QFuture>
+#include <QMap>
+#include <QList>
 
 class Character;
 class Scene;
@@ -201,7 +204,8 @@ private:
     QString generateS3Key(const QString& panelId, GenerateMode mode);
     GenerateResult createErrorResult(const QString& panelId, const QString& message);
     
-    QJsonObject buildCharacterRef(const Character& ch, QStringList& outPortraitPaths);
+    QJsonObject buildCharacterRef(const Character& ch, QStringList& outPortraitPaths,
+                                  const QMap<QString, QList<CharacterPortraitVersion>>& allVersions = {});
     QMap<QString, QJsonObject> fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages);
     QJsonObject buildSceneRef(const Scene& scene, QStringList& outReferenceImages);
     QMap<QString, QJsonObject> fetchSceneRefs(const QString& novelId, QStringList& outReferenceImages);
@@ -297,6 +301,7 @@ private:
     ResolutionConfig m_currentResolution;
     QStringList m_pendingPanelIds;
     BatchResult m_batchResult;
+    PanelReferenceData m_batchReferenceData;  // snapshot at batch start, cleared after
     
     // 🔧 优化：使用原子变量替代部分锁保护的状态
     std::atomic<int> m_currentProcessIndex{0};  // 原子计数器

@@ -224,7 +224,7 @@ void PanelCard::setPreviewUrl(const QString &url)
         .arg(m_chapterNumber).arg(m_panelNumber).arg(urlHash);
     QSize targetSize(Size::PREVIEW_WIDTH, Size::PREVIEW_HEIGHT);
     QString cacheKey = AsyncImageLoader::makeCacheKey(id, targetSize);
-    
+
     QPixmap cachedPixmap;
     if (AsyncImageLoader::instance()->findCached(cacheKey, &cachedPixmap)) {
         setPreviewPixmap(cachedPixmap);
@@ -232,15 +232,15 @@ void PanelCard::setPreviewUrl(const QString &url)
         m_previewLabel->setCursor(Qt::PointingHandCursor);
         return;
     }
-    
+
     setPreviewState(PreviewState::Loading);
     m_previewLabel->setCursor(Qt::ArrowCursor);
     m_loadingImageId = id;
-    
+
     disconnect(AsyncImageLoader::instance(), nullptr, this, nullptr);
     connect(AsyncImageLoader::instance(), &AsyncImageLoader::imageLoaded,
             this, &PanelCard::onAsyncImageLoaded);
-    
+
     AsyncImageLoader::instance()->loadAsync(id, loadPath, targetSize);
 }
 
@@ -249,7 +249,7 @@ void PanelCard::onAsyncImageLoaded(const QString& id, const QString& cacheKey, c
     if (id != m_loadingImageId) {
         return;
     }
-    
+
     if (!pixmap.isNull()) {
         AsyncImageLoader::instance()->insertCache(cacheKey, pixmap);
         setPreviewPixmap(pixmap);

@@ -578,7 +578,7 @@ QString inferSceneType(const QString& description, const QString& name)
         }
     }
 
-    return QString::fromUtf8("室内");
+    return QString();
 }
 
 QString inferTimeOfDay(const QString& text)
@@ -608,7 +608,7 @@ QString inferTimeOfDay(const QString& text)
         }
     }
 
-    return QString::fromUtf8("白天");
+    return QString();
 }
 
 QString inferWeather(const QString& text)

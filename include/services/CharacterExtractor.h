@@ -7,8 +7,10 @@
 #include <QString>
 #include <QVariantMap>
 #include <QMap>
+#include <QMetaType>
 #include <mutex>
 #include "models/Character.h"
+#include "models/CharacterPortraitVersion.h"
 
 struct ExtractedCharacter {
     QString name;
@@ -32,6 +34,17 @@ struct ExtractedCharacter {
     static ExtractedCharacter fromJson(const QJsonObject& json);
 };
 
+// 角色视觉字段变更：用于触发圣经图增量编辑（半自动草稿）
+struct CharacterFieldDiff {
+    QString field;       // hairColor / hairStyle / eyeColor / height / build / clothing / accessories / distinctiveFeatures
+    QString oldValue;    // 列表字段以 "、" 拼接
+    QString newValue;
+    QString sourceFrom;  // 旧来源：explicit / inferred / manual / ""
+    QString sourceTo;    // 新来源
+};
+Q_DECLARE_METATYPE(CharacterFieldDiff)
+Q_DECLARE_METATYPE(QList<CharacterFieldDiff>)
+
 class CharacterExtractor : public QObject
 {
     Q_OBJECT
@@ -44,7 +57,9 @@ public:
     QList<ExtractedCharacter> extractFromCharacters(const QJsonArray& characters, const QString& sourceText);
 
     bool saveCharacter(const QString& novelId, const ExtractedCharacter& character);
+    bool saveCharacter(const QString& novelId, const ExtractedCharacter& character, int sourceChapter);
     int saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters);
+    int saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters, int sourceChapter);
 
     QList<Character> getCharactersByNovel(const QString& novelId);
     Character getCharacterById(const QString& characterId);
@@ -53,11 +68,27 @@ public:
     bool updateCharacterSilent(const Character& character);
     bool deleteCharacter(const QString& characterId);
 
+    // 角色肖像版本 CRUD
+    QList<CharacterPortraitVersion> loadPortraitVersions(const QString& characterId);
+    // 批量加载：一次查询返回 novelId 下所有角色的版本，key = character_id
+    QMap<QString, QList<CharacterPortraitVersion>> loadPortraitVersionsByNovel(const QString& novelId);
+    CharacterPortraitVersion getPortraitVersion(const QString& versionId);
+    int nextVersionNo(const QString& characterId);
+    bool addPortraitVersion(const CharacterPortraitVersion& version);
+    bool setCurrentPortraitVersion(const QString& characterId, const QString& versionId);
+    bool deletePortraitVersion(const QString& versionId);
+    // 懒迁移：旧角色已有 portrait_path 但无版本行时，补一条 v1
+    CharacterPortraitVersion ensureFirstPortraitVersion(const Character& character);
+
 signals:
     void characterExtracted(const ExtractedCharacter& character);
     void characterSaved(const QString& characterId);
     void extractionCompleted(int count);
     void characterUpdated(const QString& characterId, const QString& portraitPath);
+    // 视觉字段发生变化：UI 据此弹出半自动编辑草稿
+    void characterVisualFieldsChanged(const QString& characterId,
+                                     const QList<CharacterFieldDiff>& diff,
+                                     int sourceChapter);
 
 public:
     static QStringList buildIdentityKeys(const Character& character);
@@ -78,11 +109,13 @@ private:
     Character characterFromRow(const QVariantMap& row);
     bool persistCharacterRecord(const Character& character, bool emitSignals);
 
-    // 名称标准化：去除AI生成的常见后缀，如"（本体）"、"（真身）"等
     static QString normalizeCharacterName(const QString& name);
 
-    // 合并相关方法
     Character mergeCharacters(const Character& existing, const ExtractedCharacter& incoming) const;
+    // 重载：同时输出视觉字段 diff（白名单字段）。outDiff 可为 nullptr。
+    Character mergeCharacters(const Character& existing,
+                              const ExtractedCharacter& incoming,
+                              QList<CharacterFieldDiff>* outDiff) const;
 
     static CharacterExtractor* m_instance;
     static std::once_flag m_instanceOnceFlag;

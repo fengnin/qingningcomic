@@ -1048,8 +1048,6 @@ void QwenImageClient::dispatchPreparedAsyncRequest(const QString& requestId, con
     LOG_DEBUG("QwenImageClient", QString("Model: %1").arg(resolveRequestModel(type)));
     LOG_DEBUG("QwenImageClient", QString("API Key (前10位): %1...").arg(m_config.apiKey.left(10)));
     LOG_DEBUG("QwenImageClient", QString("Prompt: %1").arg(prompt.left(100)));
-    LOG_DEBUG("QwenImageClient", QString("Request Body: %1")
-        .arg(QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact))));
     LOG_DEBUG("QwenImageClient", QString("Async Mode: %1").arg(asyncMode ? "true" : "false"));
 
     QNetworkRequest request = createNetworkRequest(url, asyncMode);

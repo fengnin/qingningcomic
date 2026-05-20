@@ -217,17 +217,6 @@ QStringList SceneDetails::toDisplayStrings() const
     appendDisplayLine(lines, QString::fromUtf8("时间段"), preferZh(QString(), timeOfDay, translateTimeOfDay));
     appendDisplayLine(lines, QString::fromUtf8("叙事角色"), preferZh(narrativeRoleZh, narrativeRole, translateNarrativeRole));
 
-    // 环境条件（聚合展示）
-    QStringList structureBits;
-    if (!setting.isEmpty()) structureBits << setting;
-    if (!timeOfDay.isEmpty()) structureBits << preferZh(QString(), timeOfDay, translateTimeOfDay);
-    if (!isIndoorSceneType(type) && !weather.isEmpty()) {
-        structureBits << preferZh(QString(), weather, translateWeather);
-    }
-    if (!structureBits.isEmpty()) {
-        appendDisplayLine(lines, QString::fromUtf8("环境条件"), structureBits.join(QString::fromUtf8("；")));
-    }
-
     // AI元数据（测试用，显示所有字段）
     if (!currentInterpretation.isEmpty()) {
         appendDisplayLine(lines, QString::fromUtf8("当前解释"), currentInterpretation);

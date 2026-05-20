@@ -27,6 +27,7 @@ public:
     void refresh();
     void beginBatchRefresh();
     void endBatchRefresh(bool refreshNow = true);
+    void updatePanelDescription(const QString& panelId, const QString& description);
 
     int panelCount() const { return m_panelCount; }
     int currentChapter() const { return m_currentChapter; }

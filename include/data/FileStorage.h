@@ -34,6 +34,9 @@ public:
     // ========== 角色参考图存储 ==========
     QString saveCharacterReference(const QString& characterId, const QByteArray& imageData);
     bool deleteCharacterReference(const QString& characterId);
+    // 角色肖像版本化：写到 characters/<id_prefix>/portrait_v<n>.png
+    QString saveCharacterReferenceVersion(const QString& characterId, int versionNo, const QByteArray& imageData);
+    bool deleteCharacterReferenceVersion(const QString& characterId, int versionNo);
     
     // ========== 场景参考图存储 ==========
     QString saveSceneReference(const QString& sceneId, const QByteArray& imageData);

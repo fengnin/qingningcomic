@@ -13,6 +13,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QTimer>
+#include <QtConcurrent/QtConcurrent>
 
 namespace {
 const QString COLOR_HINT = "#6B7280";
@@ -90,7 +91,13 @@ void populateBibleItems(BibleSectionWidget* widget, QVBoxLayout* layout, const Q
         QObject::connect(item, &BibleItem::deleteRequested, widget, [deleteFn](const QString &id, BibleType bibleType) {
             deleteFn(id, bibleType);
         });
-        
+
+        if (type == BibleType::Character) {
+            QObject::connect(item, &BibleItem::versionClicked, widget, [widget](const QString &id, const QPoint &anchorPos) {
+                emit widget->characterVersionClicked(id, anchorPos);
+            });
+        }
+
         connectBibleItemSignals(widget, item, Model());
 
         layout->addWidget(item);
@@ -115,6 +122,14 @@ BibleSectionWidget::BibleSectionWidget(QWidget* parent)
     cardsLayout->addWidget(createBibleCard(tr("场景圣经"), m_sceneCountLabel, m_sceneContainer, BibleType::Scene), 1);
 
     mainLayout->addLayout(cardsLayout);
+}
+
+BibleSectionWidget::~BibleSectionWidget()
+{
+    if (m_watcher) {
+        m_watcher->cancel();
+        m_watcher->waitForFinished();
+    }
 }
 
 QFrame* BibleSectionWidget::createBibleCard(const QString& title, QLabel*& countLabel, QWidget*& container, BibleType type)
@@ -173,6 +188,7 @@ QFrame* BibleSectionWidget::createBibleCard(const QString& title, QLabel*& count
 
 void BibleSectionWidget::setNovelId(const QString& novelId)
 {
+    LOG_INFO("BibleSectionWidget", QString("setNovelId called: %1").arg(novelId));
     m_novelId = novelId;
     QTimer::singleShot(0, this, [this, novelId]() {
         if (m_novelId != novelId) {
@@ -184,45 +200,78 @@ void BibleSectionWidget::setNovelId(const QString& novelId)
 
 void BibleSectionWidget::refreshBible()
 {
+    LOG_INFO("BibleSectionWidget", QString("refreshBible called, novelId=%1").arg(m_novelId));
     if (m_novelId.isEmpty()) {
         clearBible();
         return;
     }
 
-    int characterScrollPos = 0;
-    int sceneScrollPos = 0;
-    if (m_characterScrollArea) {
-        characterScrollPos = m_characterScrollArea->verticalScrollBar()->value();
+    const QString novelId = m_novelId;
+
+    // Cancel any in-flight fetch for a previous novelId.
+    if (m_watcher) {
+        disconnect(m_watcher, nullptr, this, nullptr);
+        m_watcher->cancel();
+        m_watcher->deleteLater();
+        m_watcher = nullptr;
     }
-    if (m_sceneScrollArea) {
-        sceneScrollPos = m_sceneScrollArea->verticalScrollBar()->value();
-    }
+
+    m_watcher = new QFutureWatcher<BibleData>(this);
+    QFutureWatcher<BibleData>* watcher = m_watcher;
+    connect(watcher, &QFutureWatcher<BibleData>::finished, this, [this, novelId, watcher]() {
+        LOG_INFO("BibleSectionWidget", QString("finished signal received, canceled=%1, novelId=%2, m_novelId=%3")
+            .arg(watcher->isCanceled()).arg(novelId).arg(m_novelId));
+        if (watcher->isCanceled()) {
+            watcher->deleteLater();
+            if (m_watcher == watcher) m_watcher = nullptr;
+            return;
+        }
+        if (m_novelId != novelId) {
+            watcher->deleteLater();
+            if (m_watcher == watcher) m_watcher = nullptr;
+            return;
+        }
+
+        BibleData data = watcher->result();
+        watcher->deleteLater();
+        m_watcher = nullptr;
+
+        applyBibleData(data);
+    });
+
+    m_watcher->setFuture(QtConcurrent::run([novelId]() -> BibleData {
+        BibleData d;
+        d.characters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
+        d.scenes     = SceneExtractor::instance()->getScenesByNovel(novelId);
+        LOG_INFO("BibleSectionWidget", QString("Background fetch done: %1 chars, %2 scenes for novel %3")
+            .arg(d.characters.size()).arg(d.scenes.size()).arg(novelId));
+        return d;
+    }));
+}
+
+void BibleSectionWidget::applyBibleData(const BibleData& data)
+{
+    int characterScrollPos = m_characterScrollArea ? m_characterScrollArea->verticalScrollBar()->value() : 0;
+    int sceneScrollPos     = m_sceneScrollArea     ? m_sceneScrollArea->verticalScrollBar()->value()     : 0;
 
     setUpdatesEnabled(false);
     clearBibleContents();
 
-    const QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(m_novelId);
-    const QList<Scene> scenes = SceneExtractor::instance()->getScenesByNovel(m_novelId);
+    m_characterCount = data.characters.size();
+    m_sceneCount     = data.scenes.size();
 
-    m_characterCount = characters.size();
-    m_sceneCount = scenes.size();
-
-    if (m_characterContainer) {
-        populateCharacterBible(qobject_cast<QVBoxLayout*>(m_characterContainer->layout()), characters);
-    }
-    if (m_sceneContainer) {
-        populateSceneBible(qobject_cast<QVBoxLayout*>(m_sceneContainer->layout()), scenes);
-    }
+    if (m_characterContainer)
+        populateCharacterBible(qobject_cast<QVBoxLayout*>(m_characterContainer->layout()), data.characters);
+    if (m_sceneContainer)
+        populateSceneBible(qobject_cast<QVBoxLayout*>(m_sceneContainer->layout()), data.scenes);
 
     updateCountLabels();
     setUpdatesEnabled(true);
 
-    if (m_characterScrollArea) {
+    if (m_characterScrollArea)
         m_characterScrollArea->verticalScrollBar()->setValue(characterScrollPos);
-    }
-    if (m_sceneScrollArea) {
+    if (m_sceneScrollArea)
         m_sceneScrollArea->verticalScrollBar()->setValue(sceneScrollPos);
-    }
 
     emit characterCountChanged(m_characterCount);
     emit sceneCountChanged(m_sceneCount);

@@ -37,8 +37,8 @@ inline bool initConnectionSessionTimeouts(QSqlDatabase& db)
     QSqlQuery query(db);
     if (!query.exec("SET SESSION wait_timeout = 28800")) return false;
     if (!query.exec("SET SESSION interactive_timeout = 28800")) return false;
-    if (!query.exec("SET SESSION net_read_timeout = 30")) return false;
-    if (!query.exec("SET SESSION net_write_timeout = 30")) return false;
+    if (!query.exec("SET SESSION net_read_timeout = 300")) return false;
+    if (!query.exec("SET SESSION net_write_timeout = 300")) return false;
     return true;
 }
 
@@ -86,7 +86,7 @@ inline bool isConnectionLostError(const QString& errorMsg)
 // MySQL 连接选项（带重连和超时）
 inline QString defaultConnectionOptions()
 {
-    return "MYSQL_OPT_RECONNECT=1;MYSQL_OPT_CONNECT_TIMEOUT=10;MYSQL_OPT_READ_TIMEOUT=30;MYSQL_OPT_WRITE_TIMEOUT=30";
+    return "MYSQL_OPT_RECONNECT=1;MYSQL_OPT_CONNECT_TIMEOUT=10;MYSQL_OPT_READ_TIMEOUT=300;MYSQL_OPT_WRITE_TIMEOUT=300";
 }
 
 // MySQL 连接选项（仅重连）

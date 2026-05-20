@@ -224,7 +224,32 @@ void BibleItem::setupUI()
     headerLayout->addWidget(m_nameLabel);
     
     headerLayout->addStretch();
-    
+
+    if (m_bibleType == BibleType::Character) {
+        m_versionBtn = new QPushButton(QString::fromUtf8("版本"));
+        m_versionBtn->setFixedSize(64, 32);
+        m_versionBtn->setStyleSheet(R"(
+            QPushButton {
+                padding: 6px 16px;
+                border-radius: 6px;
+                border: 1px solid #4deab308;
+                background: #14eab308;
+                color: #854d0e;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #26eab308;
+                border-color: #80eab308;
+            }
+        )");
+        m_versionBtn->setCursor(Qt::PointingHandCursor);
+        connect(m_versionBtn, &QPushButton::clicked, [this]() {
+            QPoint anchor = m_versionBtn->mapToGlobal(QPoint(0, m_versionBtn->height()));
+            emit versionClicked(m_itemId, anchor);
+        });
+        headerLayout->addWidget(m_versionBtn);
+    }
+
     QString editText = QString::fromUtf8("编辑");
     m_editBtn = new QPushButton(editText);
     m_editBtn->setFixedSize(64, 32);

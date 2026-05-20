@@ -862,6 +862,12 @@ void ImageService::startBatchGeneration(const QStringList& panelIds, const Resol
         m_batchResult.totalCount = panelIds.size();
     }
 
+    // Snapshot reference data once so all panels in this batch use the same portrait versions.
+    {
+        const TaskScope scope = resolveTaskScope(QString(), panelIds);
+        m_batchReferenceData = scope.novelId.isEmpty() ? PanelReferenceData() : fetchPanelReferenceData(scope.novelId);
+    }
+
     startBatch(panelIds.size());
     LOG_INFO("ImageService", QString("Starting batch generation for %1 panels").arg(panelIds.size()));
 
@@ -891,6 +897,8 @@ void ImageService::completeBatchGeneration()
         QMutexLocker locker(&m_mutex);
         finalResult = m_batchResult;
     }
+
+    m_batchReferenceData = PanelReferenceData();  // clear snapshot
 
     finishBatch();
 
@@ -1404,7 +1412,7 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
             .arg(ctx.referenceImages.size())
             .arg(ctx.prompt.length())
             .arg(ctx.negativePrompt.length()));
-        LOG_INFO("ImageService", QString("使用图生图API (seed3l_multi_ip)，参考图数量: %1").arg(options.referenceImages.size()));
+        LOG_INFO("ImageService", QString("使用图生图API，参考图数量: %1").arg(options.referenceImages.size()));
         
         // 输出参考图类型列表
         if (!options.refTypeList.isEmpty()) {
@@ -1711,29 +1719,29 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: resolved novelId=%1").arg(novelId));
 
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: fetching reference data for panelId=%1").arg(ctx.panelId));
-        PanelReferenceData refData = fetchPanelReferenceData(novelId);
+        PanelReferenceData refData = m_batchReferenceData.characterRefs.isEmpty()
+            ? fetchPanelReferenceData(novelId)
+            : m_batchReferenceData;
         LOG_DEBUG("ImageService", QString("buildPromptForPanel: reference data loaded, characters=%1, scenes=%2, refImages=%3")
             .arg(refData.characterRefs.size())
             .arg(refData.sceneRefs.size())
             .arg(refData.allAvailableRefImages.size()));
 
         // 兜底：LLM 偶尔会把"逆光剪影/远景出场"的角色漏出 panel.characters。
-        // 扫场景文本与画面提示词，凡是圣经里有名字、文本里出现了、但 panel.characters 没列的，
-        // 自动补 {"name": ...}。下游 PromptBuilder 拿到名字即可注入圣经外观。
+        // 只扫 visualPromptCn（画面描述），不扫 sceneText（叙事文本可能只是内心独白/回忆中提到角色）。
         {
             QJsonArray panelCharsArray = panelJson.value("characters").toArray();
-            const QString combined = sceneText + QStringLiteral(" ") + visualPromptCn;
             for (auto it = refData.characterRefs.constBegin();
                  it != refData.characterRefs.constEnd(); ++it) {
                 const QString bibleName = it.key().trimmed();
                 if (bibleName.isEmpty()) continue;
                 if (panelCharacterNames.contains(bibleName)) continue;
-                if (!combined.contains(bibleName)) continue;
+                if (!visualPromptCn.contains(bibleName)) continue;
                 QJsonObject augmented;
                 augmented["name"] = bibleName;
                 panelCharsArray.append(augmented);
                 panelCharacterNames.append(bibleName);
-                LOG_INFO("ImageService", QString("Auto-augmented missing character '%1' for panel %2 (matched in scene/visualPromptCn)")
+                LOG_INFO("ImageService", QString("Auto-augmented missing character '%1' for panel %2 (matched in visualPromptCn)")
                     .arg(bibleName).arg(ctx.panelId));
             }
             panelJson["characters"] = panelCharsArray;
@@ -1917,62 +1925,73 @@ void ImageService::limitReferenceImagesForProvider(GenerationContext& ctx) const
     }
 }
 
-QJsonObject ImageService::buildCharacterRef(const Character& ch, QStringList& outPortraitPaths)
+QJsonObject ImageService::buildCharacterRef(const Character& ch, QStringList& outPortraitPaths,
+                                            const QMap<QString, QList<CharacterPortraitVersion>>& allVersions)
 {
     QJsonObject charJson;
     charJson["id"] = ch.id();
     charJson["name"] = ch.name();
     charJson["role"] = ch.role();
-    
+
     QStringList portraitPaths;
     if (!ch.portraitPath().isEmpty()) {
         portraitPaths.append(ch.portraitPath());
     }
     charJson["portraitPath"] = ch.portraitPath();
     charJson["portraitPaths"] = QJsonArray::fromStringList(portraitPaths);
-    
+
     CharacterAppearance app = ch.appearance();
-    QJsonObject appearanceJson;
-    appearanceJson["gender"] = app.gender;
-    appearanceJson["age"] = QString::number(app.age);
-    appearanceJson["build"] = app.build;
-    appearanceJson["hairStyle"] = app.hairStyle;
-    appearanceJson["hairColor"] = app.hairColor;
-    appearanceJson["eyeColor"] = app.eyeColor;
-    appearanceJson["clothing"] = QJsonArray::fromStringList(app.clothing);
-    appearanceJson["accessories"] = QJsonArray::fromStringList(app.accessories);
-    appearanceJson["distinctiveFeatures"] = QJsonArray::fromStringList(app.distinctiveFeatures);
-    charJson["appearance"] = appearanceJson;
-    
+
+    // Prefer the appearance snapshot bound to the current portrait version so that
+    // the prompt description matches the actual reference image.
+    const QString versionId = ch.currentPortraitVersionId();
+    if (!versionId.isEmpty()) {
+        const QList<CharacterPortraitVersion>& versions = allVersions.contains(ch.id())
+            ? allVersions[ch.id()]
+            : CharacterExtractor::instance()->loadPortraitVersions(ch.id());
+        for (const CharacterPortraitVersion& v : versions) {
+            if (v.id() == versionId && !v.appearanceSnapshot().isEmpty()) {
+                app = CharacterAppearance::fromJson(v.appearanceSnapshot());
+                break;
+            }
+        }
+    }
+
+    charJson["appearance"] = app.toPromptJson();
+
     for (const QString& path : portraitPaths) {
         if (!path.isEmpty() && !outPortraitPaths.contains(path)) {
             outPortraitPaths.append(path);
         }
     }
-    
+
     return charJson;
 }
 
 QMap<QString, QJsonObject> ImageService::fetchCharacterRefs(const QString& novelId, QStringList& outReferenceImages)
 {
     QMap<QString, QJsonObject> characterRefs;
-    
+
     if (novelId.isEmpty()) {
         LOG_WARNING("ImageService", "fetchCharacterRefs: novelId is empty");
         return characterRefs;
     }
-    
+
     QList<Character> characters = CharacterExtractor::instance()->getCharactersByNovel(novelId);
-    
+
+    // Load all portrait versions in one query to avoid N per-character round-trips.
+    const QMap<QString, QList<CharacterPortraitVersion>> allVersions =
+        CharacterExtractor::instance()->loadPortraitVersionsByNovel(novelId);
+
     for (const Character& ch : characters) {
-        QJsonObject charJson = buildCharacterRef(ch, outReferenceImages);
+        QJsonObject charJson = buildCharacterRef(ch, outReferenceImages, allVersions);
         characterRefs[ch.name()] = charJson;
     }
-    
+
     QStringList charNames = characterRefs.keys();
     LOG_INFO("ImageService", QString("fetchCharacterRefs: %1 chars [%2], refImages=%3")
         .arg(characters.size()).arg(charNames.join(", ")).arg(outReferenceImages.size()));
-    
+
     return characterRefs;
 }
 

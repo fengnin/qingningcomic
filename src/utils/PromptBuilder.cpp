@@ -194,13 +194,6 @@ namespace {
         {QString::fromUtf8("\u659c\u9762"), "three-quarter view"}
     });
 
-    bool isJsonValueEmpty(const QJsonValue& value)
-    {
-        if (value.isNull() || value.isUndefined()) return true;
-        if (value.isString()) return value.toString().trimmed().isEmpty();
-        return false;
-    }
-
     QStringList parseClothingList(const QJsonValue& clothingValue)
     {
         QStringList clothingList;
@@ -218,16 +211,6 @@ namespace {
         
         return clothingList;
     }
-
-
-    static const QStringList HAIR_COLOR_CONFLICT_INDICATORS = {
-        QStringLiteral("黑褐色"),
-        QStringLiteral("棕色"),
-        QStringLiteral("黑色头发"),
-        QStringLiteral("brown hair"),
-        QStringLiteral("black hair"),
-        QStringLiteral("dark hair")
-    };
 
     QString normalizeCharacterNameForRefs(const QString& name)
     {
@@ -287,6 +270,28 @@ namespace {
         return description;
     }
 
+    QString resolveCharacterRefKey(const QString& charName,
+                                   const QMap<QString, QJsonObject>& characterRefs)
+    {
+        if (characterRefs.contains(charName)) {
+            return charName;
+        }
+        const QString normalized = normalizeCharacterNameForRefs(charName);
+        if (characterRefs.contains(normalized)) {
+            return normalized;
+        }
+        return QString();
+    }
+
+    bool isCoreCharacterRole(const QString& role)
+    {
+        return role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
+            || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
+            || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
+            || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
+            || role.contains(QString::fromUtf8("主角"), Qt::CaseInsensitive);
+    }
+
     PromptBuilder::PanelCharacterPromptData collectPanelCharacterPromptData(const QJsonArray& characters,
                                                               const QMap<QString, QJsonObject>& characterRefs,
                                                               const QStringList& dialogueSpeakers)
@@ -298,18 +303,11 @@ namespace {
             const QString charName = charObj["name"].toString();
             data.panelCharNames.append(charName);
 
-            QString matchedName = charName;
-            if (!characterRefs.contains(charName)) {
-                const QString normalized = normalizeCharacterNameForRefs(charName);
-                if (characterRefs.contains(normalized)) {
-                    matchedName = normalized;
-                }
-            }
-
+            const QString matchedKey = resolveCharacterRefKey(charName, characterRefs);
             const QString pose = charObj["pose"].toString();
             const QString expression = charObj["expression"].toString();
 
-            if (!characterRefs.contains(matchedName)) {
+            if (matchedKey.isEmpty()) {
                 const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, QJsonObject());
                 if (!charDesc.isEmpty()) {
                     data.characterDescriptions.append(charDesc);
@@ -317,7 +315,7 @@ namespace {
                 continue;
             }
 
-            const QJsonObject fullChar = characterRefs.value(matchedName);
+            const QJsonObject fullChar = characterRefs.value(matchedKey);
             const QJsonObject appearance = fullChar["appearance"].toObject();
             const QStringList portraitPaths = PromptBuilder::normalizeList(fullChar["portraitPaths"].toArray());
 
@@ -326,28 +324,19 @@ namespace {
                 data.characterDescriptions.append(charDesc);
             }
 
-            const QString role = fullChar["role"].toString().trimmed();
-            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedName);
-            const bool isCoreRole = role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("main"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("lead"), Qt::CaseInsensitive)
-                || role.contains(QStringLiteral("hero"), Qt::CaseInsensitive)
-                || role.contains(QString::fromUtf8("\u4e3b\u89d2"), Qt::CaseInsensitive);
-
             const QString portraitPath = PromptBuilder::firstNonEmptyPortrait(portraitPaths);
             if (portraitPath.isEmpty()) {
                 continue;
             }
 
-            int priority = 2;
-            if (isDialogSpeaker) {
-                priority = 0;
-                data.primaryCharacterRef = portraitPath;
-            } else if (isCoreRole && data.primaryCharacterRef.isEmpty()) {
-                priority = 1;
+            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedKey);
+            const bool coreRole = isCoreCharacterRole(fullChar["role"].toString().trimmed());
+            const int priority = (isDialogSpeaker || coreRole) ? 0 : 2;
+
+            if (isDialogSpeaker || (coreRole && data.primaryCharacterRef.isEmpty())) {
                 data.primaryCharacterRef = portraitPath;
             }
-            
+
             if (!data.allCharacterRefs.contains(portraitPath)) {
                 if (priority == 0) {
                     data.allCharacterRefs.prepend(portraitPath);
@@ -357,7 +346,7 @@ namespace {
             }
         }
 
-        if (data.primaryCharacterRef.isEmpty() && !data.allCharacterRefs.isEmpty()) {
+                if (data.primaryCharacterRef.isEmpty() && !data.allCharacterRefs.isEmpty()) {
             data.primaryCharacterRef = data.allCharacterRefs.first();
         }
 
@@ -373,53 +362,60 @@ namespace {
     {
         const QString normalizedPromptTarget = promptTarget.trimmed().toLower();
 
-        if (normalizedPromptTarget == QStringLiteral("scene")) {
-            if (!primarySceneRef.isEmpty()) {
-                selectedRefType = QStringLiteral("scene");
-                return primarySceneRef;
-            }
-            if (!primaryCharacterRef.isEmpty()) {
-                selectedRefType = QStringLiteral("character");
-                return primaryCharacterRef;
-            }
+        auto returnRef = [&](const QString& ref, const QString& type) -> QString {
+            selectedRefType = type;
+            return ref;
+        };
+        auto returnNone = [&]() -> QString {
             selectedRefType.clear();
             return QString();
+        };
+
+        // For local-object edits (move/insert/remove), the panel source image is the
+        // real primary reference — ImageService prepends it after PromptBuilder returns.
+        // Picking a scene reference here would push it ahead of the panel image and
+        // confuse the model about what to edit. Use character ref as secondary instead.
+        if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)
+            || editIntent.trimmed().toLower() == QStringLiteral("remove_subject")) {
+            if (!primaryCharacterRef.isEmpty()) {
+                return returnRef(primaryCharacterRef, QStringLiteral("character"));
+            }
+            return returnNone();
+        }
+
+        if (normalizedPromptTarget == QStringLiteral("scene")) {
+            if (!primarySceneRef.isEmpty()) {
+                return returnRef(primarySceneRef, QStringLiteral("scene"));
+            }
+            if (!primaryCharacterRef.isEmpty()) {
+                return returnRef(primaryCharacterRef, QStringLiteral("character"));
+            }
+            return returnNone();
         }
 
         if (normalizedPromptTarget == QStringLiteral("character")) {
             if (!primaryCharacterRef.isEmpty()) {
-                selectedRefType = QStringLiteral("character");
-                return primaryCharacterRef;
+                return returnRef(primaryCharacterRef, QStringLiteral("character"));
             }
             if (!primarySceneRef.isEmpty()) {
-                selectedRefType = QStringLiteral("scene");
-                return primarySceneRef;
+                return returnRef(primarySceneRef, QStringLiteral("scene"));
             }
-            selectedRefType.clear();
-            return QString();
+            return returnNone();
         }
 
         const bool preferSceneReference = PromptTargetUtils::shouldPreferSceneReferenceForEditIntent(
-            editIntent,
-            editPrompt);
+            editIntent, editPrompt);
 
         if (preferSceneReference && !primarySceneRef.isEmpty()) {
-            selectedRefType = QStringLiteral("scene");
-            return primarySceneRef;
+            return returnRef(primarySceneRef, QStringLiteral("scene"));
         }
-
         if (!primaryCharacterRef.isEmpty()) {
-            selectedRefType = QStringLiteral("character");
-            return primaryCharacterRef;
+            return returnRef(primaryCharacterRef, QStringLiteral("character"));
         }
-
         if (!primarySceneRef.isEmpty()) {
-            selectedRefType = QStringLiteral("scene");
-            return primarySceneRef;
+            return returnRef(primarySceneRef, QStringLiteral("scene"));
         }
-
-        selectedRefType.clear();
-        return QString();
+        return returnNone();
     }
 
     QStringList buildPanelReferenceUris(const QString& selectedRefType,
@@ -431,13 +427,13 @@ namespace {
         QStringList refUris;
         QStringList orderedRefs;
 
+        // character-first: put character refs before scene so they survive maxRefImages truncation.
+        // scene-first: scene ref leads (e.g. background-edit intent).
         if (selectedRefType == QStringLiteral("scene")) {
             orderedRefs << primarySceneRef << allCharacterRefs;
         } else {
-            orderedRefs << primarySceneRef << allCharacterRefs;
+            orderedRefs << allCharacterRefs << primarySceneRef;
         }
-
-        Q_UNUSED(selectedRefType)
 
         LOG_INFO("PromptBuilder", QString("构建参考图列表: selectedRefType=%1, primaryCharacterRef=%2, primarySceneRef=%3, allCharacterRefs=%4")
             .arg(selectedRefType.isEmpty() ? "(无)" : selectedRefType)
@@ -587,69 +583,6 @@ namespace {
         }
 
         return text.left(maxLen - 2);
-    }
-
-    QStringList detectVisualPromptConflicts(const QString& visualPrompt,
-                                           const QMap<QString, QJsonObject>& characterRefs)
-    {
-        QStringList conflicts;
-
-        if (visualPrompt.isEmpty() || characterRefs.isEmpty()) {
-            return conflicts;
-        }
-
-        LOG_INFO("PromptBuilder", QString(
-            "🔍 开始visualPrompt与Bible冲突检测 (visualPrompt长度: %1字符, 角色数: %2)")
-            .arg(visualPrompt.length()).arg(characterRefs.size()));
-        
-        LOG_DEBUG("PromptBuilder", QString(
-            "visualPrompt内容: %1...")
-            .arg(visualPrompt.left(150)));
-
-        for (auto it = characterRefs.begin(); it != characterRefs.end(); ++it) {
-            const QString& charName = it.key();
-            const QJsonObject& charData = it.value();
-            const QJsonObject appearance = charData["appearance"].toObject();
-
-            if (!visualPrompt.contains(charName)) {
-                continue;
-            }
-
-            const QString hairColor = appearance["hairColor"].toString().trimmed();
-            if (!hairColor.isEmpty()) {
-                for (const auto& indicator : HAIR_COLOR_CONFLICT_INDICATORS) {
-                    if (visualPrompt.contains(indicator, Qt::CaseInsensitive)) {
-                        conflicts << QString(QStringLiteral(
-                            "⚠️ 角色'%1'发色冲突：Bible指定'%2'，但visualPrompt包含'%3'"))
-                            .arg(charName, hairColor, indicator);
-                        break;
-                    }
-                }
-            }
-
-            const QJsonValue clothingValue = appearance["clothing"];
-            if (!isJsonValueEmpty(clothingValue)) {
-                const QStringList bibleClothingList = parseClothingList(clothingValue);
-
-                for (const auto& bibleClothing : bibleClothingList) {
-                    if (!visualPrompt.contains(bibleClothing, Qt::CaseInsensitive)) {
-                        conflicts << QString(QStringLiteral(
-                            "⚠️ 角色'%1'衣服缺失：Bible指定'%2'，但visualPrompt未包含"))
-                            .arg(charName, bibleClothing);
-                    }
-                }
-            }
-        }
-
-        if (!conflicts.isEmpty()) {
-            LOG_WARNING("PromptBuilder", QString("visualPrompt与Bible冲突检测 (%1项):")
-                .arg(conflicts.size()));
-            for (const auto& conflict : conflicts) {
-                LOG_WARNING("PromptBuilder", conflict);
-            }
-        }
-
-        return conflicts;
     }
 
     // 发色+发型合并，避免"白色、稀疏短发"语义断裂，也避免"白发齐肩直发"重复"发"字
@@ -851,6 +784,64 @@ namespace {
         return result;
     }
 
+    // 英文版外观注入：将 visualPrompt 中的角色名替换为 "CharName (appearance)" 格式
+    // 与 injectBibleIntoScene 逻辑对称，但输出英文，供千问图像编辑模型使用
+    QString injectBibleIntoVisualPromptEn(const QString& visualPrompt,
+                                           const PromptBuilder::PanelCharacterPromptData& characterData,
+                                           const QMap<QString, QJsonObject>& characterRefs,
+                                           bool skipClothing)
+    {
+        QString result = visualPrompt;
+
+        for (const auto& charName : characterData.panelCharNames) {
+            QString matchedName = charName;
+            if (!characterRefs.contains(charName)) {
+                const QString normalized = normalizeCharacterNameForRefs(charName);
+                if (characterRefs.contains(normalized))
+                    matchedName = normalized;
+            }
+            if (!characterRefs.contains(matchedName)) continue;
+
+            const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
+            QStringList parts;
+
+            const QString hair = PromptBuilder::formatHair(appearance);
+            if (!hair.isEmpty()) parts << hair;
+
+            const QString eyeColor = appearance["eyeColor"].toString().trimmed();
+            if (!eyeColor.isEmpty()) parts << eyeColor + " eyes";
+
+            if (!skipClothing) {
+                const QStringList clothing = parseClothingList(appearance["clothing"]);
+                if (!clothing.isEmpty()) parts << "wearing " + clothing.join(", ");
+            }
+
+            if (parts.isEmpty()) continue;
+            const QString note = QString("(%1)").arg(parts.join(", "));
+
+            bool injected = false;
+            int searchFrom = 0;
+            while (true) {
+                const int pos = result.indexOf(charName, searchFrom, Qt::CaseInsensitive);
+                if (pos < 0) break;
+                const int after = pos + charName.length();
+                if (after < result.length() && result.at(after) == QChar('(')) {
+                    searchFrom = after + 1;
+                    continue;
+                }
+                if (!injected) {
+                    result.replace(pos, charName.length(), charName + " " + note);
+                    searchFrom = pos + charName.length() + note.length() + 1;
+                    injected = true;
+                    LOG_INFO("PromptBuilder", QString("  注入英文外观: %1 %2").arg(charName, note));
+                } else {
+                    searchFrom = pos + charName.length();
+                }
+            }
+        }
+        return result;
+    }
+
     bool shouldSkipClothing(const QString& editIntent)
     {
         return editIntent.contains(QStringLiteral("replace_attribute"))
@@ -884,7 +875,8 @@ namespace {
             
             const QString editPrompt = panel["visualPrompt"].toString().trimmed();
             if (!editPrompt.isEmpty()) {
-                parts << editPrompt;
+                const QString injected = injectBibleIntoVisualPromptEn(editPrompt, characterData, characterRefs, skipClothing);
+                parts << injected;
             }
             
             // 编辑模式下的气泡：仅当对话内容与编辑相关时才保留
@@ -1687,9 +1679,6 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
                                                selectedRefType);
 
     QStringList parts;
-
-    const QString visualPromptForCheck = panel["visualPrompt"].toString().trimmed();
-    detectVisualPromptConflicts(visualPromptForCheck, characterRefs);
 
     if (isImg2Img) {
         // 图生图使用五层优化架构（≤280字符，充分利用数据库字段）

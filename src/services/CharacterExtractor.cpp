@@ -1,6 +1,7 @@
 #include "services/CharacterExtractor.h"
 #include "utils/BibleCache.h"
 #include "data/DatabaseManager.h"
+#include "data/FileStorage.h"
 #include "utils/Logger.h"
 #include "utils/JsonUtils.h"
 #include "utils/BibleUtils.h"
@@ -9,6 +10,7 @@
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSet>
+#include <QUuid>
 
 namespace {
 QString normalizeExtractedName(const QString& name);
@@ -22,6 +24,7 @@ bool isGenericHairColor(const QString& hairColor);
 bool isVariantCharacterName(const QString& name);
 bool isGenericCharacterName(const QString& name);
 int purgeGenericCharacterRows(const QString& novelId);
+bool isCharacterSubject(const QString& sentence, const QString& name);
 
 const QStringList& getCharacterNameSuffixes()
 {
@@ -79,6 +82,23 @@ void appendUnique(QStringList& list, const QString& value)
     }
 }
 
+template<typename T>
+bool resolveFieldUpdate(const T& target, const T& incoming,
+                        const QJsonObject& existingSources, const QJsonObject& incomingSources,
+                        const QString& key, QJsonObject& fieldSources, QString& outSource)
+{
+    Q_UNUSED(incoming);
+    Q_UNUSED(fieldSources);
+    
+    const QString existingSource = existingSources.value(key).toString();
+    const QString incomingSource = incomingSources.value(key).toString();
+    if (!BibleUtils::BibleUpdateStrategy::canAdoptFieldValue(target, existingSource, incomingSource)) {
+        return false;
+    }
+    outSource = BibleUtils::BibleUpdateStrategy::normalizedSource(incomingSource, QStringLiteral("inferred"));
+    return true;
+}
+
 void updateFieldIfAllowed(QString& target, const QString& incoming,
                           const QJsonObject& existingSources, const QJsonObject& incomingSources,
                           const QString& key, QJsonObject& fieldSources)
@@ -86,16 +106,11 @@ void updateFieldIfAllowed(QString& target, const QString& incoming,
     if (incoming.isEmpty() || incoming == target) {
         return;
     }
-
-    const QString existingSource = existingSources.value(key).toString();
-    const QString incomingSource = incomingSources.value(key).toString();
-    if (!BibleUtils::BibleUpdateStrategy::canAdoptFieldValue(target, existingSource, incomingSource)) {
-        return;
+    QString src;
+    if (resolveFieldUpdate(target, incoming, existingSources, incomingSources, key, fieldSources, src)) {
+        target = incoming;
+        fieldSources[key] = src;
     }
-
-    target = incoming;
-    fieldSources[key] = BibleUtils::BibleUpdateStrategy::normalizedSource(
-        incomingSource, QStringLiteral("inferred"));
 }
 
 void updateIntFieldIfAllowed(int& target, int incoming,
@@ -105,16 +120,11 @@ void updateIntFieldIfAllowed(int& target, int incoming,
     if (incoming <= 0 || incoming == target) {
         return;
     }
-
-    const QString existingSource = existingSources.value(key).toString();
-    const QString incomingSource = incomingSources.value(key).toString();
-    if (!BibleUtils::BibleUpdateStrategy::canAdoptFieldValue(target, existingSource, incomingSource)) {
-        return;
+    QString src;
+    if (resolveFieldUpdate(target, incoming, existingSources, incomingSources, key, fieldSources, src)) {
+        target = incoming;
+        fieldSources[key] = src;
     }
-
-    target = incoming;
-    fieldSources[key] = BibleUtils::BibleUpdateStrategy::normalizedSource(
-        incomingSource, QStringLiteral("inferred"));
 }
 
 void updateListFieldIfAllowed(QStringList& target,
@@ -128,18 +138,17 @@ void updateListFieldIfAllowed(QStringList& target,
         return;
     }
 
-    const QString existingSource = existingSources.value(key).toString();
-    const QString incomingSource = incomingSources.value(key).toString();
-    if (!BibleUtils::BibleUpdateStrategy::canAdoptFieldValue(target, existingSource, incomingSource)) {
+    QString src;
+    if (!resolveFieldUpdate(target, incoming, existingSources, incomingSources, key, fieldSources, src)) {
         return;
     }
 
+    const QString incomingSource = incomingSources.value(key).toString();
     target = (target.isEmpty() || BibleUtils::BibleUpdateStrategy::isExplicitSource(incomingSource) ||
               BibleUtils::BibleUpdateStrategy::isManualSource(incomingSource))
         ? incoming
         : BibleUtils::mergeStringLists(target, incoming);
-    fieldSources[key] = BibleUtils::BibleUpdateStrategy::normalizedSource(
-        incomingSource, QStringLiteral("inferred"));
+    fieldSources[key] = src;
 }
 
 void mergeCharacterAppearance(CharacterAppearance& app, const ExtractedCharacter& incoming)
@@ -265,11 +274,10 @@ QString extractCharacterContext(const QString& sourceText, const QString& name, 
 
     QStringList matchedParagraphs;
     for (const QString& paragraph : paragraphs) {
-        if (paragraph.contains(name)) {
-            const QString trimmed = paragraph.trimmed();
-            if (!trimmed.isEmpty() && !matchedParagraphs.contains(trimmed)) {
-                matchedParagraphs << trimmed;
-            }
+        if (!paragraph.contains(name)) continue;
+        const QString trimmed = paragraph.trimmed();
+        if (!trimmed.isEmpty() && !matchedParagraphs.contains(trimmed)) {
+            matchedParagraphs << trimmed;
         }
     }
 
@@ -277,12 +285,51 @@ QString extractCharacterContext(const QString& sourceText, const QString& name, 
         return matchedParagraphs.join(QStringLiteral("\n\n"));
     }
 
-    const QString trimmedSource = sourceText.trimmed();
-    if (trimmedSource.contains(name)) {
-        return trimmedSource;
+    return QString();
+}
+
+bool isCharacterSubject(const QString& sentence, const QString& name)
+{
+    // 明确的非主语模式：角色作为纯宾语（被观察、被动作对象）
+    QList<QRegularExpression> nonSubjectPatterns;
+    nonSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("(?:看向|望着|对着|听见|看见|迎接|欢迎|目送|注视|观察|打量)[^，。！？]{0,10}%1").arg(name)));
+    nonSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("(?:对|向|给|为|替|帮|同|和|与)[^，。！？]{0,10}%1(?:说|讲|问|笑|点头)").arg(name)));
+    nonSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("[^，。！？]*的%1(?:攥着|提着|拿着|抱着|背着|戴着|穿着|系着|围着|套着)").arg(name)));
+
+    for (const auto& pattern : nonSubjectPatterns) {
+        if (pattern.match(sentence).hasMatch()) {
+            return false;
+        }
     }
 
-    return QString();
+    // 外貌描述主语模式：角色名后紧跟外貌相关词
+    QList<QRegularExpression> appearanceSubjectPatterns;
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("%1[^，。！？]{0,10}(?:穿着|戴着|系着|围着|披着|裹着|扎着|梳着|留着|染了|长了|有着|长着|带着|是一头|留了一头|顶着一头|一头)").arg(name)));
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("^%1(?:是|为|叫|名|姓|今年|是个|身为|作为)").arg(name)));
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("^(?:这|那|该)(?:个?位?)%1[^，。]{0,25}(?:是|有|带着|长着|留着|梳着|染了)").arg(name)));
+    // "只见他/她满头白发" 这类间接描述：角色名在前文，描述在后文（不跨逗号，避免匹配到同句其他角色）
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("%1[^，。！？]{0,20}(?:满头|一头|白发|银发|花白|黑发|短发|长发)").arg(name)));
+    // "顾北的浅棕色发丝" 所有格结构：角色名的[修饰词]{0,6}[外貌词]
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("%1的[^，。！？]{0,6}(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(name)));
+    // "林深抬起头，他的瞳仁是..." 同句代词回指：角色名出现后，同句内有他/她的[外貌词]
+    appearanceSubjectPatterns.append(
+        QRegularExpression(QString::fromUtf8("%1[^。！？]{0,30}(?:他|她|其)的(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(name)));
+
+    for (const auto& pattern : appearanceSubjectPatterns) {
+        if (pattern.match(sentence).hasMatch()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 QString matchFirstCapture(const QString& text, const QList<QRegularExpression>& patterns)
@@ -408,6 +455,32 @@ QString normalizeFieldText(const QString& value)
     return EncodingUtils::fixGarbledString(value).trimmed();
 }
 
+// LLM 有时把字段名写进值里，如 hairStyle="发型是利落的短发"、build="体型偏瘦"
+// 去掉已知字段名前缀，避免拼接时出现"白色发型是利落的短发"
+static const QMap<QString, QStringList>& fieldLabelPrefixes()
+{
+    static const QMap<QString, QStringList> map = {
+        { QStringLiteral("hairStyle"), { QStringLiteral("发型是"), QStringLiteral("发型为"), QStringLiteral("发型："), QStringLiteral("发型:") } },
+        { QStringLiteral("hairColor"), { QStringLiteral("发色是"), QStringLiteral("发色为"), QStringLiteral("发色："), QStringLiteral("发色:") } },
+        { QStringLiteral("eyeColor"),  { QStringLiteral("眼色是"), QStringLiteral("眼色为"), QStringLiteral("眼色："), QStringLiteral("眼色:") } },
+        { QStringLiteral("build"),     { QStringLiteral("体型是"), QStringLiteral("体型为"), QStringLiteral("体型："), QStringLiteral("体型:") } },
+        { QStringLiteral("height"),    { QStringLiteral("身高是"), QStringLiteral("身高为"), QStringLiteral("身高："), QStringLiteral("身高:") } },
+    };
+    return map;
+}
+
+QString stripFieldLabelPrefix(const QString& key, const QString& value)
+{
+    const auto& map = fieldLabelPrefixes();
+    if (!map.contains(key)) return value;
+    for (const QString& prefix : map.value(key)) {
+        if (value.startsWith(prefix)) {
+            return value.mid(prefix.length()).trimmed();
+        }
+    }
+    return value;
+}
+
 void setFieldSourceIfPresent(ExtractedCharacter& extracted, const QString& key, const QString& source)
 {
     if (!source.isEmpty()) {
@@ -427,18 +500,20 @@ QStringList normalizeTextList(const QStringList& values)
     return result;
 }
 
-void assignParsedStringField(ExtractedCharacter& extracted, const QString& key, QString& field, const QString& value)
+void assignParsedStringField(ExtractedCharacter& extracted, const QString& key, QString& field, const QString& value,
+                             const QString& source = QStringLiteral("inferred"))
 {
-    const QString normalized = normalizeFieldText(value);
+    const QString normalized = stripFieldLabelPrefix(key, normalizeFieldText(value));
     if (normalized.isEmpty()) {
         return;
     }
 
     field = normalized;
-    setFieldSourceIfPresent(extracted, key, QStringLiteral("inferred"));
+    setFieldSourceIfPresent(extracted, key, source);
 }
 
-void assignParsedListField(ExtractedCharacter& extracted, const QString& key, QStringList& field, const QStringList& values)
+void assignParsedListField(ExtractedCharacter& extracted, const QString& key, QStringList& field, const QStringList& values,
+                           const QString& source = QStringLiteral("inferred"))
 {
     const QStringList normalized = normalizeTextList(values);
     if (normalized.isEmpty()) {
@@ -446,7 +521,7 @@ void assignParsedListField(ExtractedCharacter& extracted, const QString& key, QS
     }
 
     field = normalized;
-    setFieldSourceIfPresent(extracted, key, QStringLiteral("inferred"));
+    setFieldSourceIfPresent(extracted, key, source);
 }
 
 void assignTextMatchedStringField(ExtractedCharacter& extracted, const QString& key, QString& field,
@@ -478,33 +553,26 @@ void assignTextMatchedStringField(ExtractedCharacter& extracted, const QString& 
 
 QString detectGenderFromText(const QString& text)
 {
+    if (text.isEmpty()) {
+        return QString();
+    }
+
     static const QStringList femaleMarkers = {
-        QString::fromUtf8("女性"),
-        QString::fromUtf8("女生"),
-        QString::fromUtf8("女孩子"),
-        QString::fromUtf8("女孩"),
-        QString::fromUtf8("女士"),
-        QString::fromUtf8("太太")
+        QString::fromUtf8("女性"), QString::fromUtf8("女生"), QString::fromUtf8("少女"),
+        QString::fromUtf8("姑娘"), QString::fromUtf8("女士"), QString::fromUtf8("女孩子"),
+        QString::fromUtf8("女孩"), QString::fromUtf8("太太")
     };
 
     static const QStringList maleMarkers = {
-        QString::fromUtf8("男性"),
-        QString::fromUtf8("男生"),
-        QString::fromUtf8("男人"),
-        QString::fromUtf8("男孩"),
-        QString::fromUtf8("先生")
+        QString::fromUtf8("男性"), QString::fromUtf8("男生"), QString::fromUtf8("少年"),
+        QString::fromUtf8("先生"), QString::fromUtf8("男人"), QString::fromUtf8("男孩")
     };
 
     for (const QString& marker : femaleMarkers) {
-        if (text.contains(marker)) {
-            return QString::fromUtf8("女");
-        }
+        if (text.contains(marker)) return QString::fromUtf8("女");
     }
-
     for (const QString& marker : maleMarkers) {
-        if (text.contains(marker)) {
-            return QString::fromUtf8("男");
-        }
+        if (text.contains(marker)) return QString::fromUtf8("男");
     }
 
     return QString();
@@ -615,73 +683,68 @@ int parseAgeText(const QString& ageText)
         }
     }
 
-    return 0;
-}
-
-QString inferGenderFromContext(const QString& text)
-{
-    if (text.isEmpty()) {
-        return QString();
-    }
-
-    static const QStringList femaleMarkers = {
-        QString::fromUtf8("女性"),
-        QString::fromUtf8("女生"),
-        QString::fromUtf8("少女"),
-        QString::fromUtf8("姑娘"),
-        QString::fromUtf8("女士"),
-        QString::fromUtf8("女孩子"),
-        QString::fromUtf8("女孩"),
-        QString::fromUtf8("太太")
+    // 描述性年龄映射（将文字描述转换为代表性数值）
+    static const QMap<QString, int> descriptiveAgeMapping = {
+        // 婴幼儿阶段
+        {QString::fromUtf8("婴儿"), 1},
+        {QString::fromUtf8("幼年"), 5},
+        {QString::fromUtf8("幼童"), 6},
+        {QString::fromUtf8("孩童"), 8},
+        
+        // 少年/儿童阶段
+        {QString::fromUtf8("少年"), 12},
+        {QString::fromUtf8("儿童"), 10},
+        {QString::fromUtf8("小孩"), 8},
+        {QString::fromUtf8("小姑娘"), 10},
+        {QString::fromUtf8("小男孩"), 10},
+        
+        // 青年阶段
+        {QString::fromUtf8("青年"), 22},
+        {QString::fromUtf8("年轻"), 25},
+        {QString::fromUtf8("年轻人"), 25},
+        {QString::fromUtf8("少女"), 16},
+        {QString::fromUtf8("少男"), 16},
+        {QString::fromUtf8("姑娘"), 18},
+        {QString::fromUtf8("小伙子"), 20},
+        {QString::fromUtf8("青春"), 20},
+        
+        // 中年阶段
+        {QString::fromUtf8("中年"), 45},
+        {QString::fromUtf8("中年人"), 45},
+        {QString::fromUtf8("壮年"), 40},
+        {QString::fromUtf8("而立之年"), 30},
+        {QString::fromUtf8("不惑之年"), 40},
+        {QString::fromUtf8("知天命"), 50},
+        
+        // 老年阶段
+        {QString::fromUtf8("老年"), 70},
+        {QString::fromUtf8("老年人"), 70},
+        {QString::fromUtf8("老人"), 72},
+        {QString::fromUtf8("老者"), 75},
+        {QString::fromUtf8("长者"), 70},
+        {QString::fromUtf8("高龄"), 80},
+        {QString::fromUtf8("古稀"), 70},
+        {QString::fromUtf8("耄耋"), 85},
+        {QString::fromUtf8("花甲之年"), 60},
+        {QString::fromUtf8("耳顺之年"), 60}
     };
 
-    static const QStringList maleMarkers = {
-        QString::fromUtf8("男性"),
-        QString::fromUtf8("男生"),
-        QString::fromUtf8("少年"),
-        QString::fromUtf8("先生"),
-        QString::fromUtf8("男人"),
-        QString::fromUtf8("男孩")
-    };
-
-    for (const QString& marker : femaleMarkers) {
-        if (text.contains(marker)) {
-            return QString::fromUtf8("女");
+    int containsMatch = 0;
+    for (auto it = descriptiveAgeMapping.constBegin(); it != descriptiveAgeMapping.constEnd(); ++it) {
+        if (normalized == it.key()) {
+            return it.value();
+        }
+        if (!containsMatch && normalized.contains(it.key())) {
+            containsMatch = it.value();
         }
     }
-
-    for (const QString& marker : maleMarkers) {
-        if (text.contains(marker)) {
-            return QString::fromUtf8("男");
-        }
-    }
-
-    return QString();
-}
-
-int inferAgeFromContext(const QString& text)
-{
-    if (text.isEmpty()) {
-        return 0;
-    }
-
-    if (text.contains(QString::fromUtf8("少女")) || text.contains(QString::fromUtf8("少年"))) {
-        return 16;
-    }
-    if (text.contains(QString::fromUtf8("青年"))) {
-        return 25;
-    }
-    if (text.contains(QString::fromUtf8("中年"))) {
-        return 45;
-    }
-    if (text.contains(QString::fromUtf8("老年")) ||
-        text.contains(QString::fromUtf8("老人")) ||
-        text.contains(QString::fromUtf8("老者"))) {
-        return 70;
+    if (containsMatch) {
+        return containsMatch;
     }
 
     return 0;
 }
+
 
 bool isVariantCharacterName(const QString& name)
 {
@@ -785,18 +848,13 @@ QString normalizeExtractedName(const QString& name)
     return normalized;
 }
 
-QString kinshipRelationKey(const QString& name)
+struct KinshipRelationRule {
+    QStringList tokens;
+    QString relationKey;
+};
+
+const QList<KinshipRelationRule>& kinshipRules()
 {
-    const QString normalized = normalizedCharacterKey(name);
-    if (normalized.isEmpty()) {
-        return QString();
-    }
-
-    struct KinshipRelationRule {
-        QStringList tokens;
-        QString relationKey;
-    };
-
     static const QList<KinshipRelationRule> rules = {
         {{QString::fromUtf8("父亲"), QString::fromUtf8("爸爸"), QString::fromUtf8("老爸"), QString::fromUtf8("爹"), QString::fromUtf8("父"), QString::fromUtf8("养父"), QString::fromUtf8("继父"), QString::fromUtf8("义父")},
          QStringLiteral("kinship:father")},
@@ -827,8 +885,17 @@ QString kinshipRelationKey(const QString& name)
         {{QString::fromUtf8("婶婶"), QString::fromUtf8("婶")},
          QStringLiteral("kinship:inlaw")}
     };
+    return rules;
+}
 
-    for (const KinshipRelationRule& rule : rules) {
+QString kinshipRelationKey(const QString& name)
+{
+    const QString normalized = normalizedCharacterKey(name);
+    if (normalized.isEmpty()) {
+        return QString();
+    }
+
+    for (const KinshipRelationRule& rule : kinshipRules()) {
         for (const QString& token : rule.tokens) {
             if (normalized.contains(token)) {
                 return rule.relationKey;
@@ -846,54 +913,18 @@ QString extractKinshipTargetKey(const QString& text)
         return QString();
     }
 
-    static const QStringList kinshipTokens = {
-        QString::fromUtf8("父亲"),
-        QString::fromUtf8("母亲"),
-        QString::fromUtf8("哥哥"),
-        QString::fromUtf8("姐姐"),
-        QString::fromUtf8("弟弟"),
-        QString::fromUtf8("妹妹"),
-        QString::fromUtf8("爷爷"),
-        QString::fromUtf8("奶奶"),
-        QString::fromUtf8("叔叔"),
-        QString::fromUtf8("阿姨"),
-        QString::fromUtf8("伯伯"),
-        QString::fromUtf8("姑姑"),
-        QString::fromUtf8("舅舅"),
-        QString::fromUtf8("婶婶"),
-        QString::fromUtf8("爸爸"),
-        QString::fromUtf8("妈妈"),
-        QString::fromUtf8("老爸"),
-        QString::fromUtf8("老妈"),
-        QString::fromUtf8("爹"),
-        QString::fromUtf8("娘"),
-        QString::fromUtf8("父"),
-        QString::fromUtf8("母"),
-        QString::fromUtf8("哥"),
-        QString::fromUtf8("姐"),
-        QString::fromUtf8("弟"),
-        QString::fromUtf8("妹"),
-        QString::fromUtf8("爷"),
-        QString::fromUtf8("奶"),
-        QString::fromUtf8("叔"),
-        QString::fromUtf8("姨"),
-        QString::fromUtf8("伯"),
-        QString::fromUtf8("姑"),
-        QString::fromUtf8("舅"),
-        QString::fromUtf8("婶")
-    };
-
     int bestPos = -1;
     int bestTokenLength = 0;
-    for (const QString& token : kinshipTokens) {
-        const int pos = normalized.indexOf(token);
-        if (pos <= 0) {
-            continue;
-        }
-
-        if (bestPos < 0 || pos < bestPos || (pos == bestPos && token.length() > bestTokenLength)) {
-            bestPos = pos;
-            bestTokenLength = token.length();
+    for (const KinshipRelationRule& rule : kinshipRules()) {
+        for (const QString& token : rule.tokens) {
+            const int pos = normalized.indexOf(token);
+            if (pos <= 0) {
+                continue;
+            }
+            if (bestPos < 0 || pos < bestPos || (pos == bestPos && token.length() > bestTokenLength)) {
+                bestPos = pos;
+                bestTokenLength = token.length();
+            }
         }
     }
 
@@ -1053,19 +1084,17 @@ void enrichCharacterAppearanceFromText(ExtractedCharacter& extracted, const QStr
 {
     static const QList<QRegularExpression> hairColorPatterns = {
         QRegularExpression(QString::fromUtf8("((?:白发|银发|灰发|花白发|黑发|金发|栗发|白色头发|黑色头发)|(?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?)[^，。；\\n]{0,8}(?:低马尾|高马尾|马尾|短发|长发|卷发|碎发|头发|发丝|鬓发)")),
-        QRegularExpression(QString::fromUtf8("(?:发色|头发|发丝|鬓发)[^，。；\\n]{0,6}(?:是|为|呈|染成)?((?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?|白发|银发|灰发|花白发)")),
-        QRegularExpression(QString::fromUtf8("(浅亚麻色|亚麻色|浅棕色|深棕色|棕褐色|黑褐色|黑色|乌黑|灰白色|花白|银白|银灰色|金色|栗色|纯白|雪白|白色|白发|银发|灰发|花白发)"))
+        QRegularExpression(QString::fromUtf8("(?:发色|头发|发丝|鬓发)[^，。；\\n]{0,6}(?:是|为|呈|染成)?((?:浅亚麻|亚麻|浅棕|深棕|棕褐|黑褐|乌黑|黑|灰白|花白|银白|银灰|金|栗|纯白|雪白|白)[色]?|白发|银发|灰发|花白发)"))
     };
 
     static const QList<QRegularExpression> hairStylePatterns = {
         QRegularExpression(QString::fromUtf8("(低马尾|高马尾|马尾|短发|长发|卷发|齐肩短发|齐耳短发|碎发|丸子头)")),
-        QRegularExpression(QString::fromUtf8("([一-龥]{0,6}(?:马尾|短发|长发))"))
+        QRegularExpression(QString::fromUtf8("((?:及肩|及腰|齐肩|齐耳|超短|超长|蓬松|凌乱|整齐|利落|柔顺|自然|微卷|直|卷)[^，。；\\n]{0,4}(?:短发|长发|马尾|发))"))
     };
 
     static const QList<QRegularExpression> eyeColorPatterns = {
         QRegularExpression(QString::fromUtf8("((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)[^，。；\\n]{0,6}(?:的)?(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)")),
-        QRegularExpression(QString::fromUtf8("(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)[^，。；\\n]{0,6}(?:是|为|呈|带着|透着)?((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)")),
-        QRegularExpression(QString::fromUtf8("(浅琥珀色|深琥珀色|琥珀色|浅褐色|深褐色|棕色|黑色|灰色|蓝色|绿色|金色|银色|茶色|墨色|琉璃色)"))
+        QRegularExpression(QString::fromUtf8("(?:眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼)[^，。；\\n]{0,6}(?:是|为|呈|带着|透着)?((?:浅|深)?(?:琥珀|褐|棕|黑|灰|蓝|绿|金|银|茶|墨|琉璃)色?)"))
     };
 
     static const QList<QRegularExpression> bodyTypePatterns = {
@@ -1112,21 +1141,45 @@ void enrichCharacterAppearanceFromText(ExtractedCharacter& extracted, const QStr
         QString::fromUtf8("旧诗集")
     };
 
-    const QString textHairColor = matchFirstCapture(context, hairColorPatterns);
-    if (!textHairColor.isEmpty() && (extracted.hairColor.isEmpty() || isGenericHairColor(extracted.hairColor))) {
-        assignTextMatchedStringField(extracted, QStringLiteral("hairColor"), extracted.hairColor,
-                                     textHairColor,
-                                     true,
-                                     QStringLiteral("explicit"));
+    if (extracted.hairColor.isEmpty() || isGenericHairColor(extracted.hairColor)) {
+        // 只从角色作为主语的句子里提取发色，避免把其他角色的发色归给目标角色
+        QString subjectHairColor;
+        const QStringList hairSentences = context.split(QRegularExpression(QStringLiteral("[。！？]")), Qt::SkipEmptyParts);
+        for (const QString& sentence : hairSentences) {
+            const QString trimmed = sentence.trimmed();
+            if (trimmed.isEmpty() || !isCharacterSubject(trimmed, extracted.name)) continue;
+            const QString matched = matchFirstCapture(trimmed, hairColorPatterns);
+            if (!matched.isEmpty()) {
+                subjectHairColor = matched;
+                break;
+            }
+        }
+        if (!subjectHairColor.isEmpty()) {
+            assignTextMatchedStringField(extracted, QStringLiteral("hairColor"), extracted.hairColor,
+                                         subjectHairColor, true, QStringLiteral("explicit"));
+        }
     }
-    assignTextMatchedStringField(extracted, QStringLiteral("hairStyle"), extracted.hairStyle,
-                                 matchFirstCapture(context, hairStylePatterns),
-                                 false,
-                                 QStringLiteral("explicit"));
-    assignTextMatchedStringField(extracted, QStringLiteral("eyeColor"), extracted.eyeColor,
-                                 matchFirstCapture(context, eyeColorPatterns),
-                                 false,
-                                 QStringLiteral("explicit"));
+    {
+        // 按句子过滤，只从角色作为主语的句子里提取发型和眼色，避免跨角色污染
+        const QStringList sentences = context.split(QRegularExpression(QStringLiteral("[。！？]")), Qt::SkipEmptyParts);
+        QString subjectHairStyle;
+        QString subjectEyeColor;
+        for (const QString& sentence : sentences) {
+            const QString trimmed = sentence.trimmed();
+            if (trimmed.isEmpty() || !isCharacterSubject(trimmed, extracted.name)) continue;
+            if (subjectHairStyle.isEmpty()) {
+                subjectHairStyle = matchFirstCapture(trimmed, hairStylePatterns);
+            }
+            if (subjectEyeColor.isEmpty()) {
+                subjectEyeColor = matchFirstCapture(trimmed, eyeColorPatterns);
+            }
+            if (!subjectHairStyle.isEmpty() && !subjectEyeColor.isEmpty()) break;
+        }
+        assignTextMatchedStringField(extracted, QStringLiteral("hairStyle"), extracted.hairStyle,
+                                     subjectHairStyle, false, QStringLiteral("explicit"));
+        assignTextMatchedStringField(extracted, QStringLiteral("eyeColor"), extracted.eyeColor,
+                                     subjectEyeColor, false, QStringLiteral("explicit"));
+    }
     assignTextMatchedStringField(extracted, QStringLiteral("build"), extracted.bodyType,
                                  matchFirstCapture(context, bodyTypePatterns),
                                  false,
@@ -1146,40 +1199,41 @@ void enrichCharacterAppearanceFromText(ExtractedCharacter& extracted, const QStr
 
 void enrichCharacterCoreIdentityFromText(ExtractedCharacter& extracted, const QString& context)
 {
-    const QString directGender = detectGenderFromText(context);
-    if (!directGender.isEmpty()) {
-        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
-                                     directGender, false, QStringLiteral("explicit"));
-    } else {
-        assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
-                                     inferGenderFromContext(context));
+    // 按句子拆分，只在角色是主语的句子里检测性别/年龄，避免把其他角色的描述归给目标角色
+    const QStringList sentences = context.split(
+        QRegularExpression(QStringLiteral("[。！？]")), Qt::SkipEmptyParts);
+
+    QString detectedGender;
+    int detectedAge = 0;
+    for (const QString& sentence : sentences) {
+        const QString trimmed = sentence.trimmed();
+        if (trimmed.isEmpty() || !isCharacterSubject(trimmed, extracted.name)) {
+            continue;
+        }
+        if (detectedGender.isEmpty()) {
+            detectedGender = detectGenderFromText(trimmed);
+        }
+        if (detectedAge <= 0) {
+            detectedAge = parseAgeText(trimmed);
+        }
+        if (!detectedGender.isEmpty() && detectedAge > 0) {
+            break;
+        }
     }
+
+    assignTextMatchedStringField(extracted, QStringLiteral("gender"), extracted.gender,
+                                 detectedGender, false, QStringLiteral("explicit"));
 
     const QString ageSource = extracted.fieldSources.value(QStringLiteral("age")).toString();
-    const int explicitAge = parseAgeText(context);
-    if (explicitAge > 0 &&
+    const int parsedAge = detectedAge;
+    if (parsedAge > 0 &&
         BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("explicit"))) {
-        extracted.age = explicitAge;
+        extracted.age = parsedAge;
         setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("explicit"));
-    } else if (extracted.age <= 0 &&
+    } else if (extracted.age <= 0 && parsedAge > 0 &&
                BibleUtils::BibleUpdateStrategy::shouldUpdateFromSource(ageSource, QStringLiteral("inferred"))) {
-        const int inferredAge = inferAgeFromContext(context);
-        if (inferredAge > 0) {
-            extracted.age = inferredAge;
-            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
-        }
-    }
-
-    if (extracted.age <= 0) {
-        const int roleBasedAge = BibleUtils::Inference::inferAge(extracted.role, extracted.name);
-        if (roleBasedAge > 0) {
-            extracted.age = roleBasedAge;
-            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
-            LOG_DEBUG("CharacterExtractor", QString("Inferred age from role/name for '%1': role=%2, age=%3")
-                .arg(extracted.name)
-                .arg(extracted.role)
-                .arg(extracted.age));
-        }
+        extracted.age = parsedAge;
+        setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
     }
 }
 
@@ -1247,6 +1301,8 @@ ExtractedCharacter ExtractedCharacter::fromJson(const QJsonObject& json)
 CharacterExtractor::CharacterExtractor(QObject* parent)
     : QObject(parent)
 {
+    qRegisterMetaType<CharacterFieldDiff>("CharacterFieldDiff");
+    qRegisterMetaType<QList<CharacterFieldDiff>>("QList<CharacterFieldDiff>");
 }
 
 CharacterExtractor::~CharacterExtractor()
@@ -1378,6 +1434,16 @@ ExtractedCharacter CharacterExtractor::parseAICharacter(const QJsonObject& charO
         .arg(QString::fromUtf8(QJsonDocument(appObj).toJson(QJsonDocument::Compact))));
 
     applyCharacterFields(extracted, appObj, charObj);
+
+    if (extracted.age <= 0) {
+        const int roleBasedAge = BibleUtils::Inference::inferAge(extracted.role, extracted.name);
+        if (roleBasedAge > 0) {
+            extracted.age = roleBasedAge;
+            setFieldSourceIfPresent(extracted, QStringLiteral("age"), QStringLiteral("inferred"));
+            LOG_DEBUG("CharacterExtractor", QString("Inferred age from role/name for '%1': role=%2, age=%3")
+                .arg(extracted.name).arg(extracted.role).arg(extracted.age));
+        }
+    }
 
     LOG_DEBUG("CharacterExtractor", QString("Parsed character '%1': role=%2, gender=%3, age=%4, hairColor=%5, eyeColor=%6, build=%7")
         .arg(extracted.name)
@@ -1518,6 +1584,11 @@ Character findMatchingCharacter(const QList<Character>& candidates, const Extrac
 
 bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCharacter& extracted)
 {
+    return saveCharacter(novelId, extracted, 0);
+}
+
+bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCharacter& extracted, int sourceChapter)
+{
     if (isGenericCharacterName(extracted.name)) {
         LOG_DEBUG("CharacterExtractor", QString("Skipping generic character: %1").arg(extracted.name));
         return true;
@@ -1534,8 +1605,13 @@ bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCh
     if (!existing.id().isEmpty()) {
         LOG_DEBUG("CharacterExtractor", QString("Character '%1' matched existing '%2', merging...")
             .arg(character.name(), existing.name()));
-        Character merged = mergeCharacters(existing, extracted);
-        return updateCharacter(merged);
+        QList<CharacterFieldDiff> diff;
+        Character merged = mergeCharacters(existing, extracted, &diff);
+        bool ok = updateCharacter(merged);
+        if (ok && !diff.isEmpty()) {
+            emit characterVisualFieldsChanged(merged.id(), diff, sourceChapter);
+        }
+        return ok;
     }
 
     QVariantMap data = characterToData(character);
@@ -1555,8 +1631,75 @@ bool CharacterExtractor::saveCharacter(const QString& novelId, const ExtractedCh
 // Merge extracted character data with an existing character record.
 Character CharacterExtractor::mergeCharacters(const Character& existing, const ExtractedCharacter& incoming) const
 {
+    return mergeCharacters(existing, incoming, nullptr);
+}
+
+namespace {
+
+// 视觉字段白名单：只有这些字段变化才触发圣经图增量编辑
+const QStringList& visualFieldWhitelist()
+{
+    static const QStringList fields = {
+        "hairColor", "hairStyle", "eyeColor", "height", "build",
+        "clothing", "accessories", "distinctiveFeatures"
+    };
+    return fields;
+}
+
+QString joinList(const QStringList& list)
+{
+    return list.join(QString::fromUtf8("、"));
+}
+
+QString readVisualFieldAsString(const CharacterAppearance& app, const QString& field)
+{
+    if (field == "hairColor") return app.hairColor;
+    if (field == "hairStyle") return app.hairStyle;
+    if (field == "eyeColor") return app.eyeColor;
+    if (field == "height") return app.height;
+    if (field == "build") return app.build;
+    if (field == "clothing") return joinList(app.clothing);
+    if (field == "accessories") return joinList(app.accessories);
+    if (field == "distinctiveFeatures") return joinList(app.distinctiveFeatures);
+    return QString();
+}
+
+void collectVisualDiff(const CharacterAppearance& before,
+                       const CharacterAppearance& after,
+                       QList<CharacterFieldDiff>* outDiff)
+{
+    if (!outDiff) {
+        return;
+    }
+    for (const QString& field : visualFieldWhitelist()) {
+        const QString oldVal = readVisualFieldAsString(before, field);
+        const QString newVal = readVisualFieldAsString(after, field);
+        const QString oldSrc = before.fieldSources.value(field).toString();
+        const QString newSrc = after.fieldSources.value(field).toString();
+        const bool valueChanged = oldVal != newVal;
+        if (!valueChanged) {
+            continue;
+        }
+        CharacterFieldDiff diff;
+        diff.field = field;
+        diff.oldValue = oldVal;
+        diff.newValue = newVal;
+        diff.sourceFrom = oldSrc;
+        diff.sourceTo = newSrc;
+        outDiff->append(diff);
+    }
+}
+
+} // namespace
+
+Character CharacterExtractor::mergeCharacters(const Character& existing,
+                                              const ExtractedCharacter& incoming,
+                                              QList<CharacterFieldDiff>* outDiff) const
+{
     Character merged = existing;
     CharacterAppearance app = merged.appearance();
+    const CharacterAppearance before = app;
+
     mergeCharacterAppearance(app, incoming);
     merged.setAliases(mergeCharacterAliases(existing, incoming, app));
     mergeCharacterRole(merged, incoming);
@@ -1566,6 +1709,8 @@ Character CharacterExtractor::mergeCharacters(const Character& existing, const E
     if (!incoming.personality.isEmpty()) {
         merged.setPersonality(BibleUtils::mergeStringLists(merged.personality(), incoming.personality));
     }
+
+    collectVisualDiff(before, app, outDiff);
 
     return merged;
 }
@@ -1585,11 +1730,21 @@ QVariantMap CharacterExtractor::characterToData(const Character& character) cons
     data["appearance"] = JsonUtils::jsonToString(app.toJson());
     data["personalities"] = JsonUtils::jsonToString(JsonUtils::stringListToJsonArray(character.personality()));
     data["portrait_path"] = character.portraitPath();
+    if (character.currentPortraitVersionId().isEmpty()) {
+        data["current_portrait_version_id"] = QVariant(QVariant::String);
+    } else {
+        data["current_portrait_version_id"] = character.currentPortraitVersionId();
+    }
 
     return data;
 }
 
 int CharacterExtractor::saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters)
+{
+    return saveCharacters(novelId, characters, 0);
+}
+
+int CharacterExtractor::saveCharacters(const QString& novelId, const QList<ExtractedCharacter>& characters, int sourceChapter)
 {
     if (characters.isEmpty()) {
         return 0;
@@ -1599,7 +1754,7 @@ int CharacterExtractor::saveCharacters(const QString& novelId, const QList<Extra
 
     auto operation = [&]() -> bool {
         for (const ExtractedCharacter& extracted : characters) {
-            if (!saveCharacter(novelId, extracted)) {
+            if (!saveCharacter(novelId, extracted, sourceChapter)) {
                 return false;
             }
             savedCount++;
@@ -1645,6 +1800,15 @@ Character CharacterExtractor::characterFromRow(const QVariantMap& row)
     return character;
 }
 
+static QString characterSelectSql(const QString& whereClause)
+{
+    return QStringLiteral(
+        "SELECT c.*, COALESCE(cpv.portrait_path, c.portrait_path) AS portrait_path "
+        "FROM characters c "
+        "LEFT JOIN character_portrait_versions cpv ON cpv.id = c.current_portrait_version_id "
+        "WHERE ") + whereClause;
+}
+
 QList<Character> CharacterExtractor::getCharactersByNovel(const QString& novelId)
 {
     if (BibleCache::instance()->hasCharacters(novelId)) {
@@ -1659,8 +1823,12 @@ QList<Character> CharacterExtractor::getCharactersByNovel(const QString& novelId
     }
 
     QList<Character> characters;
-    QList<QVariantMap> results = DatabaseManager::instance()->selectAll(
-        "characters", "novel_id = ?", QVariantList() << novelId);
+    QList<QVariantMap> results = DatabaseManager::instance()->executeQuery(
+        characterSelectSql(QStringLiteral("c.novel_id = ?")), QVariantList() << novelId);
+    if (results.isEmpty()) {
+        results = DatabaseManager::instance()->selectAll(
+            "characters", "novel_id = ?", QVariantList() << novelId);
+    }
 
     for (const QVariantMap& row : results) {
         Character character = characterFromRow(row);
@@ -1674,10 +1842,13 @@ QList<Character> CharacterExtractor::getCharactersByNovel(const QString& novelId
 
 Character CharacterExtractor::getCharacterById(const QString& characterId)
 {
-    QVariantMap row = DatabaseManager::instance()->selectOne(
-        "characters", "id = ?", QVariantList() << characterId);
-
-    return row.isEmpty() ? Character() : characterFromRow(row);
+    QList<QVariantMap> rows = DatabaseManager::instance()->executeQuery(
+        characterSelectSql(QStringLiteral("c.id = ?")), QVariantList() << characterId);
+    if (rows.isEmpty()) {
+        rows = DatabaseManager::instance()->selectAll(
+            "characters", "id = ?", QVariantList() << characterId);
+    }
+    return rows.isEmpty() ? Character() : characterFromRow(rows.first());
 }
 
 Character CharacterExtractor::getCharacterByName(const QString& novelId, const QString& name)
@@ -1740,11 +1911,22 @@ bool CharacterExtractor::persistCharacterRecord(const Character& character, bool
 
 bool CharacterExtractor::deleteCharacter(const QString& characterId)
 {
+    // 先删版本文件（事务外，文件操作不可回滚）
+    QList<CharacterPortraitVersion> versions = loadPortraitVersions(characterId);
+    for (const CharacterPortraitVersion& v : versions) {
+        if (!v.portraitPath().isEmpty()) {
+            FileStorage::instance()->deleteReferenceImage(v.portraitPath());
+        }
+    }
+
     QString novelId;
     bool success = DatabaseManager::instance()->transaction([&]() -> bool {
         QVariantMap row = DatabaseManager::instance()->selectOne(
             "characters", "id = ?", QVariantList() << characterId);
         novelId = row["novel_id"].toString();
+
+        DatabaseManager::instance()->remove(
+            "character_portrait_versions", "character_id = ?", QVariantList() << characterId);
 
         return DatabaseManager::instance()->remove(
             "characters", "id = ?", QVariantList() << characterId);
@@ -1758,4 +1940,155 @@ bool CharacterExtractor::deleteCharacter(const QString& characterId)
     }
 
     return success;
+}
+
+// ==================== 角色肖像版本 CRUD ====================
+
+QList<CharacterPortraitVersion> CharacterExtractor::loadPortraitVersions(const QString& characterId)
+{
+    QList<CharacterPortraitVersion> versions;
+    if (characterId.isEmpty()) {
+        return versions;
+    }
+    QList<QVariantMap> rows = DatabaseManager::instance()->selectAll(
+        "character_portrait_versions",
+        "character_id = ?",
+        QVariantList() << characterId,
+        "version_no ASC");
+    for (const QVariantMap& row : rows) {
+        versions.append(CharacterPortraitVersion::fromVariantMap(row));
+    }
+    return versions;
+}
+
+QMap<QString, QList<CharacterPortraitVersion>> CharacterExtractor::loadPortraitVersionsByNovel(const QString& novelId)
+{
+    QMap<QString, QList<CharacterPortraitVersion>> result;
+    if (novelId.isEmpty()) {
+        return result;
+    }
+    const QString sql =
+        "SELECT cpv.* FROM character_portrait_versions cpv "
+        "INNER JOIN characters c ON c.id = cpv.character_id "
+        "WHERE c.novel_id = ? "
+        "ORDER BY cpv.character_id, cpv.version_no ASC";
+    QList<QVariantMap> rows = DatabaseManager::instance()->executeQuery(sql, QVariantList() << novelId);
+    for (const QVariantMap& row : rows) {
+        CharacterPortraitVersion v = CharacterPortraitVersion::fromVariantMap(row);
+        result[v.characterId()].append(v);
+    }
+    return result;
+}
+
+CharacterPortraitVersion CharacterExtractor::getPortraitVersion(const QString& versionId)
+{
+    if (versionId.isEmpty()) {
+        return CharacterPortraitVersion();
+    }
+    QVariantMap row = DatabaseManager::instance()->selectOne(
+        "character_portrait_versions", "id = ?", QVariantList() << versionId);
+    return row.isEmpty() ? CharacterPortraitVersion() : CharacterPortraitVersion::fromVariantMap(row);
+}
+
+int CharacterExtractor::nextVersionNo(const QString& characterId)
+{
+    if (characterId.isEmpty()) {
+        return 1;
+    }
+    QList<QVariantMap> rows = DatabaseManager::instance()->executeQuery(
+        "SELECT COALESCE(MAX(version_no), 0) AS max_no FROM character_portrait_versions WHERE character_id = ?",
+        QVariantList() << characterId);
+    if (rows.isEmpty()) {
+        return 1;
+    }
+    return rows.first().value("max_no").toInt() + 1;
+}
+
+bool CharacterExtractor::addPortraitVersion(const CharacterPortraitVersion& version)
+{
+    if (version.id().isEmpty() || version.characterId().isEmpty() || version.portraitPath().isEmpty()) {
+        LOG_ERROR("CharacterExtractor", "addPortraitVersion: missing required fields");
+        return false;
+    }
+    QVariantMap data = version.toVariantMap();
+    qint64 result = DatabaseManager::instance()->insert("character_portrait_versions", data);
+    if (result <= 0) {
+        LOG_ERROR("CharacterExtractor", QString("Failed to insert portrait version for character %1").arg(version.characterId()));
+        return false;
+    }
+    LOG_INFO("CharacterExtractor", QString("Added portrait version v%1 for character %2")
+        .arg(version.versionNo()).arg(version.characterId()));
+    return true;
+}
+
+bool CharacterExtractor::setCurrentPortraitVersion(const QString& characterId, const QString& versionId)
+{
+    if (characterId.isEmpty() || versionId.isEmpty()) {
+        return false;
+    }
+    CharacterPortraitVersion v = getPortraitVersion(versionId);
+    if (v.id().isEmpty() || v.characterId() != characterId) {
+        LOG_ERROR("CharacterExtractor", QString("setCurrentPortraitVersion: version %1 not found or mismatched character").arg(versionId));
+        return false;
+    }
+    QVariantMap data;
+    data["current_portrait_version_id"] = versionId;
+    data["portrait_path"] = v.portraitPath();
+    bool ok = DatabaseManager::instance()->update("characters", data, "id = ?", QVariantList() << characterId);
+    if (ok) {
+        Character ch = getCharacterById(characterId);
+        if (!ch.id().isEmpty()) {
+            BibleCache::instance()->invalidateCharacters(ch.novelId());
+            emit characterUpdated(characterId, v.portraitPath());
+        }
+    }
+    return ok;
+}
+
+bool CharacterExtractor::deletePortraitVersion(const QString& versionId)
+{
+    if (versionId.isEmpty()) {
+        return false;
+    }
+    CharacterPortraitVersion v = getPortraitVersion(versionId);
+    if (v.id().isEmpty()) {
+        return false;
+    }
+    if (!v.portraitPath().isEmpty()) {
+        FileStorage::instance()->deleteReferenceImage(v.portraitPath());
+    }
+    return DatabaseManager::instance()->remove(
+        "character_portrait_versions", "id = ?", QVariantList() << versionId);
+}
+
+CharacterPortraitVersion CharacterExtractor::ensureFirstPortraitVersion(const Character& character)
+{
+    if (character.id().isEmpty() || character.portraitPath().isEmpty()) {
+        return CharacterPortraitVersion();
+    }
+    if (!character.currentPortraitVersionId().isEmpty()) {
+        CharacterPortraitVersion existing = getPortraitVersion(character.currentPortraitVersionId());
+        if (!existing.id().isEmpty()) {
+            return existing;
+        }
+    }
+    QList<CharacterPortraitVersion> existing = loadPortraitVersions(character.id());
+    if (!existing.isEmpty()) {
+        return existing.first();
+    }
+
+    CharacterPortraitVersion v;
+    v.setId(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    v.setCharacterId(character.id());
+    v.setVersionNo(1);
+    v.setPortraitPath(character.portraitPath());
+    v.setCreatedAt(QDateTime::currentDateTime());
+    if (!addPortraitVersion(v)) {
+        return CharacterPortraitVersion();
+    }
+    QVariantMap upd;
+    upd["current_portrait_version_id"] = v.id();
+    DatabaseManager::instance()->update("characters", upd, "id = ?", QVariantList() << character.id());
+    BibleCache::instance()->invalidateCharacters(character.novelId());
+    return v;
 }

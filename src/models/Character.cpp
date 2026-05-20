@@ -61,6 +61,21 @@ QJsonObject CharacterAppearance::toJson() const
     return json;
 }
 
+QJsonObject CharacterAppearance::toPromptJson() const
+{
+    QJsonObject json;
+    json["gender"] = gender;
+    json["age"] = age;
+    json["hairColor"] = hairColor;
+    json["hairStyle"] = hairStyle;
+    json["eyeColor"] = eyeColor;
+    json["build"] = build;
+    json["clothing"] = JsonUtils::stringListToJsonArray(clothing);
+    json["accessories"] = JsonUtils::stringListToJsonArray(accessories);
+    json["distinctiveFeatures"] = JsonUtils::stringListToJsonArray(distinctiveFeatures);
+    return json;
+}
+
 CharacterAppearance CharacterAppearance::fromJson(const QJsonObject& json)
 {
     CharacterAppearance app;
@@ -110,6 +125,9 @@ QVariantMap Character::toVariantMap() const
     if (!m_portraitPath.isEmpty()) {
         map["portrait_path"] = m_portraitPath;
     }
+    if (!m_currentPortraitVersionId.isEmpty()) {
+        map["current_portrait_version_id"] = m_currentPortraitVersionId;
+    }
     return map;
 }
 
@@ -135,6 +153,7 @@ Character Character::fromVariantMap(const QVariantMap& map)
 
     c.m_personality = readStringListVariant(map["personalities"]);
     c.m_portraitPath = map["portrait_path"].toString();
+    c.m_currentPortraitVersionId = map["current_portrait_version_id"].toString();
     return c;
 }
 
@@ -150,6 +169,9 @@ QJsonObject Character::toJson() const
     json["personality"] = JsonUtils::stringListToJsonArray(m_personality);
     if (!m_portraitPath.isEmpty()) {
         json["portraitPath"] = m_portraitPath;
+    }
+    if (!m_currentPortraitVersionId.isEmpty()) {
+        json["currentPortraitVersionId"] = m_currentPortraitVersionId;
     }
     return json;
 }
@@ -169,6 +191,7 @@ Character Character::fromJson(const QJsonObject& json)
     c.m_appearance.aliases = c.m_aliases;
     c.m_personality = JsonUtils::jsonArrayToStringList(json["personality"].toArray());
     c.m_portraitPath = json["portraitPath"].toString();
+    c.m_currentPortraitVersionId = json["currentPortraitVersionId"].toString();
     return c;
 }
 
@@ -189,8 +212,6 @@ QStringList Character::toDisplayStrings() const
     addLine(QString::fromUtf8("服饰"), m_appearance.clothing.join(QString::fromUtf8("、")));
     addLine(QString::fromUtf8("明显特征"), m_appearance.distinctiveFeatures.join(QString::fromUtf8("、")));
     addLine(QString::fromUtf8("个性"), m_personality.join(QString::fromUtf8("、")));
-    
+
     return lines;
 }
-
-#include "moc_Character.cpp"

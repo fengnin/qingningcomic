@@ -15,6 +15,7 @@
 #include "services/NovelService.h"
 #include "services/StoryboardService.h"
 #include "services/CharacterExtractor.h"
+#include "models/CharacterPortraitVersion.h"
 #include "services/SceneExtractor.h"
 #include "services/BibleGenerator.h"
 #include "services/BibleImageService.h"
@@ -44,6 +45,7 @@
 #include "utils/BibleUtils.h"
 #include "utils/ShotTypeHelper.h"
 #include <QMessageBox>
+#include <QMenu>
 #include <QFileDialog>
 #include <QMouseEvent>
 #include <QPushButton>
@@ -348,13 +350,35 @@ namespace {
             return;
         }
 
-        const QString targetPath = character.portraitPath();
-        if (targetPath.isEmpty()) {
-            return;
+        QList<CharacterPortraitVersion> versions = CharacterExtractor::instance()->loadPortraitVersions(characterId);
+        QString currentVersionId = character.currentPortraitVersionId();
+        if (currentVersionId.isEmpty() && !versions.isEmpty()) {
+            currentVersionId = versions.last().id();
         }
 
-        FileStorage::instance()->deleteReferenceImage(targetPath);
+        if (!currentVersionId.isEmpty()) {
+            CharacterPortraitVersion fallback;
+            for (int i = versions.size() - 1; i >= 0; --i) {
+                if (versions[i].id() != currentVersionId) {
+                    fallback = versions[i];
+                    break;
+                }
+            }
+
+            CharacterExtractor::instance()->deletePortraitVersion(currentVersionId);
+
+            if (!fallback.id().isEmpty()) {
+                CharacterExtractor::instance()->setCurrentPortraitVersion(characterId, fallback.id());
+                return;
+            }
+        }
+
+        const QString targetPath = character.portraitPath();
+        if (!targetPath.isEmpty()) {
+            FileStorage::instance()->deleteReferenceImage(targetPath);
+        }
         character.setPortraitPath(QString());
+        character.setCurrentPortraitVersionId(QString());
         CharacterExtractor::instance()->updateCharacter(character);
     }
 
@@ -665,6 +689,14 @@ void NovelDetailPage::setupConnections()
 
     connect(BibleImageService::instance(), &BibleImageService::allBibleImagesCompleted,
             this, &NovelDetailPage::onAllBibleImagesCompleted, Qt::QueuedConnection);
+
+    connect(BibleImageService::instance(), &BibleImageService::portraitVersionGenerated,
+            this, [this](const QString& characterId, const QString&, const QString&) {
+                if (m_currentNovel.id().isEmpty() || !m_bibleSectionWidget) return;
+                Character character = CharacterExtractor::instance()->getCharacterById(characterId);
+                if (character.novelId() != m_currentNovel.id()) return;
+                requestBibleRefresh();
+            }, Qt::QueuedConnection);
 }
 
 NovelDetailPage::~NovelDetailPage()
@@ -1252,6 +1284,8 @@ QWidget* NovelDetailPage::createBibleSection()
             this, &NovelDetailPage::onCharacterDataChanged);
     connect(m_bibleSectionWidget, &BibleSectionWidget::sceneDataChanged,
             this, &NovelDetailPage::onSceneDataChanged);
+    connect(m_bibleSectionWidget, &BibleSectionWidget::characterVersionClicked,
+            this, &NovelDetailPage::onCharacterVersionClicked);
     
     m_bibleSectionWidget->setNovelId(m_currentNovel.id());
     
@@ -2692,6 +2726,10 @@ void NovelDetailPage::onStoryboardDataChanged(const QString &panelId, int panelN
                                      visualPrompt,
                                      visualPromptEn,
                                      visualPromptCn));
+
+    if (m_panelPreviewWidget) {
+        m_panelPreviewWidget->updatePanelDescription(panelId, scene);
+    }
 }
 
 QJsonObject NovelDetailPage::buildStoryboardUpdateContent(const Panel& panel,
@@ -3017,6 +3055,87 @@ void NovelDetailPage::onBibleItemDeleteRequested(const QString &id, BibleType ty
             m_mainScrollArea->verticalScrollBar()->setValue(savedMainVScrollPos);
         }
     });
+}
+
+void NovelDetailPage::onCharacterVersionClicked(const QString &characterId, const QPoint &anchorGlobalPos)
+{
+    if (characterId.isEmpty()) {
+        return;
+    }
+
+    Character character = CharacterExtractor::instance()->getCharacterById(characterId);
+    if (character.id().isEmpty()) {
+        QMessageBox::warning(this, tr("版本"), tr("未找到该角色"));
+        return;
+    }
+
+    QList<CharacterPortraitVersion> versions = CharacterExtractor::instance()->loadPortraitVersions(characterId);
+    if (versions.isEmpty() && !character.portraitPath().isEmpty()) {
+        CharacterPortraitVersion v1 = CharacterExtractor::instance()->ensureFirstPortraitVersion(character);
+        if (!v1.id().isEmpty()) {
+            versions.append(v1);
+            character = CharacterExtractor::instance()->getCharacterById(characterId);
+        }
+    }
+
+    QMenu* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->setStyleSheet(R"(
+        QMenu {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 8px 16px;
+            border-radius: 4px;
+            color: #374151;
+            font-size: 13px;
+        }
+        QMenu::item:selected {
+            background: #fef3c7;
+            color: #854d0e;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 4px 8px;
+        }
+    )");
+
+    if (versions.isEmpty()) {
+        QAction* empty = menu->addAction(tr("（暂无历史版本）"));
+        empty->setEnabled(false);
+    } else {
+        const QString currentId = character.currentPortraitVersionId();
+        for (const CharacterPortraitVersion& v : versions) {
+            const bool isCurrent = (v.id() == currentId);
+            QString label = QString("v%1").arg(v.versionNo());
+            if (v.sourceChapter() > 0) {
+                label += QString("  · 第%1章").arg(v.sourceChapter());
+            }
+            if (isCurrent) {
+                label += tr("  ✓ 当前");
+            }
+            QAction* act = menu->addAction(label);
+            const QString versionId = v.id();
+            connect(act, &QAction::triggered, this, [this, characterId, versionId, isCurrent]() {
+                if (isCurrent) {
+                    return;
+                }
+                if (CharacterExtractor::instance()->setCurrentPortraitVersion(characterId, versionId)) {
+                    if (m_bibleSectionWidget) {
+                        m_bibleSectionWidget->refreshBible();
+                    }
+                } else {
+                    QMessageBox::warning(this, tr("切换失败"), tr("无法切换到该版本"));
+                }
+            });
+        }
+    }
+
+    menu->popup(anchorGlobalPos);
 }
 
 void NovelDetailPage::onExportClicked()

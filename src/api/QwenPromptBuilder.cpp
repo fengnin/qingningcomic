@@ -157,10 +157,10 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "🎯 **visualPrompt 生成规范（必须严格遵守）**：\n\n"
 
         "**0. 必须同时输出 visualPrompt（英文）和 visualPromptCn（中文）两个字段**\n"
-        "- visualPrompt：英文图像生成指令，供千问图像编辑模型使用，需包含完整角色外观描述\n"
+        "- visualPrompt：英文图像生成指令，供千问图像编辑模型使用，**禁止写角色外观**（发色、发型、眼色、服装），用角色名代替\n"
         "- visualPromptCn：中文视觉指令，供火山引擎图像生成模型使用，**禁止写角色外观**（发色、发型、眼色、服装），用角色名代替\n"
-        "- 两个字段侧重不同：visualPrompt写完整外观，visualPromptCn只写场景+动作+光线+氛围，用角色名指代角色\n"
-        "- 示例：visualPrompt='young woman with white hair, light blue apron, standing behind counter'，visualPromptCn='青柠站在柜台后，午后暖光从玻璃门斜入'\n\n"
+        "- 两个字段都只写场景+动作+光线+氛围，用角色名指代角色，角色外观由系统从圣经自动注入\n"
+        "- 示例：visualPrompt='Qingning sitting behind counter, afternoon light through glass door'，visualPromptCn='青柠站在柜台后，午后暖光从玻璃门斜入'\n\n"
 
         "**1. 禁止文学性表达，使用视觉语言**\n"
         "- ❌ 错误：'立于逆光门框中'、'柔光漫溢'、'视线交汇'\n"
@@ -206,12 +206,18 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "- 场景元素要与已有场景参考图保持一致\n"
         "- visualPromptCn 中用角色名（如'青柠'、'林阿姨'）指代角色，不描述其外观\n\n"
 
-        "**9. ⚠️ visualPromptCn 角色名规范（最高优先级）**\n"
-        "- ✅ **必须遵守**：visualPromptCn 中出现角色时，直接使用角色名，不描述发色、发型、眼色、服装\n"
-        "- ❌ **严格禁止**：在 visualPromptCn 中写'白发女性'、'穿围裙的女孩'等外观描述\n"
-        "- **示例**：❌ '白发齐肩的年轻女性站在柜台后' → ✅ '青柠站在柜台后'\n"
-        "- **示例**：❌ '黑发中年女性将蛋糕盒放在柜台' → ✅ '林阿姨将蛋糕盒放在柜台'\n"
-        "- **原因**：角色外观由 PromptBuilder 的 Bible lock 负责注入，visualPromptCn 只负责场景、动作、光线、氛围\n\n"
+        "**9. ⚠️ visualPrompt 和 visualPromptCn 角色名规范（最高优先级）**\n"
+        "- ✅ **必须遵守**：两个字段中出现角色时，直接使用角色名，不描述发色、发型、眼色、服装\n"
+        "- ❌ **严格禁止**：在任何一个字段中写外观描述，如'white-haired girl'、'白发女性'、'穿围裙的女孩'\n"
+        "- **示例 visualPrompt**：❌ 'young woman with white hair standing behind counter' → ✅ 'Qingning standing behind counter'\n"
+        "- **示例 visualPromptCn**：❌ '白发齐肩的年轻女性站在柜台后' → ✅ '青柠站在柜台后'\n"
+        "- **原因**：角色外观由系统从角色圣经自动注入，两个字段只负责场景、动作、光线、氛围\n\n"
+
+        "**9b. ⚠️ scene 字段禁止写角色外观**\n"
+        "- scene 字段是叙事文本，用于描述这一格发生了什么，供读者理解剧情\n"
+        "- ❌ **严格禁止**：在 scene 中写角色的发色、发型、眼色、服装、体型等外观特征，如'白发苍苍的陈伯'、'穿蓝色围裙的青柠'\n"
+        "- ✅ **正确**：只写角色名 + 动作 + 情绪 + 场景环境，如'陈伯走进书店，神情疲惫地将旧布包放在柜台上'\n"
+        "- **原因**：角色外观已在圣经系统中管理，scene 里重复描述会造成冗余，且可能与圣经版本不一致\n\n"
 
         "**10. ⚠️ 动作和姿态必须符合物理常识**\n"
         "- ❌ **禁止**：描述需要角色同时朝向两个不同方向的动作（如两人距离较远时写'视线交汇'，会导致身体扭曲）\n"

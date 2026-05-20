@@ -28,4 +28,5 @@ private:
     static bool initializeStorageClient(InitResult& result);
     static void ensureDefaultUserExists();
     static void registerTaskHandlers();
+    static void connectAutoPortraitEdit();
 };

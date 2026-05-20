@@ -14,15 +14,18 @@
 #include "services/ChangeRequestService.h"
 #include "services/TaskQueue.h"
 #include "services/TaskRegistry.h"
+#include "services/CharacterExtractor.h"
 #include "viewmodels/NovelViewModel.h"
 #include "viewmodels/StoryboardViewModel.h"
 #include "utils/AppConfig.h"
 #include "utils/UserSession.h"
 #include "utils/Logger.h"
+#include "utils/CharacterEditPromptBuilder.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
 #include <QSettings>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
     const QString CONFIG_FILE_NAME = "config.ini";
@@ -265,6 +268,8 @@ bool AppInitializer::initializeVolcEngineImageClient(InitResult& result)
     config.region = volcConfig.region;
     config.service = volcConfig.service;
     config.reqKey = volcConfig.reqKey;
+    config.img2imgReqKey = volcConfig.img2imgReqKey;
+    config.seedEditReqKey = volcConfig.seedEditReqKey;
     config.requestTimeout = volcConfig.requestTimeout;
     config.forceMock = volcConfig.forceMock;
     
@@ -328,6 +333,40 @@ void AppInitializer::registerTaskHandlers()
     TaskRegistry::instance()->registerAllHandlers();
 }
 
+void AppInitializer::connectAutoPortraitEdit()
+{
+    QObject::connect(CharacterExtractor::instance(),
+                     &CharacterExtractor::characterVisualFieldsChanged,
+                     BibleImageService::instance(),
+                     [](const QString& characterId,
+                        const QList<CharacterFieldDiff>& diff,
+                        int sourceChapter) {
+        if (characterId.isEmpty() || diff.isEmpty()) {
+            return;
+        }
+        Character character = CharacterExtractor::instance()->getCharacterById(characterId);
+        if (character.id().isEmpty()) {
+            LOG_WARNING("AppInitializer",
+                QString("Auto-edit skipped: character %1 not found").arg(characterId));
+            return;
+        }
+        if (character.portraitPath().isEmpty() && character.currentPortraitVersionId().isEmpty()) {
+            LOG_INFO("AppInitializer",
+                QString("Auto-edit skipped: character %1 has no base portrait yet").arg(character.name()));
+            return;
+        }
+        const QString prompt = CharacterEditPromptBuilder::buildFromDiff(diff);
+        if (prompt.isEmpty()) {
+            return;
+        }
+        LOG_INFO("AppInitializer",
+            QString("Auto-editing portrait for %1 (chapter %2): %3")
+                .arg(character.name()).arg(sourceChapter).arg(prompt));
+        BibleImageService::instance()->editCharacterPortraitAsync(
+            character, prompt, QString(), diff, sourceChapter);
+    });
+}
+
 AppInitializer::InitResult AppInitializer::initialize()
 {
     InitResult result;
@@ -372,6 +411,11 @@ AppInitializer::InitResult AppInitializer::initialize()
     }
     
     LOG_INFO("Database", "Database connected successfully");
+    // Run schema migrations in the background so the main thread is never blocked
+    // by information_schema queries or DDL on a remote MySQL server.
+    QtConcurrent::run([]() {
+        DatabaseManager::instance()->ensureCharacterPortraitVersionsSchema();
+    });
     ensureDefaultUserExists();
     result.databaseSuccess = true;
     
@@ -405,6 +449,8 @@ AppInitializer::InitResult AppInitializer::initialize()
     NovelViewModel::instance()->initialize();
     StoryboardViewModel::instance()->initialize();
     LOG_INFO("AppInitializer", "ViewModels initialized");
-    
+
+    connectAutoPortraitEdit();
+
     return result;
 }

@@ -133,6 +133,8 @@ void AsyncImageLoader::cancel(const QString& id)
 void AsyncImageLoader::clearCache()
 {
     QPixmapCache::clear();
+    QMutexLocker locker(&m_pendingMutex);
+    m_pendingLoads.clear();
 }
 
 QPixmap AsyncImageLoader::loadImageFromFile(const QString& path, const QSize& targetSize)

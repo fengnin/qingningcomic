@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QSet>
 #include <QThread>
+#include <atomic>
 
 DEFINE_SINGLETON_INSTANCE_SIMPLE(DatabaseManager)
 
@@ -34,7 +35,7 @@ bool DatabaseManager::connectInternal(const QString& host, int port, const QStri
     if (QSqlDatabase::contains(m_connectionName)) {
         QSqlDatabase::removeDatabase(m_connectionName);
     }
-    
+
     m_database = QSqlDatabase::addDatabase("QMYSQL", m_connectionName);
     m_database.setHostName(host);
     m_database.setPort(port);
@@ -42,20 +43,26 @@ bool DatabaseManager::connectInternal(const QString& host, int port, const QStri
     m_database.setUserName(username);
     m_database.setPassword(password);
     m_database.setConnectOptions(DatabaseUtils::defaultConnectionOptions());
-    
+
     if (!m_database.open()) {
         setLastError(m_database.lastError().text());
         LOG_ERROR("Database", QString("Connection failed: %1").arg(m_lastError));
         return false;
     }
-    
-    if (!DatabaseUtils::initConnectionCharsetNoAutoCommit(m_database)) {
+
+    if (!DatabaseUtils::initConnectionCharset(m_database)) {
         LOG_WARNING("Database", "Failed to set charset, continuing anyway");
     }
-
     if (!DatabaseUtils::initConnectionSessionTimeouts(m_database)) {
         LOG_WARNING("Database", "Failed to set session timeouts, continuing anyway");
     }
+
+    // Snapshot params so background threads can open their own connections.
+    m_host   = host;
+    m_port   = port;
+    m_dbName = database;
+    m_user   = username;
+    m_pass   = password;
 
     LOG_INFO("Database", QString("Connected to %1 (utf8mb4)").arg(database));
     return true;
@@ -89,32 +96,20 @@ void DatabaseManager::disconnect()
 bool DatabaseManager::isConnected() const
 {
     if (QThread::currentThread() != thread()) {
-        bool connected = false;
-        QMetaObject::invokeMethod(const_cast<DatabaseManager*>(this), [this, &connected]() {
-            connected = isConnected();
-        }, Qt::BlockingQueuedConnection);
-        return connected;
+        // For background threads, check the thread-local connection if it exists.
+        if (m_threadConns.hasLocalData()) {
+            return m_threadConns.localData()->db.isOpen();
+        }
+        // No thread-local connection yet — report based on main connection params being set.
+        return !m_host.isEmpty();
     }
 
     QMutexLocker locker(&m_mutex);
-    
-    if (!m_database.isOpen()) {
-        return false;
-    }
-    
-    return true;
+    return m_database.isOpen();
 }
 
 QString DatabaseManager::lastError() const
 {
-    if (QThread::currentThread() != thread()) {
-        QString error;
-        QMetaObject::invokeMethod(const_cast<DatabaseManager*>(this), [this, &error]() {
-            error = lastError();
-        }, Qt::BlockingQueuedConnection);
-        return error;
-    }
-
     QMutexLocker locker(&m_mutex);
     return m_lastError;
 }
@@ -139,10 +134,56 @@ QVariantMap DatabaseManager::recordToMap(const QSqlQuery& query) const
     return DatabaseUtils::recordToMap(query);
 }
 
+static void initThreadConn(QSqlDatabase& db)
+{
+    DatabaseUtils::initConnectionCharset(db);
+    DatabaseUtils::initConnectionSessionTimeouts(db);
+}
+
+QSqlDatabase& DatabaseManager::activeDb()
+{
+    if (QThread::currentThread() == thread()) {
+        return m_database;
+    }
+
+    // Background thread: open a thread-local connection on first use.
+    if (!m_threadConns.hasLocalData()) {
+        ThreadConn* tc = new ThreadConn();
+        tc->name = QStringLiteral("dm_thread_%1")
+                       .arg(reinterpret_cast<quintptr>(QThread::currentThread()), 0, 16);
+
+        if (QSqlDatabase::contains(tc->name)) {
+            QSqlDatabase::removeDatabase(tc->name);
+        }
+        tc->db = QSqlDatabase::addDatabase("QMYSQL", tc->name);
+        tc->db.setHostName(m_host);
+        tc->db.setPort(m_port);
+        tc->db.setDatabaseName(m_dbName);
+        tc->db.setUserName(m_user);
+        tc->db.setPassword(m_pass);
+        tc->db.setConnectOptions(DatabaseUtils::defaultConnectionOptions());
+
+        if (!tc->db.open()) {
+            LOG_ERROR("Database", QString("Thread-local connection failed: %1").arg(tc->db.lastError().text()));
+        } else {
+            initThreadConn(tc->db);
+        }
+        m_threadConns.setLocalData(tc);
+    }
+
+    ThreadConn* tc = m_threadConns.localData();
+    if (!tc->db.isOpen()) {
+        if (tc->db.open()) {
+            initThreadConn(tc->db);
+        }
+    }
+    return tc->db;
+}
+
 QSqlQuery DatabaseManager::createQuery()
 {
     try {
-        return QSqlQuery(m_database);
+        return QSqlQuery(activeDb());
     } catch (const std::exception& e) {
         LOG_ERROR("Database", QString("createQuery exception: %1").arg(e.what()));
         return QSqlQuery();
@@ -267,14 +308,14 @@ bool DatabaseManager::update(const QString& table, const QVariantMap& data,
         QString sql = SqlBuilder::buildUpdate(table, data, whereClause, values);
         values << whereValues;
         
-        QSqlQuery query(m_database);
+        QSqlQuery query(activeDb());
         query.prepare(sql);
         bindValues(query, values);
-        
+
         bool result = executeQueryInternal(query, QString(), "update");
-        
+
         if (result) {
-            QSqlQuery commitQuery(m_database);
+            QSqlQuery commitQuery(activeDb());
             commitQuery.exec("COMMIT");
         }
         
@@ -356,36 +397,17 @@ int DatabaseManager::count(const QString& table, const QString& whereClause, con
 bool DatabaseManager::beginTransaction()
 {
     QMutexLocker locker(&m_mutex);
-    
-    if (!m_database.isOpen()) {
-        logAndSetError("beginTransaction", "Cannot begin transaction: database not open");
+
+    if (!ensureConnection("beginTransaction")) {
         return false;
     }
-    
+
     return safeExecute<bool>("beginTransaction", [&]() -> bool {
-        QSqlQuery pingQuery(m_database);
-        if (!pingQuery.exec("SELECT 1")) {
-            LOG_WARNING("Database", QString("Ping failed, connection may be lost. Error: %1").arg(pingQuery.lastError().text()));
-            
-            m_database.close();
-            if (!m_database.open()) {
-                logAndSetError("beginTransaction", QString("Reconnect failed: %1").arg(m_database.lastError().text()));
-                return false;
-            }
-            
-            QSqlQuery query(m_database);
-            query.exec("SET NAMES utf8mb4");
-            query.exec("SET autocommit = 0");
-            DatabaseUtils::initConnectionSessionTimeouts(m_database);
-            LOG_INFO("Database", "Reconnected after ping failure");
-        }
-        
         QSqlQuery txQuery(m_database);
         if (!txQuery.exec("START TRANSACTION")) {
             logAndSetError("beginTransaction", QString("START TRANSACTION failed: %1").arg(txQuery.lastError().text()));
             return false;
         }
-        
         m_inTransaction = true;
         return true;
     }, false);
@@ -394,60 +416,47 @@ bool DatabaseManager::beginTransaction()
 bool DatabaseManager::reconnectIfNeeded()
 {
     if (QThread::currentThread() != thread()) {
-        bool result = false;
-        QMetaObject::invokeMethod(this, [this, &result]() {
-            result = reconnectIfNeeded();
-        }, Qt::BlockingQueuedConnection);
-        return result;
+        // Reconnect the thread-local connection for this background thread.
+        QSqlDatabase& bg = activeDb();
+        if (bg.isOpen()) {
+            QSqlQuery test(bg);
+            if (test.exec("SELECT 1")) return true;
+            bg.close();
+        }
+        if (bg.open()) {
+            initThreadConn(bg);
+            return true;
+        }
+        LOG_ERROR("Database", QString("Thread-local reconnect failed: %1").arg(bg.lastError().text()));
+        return false;
     }
 
-    // 注意：此方法假设调用者已持有 m_mutex 锁
-    // 不要在此方法内再次获取锁，否则会导致死锁
-    
+    // Main thread path (caller must hold m_mutex or be in a safe context).
     try {
-        // 使用作用域确保 testQuery 在关闭连接前被销毁
         if (m_database.isOpen()) {
             QSqlQuery testQuery(m_database);
             if (testQuery.exec("SELECT 1")) {
                 return true;
             }
-            
             LOG_WARNING("Database", "Connection check failed, reconnecting...");
         }
-        // testQuery 在此处销毁，释放对数据库的引用
-    } catch (const std::exception& e) {
-        LOG_WARNING("Database", QString("Connection check exception: %1, will reconnect").arg(e.what()));
     } catch (...) {
-        LOG_WARNING("Database", "Connection check unknown exception, will reconnect");
+        LOG_WARNING("Database", "Connection check exception, will reconnect");
     }
-    
+
     LOG_INFO("Database", "Reconnecting to database...");
-    
-    QString host = m_database.hostName();
-    int port = m_database.port();
-    QString dbName = m_database.databaseName();
-    QString user = m_database.userName();
-    QString pass = m_database.password();
-    
-    // 先完全断开连接（包括删除连接对象）
+
     QString connectionName = m_database.connectionName();
-    if (m_database.isOpen()) {
-        m_database.close();
-    }
+    if (m_database.isOpen()) m_database.close();
     m_database = QSqlDatabase();
-    
-    if (QSqlDatabase::contains(connectionName)) {
-        QSqlDatabase::removeDatabase(connectionName);
-    }
-    
-    bool result = connectInternal(host, port, dbName, user, pass);
-    
+    if (QSqlDatabase::contains(connectionName)) QSqlDatabase::removeDatabase(connectionName);
+
+    bool result = connectInternal(m_host, m_port, m_dbName, m_user, m_pass);
     if (result) {
         LOG_INFO("Database", "Database reconnected successfully");
     } else {
         LOG_ERROR("Database", QString("Database reconnection failed: %1").arg(m_lastError));
     }
-    
     return result;
 }
 
@@ -505,52 +514,8 @@ bool DatabaseManager::ensureConnection(const QString& operation)
 
 bool DatabaseManager::checkConnection(const QString& operation)
 {
-    try {
-        if (!m_database.isOpen()) {
-            LOG_WARNING("Database", QString("Database not open for: %1, attempting reconnect...").arg(operation));
-            if (reconnectIfNeeded()) {
-                return true;
-            }
-            setLastError(QString("Database not connected for: %1").arg(operation));
-            return false;
-        }
-        
-        bool connectionValid = false;
-        QString errorMsg;
-        {
-            QSqlQuery testQuery(m_database);
-            connectionValid = testQuery.exec("SELECT 1");
-            errorMsg = testQuery.lastError().text();
-        }
-        
-        if (!connectionValid) {
-            if (DatabaseUtils::isConnectionLostError(errorMsg)) {
-                LOG_WARNING("Database", QString("Connection lost during: %1, reconnecting...").arg(operation));
-                if (reconnectIfNeeded()) {
-                    return true;
-                }
-            }
-            
-            setLastError(QString("Database connection invalid: %1").arg(errorMsg));
-            return false;
-        }
-        
-        return true;
-    } catch (const std::exception& e) {
-        QString errorMsg = QString::fromUtf8(e.what());
-        setLastError(errorMsg);
-        LOG_ERROR("Database", QString("checkConnection exception for %1: %2").arg(operation, errorMsg));
-        
-        LOG_WARNING("Database", QString("Attempting reconnect after exception in: %1").arg(operation));
-        if (reconnectIfNeeded()) {
-            return true;
-        }
-        return false;
-    } catch (...) {
-        setLastError(QString("Unknown exception in checkConnection: %1").arg(operation));
-        LOG_ERROR("Database", QString("checkConnection unknown exception for: %1").arg(operation));
-        return false;
-    }
+    QMutexLocker locker(&m_mutex);
+    return ensureConnection(operation);
 }
 
 bool DatabaseManager::commit()
@@ -604,50 +569,69 @@ bool DatabaseManager::inTransaction() const
     return m_inTransaction;
 }
 
+static bool runTransactionOnDb(QSqlDatabase& db, const DatabaseManager::TransactionOperation& operation,
+                               QString& outError)
+{
+    QSqlQuery txQuery(db);
+    if (!txQuery.exec("START TRANSACTION")) {
+        outError = QString("Failed to start transaction: %1").arg(txQuery.lastError().text());
+        return false;
+    }
+    bool success = false;
+    try {
+        success = operation();
+    } catch (...) {
+        success = false;
+    }
+    if (success) {
+        QSqlQuery commitQuery(db);
+        if (!commitQuery.exec("COMMIT")) {
+            outError = QString("Failed to commit transaction: %1").arg(commitQuery.lastError().text());
+            QSqlQuery(db).exec("ROLLBACK");
+            return false;
+        }
+        return true;
+    }
+    QSqlQuery(db).exec("ROLLBACK");
+    return false;
+}
+
 bool DatabaseManager::transaction(TransactionOperation operation)
 {
+    if (QThread::currentThread() != thread()) {
+        QSqlDatabase& bg = activeDb();
+        if (!bg.isValid() || !bg.isOpen()) {
+            setLastError("transaction: thread-local connection unavailable");
+            return false;
+        }
+        QString err;
+        bool ok = runTransactionOnDb(bg, operation, err);
+        if (!err.isEmpty()) setLastError(err);
+        return ok;
+    }
+
     QMutexLocker locker(&m_mutex);
-    
+
     if (m_inTransaction) {
         setLastError("Already in a transaction");
         return false;
     }
-    
+
     if (!ensureConnection("transaction")) {
         return false;
     }
-    
-    QSqlQuery txQuery(m_database);
-    if (!txQuery.exec("START TRANSACTION")) {
-        setLastError(QString("Failed to start transaction: %1").arg(txQuery.lastError().text()));
-        return false;
-    }
-    
+
     m_inTransaction = true;
-    
-    bool success = safeExecute<bool>("transaction", [&]() -> bool {
-        return operation();
-    }, false);
-    
-    if (success) {
-        QSqlQuery commitQuery(m_database);
-        if (!commitQuery.exec("COMMIT")) {
-            setLastError(QString("Failed to commit transaction: %1").arg(commitQuery.lastError().text()));
-            QSqlQuery rollbackQuery(m_database);
-            rollbackQuery.exec("ROLLBACK");
-            m_inTransaction = false;
-            return false;
-        }
-        m_inTransaction = false;
-        LOG_DEBUG("Database", "Transaction completed successfully");
-        return true;
-    }
-    
-    QSqlQuery rollbackQuery(m_database);
-    rollbackQuery.exec("ROLLBACK");
+    QString err;
+    bool success = runTransactionOnDb(m_database, operation, err);
     m_inTransaction = false;
-    LOG_DEBUG("Database", "Transaction rolled back due to operation failure");
-    return false;
+    if (!err.isEmpty()) setLastError(err);
+    if (success) {
+        LOG_DEBUG("Database", "Transaction completed successfully");
+    } else {
+        LOG_DEBUG("Database", "Transaction rolled back due to operation failure");
+    }
+    return success;
 }
 
 void DatabaseManager::lock()
@@ -700,4 +684,127 @@ bool DatabaseManager::ensureSoftDeleteColumns(const QString& tableName)
         s_ensuredTables.insert(tableName);
     }
     return success;
+}
+
+bool DatabaseManager::ensureCharacterPortraitVersionsSchema()
+{
+    static std::atomic<bool> s_ensured{false};
+    if (s_ensured) {
+        return true;
+    }
+
+    // This function may be called from a background thread. Use a dedicated
+    // connection so we never touch m_database from a non-owning thread.
+    const QString bgConn = QStringLiteral("schema_migration_connection");
+    const QString host     = m_host;
+    const int     port     = m_port;
+    const QString dbName   = m_dbName;
+    const QString user     = m_user;
+    const QString password = m_pass;
+    const QString connOpts = DatabaseUtils::defaultConnectionOptions();
+
+    // Scope the QSqlDatabase object so it's destroyed before removeDatabase.
+    bool ok = false;
+    {
+        QSqlDatabase bg = QSqlDatabase::addDatabase("QMYSQL", bgConn);
+        bg.setHostName(host);
+        bg.setPort(port);
+        bg.setDatabaseName(dbName);
+        bg.setUserName(user);
+        bg.setPassword(password);
+        bg.setConnectOptions(connOpts);
+
+        if (!bg.open()) {
+            LOG_ERROR("Database", QString("ensureCharacterPortraitVersionsSchema: failed to open bg connection: %1")
+                .arg(bg.lastError().text()));
+            QSqlDatabase::removeDatabase(bgConn);
+            return false;
+        }
+
+        auto execSql = [&bg](const QString& sql) -> bool {
+            QSqlQuery q(bg);
+            if (q.exec(sql)) return true;
+            // Retry once on error (connection may have timed out)
+            if (!bg.open()) return false;
+            QSqlQuery q2(bg);
+            return q2.exec(sql);
+        };
+
+        auto hasColumn = [&bg](const QString& tableName, const QString& columnName) -> bool {
+            const QString sql = QString(
+                "SELECT COUNT(*) AS cnt FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = '%1' AND column_name = '%2'")
+                .arg(tableName, columnName);
+            QSqlQuery q(bg);
+            if (!q.exec(sql) || !q.next()) return false;
+            return q.value("cnt").toInt() > 0;
+        };
+
+        auto hasTable = [&bg](const QString& tableName) -> bool {
+            const QString sql = QString(
+                "SELECT COUNT(*) AS cnt FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = '%1'").arg(tableName);
+            QSqlQuery q(bg);
+            if (!q.exec(sql) || !q.next()) return false;
+            return q.value("cnt").toInt() > 0;
+        };
+
+        if (!hasTable("character_portrait_versions")) {
+            const QString createSql =
+                "CREATE TABLE character_portrait_versions ("
+                "id VARCHAR(36) PRIMARY KEY,"
+                "character_id VARCHAR(36) NOT NULL,"
+                "version_no INT NOT NULL,"
+                "portrait_path VARCHAR(255) NOT NULL,"
+                "base_version_id VARCHAR(36) NULL,"
+                "edit_prompt TEXT NULL,"
+                "field_diff JSON NULL,"
+                "appearance_snapshot JSON NULL,"
+                "source_chapter INT NULL,"
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "INDEX idx_character_id (character_id),"
+                "INDEX idx_character_version (character_id, version_no)"
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            if (!execSql(createSql)) {
+                LOG_ERROR("Database", "ensureCharacterPortraitVersionsSchema: CREATE TABLE failed");
+                bg.close();
+                QSqlDatabase::removeDatabase(bgConn);
+                return false;
+            }
+        }
+
+        if (!hasColumn("characters", "current_portrait_version_id")) {
+            if (!execSql("ALTER TABLE characters ADD COLUMN current_portrait_version_id VARCHAR(36) NULL")) {
+                LOG_ERROR("Database", "ensureCharacterPortraitVersionsSchema: ALTER TABLE characters failed");
+                bg.close();
+                QSqlDatabase::removeDatabase(bgConn);
+                return false;
+            }
+        }
+
+        // appearance_snapshot: nullable, fallback exists — ignore duplicate-column error (1060)
+        if (!hasColumn("character_portrait_versions", "appearance_snapshot")) {
+            QSqlQuery q(bg);
+            if (!q.exec("ALTER TABLE character_portrait_versions ADD COLUMN appearance_snapshot JSON NULL")) {
+                const int errCode = q.lastError().nativeErrorCode().toInt();
+                if (errCode != 1060) {
+                    LOG_WARNING("Database", QString("ensureCharacterPortraitVersionsSchema: appearance_snapshot ALTER failed: %1")
+                        .arg(q.lastError().text()));
+                    // Non-fatal: column is nullable with fallback
+                }
+            } else {
+                LOG_INFO("Database", "appearance_snapshot column added");
+            }
+        }
+
+        bg.close();
+        ok = true;
+    }
+    QSqlDatabase::removeDatabase(bgConn);
+
+    if (ok) {
+        s_ensured = true;
+        LOG_INFO("Database", "character_portrait_versions schema ensured");
+    }
+    return ok;
 }

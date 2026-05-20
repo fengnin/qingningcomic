@@ -8,6 +8,7 @@
 #include "api/VolcEngineImageClient.h"
 #include "utils/Logger.h"
 #include <QImage>
+#include <QRegularExpression>
 
 namespace {
     QByteArray extractImageFromResult(
@@ -824,6 +825,27 @@ void ChangeRequestService::resolveDslTarget(
     const QJsonObject& context)
 {
     if (!dsl.targetId.isEmpty()) {
+        // LLM sometimes returns a positional token like "panel_2" instead of a UUID.
+        // Detect that pattern and resolve it to a real panel ID before proceeding.
+        static const QRegularExpression kPanelNumberPattern(QStringLiteral("^panel_(\\d+)$"));
+        const QRegularExpressionMatch m = kPanelNumberPattern.match(dsl.targetId);
+        if (m.hasMatch()) {
+            const int panelNumber = m.captured(1).toInt();
+            const QString storyboardId = context.value(QStringLiteral("storyboardId")).toString();
+            if (panelNumber > 0 && !storyboardId.isEmpty()) {
+                const QList<QVariantMap> rows = m_db->selectAll(
+                    QStringLiteral("panels"),
+                    QStringLiteral("storyboard_id = ?"),
+                    QVariantList{storyboardId},
+                    QStringLiteral("page ASC, panel_index ASC"));
+                const QString resolved = ChangeRequestTargetUtils::resolvePanelIdByNumber(rows, panelNumber);
+                if (!resolved.isEmpty()) {
+                    LOG_DEBUG("ChangeRequest", QString("Resolved positional targetId '%1' -> '%2'")
+                        .arg(dsl.targetId, resolved));
+                    dsl.targetId = resolved;
+                }
+            }
+        }
         return;
     }
 

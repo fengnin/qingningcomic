@@ -250,6 +250,26 @@ bool FileStorage::deleteCharacterReference(const QString& characterId)
     return deleteFile(relativePath, "Character reference");
 }
 
+QString FileStorage::saveCharacterReferenceVersion(const QString& characterId, int versionNo, const QByteArray& imageData)
+{
+    if (imageData.isEmpty() || characterId.isEmpty() || versionNo <= 0) {
+        return QString();
+    }
+    const QString fileName = QString("portrait_v%1.png").arg(versionNo);
+    QString relativePath = buildReferenceRelativePath("characters", characterId, fileName);
+    return saveBinaryFile(relativePath, imageData, "Character portrait version");
+}
+
+bool FileStorage::deleteCharacterReferenceVersion(const QString& characterId, int versionNo)
+{
+    if (characterId.isEmpty() || versionNo <= 0) {
+        return false;
+    }
+    const QString fileName = QString("portrait_v%1.png").arg(versionNo);
+    QString relativePath = buildReferenceRelativePath("characters", characterId, fileName);
+    return deleteFile(relativePath, "Character portrait version");
+}
+
 // ========== 场景参考图存储 ==========
 
 QString FileStorage::saveSceneReference(const QString& sceneId, const QByteArray& imageData)

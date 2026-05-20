@@ -27,6 +27,7 @@ struct CharacterAppearance
     QJsonObject fieldSources; // 字段来源：explicit / inferred / manual
     
     QJsonObject toJson() const;
+    QJsonObject toPromptJson() const;  // prompt 用的精简格式，不含 fieldSources/aliases
     static CharacterAppearance fromJson(const QJsonObject& json);
     
     // 判断外观是否有空字段
@@ -53,6 +54,7 @@ class Character
     Q_PROPERTY(QStringList personality READ personality WRITE setPersonality)
     Q_PROPERTY(QStringList aliases READ aliases WRITE setAliases)
     Q_PROPERTY(QString portraitPath READ portraitPath WRITE setPortraitPath)
+    Q_PROPERTY(QString currentPortraitVersionId READ currentPortraitVersionId WRITE setCurrentPortraitVersionId)
 
 public:
     /**
@@ -98,7 +100,10 @@ public:
 
     QString portraitPath() const { return m_portraitPath; }
     void setPortraitPath(const QString& path) { m_portraitPath = path; }
-    
+
+    QString currentPortraitVersionId() const { return m_currentPortraitVersionId; }
+    void setCurrentPortraitVersionId(const QString& id) { m_currentPortraitVersionId = id; }
+
     // 序列化方法
     QVariantMap toVariantMap() const;
     static Character fromVariantMap(const QVariantMap& map);
@@ -116,7 +121,8 @@ private:
     CharacterAppearance m_appearance;  // 外观描述
     QStringList m_personality;  // 性格特征列表
     QStringList m_aliases;      // 历史别名 / 关联称呼
-    QString m_portraitPath;    // 肖像图片路径
+    QString m_portraitPath;    // 肖像图片路径（始终镜像 current_portrait_version 的 portrait_path）
+    QString m_currentPortraitVersionId; // 当前活跃肖像版本 id，指向 character_portrait_versions
 };
 
 /**

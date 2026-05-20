@@ -55,6 +55,7 @@ SOURCES += \
     src/models/Task.cpp \
     src/models/Bible.cpp \
     src/models/Scene.cpp \
+    src/models/CharacterPortraitVersion.cpp \
     src/services/NovelService.cpp \
     src/services/StoryboardService.cpp \
     src/services/AnalysisService.cpp \
@@ -95,6 +96,7 @@ SOURCES += \
     src/utils/ImageBorderTrimmer.cpp \
     src/utils/RetryPolicy.cpp \
     src/utils/ExportDataHelper.cpp \
+    src/utils/CharacterEditPromptBuilder.cpp \
     src/components/SuccessDialog.cpp \
     src/components/ConfirmDialog.cpp \
     src/components/DeleteConfirmDialog.cpp \
@@ -146,6 +148,7 @@ HEADERS += \
     include/models/Job.h \
     include/models/Task.h \
     include/models/Bible.h \
+    include/models/CharacterPortraitVersion.h \
     include/utils/BibleCache.h \
     include/viewmodels/BaseViewModel.h \
     include/viewmodels/NovelViewModel.h \
@@ -195,6 +198,7 @@ HEADERS += \
     include/utils/RetryPolicy.h \
     include/utils/BackgroundWhitener.h \
     include/utils/ImageBorderTrimmer.h \
+    include/utils/CharacterEditPromptBuilder.h \
     include/components/ChapterSpinBox.h \
     include/components/ChapterSelectDialog.h \
     include/components/ImageViewerDialog.h \

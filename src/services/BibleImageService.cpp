@@ -4,6 +4,7 @@
 #include "data/FileStorage.h"
 #include "services/CharacterExtractor.h"
 #include "services/SceneExtractor.h"
+#include "models/CharacterPortraitVersion.h"
 #include "utils/PromptBuilder.h"
 #include "utils/AppConfig.h"
 #include "utils/BackgroundWhitener.h"
@@ -11,7 +12,11 @@
 #include "utils/ImageBorderTrimmer.h"
 #include "utils/LogSummaryUtils.h"
 #include "utils/Logger.h"
+#include <QFile>
+#include <QDateTime>
+#include <QUuid>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QImage>
 #include <QTimer>
 
@@ -172,6 +177,8 @@ BibleImageService::BibleImageService(QObject* parent)
 {
     connect(QwenImageClient::instance(), &QwenImageClient::generateCompleted,
             this, &BibleImageService::onQwenImageGenerated);
+    connect(QwenImageClient::instance(), &QwenImageClient::editCompleted,
+            this, &BibleImageService::onQwenImageEdited);
     connect(VolcEngineImageClient::instance(), &VolcEngineImageClient::generateCompleted,
             this, &BibleImageService::onVolcEngineImageGenerated);
 }
@@ -208,14 +215,139 @@ void BibleImageService::generateSceneReferenceAsync(const Scene& scene)
         emit sceneReferenceGenerated(scene.id(), QString());
         return;
     }
-    
+
     setGenerating(true);
-    
+
     PromptBuilder::PromptResult promptResult = buildSceneReferencePrompt(scene);
     LOG_INFO("BibleImageService", QString("Generating reference for: %1").arg(scene.name()));
-    
+
     startImageGeneration(scene.id(), promptResult.text, promptResult.negativePrompt,
                          BibleImageConstants::TYPE_SCENE, Character(), scene);
+}
+
+void BibleImageService::failEdit(const QString& characterId, const QString& reason, const QString& requestId)
+{
+    LOG_WARNING("BibleImageService", QString("editCharacterPortraitAsync: %1 (char=%2)").arg(reason, characterId));
+    emit portraitEditFailed(characterId, reason);
+    if (!requestId.isEmpty()) {
+        clearPendingRequest(requestId);
+    }
+    if (isGenerating()) {
+        if (!maybeFinishBatch()) {
+            scheduleNextItem();
+        }
+    } else {
+        setGenerating(false);
+    }
+}
+
+bool BibleImageService::resolveEditBaseVersion(const Character& character,
+                                               const QString& requestedBaseVersionId,
+                                               QString& outVersionId,
+                                               QString& outRelativePath)
+{
+    outVersionId = requestedBaseVersionId;
+    outRelativePath.clear();
+
+    if (!outVersionId.isEmpty()) {
+        CharacterPortraitVersion v = CharacterExtractor::instance()->getPortraitVersion(outVersionId);
+        if (v.id().isEmpty()) {
+            return false;
+        }
+        outRelativePath = v.portraitPath();
+        return !outRelativePath.isEmpty();
+    }
+
+    Character latest = CharacterExtractor::instance()->getCharacterById(character.id());
+    if (latest.id().isEmpty()) {
+        latest = character;
+    }
+    if (!latest.currentPortraitVersionId().isEmpty()) {
+        CharacterPortraitVersion v = CharacterExtractor::instance()->getPortraitVersion(latest.currentPortraitVersionId());
+        if (!v.id().isEmpty()) {
+            outVersionId = v.id();
+            outRelativePath = v.portraitPath();
+        }
+    }
+    if (outRelativePath.isEmpty() && !latest.portraitPath().isEmpty()) {
+        outRelativePath = latest.portraitPath();
+        CharacterPortraitVersion v1 = CharacterExtractor::instance()->ensureFirstPortraitVersion(latest);
+        if (!v1.id().isEmpty()) {
+            outVersionId = v1.id();
+        }
+    }
+    return !outRelativePath.isEmpty();
+}
+
+QByteArray BibleImageService::readSourceImageBytes(const QString& relativePath) const
+{
+    QFile sourceFile(FileStorage::instance()->getFullPath(relativePath));
+    if (!sourceFile.open(QIODevice::ReadOnly)) {
+        return QByteArray();
+    }
+    const QByteArray bytes = sourceFile.readAll();
+    sourceFile.close();
+    return bytes;
+}
+
+void BibleImageService::editCharacterPortraitAsync(const Character& character,
+                                                   const QString& editPrompt,
+                                                   const QString& baseVersionId,
+                                                   const QList<CharacterFieldDiff>& diff,
+                                                   int sourceChapter)
+{
+    if (character.id().isEmpty()) {
+        failEdit(character.id(), QStringLiteral("character id empty"));
+        return;
+    }
+    if (editPrompt.trimmed().isEmpty()) {
+        failEdit(character.id(), QStringLiteral("empty edit prompt"));
+        return;
+    }
+
+    QString resolvedBaseVersionId;
+    QString sourceRelativePath;
+    if (!resolveEditBaseVersion(character, baseVersionId, resolvedBaseVersionId, sourceRelativePath)) {
+        failEdit(character.id(), QStringLiteral("no source image"));
+        return;
+    }
+
+    const QByteArray sourceBytes = readSourceImageBytes(sourceRelativePath);
+    if (sourceBytes.isEmpty()) {
+        failEdit(character.id(), QStringLiteral("cannot read source image"));
+        return;
+    }
+
+    setGenerating(true);
+
+    const QString requestId = QStringLiteral("edit-") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        PendingImageRequest req;
+        req.type = BibleImageConstants::TYPE_CHARACTER;
+        req.character = character;
+        req.prompt = editPrompt;
+        req.sourceImage = sourceBytes;
+        req.baseVersionId = resolvedBaseVersionId;
+        req.diff = diff;
+        req.sourceChapter = sourceChapter;
+        m_pendingRequests[requestId] = req;
+    }
+
+    QwenImageClient::EditOptions opts;
+    opts.prompt = editPrompt;
+    opts.sourceImage = sourceBytes;
+    opts.size = QwenImageClient::ImageSize::Custom;
+    opts.width = 1024;
+    opts.height = 1440;
+    opts.requestId = requestId;
+
+    LOG_INFO("BibleImageService", QString("Dispatching portrait edit: char=%1, baseVer=%2, promptLen=%3")
+        .arg(character.name())
+        .arg(resolvedBaseVersionId)
+        .arg(editPrompt.length()));
+
+    QwenImageClient::instance()->editAsync(opts);
 }
 
 void BibleImageService::generateCharacterPortraits(const QList<Character>& characters)
@@ -224,17 +356,17 @@ void BibleImageService::generateCharacterPortraits(const QList<Character>& chara
         emit bibleBatchCompleted(BibleImageConstants::TYPE_CHARACTER, 0, 0);
         return;
     }
-    
+
     m_pendingCharacters = characters;
     m_pendingScenes.clear();
     m_currentCharIndex = 0;
     m_currentSceneIndex = 0;
     m_combinedMode = false;
     m_currentType = BibleImageConstants::TYPE_CHARACTER;
-    
+
     startBatch(characters.size());
     LOG_INFO("BibleImageService", QString("Starting batch portrait generation for %1 characters").arg(characters.size()));
-    
+
     processNextItem();
 }
 
@@ -244,17 +376,17 @@ void BibleImageService::generateSceneReferences(const QList<Scene>& scenes)
         emit bibleBatchCompleted(BibleImageConstants::TYPE_SCENE, 0, 0);
         return;
     }
-    
+
     m_pendingScenes = scenes;
     m_pendingCharacters.clear();
     m_currentCharIndex = 0;
     m_currentSceneIndex = 0;
     m_combinedMode = false;
     m_currentType = BibleImageConstants::TYPE_SCENE;
-    
+
     startBatch(scenes.size());
     LOG_INFO("BibleImageService", QString("Starting batch scene reference generation for %1 scenes").arg(scenes.size()));
-    
+
     processNextItem();
 }
 
@@ -265,24 +397,20 @@ void BibleImageService::generateAllBibleImages(const QList<Character>& character
     m_currentCharIndex = 0;
     m_currentSceneIndex = 0;
     m_combinedMode = true;
-    m_currentType = BibleImageConstants::TYPE_CHARACTER;
-    
-    int total = characters.size() + scenes.size();
+    m_currentType = characters.isEmpty() ? BibleImageConstants::TYPE_SCENE : BibleImageConstants::TYPE_CHARACTER;
+
+    const int total = characters.size() + scenes.size();
     startBatch(total);
-    
+
     LOG_INFO("BibleImageService", QString("Starting combined generation: %1 characters + %2 scenes = %3 total")
         .arg(characters.size()).arg(scenes.size()).arg(total));
-    
-    if (characters.isEmpty() && scenes.isEmpty()) {
+
+    if (total == 0) {
         emit allBibleImagesCompleted(0, 0);
         setGenerating(false);
         return;
     }
-    
-    if (characters.isEmpty()) {
-        m_currentType = BibleImageConstants::TYPE_SCENE;
-    }
-    
+
     processNextItem();
 }
 
@@ -294,6 +422,24 @@ void BibleImageService::onQwenImageGenerated(const QwenImageClient::GenerateResu
         return;
     }
     handleImageGenerated(result.requestId, result.imageData, result.success, result.errorMessage);
+}
+
+void BibleImageService::onQwenImageEdited(const QwenImageClient::GenerateResult& result)
+{
+    bool found = false;
+    const PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, result.requestId, &found);
+    if (!found) {
+        return;
+    }
+
+    if (!result.success || result.imageData.isEmpty()) {
+        failEdit(request.character.id(),
+                 result.errorMessage.isEmpty() ? QStringLiteral("edit returned empty image") : result.errorMessage,
+                 result.requestId);
+        return;
+    }
+
+    saveAndEmitEditResult(result.requestId, result.imageData);
 }
 
 void BibleImageService::onVolcEngineImageGenerated(const VolcEngineImageClient::GenerateResult& result)
@@ -325,7 +471,7 @@ void BibleImageService::handleImageGenerated(const QString& requestId, const QBy
         saveAndEmitResult(requestId, imageData);
     } else {
         int retryCount = request.retryCount;
-        
+
         if (retryCount < MAX_RETRY_COUNT) {
             LOG_WARNING("BibleImageService", QString("Image generation failed (attempt %1/%2): %3, retrying...")
                 .arg(retryCount + 1).arg(MAX_RETRY_COUNT).arg(errorMessage));
@@ -334,8 +480,6 @@ void BibleImageService::handleImageGenerated(const QString& requestId, const QBy
         }
         handleRetryExhausted(requestId, errorMessage);
     }
-    
-    scheduleNextItem();
 }
 
 void BibleImageService::retryRequest(const QString& requestId, const QString& errorMessage)
@@ -378,61 +522,23 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
     const PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, requestId);
     QByteArray processedImageData = imageData;
     bool borderTrimmed = false;
-    bool backgroundWhitened = false;
 
     if (request.type == BibleImageConstants::TYPE_SCENE) {
         processedImageData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &borderTrimmed);
-    } else if (request.type == BibleImageConstants::TYPE_CHARACTER) {
-        // 先白化背景，再检测暗边 — 避免模型生成的暗色背景被误判为需要裁剪的边框
-        processedImageData = BackgroundWhitener::fillWhiteBackgroundImageData(processedImageData, 240);
-        backgroundWhitened = true;
-
-        QImage originalImage;
-        originalImage.loadFromData(imageData);
-        const qint64 originalArea = (qint64)originalImage.width() * originalImage.height();
-
-        bool didTrim = false;
-        QByteArray trimmedData = ImageBorderTrimmer::trimDarkBorderImageData(processedImageData, &didTrim);
-
-        if (didTrim) {
-            QImage trimmedImage;
-            trimmedImage.loadFromData(trimmedData);
-            const qint64 trimmedArea = (qint64)trimmedImage.width() * trimmedImage.height();
-
-            if (trimmedArea < originalArea * 2 / 5) {
-                LOG_WARNING("BibleImageService", QString(
-                    "角色图片裁剪过度 (%1x%2 -> %3x%4, 面积比=%5%), 跳过裁剪")
-                    .arg(originalImage.width()).arg(originalImage.height())
-                    .arg(trimmedImage.width()).arg(trimmedImage.height())
-                    .arg(QString::number(trimmedArea * 100.0 / originalArea, 'f', 1) + "%"));
-            } else {
-                processedImageData = trimmedData;
-                borderTrimmed = true;
+        if (borderTrimmed) {
+            QImage orig, proc;
+            orig.loadFromData(imageData);
+            proc.loadFromData(processedImageData);
+            if (!orig.isNull() && !proc.isNull()) {
+                LOG_INFO("BibleImageService", QString(
+                    "Post-processed bible image: type=%1, borderTrimmed=true, from %2x%3 to %4x%5")
+                    .arg(request.type)
+                    .arg(orig.width()).arg(orig.height())
+                    .arg(proc.width()).arg(proc.height()));
             }
         }
-    }
-
-    if (borderTrimmed) {
-        QImage originalImage;
-        QImage processedImage;
-        originalImage.loadFromData(imageData);
-        processedImage.loadFromData(processedImageData);
-        if (!originalImage.isNull() && !processedImage.isNull()) {
-            LOG_INFO("BibleImageService", QString(
-                "Post-processed bible image: type=%1, borderTrimmed=%2, from %4x%5 to %6x%7")
-                .arg(request.type)
-                .arg(borderTrimmed)
-                .arg(originalImage.width())
-                .arg(originalImage.height())
-                .arg(processedImage.width())
-                .arg(processedImage.height()));
-        }
-    }
-
-    if (backgroundWhitened) {
-        LOG_INFO("BibleImageService", QString(
-            "Post-processed character image: background whitened, size=%1 bytes")
-            .arg(processedImageData.size()));
+    } else if (request.type == BibleImageConstants::TYPE_CHARACTER) {
+        processedImageData = processCharacterImageData(imageData);
     }
     QString imagePath;
     bool savedOk = false;
@@ -453,7 +559,9 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
     }
     
     clearPendingRequest(requestId);
-    maybeFinishBatch();
+    if (!maybeFinishBatch()) {
+        scheduleNextItem();
+    }
 }
 
 QString BibleImageService::saveCharacterImage(const PendingImageRequest& request, const QByteArray& imageData)
@@ -463,16 +571,23 @@ QString BibleImageService::saveCharacterImage(const PendingImageRequest& request
         LOG_WARNING("BibleImageService", "Cannot save character image: character ID is empty");
         return QString();
     }
-    
+
     QString imagePath = FileStorage::instance()->saveCharacterReference(
         character.id(), imageData);
-    
+
     if (!imagePath.isEmpty()) {
         if (!updateCharacterPortraitRecord(character, imagePath)) {
             return QString();
         }
+        // 首版生成路径：同步写一条 v1 行 + current 指针
+        Character latest = CharacterExtractor::instance()->getCharacterById(character.id());
+        if (latest.id().isEmpty()) {
+            latest = character;
+            latest.setPortraitPath(imagePath);
+        }
+        ensureFirstPortraitVersionRecorded(latest, imagePath);
     }
-    
+
     return imagePath;
 }
 
@@ -755,7 +870,7 @@ PromptBuilder::PromptResult BibleImageService::buildCharacterPortraitPrompt(cons
     characterJson["role"] = character.role();
     
     CharacterAppearance app = character.appearance();
-    characterJson["appearance"] = buildAppearanceJson(app);
+    characterJson["appearance"] = app.toPromptJson();
     
     QJsonObject options;
     options["mode"] = "preview";
@@ -772,21 +887,6 @@ PromptBuilder::PromptResult BibleImageService::buildCharacterPortraitPrompt(cons
         .arg(LogSummaryUtils::summarizeText(result.text))
         .arg(LogSummaryUtils::summarizeText(result.negativePrompt)));
     return result;
-}
-
-QJsonObject BibleImageService::buildAppearanceJson(const CharacterAppearance& app)
-{
-    QJsonObject json;
-    json["gender"] = app.gender;
-    json["age"] = app.age;
-    json["hairColor"] = app.hairColor;
-    json["hairStyle"] = app.hairStyle;
-    json["eyeColor"] = app.eyeColor;
-    json["build"] = app.build;
-    json["clothing"] = QJsonArray::fromStringList(app.clothing);
-    json["accessories"] = QJsonArray::fromStringList(app.accessories);
-    json["distinctiveFeatures"] = QJsonArray::fromStringList(app.distinctiveFeatures);
-    return json;
 }
 
 PromptBuilder::PromptResult BibleImageService::buildSceneReferencePrompt(const Scene& scene)
@@ -833,7 +933,7 @@ QJsonObject BibleImageService::buildSceneJson(const Scene& scene)
 void BibleImageService::finishBatch()
 {
     BatchImageProcessor::finishBatch();
-    
+
     if (m_combinedMode) {
         emit allBibleImagesCompleted(batchState().successCount, batchState().failedCount);
         LOG_INFO("BibleImageService", QString("All Bible images completed: success=%1, failed=%2")
@@ -842,5 +942,171 @@ void BibleImageService::finishBatch()
         emit bibleBatchCompleted(m_currentType, batchState().successCount, batchState().failedCount);
         LOG_INFO("BibleImageService", QString("Batch generation completed: type=%1, success=%2, failed=%3")
             .arg(m_currentType).arg(batchState().successCount).arg(batchState().failedCount));
+    }
+}
+
+bool BibleImageService::ensureFirstPortraitVersionRecorded(const Character& character, const QString& imagePath)
+{
+    if (character.id().isEmpty() || imagePath.isEmpty()) {
+        return false;
+    }
+
+    QList<CharacterPortraitVersion> existing = CharacterExtractor::instance()->loadPortraitVersions(character.id());
+    if (!existing.isEmpty()) {
+        return true;
+    }
+
+    const QString versionId = insertPortraitVersionAndSetCurrent(
+        character, imagePath, 1, QString(), QString(), QJsonObject(), character.appearance().toJson(), 0);
+    if (versionId.isEmpty()) {
+        return false;
+    }
+    LOG_INFO("BibleImageService", QString("First portrait version (v1) recorded for %1").arg(character.name()));
+    return true;
+}
+
+QString BibleImageService::insertPortraitVersionAndSetCurrent(const Character& character,
+                                                              const QString& portraitPath,
+                                                              int versionNo,
+                                                              const QString& baseVersionId,
+                                                              const QString& editPrompt,
+                                                              const QJsonObject& fieldDiff,
+                                                              const QJsonObject& appearanceSnapshot,
+                                                              int sourceChapter)
+{
+    CharacterPortraitVersion v;
+    v.setId(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    v.setCharacterId(character.id());
+    v.setVersionNo(versionNo);
+    v.setPortraitPath(portraitPath);
+    v.setBaseVersionId(baseVersionId);
+    v.setEditPrompt(editPrompt);
+    v.setFieldDiff(fieldDiff);
+    v.setAppearanceSnapshot(appearanceSnapshot);
+    v.setSourceChapter(sourceChapter);
+    v.setCreatedAt(QDateTime::currentDateTime());
+
+    if (!CharacterExtractor::instance()->addPortraitVersion(v)) {
+        LOG_WARNING("BibleImageService", QString("Failed to insert portrait version v%1 for %2")
+            .arg(versionNo).arg(character.name()));
+        return QString();
+    }
+    if (!CharacterExtractor::instance()->setCurrentPortraitVersion(character.id(), v.id())) {
+        LOG_WARNING("BibleImageService", QString("Inserted v%1 but failed to set current for %2")
+            .arg(versionNo).arg(character.name()));
+        return QString();
+    }
+    return v.id();
+}
+
+QByteArray BibleImageService::processCharacterImageData(const QByteArray& raw) const
+{
+    // 先白化背景，再检测暗边 — 避免模型生成的暗色背景被误判为需要裁剪的边框
+    QByteArray processed = BackgroundWhitener::fillWhiteBackgroundImageData(raw, 240);
+    LOG_INFO("BibleImageService", QString("Post-processed character image: background whitened, size=%1 bytes")
+        .arg(processed.size()));
+
+    QImage originalImage;
+    originalImage.loadFromData(raw);
+    const qint64 originalArea = (qint64)originalImage.width() * originalImage.height();
+
+    bool didTrim = false;
+    QByteArray trimmed = ImageBorderTrimmer::trimDarkBorderImageData(processed, &didTrim);
+    if (!didTrim) {
+        return processed;
+    }
+
+    QImage trimmedImage;
+    trimmedImage.loadFromData(trimmed);
+    const qint64 trimmedArea = (qint64)trimmedImage.width() * trimmedImage.height();
+
+    if (trimmedArea < originalArea * 2 / 5) {
+        LOG_WARNING("BibleImageService", QString(
+            "角色图片裁剪过度 (%1x%2 -> %3x%4, 面积比=%5%), 跳过裁剪")
+            .arg(originalImage.width()).arg(originalImage.height())
+            .arg(trimmedImage.width()).arg(trimmedImage.height())
+            .arg(QString::number(trimmedArea * 100.0 / originalArea, 'f', 1) + "%"));
+        return processed;
+    }
+
+    LOG_INFO("BibleImageService", QString(
+        "Post-processed character image: borderTrimmed=true, from %1x%2 to %3x%4")
+        .arg(originalImage.width()).arg(originalImage.height())
+        .arg(trimmedImage.width()).arg(trimmedImage.height()));
+    return trimmed;
+}
+
+void BibleImageService::saveAndEmitEditResult(const QString& requestId, const QByteArray& imageData)
+{
+    bool found = false;
+    PendingImageRequest request = loadPendingRequest(m_stateMutex, m_pendingRequests, requestId, &found);
+    if (!found) {
+        return;
+    }
+
+    QByteArray processed = processCharacterImageData(imageData);
+
+    Character character = CharacterExtractor::instance()->getCharacterById(request.character.id());
+    if (character.id().isEmpty()) {
+        character = request.character;
+    }
+
+    const int versionNo = CharacterExtractor::instance()->nextVersionNo(character.id());
+    const QString relativePath = FileStorage::instance()->saveCharacterReferenceVersion(
+        character.id(), versionNo, processed);
+    if (relativePath.isEmpty()) {
+        failEdit(character.id(), QStringLiteral("save file failed"), requestId);
+        return;
+    }
+
+    QJsonArray diffArray;
+    for (const CharacterFieldDiff& d : request.diff) {
+        QJsonObject obj;
+        obj["field"] = d.field;
+        obj["oldValue"] = d.oldValue;
+        obj["newValue"] = d.newValue;
+        obj["sourceFrom"] = d.sourceFrom;
+        obj["sourceTo"] = d.sourceTo;
+        diffArray.append(obj);
+    }
+    QJsonObject diffJson;
+    diffJson["fields"] = diffArray;
+
+    // Apply diff to produce the appearance snapshot that matches this new portrait.
+    CharacterAppearance snapshotApp = character.appearance();
+    for (const CharacterFieldDiff& d : request.diff) {
+        const QString& f = d.field;
+        if      (f == "hairColor")          snapshotApp.hairColor = d.newValue;
+        else if (f == "hairStyle")          snapshotApp.hairStyle = d.newValue;
+        else if (f == "eyeColor")           snapshotApp.eyeColor = d.newValue;
+        else if (f == "height")             snapshotApp.height = d.newValue;
+        else if (f == "build")              snapshotApp.build = d.newValue;
+        else if (f == "clothing")           snapshotApp.clothing = d.newValue.split(QStringLiteral("、"), Qt::SkipEmptyParts);
+        else if (f == "accessories")        snapshotApp.accessories = d.newValue.split(QStringLiteral("、"), Qt::SkipEmptyParts);
+        else if (f == "distinctiveFeatures") snapshotApp.distinctiveFeatures = d.newValue.split(QStringLiteral("、"), Qt::SkipEmptyParts);
+    }
+
+    const QString versionId = insertPortraitVersionAndSetCurrent(
+        character, relativePath, versionNo,
+        request.baseVersionId, request.prompt, diffJson, snapshotApp.toJson(), request.sourceChapter);
+    if (versionId.isEmpty()) {
+        failEdit(character.id(), QStringLiteral("insert version row failed"), requestId);
+        return;
+    }
+
+    LOG_INFO("BibleImageService", QString("Portrait edit applied: char=%1, v%2, path=%3")
+        .arg(character.name()).arg(versionNo).arg(relativePath));
+
+    clearPendingRequest(requestId);
+
+    emit portraitVersionGenerated(character.id(), versionId, relativePath);
+    emit portraitGenerated(character.id(), relativePath);
+
+    if (isGenerating()) {
+        if (!maybeFinishBatch()) {
+            scheduleNextItem();
+        }
+    } else {
+        setGenerating(false);
     }
 }

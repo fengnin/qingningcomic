@@ -155,13 +155,16 @@ inline QString buildMovementSubjectPrompt(const QString& subject,
 inline QString extractLocalObjectSubjectFromParams(const QJsonObject& params, const QString& sourcePrompt)
 {
     const QString sourceText = effectiveEditSourceText(params, sourcePrompt);
+    // maskRegion is included because LLMs often put the target object there
+    // (e.g. "speech bubble") rather than in a dedicated subject/target field.
     QString subject = extractFirstTrimmedValue(params, QStringList{
         QStringLiteral("subject"),
         QStringLiteral("target"),
         QStringLiteral("entity"),
         QStringLiteral("object"),
         QStringLiteral("item"),
-        QStringLiteral("thing")
+        QStringLiteral("thing"),
+        QStringLiteral("maskRegion")
     });
     if (subject.isEmpty()) {
         subject = extractReplacementSourceFromText(sourceText);
