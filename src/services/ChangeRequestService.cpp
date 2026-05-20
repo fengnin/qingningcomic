@@ -810,6 +810,19 @@ QString buildInpaintPromptForIntent(const QJsonObject& params,
             sourcePrompt);
     }
 
+    if (normalizedIntent == QStringLiteral("rotate_subject")) {
+        const QString subject = ChangeRequestIntentUtils::extractRemovalSubject(params);
+        const QString direction = sourcePrompt.trimmed().isEmpty()
+            ? params.value(QStringLiteral("rawPrompt")).toString().trimmed()
+            : sourcePrompt.trimmed();
+        if (!direction.isEmpty()) {
+            return direction;
+        }
+        return subject.isEmpty()
+            ? QStringLiteral("调整人物朝向，保持其余画面内容不变")
+            : QString(QStringLiteral("调整%1的朝向，保持其余画面内容不变")).arg(subject);
+    }
+
     if (normalizedIntent == QStringLiteral("replace_background")) {
         return ChangeRequestIntentUtils::buildBackgroundEditPrompt(params);
     }
@@ -1242,41 +1255,14 @@ QJsonObject ChangeRequestService::executeArtOperation(
         || action == QStringLiteral("bg_swap")
         || action == QStringLiteral("repose")) {
         const Panel originalPanel = panel;
-        QString prompt = op.params["prompt"].toString();
         const QString editIntent = op.params.value("editIntent").toString().trimmed();
         const QString rawPrompt = op.params.value(QStringLiteral("rawPrompt")).toString();
         const QString sourceText = op.params.value(QStringLiteral("sourceText")).toString();
-        ImageService::EditHint editHint;
-        if (action == QStringLiteral("bg_swap") || editIntent == QStringLiteral("replace_background")) {
-            prompt = ChangeRequestIntentUtils::buildBackgroundEditPrompt(op.params);
-        } else if (editIntent == QStringLiteral("replace_attribute")) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-        } else if (editIntent == QStringLiteral("replace_subject")) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-            if (isCharacterReplacementRequest(op.params, sourceText)) {
-                editHint = buildSubjectReplacementEditHint(op.params);
-            } else {
-                editHint = buildLocalObjectReplacementEditHint();
-            }
-        } else if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-            editHint = buildLocalObjectReplacementEditHint();
-        } else if (prompt.isEmpty()) {
-            if (editIntent == QStringLiteral("remove_subject")) {
-                prompt = buildInpaintPromptForIntent(op.params, editIntent);
-            } else {
-                prompt = panel.visualPrompt();
-            }
-        }
+
+        const PromptAndHint ph = buildPromptAndHintForEditIntent(
+            op.params, action, editIntent, rawPrompt, sourceText, panel);
+        const QString& prompt = ph.prompt;
+        ImageService::EditHint editHint = ph.hint;
 
         if (!prompt.isEmpty()) {
             QJsonObject content = buildPanelContentForWrite(panel);
@@ -1293,13 +1279,11 @@ QJsonObject ChangeRequestService::executeArtOperation(
         }
 
         QJsonObject generationResult;
-
         editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, mode, generationResult, editHint)) {
             restorePanelAfterFailedArtEdit(originalPanel, dsl.targetId);
             throw std::runtime_error(m_lastError.toStdString());
         }
-
         result = generationResult;
 
     } else if (action == QStringLiteral("outpaint")
@@ -1422,45 +1406,44 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
         newDialogue.text = newText;
         newDialogue.bubbleType = "speech";
 
-        bool updated = false;
-        
-        if (!dialogueId.isEmpty()) {
-            bool isIndex = false;
-            int idx = dialogueId.toInt(&isIndex);
-            
-            if (isIndex && idx >= 0 && idx < dialogues.size()) {
-                dialogues[idx] = newDialogue;
-                updated = true;
-            } else {
-                for (int i = 0; i < dialogues.size(); ++i) {
-                    if (dialogues[i].speaker == dialogueId) {
-                        dialogues[i] = newDialogue;
-                        updated = true;
-                        break;
+        auto applyDialogueUpdate = [&](QList<DialogueLine>& dialogues,
+                                        const QString& dialogueId,
+                                        const QString& speaker,
+                                        const DialogueLine& newDialogue,
+                                        const QString& newText) {
+            if (!dialogueId.isEmpty()) {
+                bool isIndex = false;
+                int idx = dialogueId.toInt(&isIndex);
+                if (isIndex && idx >= 0 && idx < dialogues.size()) {
+                    dialogues[idx] = newDialogue;
+                    return;
+                }
+                for (auto& line : dialogues) {
+                    if (line.speaker == dialogueId) {
+                        line = newDialogue;
+                        return;
                     }
                 }
             }
-        }
-        
-        if (!updated && !speaker.isEmpty()) {
-            for (int i = 0; i < dialogues.size(); ++i) {
-                if (dialogues[i].speaker == speaker) {
-                    dialogues[i].text = newText;
-                    updated = true;
-                    break;
+
+            if (!speaker.isEmpty()) {
+                for (auto& line : dialogues) {
+                    if (line.speaker == speaker) {
+                        line.text = newText;
+                        return;
+                    }
                 }
             }
-        }
-        
-        if (!updated) {
-            // No dialogueId or speaker match — replace first dialogue if exists, otherwise append
+
             if (!dialogues.isEmpty()) {
                 dialogues[0].text = newText;
                 if (!speaker.isEmpty()) dialogues[0].speaker = speaker;
             } else {
                 dialogues.append(newDialogue);
             }
-        }
+        };
+
+        applyDialogueUpdate(dialogues, dialogueId, speaker, newDialogue, newText);
 
         if (!updatePanelDialogue(dsl.targetId, dialogues, newText)) {
             throw std::runtime_error(m_lastError.toStdString());
@@ -1791,16 +1774,21 @@ bool ChangeRequestService::updatePanelDialogue(
     // 否则会走批量生成分支导致整张图重绘而非局部编辑
     // 替换 visualPrompt 为对话编辑指令，让 AI 只改气泡文字不改场景
     // newText 为空时（如删除对话）不设置 editIntent，走批量生成重绘整图
+    QString editVisualPrompt;
     if (!newText.isEmpty()) {
         content["editIntent"] = QStringLiteral("rewrite_dialogue");
-        content["visualPrompt"] = QString(
+        editVisualPrompt = QString(
             "edit the speech bubble text to: %1, keep everything else in the image unchanged, "
             "do not change characters, background, composition or any other elements")
             .arg(newText);
+        content["visualPrompt"] = editVisualPrompt;
     }
 
     QVariantMap updates;
     updates["content"] = jsonToString(content);
+    if (!editVisualPrompt.isEmpty()) {
+        updates["visual_prompt"] = editVisualPrompt;
+    }
     return updateRecordWithTimestamp(m_db, "panels", updates, "id = ?", QVariantList{panelId}, &m_lastError);
 }
 
@@ -2107,6 +2095,41 @@ ImageService::EditHint ChangeRequestService::buildLocalObjectReplacementEditHint
     hint.maskCoreRatio = 0.90;
     hint.maskFeatherRatio = 0.10;
     return hint;
+}
+
+ChangeRequestService::PromptAndHint ChangeRequestService::buildPromptAndHintForEditIntent(
+    const QJsonObject& params,
+    const QString& action,
+    const QString& editIntent,
+    const QString& rawPrompt,
+    const QString& sourceText,
+    const Panel& panel) const
+{
+    PromptAndHint result;
+    result.prompt = params.value(QStringLiteral("prompt")).toString();
+
+    if (action == QStringLiteral("bg_swap") || editIntent == QStringLiteral("replace_background")) {
+        result.prompt = ChangeRequestIntentUtils::buildBackgroundEditPrompt(params);
+    } else if (editIntent == QStringLiteral("replace_lighting")) {
+        result.prompt = ChangeRequestIntentUtils::buildLightingEditPrompt(params);
+    } else if (editIntent == QStringLiteral("replace_attribute")) {
+        result.prompt = buildInpaintPromptForIntent(params, editIntent, rawPrompt);
+    } else if (editIntent == QStringLiteral("replace_subject")) {
+        result.prompt = buildInpaintPromptForIntent(params, editIntent, rawPrompt);
+        result.hint = isCharacterReplacementRequest(params, sourceText)
+            ? buildSubjectReplacementEditHint(params)
+            : buildLocalObjectReplacementEditHint();
+    } else if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)
+               || PromptTargetUtils::isRotationIntent(editIntent)) {
+        result.prompt = buildInpaintPromptForIntent(params, editIntent, rawPrompt);
+        result.hint = buildLocalObjectReplacementEditHint();
+    } else if (result.prompt.isEmpty()) {
+        result.prompt = (editIntent == QStringLiteral("remove_subject"))
+            ? buildInpaintPromptForIntent(params, editIntent)
+            : panel.visualPrompt();
+    }
+
+    return result;
 }
 
 bool ChangeRequestService::ensureChangeRequestColumns()

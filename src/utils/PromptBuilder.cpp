@@ -1,5 +1,4 @@
 #include "utils/PromptBuilder.h"
-#include "services/CharacterExtractor.h"
 #include "utils/ChangeRequestIntentUtils.h"
 #include "utils/DialogueSpeakerSideUtils.h"
 #include "utils/Logger.h"
@@ -283,6 +282,68 @@ namespace {
         return QString();
     }
 
+    // 从 visualPromptCn/En 里解析角色站位，返回 charName -> "left"/"right"
+    // 中文模式：角色名 + 位于/在 + 左/右
+    // 英文模式：角色名 + on + left/right
+    QMap<QString, QString> parseCharacterSidesFromVisualPrompt(
+        const QString& visualPromptCn,
+        const QString& visualPromptEn,
+        const QStringList& charNames)
+    {
+        QMap<QString, QString> sides;
+
+        // 中文：匹配 "青柠位于画面左侧" / "青柠在左侧" / "青柠位于左边"
+        for (const QString& name : charNames) {
+            if (name.isEmpty()) continue;
+            // 左侧
+            QRegularExpression reLeft(name + QString::fromUtf8("[^，。,\\.]{0,8}(?:左侧|左边|左方)"));
+            if (reLeft.match(visualPromptCn).hasMatch()) {
+                sides.insert(name, QStringLiteral("left"));
+                continue;
+            }
+            // 右侧
+            QRegularExpression reRight(name + QString::fromUtf8("[^，。,\\.]{0,8}(?:右侧|右边|右方)"));
+            if (reRight.match(visualPromptCn).hasMatch()) {
+                sides.insert(name, QStringLiteral("right"));
+                continue;
+            }
+        }
+
+        // 英文兜底：匹配 "Qingning on left" / "Qingning on the right side"
+        if (!visualPromptEn.isEmpty()) {
+            for (const QString& name : charNames) {
+                if (sides.contains(name) || name.isEmpty()) continue;
+                QRegularExpression reLeft(name + QStringLiteral("[^,\\.]{0,15}\\bon[\\s\\w]*left"),
+                                          QRegularExpression::CaseInsensitiveOption);
+                if (reLeft.match(visualPromptEn).hasMatch()) {
+                    sides.insert(name, QStringLiteral("left"));
+                    continue;
+                }
+                QRegularExpression reRight(name + QStringLiteral("[^,\\.]{0,15}\\bon[\\s\\w]*right"),
+                                           QRegularExpression::CaseInsensitiveOption);
+                if (reRight.match(visualPromptEn).hasMatch()) {
+                    sides.insert(name, QStringLiteral("right"));
+                }
+            }
+        }
+
+        if (!sides.isEmpty()) {
+            LOG_DEBUG("PromptBuilder", QString("parseCharacterSides: %1")
+                .arg([&]{ QStringList r; for (auto it = sides.constBegin(); it != sides.constEnd(); ++it) r << it.key() + "=" + it.value(); return r.join(", "); }()));
+        }
+        return sides;
+    }
+
+    QString resolveCharacterPortrait(const QString& charName,
+                                     const QMap<QString, QJsonObject>& characterRefs)
+    {
+        const QString key = resolveCharacterRefKey(charName, characterRefs);
+        if (key.isEmpty()) return QString();
+        const QJsonObject charObj = characterRefs.value(key);
+        const QStringList portraits = PromptBuilder::normalizeList(charObj["portraitPaths"].toArray());
+        return PromptBuilder::firstNonEmptyPortrait(portraits);
+    }
+
     bool isCoreCharacterRole(const QString& role)
     {
         return role.contains(QStringLiteral("protagonist"), Qt::CaseInsensitive)
@@ -294,7 +355,8 @@ namespace {
 
     PromptBuilder::PanelCharacterPromptData collectPanelCharacterPromptData(const QJsonArray& characters,
                                                               const QMap<QString, QJsonObject>& characterRefs,
-                                                              const QStringList& dialogueSpeakers)
+                                                              const QMap<QString, QString>& dialogueSpeakers,
+                                                              const QMap<QString, QString>& visualSides = QMap<QString, QString>())
     {
         PromptBuilder::PanelCharacterPromptData data;
 
@@ -317,23 +379,33 @@ namespace {
 
             const QJsonObject fullChar = characterRefs.value(matchedKey);
             const QJsonObject appearance = fullChar["appearance"].toObject();
-            const QStringList portraitPaths = PromptBuilder::normalizeList(fullChar["portraitPaths"].toArray());
 
             const QString charDesc = buildPanelCharacterDescription(charName, pose, expression, appearance);
             if (!charDesc.isEmpty()) {
                 data.characterDescriptions.append(charDesc);
             }
 
+            const QStringList portraitPaths = PromptBuilder::normalizeList(fullChar["portraitPaths"].toArray());
             const QString portraitPath = PromptBuilder::firstNonEmptyPortrait(portraitPaths);
             if (portraitPath.isEmpty()) {
                 continue;
             }
 
-            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedKey);
             const bool coreRole = isCoreCharacterRole(fullChar["role"].toString().trimmed());
-            const int priority = (isDialogSpeaker || coreRole) ? 0 : 2;
 
-            if (isDialogSpeaker || (coreRole && data.primaryCharacterRef.isEmpty())) {
+            // 优先用 visualPrompt 里解析出的站位决定谁是 ref[1]（左侧角色）
+            // 兜底：说话人且非明确右侧 → 视为左侧；再兜底：主角
+            const QString visualSide = visualSides.value(charName);
+            const bool onLeftByVisual = visualSide == QStringLiteral("left");
+            const bool onRightByVisual = visualSide == QStringLiteral("right");
+
+            const bool isDialogSpeaker = dialogueSpeakers.contains(charName) || dialogueSpeakers.contains(matchedKey);
+            const bool onLeftByDialogue = isDialogSpeaker && !onRightByVisual;
+
+            const bool isPrimary = onLeftByVisual || (!onRightByVisual && (onLeftByDialogue || (coreRole && data.primaryCharacterRef.isEmpty())));
+            const int priority = isPrimary ? 0 : 2;
+
+            if (isPrimary && data.primaryCharacterRef.isEmpty()) {
                 data.primaryCharacterRef = portraitPath;
             }
 
@@ -346,7 +418,7 @@ namespace {
             }
         }
 
-                if (data.primaryCharacterRef.isEmpty() && !data.allCharacterRefs.isEmpty()) {
+        if (data.primaryCharacterRef.isEmpty() && !data.allCharacterRefs.isEmpty()) {
             data.primaryCharacterRef = data.allCharacterRefs.first();
         }
 
@@ -492,35 +564,13 @@ namespace {
         return false;
     }
 
-    // 根据 speakerSide 字段或角色顺序推断说话者位置标记
-    // 根据角色外观和位置生成完整气泡描述
-    // 例: "a speech bubble with 'xxx' inside, above-left, tail pointing toward the young woman on the left"
-    QString buildBubbleDesc(const QString& text,
-                             const QString& speaker,
-                             const QString& speakerSide,
-                             const QMap<QString, QJsonObject>& characterRefs)
-    {
-        Q_UNUSED(characterRefs)
-
-        QString sideHint;
-        if (speakerSide == QStringLiteral("left")) {
-            sideHint = QStringLiteral("on the left");
-        } else if (speakerSide == QStringLiteral("right")) {
-            sideHint = QStringLiteral("on the right");
-        }
-
-        if (!sideHint.isEmpty()) {
-            return QString("a speech bubble with \"%1\" written inside it, "
-                           "tail pointing toward %2 %3")
-                   .arg(text, speaker, sideHint);
-        }
-        return QString("a speech bubble with \"%1\" written inside it, "
-                       "tail pointing toward %2")
-               .arg(text, speaker);
-    }
-
+    // primaryCharacterRef: ref[1] 的 portrait 路径，对应 VolcEngine 渲染在左侧的角色
+    // 说话人 portrait == primaryCharacterRef → on the left；否则 → on the right
+    // 单人面板（isMultiCharacter=false）不加方向词，避免误导
     QString formatDialogueForPrompt(const QJsonArray& dialogue,
-                                     const QMap<QString, QJsonObject>& characterRefs = QMap<QString, QJsonObject>())
+                                     const QMap<QString, QJsonObject>& characterRefs = QMap<QString, QJsonObject>(),
+                                     const QString& primaryCharacterRef = QString(),
+                                     bool isMultiCharacter = false)
     {
         if (dialogue.isEmpty()) {
             LOG_WARNING("PromptBuilder", "formatDialogueForPrompt: dialogue array is EMPTY!");
@@ -532,8 +582,7 @@ namespace {
         QStringList entries;
         for (int i = 0; i < dialogue.size() && i < 2; ++i) {
             const QJsonObject line = dialogue.at(i).toObject();
-            const QString speaker     = line["speaker"].toString().trimmed();
-            const QString speakerSide = line["speakerSide"].toString().trimmed();
+            const QString speaker = line["speaker"].toString().trimmed();
             QString text = line["text"].toString().trimmed();
 
             if (text.isEmpty()) {
@@ -546,12 +595,25 @@ namespace {
             text = text.trimmed();
             if (text.isEmpty()) continue;
 
-            const QString bubbleDesc = buildBubbleDesc(text, speaker, speakerSide, characterRefs);
+            // 多角色面板才加方向词：根据说话人 portrait 是否为 ref[1] 决定左右
+            QString sideHint;
+            if (isMultiCharacter && !primaryCharacterRef.isEmpty()) {
+                const QString speakerPortrait = resolveCharacterPortrait(speaker, characterRefs);
+                if (!speakerPortrait.isEmpty()) {
+                    sideHint = (speakerPortrait == primaryCharacterRef)
+                        ? QStringLiteral("on the left")
+                        : QStringLiteral("on the right");
+                }
+            }
+
+            const QString bubbleDesc = sideHint.isEmpty()
+                ? QString("a speech bubble with \"%1\" written inside it, tail pointing toward %2").arg(text, speaker)
+                : QString("a speech bubble with \"%1\" written inside it, tail pointing toward %2 %3").arg(text, speaker, sideHint);
             entries.append(bubbleDesc);
 
             LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speaker=%2, side=%3, bubble='%4'")
                 .arg(i).arg(speaker)
-                .arg(speakerSide.isEmpty() ? "(none)" : speakerSide)
+                .arg(sideHint.isEmpty() ? "(none)" : sideHint)
                 .arg(bubbleDesc));
         }
 
@@ -848,6 +910,22 @@ namespace {
             || editIntent.contains(QStringLiteral("replace_subject"));
     }
 
+    QString resolveSceneBibleDesc(const QMap<QString, QJsonObject>& sceneRefs,
+                                   const QString& sceneId,
+                                   const QString& sceneName)
+    {
+        LOG_DEBUG("PromptBuilder", QString("  场景圣经查找: sceneId='%1', sceneName='%2', sceneRefs.keys=%3")
+            .arg(sceneId, sceneName, QStringList(sceneRefs.keys()).join(",")));
+        QString matchedKey;
+        const QJsonObject details = findSceneBibleDetails(sceneRefs, sceneId, sceneName, matchedKey);
+        if (details.isEmpty()) {
+            LOG_WARNING("PromptBuilder", QString("  场景圣经未命中: sceneId='%1', sceneName='%2'").arg(sceneId, sceneName));
+            return QString();
+        }
+        LOG_DEBUG("PromptBuilder", QString("  场景圣经命中: matchedKey='%1'").arg(matchedKey));
+        return formatSceneBibleInjection(details);
+    }
+
     QStringList buildOptimizedImg2ImgParts(const QJsonObject& panel,
                                            const PromptBuilder::PanelCharacterPromptData& characterData,
                                            const QMap<QString, QJsonObject>& characterRefs,
@@ -883,7 +961,9 @@ namespace {
             // 大多数局部编辑不涉及对话修改，加气泡反而浪费预算
             const QJsonArray dialogue = panel["dialogue"].toArray();
             if (!dialogue.isEmpty() && editIntent.contains(QStringLiteral("set_expression"))) {
-                const QString bubble = formatDialogueForPrompt(dialogue, characterRefs);
+                const QString bubble = formatDialogueForPrompt(dialogue, characterRefs,
+                                                                  characterData.primaryCharacterRef,
+                                                                  characterData.allCharacterRefs.size() > 1);
                 if (!bubble.isEmpty()) {
                     parts << bubble;
                 }
@@ -901,19 +981,7 @@ namespace {
             baseScene = !visualPromptCn.isEmpty() ? visualPromptCn : sceneText;
 
             // 场景圣经：building + atmosphere + anchorPoints + consistencyRules 前置拼入
-            // 和角色外观注入方式一致——都融入同一段文本
-            const QString sceneDesc = [&]() -> QString {
-                LOG_DEBUG("PromptBuilder", QString("  场景圣经查找: sceneId='%1', sceneName='%2', sceneRefs.keys=%3")
-                    .arg(sceneId, sceneName, QStringList(sceneRefs.keys()).join(",")));
-                QString matchedKey;
-                const QJsonObject details = findSceneBibleDetails(sceneRefs, sceneId, sceneName, matchedKey);
-                if (details.isEmpty()) {
-                    LOG_WARNING("PromptBuilder", QString("  场景圣经未命中: sceneId='%1', sceneName='%2'").arg(sceneId, sceneName));
-                    return QString();
-                }
-                LOG_DEBUG("PromptBuilder", QString("  场景圣经命中: matchedKey='%1'").arg(matchedKey));
-                return formatSceneBibleInjection(details);
-            }();
+            const QString sceneDesc = resolveSceneBibleDesc(sceneRefs, sceneId, sceneName);
             if (!sceneDesc.isEmpty() && !baseScene.isEmpty()) {
                 const QString scenePrefix = truncateSmart(sceneDesc, 60);
                 baseScene = scenePrefix + "，" + baseScene;
@@ -927,7 +995,9 @@ namespace {
 
             // Layer 2: 对话气泡
             const QString dialogueStr = formatDialogueForPrompt(panel["dialogue"].toArray(),
-                                                                 characterRefs);
+                                                                 characterRefs,
+                                                                 characterData.primaryCharacterRef,
+                                                                 characterData.allCharacterRefs.size() > 1);
             if (!dialogueStr.isEmpty()) {
                 parts << dialogueStr;
             }
@@ -952,7 +1022,7 @@ namespace {
                                  const QString& primarySceneRef,
                                  const QString& primaryCharacterRef,
                                  const QStringList& panelCharNames,
-                                 const QStringList& dialogueSpeakers)
+                                 const QMap<QString, QString>& dialogueSpeakers)
     {
         const QString shotType = panel.value("shotType").toString().trimmed();
         const QString cameraAngle = panel.value("cameraAngle").toString().trimmed();
@@ -990,7 +1060,7 @@ namespace {
             .arg(promptTarget.isEmpty() ? "(empty)" : promptTarget)
             .arg(selectedRefType.isEmpty() ? "(none)" : selectedRefType)
             .arg(selectedRef.isEmpty() ? "(none)" : selectedRef.left(30))
-            .arg(dialogueSpeakers.join(", ")));
+            .arg(dialogueSpeakers.keys().join(", ")));
         Q_UNUSED(panel);
     }
     
@@ -1104,45 +1174,80 @@ namespace {
             return QString();
         }
 
-        QString normalizedTarget = target.trimmed().toLower();
+        const QString normalizedTarget = target.trimmed().toLower();
         const QString normalizedEditIntent = editIntent.trimmed().toLower();
 
+        auto withStrictSuffix = [&](const QString& directive) {
+            return QString("%1, apply this edit strictly: %2").arg(directive, editPrompt);
+        };
+
+        if (PromptTargetUtils::isRotationIntent(normalizedEditIntent)) {
+            return withStrictSuffix(
+                "localized object rotation edit only, rotate or reorient the specified object so it faces or points in the requested direction, "
+                "keep the object identity and appearance consistent, do not move it to a different location, "
+                "rebuild any area uncovered by the rotation naturally, keep the scene, framing, lighting, composition, and all other elements stable"
+            );
+        }
+
         if (PromptTargetUtils::isLocalObjectMovementIntent(normalizedEditIntent)) {
-            return QString("localized object movement edit only, move the specified object from its original position into the requested container or location, remove the original occurrence, rebuild the vacated area naturally, keep the object identity, scene, framing, lighting, and composition stable, do not duplicate the object or turn this into a character edit, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix(
+                "localized object movement edit only, move the specified object from its original position into the requested container or location, "
+                "remove the original occurrence, rebuild the vacated area naturally, keep the object identity, scene, framing, lighting, and composition stable, "
+                "do not duplicate the object or turn this into a character edit"
+            );
         }
 
         if (normalizedEditIntent == QStringLiteral("replace_subject")) {
             if (normalizedTarget == QStringLiteral("character") || PromptTargetUtils::isCharacterFocusedPrompt(editPrompt)) {
-                return QString("character replacement edit only, replace the existing subject with the specified identity, keep the scene, framing, pose, lighting, and composition stable, lock the subject identity to the provided character reference, do not redraw the surrounding background, apply this edit strictly: %1")
-                    .arg(editPrompt);
+                return withStrictSuffix(
+                    "character replacement edit only, replace the existing subject with the specified identity, "
+                    "keep the scene, framing, pose, lighting, and composition stable, "
+                    "lock the subject identity to the provided character reference, do not redraw the surrounding background"
+                );
             }
-            return QString("localized object replacement edit only, replace the specific local object or subject named in the request, keep the surrounding scene, framing, lighting, and composition stable, do not expand the edit to the whole character or whole image, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix(
+                "localized object replacement edit only, replace the specific local object or subject named in the request, "
+                "keep the surrounding scene, framing, lighting, and composition stable, "
+                "do not expand the edit to the whole character or whole image"
+            );
         }
 
         if (normalizedEditIntent == QStringLiteral("replace_attribute")) {
-            return QString("localized character attribute edit only, change only the requested clothing, hair, accessory, material, texture, or color detail, keep the character identity, pose, expression, scene, framing, lighting, and composition stable, do not replace the whole character, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix(
+                "localized character attribute edit only, change only the requested clothing, hair, accessory, material, texture, or color detail, "
+                "keep the character identity, pose, expression, scene, framing, lighting, and composition stable, do not replace the whole character"
+            );
+        }
+
+        if (normalizedEditIntent == QStringLiteral("replace_lighting")) {
+            return withStrictSuffix(
+                "lighting and atmosphere edit only, adjust the overall light direction, color temperature, time of day, weather, or mood as requested, "
+                "keep all characters, their positions, poses, expressions, the scene structure, framing, composition, and aspect ratio completely unchanged, "
+                "do not alter any objects or architectural elements"
+            );
         }
 
         if (PromptTargetUtils::isRemovalIntentText(editPrompt)) {
-            return QString("scene edit only, remove the specified subject, rebuild the covered background naturally, keep all remaining characters, composition, perspective, lighting, and color continuity stable, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix(
+                "scene edit only, remove the specified subject, rebuild the covered background naturally, "
+                "keep all remaining characters, composition, perspective, lighting, and color continuity stable"
+            );
         }
 
         if (normalizedTarget == "scene") {
-            return QString("scene edit only, keep character identity and pose stable, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix("scene edit only, keep character identity and pose stable");
         }
 
         if (normalizedTarget == "character") {
-            return QString("face-level local edit only, change only the requested facial expression detail, limit changes to eyes, eyebrows, mouth corners, and facial features, do not redraw the whole character or whole image, keep pose, body, clothing, background, camera, composition, and aspect ratio stable, apply this edit strictly: %1")
-                .arg(editPrompt);
+            return withStrictSuffix(
+                "face-level local edit only, change only the requested facial expression detail, "
+                "limit changes to eyes, eyebrows, mouth corners, and facial features, "
+                "do not redraw the whole character or whole image, "
+                "keep pose, body, clothing, background, camera, composition, and aspect ratio stable"
+            );
         }
 
-        return QString("apply this edit strictly while preserving the existing composition: %1")
-            .arg(editPrompt);
+        return QString("apply this edit strictly while preserving the existing composition: %1").arg(editPrompt);
     }
 
     void appendCharacterFramingParts(QStringList& parts)
@@ -1396,11 +1501,12 @@ QString PromptBuilder::matchSceneDetails(const QMap<QString, QJsonObject> &scene
     return parts.join(", ");
 }
 
-QStringList PromptBuilder::extractDialogueSpeakers(const QJsonArray &dialogue)
+QMap<QString, QString> PromptBuilder::extractDialogueSpeakers(const QJsonArray &dialogue)
 {
-    QStringList speakers;
+    QMap<QString, QString> speakers; // speaker -> speakerSide
     for (const auto& line : dialogue) {
-        QString speaker = line.toObject()["speaker"].toString().trimmed();
+        const QJsonObject obj = line.toObject();
+        QString speaker = obj["speaker"].toString().trimmed();
         if (speaker.isEmpty()) {
             continue;
         }
@@ -1413,7 +1519,7 @@ QStringList PromptBuilder::extractDialogueSpeakers(const QJsonArray &dialogue)
         }
 
         if (!speakers.contains(speaker)) {
-            speakers.append(speaker);
+            speakers.insert(speaker, obj["speakerSide"].toString().trimmed().toLower());
         }
     }
     return speakers;
@@ -1663,12 +1769,21 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         editPrompt,
         panel["scene"].toString());
 
-    QStringList dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
+    QMap<QString, QString> dialogueSpeakers = extractDialogueSpeakers(panel["dialogue"].toArray());
     QString primarySceneRef = resolveSceneRefPath(sceneRefs, sceneId, sceneName);
+
+    const QStringList panelCharNames = [&]{
+        QStringList names;
+        for (const auto& v : panel["characters"].toArray())
+            names << v.toObject()["name"].toString();
+        return names;
+    }();
+    const QMap<QString, QString> visualSides = parseCharacterSidesFromVisualPrompt(visualPrompt, visualPromptEn, panelCharNames);
 
     const PromptBuilder::PanelCharacterPromptData characterData = collectPanelCharacterPromptData(panel["characters"].toArray(),
                                                                                   characterRefs,
-                                                                                  dialogueSpeakers);
+                                                                                  dialogueSpeakers,
+                                                                                  visualSides);
     
     QString selectedRefType;
     QString selectedRef = selectPanelReference(promptTarget,
@@ -1721,7 +1836,9 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         
         // 5. TEXT - 文字
         addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray(),
-                                                      characterRefs));
+                                                      characterRefs,
+                                                      characterData.primaryCharacterRef,
+                                                      characterData.allCharacterRefs.size() > 1));
         
         // 6. STYLE - 风格
         parts << "[风格] 日漫风格，全彩，高质量渲染";

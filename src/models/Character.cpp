@@ -7,7 +7,6 @@ Character::Character()
 {
 }
 
-// 注册元类型
 static const int s_characterMetaType = qRegisterMetaType<Character>();
 static const int s_appearanceMetaType = qRegisterMetaType<CharacterAppearance>();
 static const int s_configMetaType = qRegisterMetaType<CharacterConfiguration>();

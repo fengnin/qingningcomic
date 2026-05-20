@@ -288,46 +288,44 @@ QString extractCharacterContext(const QString& sourceText, const QString& name, 
     return QString();
 }
 
+struct CharacterSubjectPatterns {
+    QRegularExpression nonSubj1, nonSubj2, nonSubj3;
+    QRegularExpression appSubj1, appSubj2, appSubj3, appSubj4, appSubj5, appSubj6;
+
+    explicit CharacterSubjectPatterns(const QString& escaped)
+        : nonSubj1(QString::fromUtf8("(?:看向|望着|对着|听见|看见|迎接|欢迎|目送|注视|观察|打量)[^，。！？]{0,10}%1").arg(escaped))
+        , nonSubj2(QString::fromUtf8("(?:对|向|给|为|替|帮|同|和|与)[^，。！？]{0,10}%1(?:说|讲|问|笑|点头)").arg(escaped))
+        , nonSubj3(QString::fromUtf8("[^，。！？]{0,15}的%1(?:攥着|提着|拿着|抱着|背着|戴着|穿着|系着|围着|套着)").arg(escaped))
+        , appSubj1(QString::fromUtf8("%1[^，。！？]{0,10}(?:穿着|戴着|系着|围着|披着|裹着|扎着|梳着|留着|染了|长了|有着|长着|带着|是一头|留了一头|顶着一头|一头)").arg(escaped))
+        , appSubj2(QString::fromUtf8("^%1(?:是|为|叫|名|姓|今年|是个|身为|作为)").arg(escaped))
+        , appSubj3(QString::fromUtf8("^(?:这|那|该)(?:个?位?)%1[^，。]{0,25}(?:是|有|带着|长着|留着|梳着|染了)").arg(escaped))
+        , appSubj4(QString::fromUtf8("%1[^，。！？]{0,20}(?:满头|一头|白发|银发|花白|黑发|短发|长发)").arg(escaped))
+        , appSubj5(QString::fromUtf8("%1的[^，。！？]{0,6}(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(escaped))
+        , appSubj6(QString::fromUtf8("%1[^，。！？]{0,20}(?:他|她|其)的(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(escaped))
+    {}
+};
+
+// 按角色名缓存编译好的正则组，避免同一次提取中重复编译
+static QHash<QString, CharacterSubjectPatterns*> s_subjectPatternsCache;
+
 bool isCharacterSubject(const QString& sentence, const QString& name)
 {
-    // 明确的非主语模式：角色作为纯宾语（被观察、被动作对象）
-    QList<QRegularExpression> nonSubjectPatterns;
-    nonSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("(?:看向|望着|对着|听见|看见|迎接|欢迎|目送|注视|观察|打量)[^，。！？]{0,10}%1").arg(name)));
-    nonSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("(?:对|向|给|为|替|帮|同|和|与)[^，。！？]{0,10}%1(?:说|讲|问|笑|点头)").arg(name)));
-    nonSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("[^，。！？]*的%1(?:攥着|提着|拿着|抱着|背着|戴着|穿着|系着|围着|套着)").arg(name)));
-
-    for (const auto& pattern : nonSubjectPatterns) {
-        if (pattern.match(sentence).hasMatch()) {
-            return false;
-        }
+    CharacterSubjectPatterns* p = s_subjectPatternsCache.value(name, nullptr);
+    if (!p) {
+        p = new CharacterSubjectPatterns(QRegularExpression::escape(name));
+        s_subjectPatternsCache.insert(name, p);
     }
 
-    // 外貌描述主语模式：角色名后紧跟外貌相关词
-    QList<QRegularExpression> appearanceSubjectPatterns;
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("%1[^，。！？]{0,10}(?:穿着|戴着|系着|围着|披着|裹着|扎着|梳着|留着|染了|长了|有着|长着|带着|是一头|留了一头|顶着一头|一头)").arg(name)));
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("^%1(?:是|为|叫|名|姓|今年|是个|身为|作为)").arg(name)));
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("^(?:这|那|该)(?:个?位?)%1[^，。]{0,25}(?:是|有|带着|长着|留着|梳着|染了)").arg(name)));
-    // "只见他/她满头白发" 这类间接描述：角色名在前文，描述在后文（不跨逗号，避免匹配到同句其他角色）
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("%1[^，。！？]{0,20}(?:满头|一头|白发|银发|花白|黑发|短发|长发)").arg(name)));
-    // "顾北的浅棕色发丝" 所有格结构：角色名的[修饰词]{0,6}[外貌词]
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("%1的[^，。！？]{0,6}(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(name)));
-    // "林深抬起头，他的瞳仁是..." 同句代词回指：角色名出现后，同句内有他/她的[外貌词]
-    appearanceSubjectPatterns.append(
-        QRegularExpression(QString::fromUtf8("%1[^。！？]{0,30}(?:他|她|其)的(?:发色|头发|发丝|鬓发|眼睛|眼眸|眸子|双眸|瞳仁|瞳孔|眸|眼|身形|体型|身材|发型|发质)").arg(name)));
+    if (p->nonSubj1.match(sentence).hasMatch()) return false;
+    if (p->nonSubj2.match(sentence).hasMatch()) return false;
+    if (p->nonSubj3.match(sentence).hasMatch()) return false;
 
-    for (const auto& pattern : appearanceSubjectPatterns) {
-        if (pattern.match(sentence).hasMatch()) {
-            return true;
-        }
-    }
+    if (p->appSubj1.match(sentence).hasMatch()) return true;
+    if (p->appSubj2.match(sentence).hasMatch()) return true;
+    if (p->appSubj3.match(sentence).hasMatch()) return true;
+    if (p->appSubj4.match(sentence).hasMatch()) return true;
+    if (p->appSubj5.match(sentence).hasMatch()) return true;
+    if (p->appSubj6.match(sentence).hasMatch()) return true;
 
     return false;
 }
