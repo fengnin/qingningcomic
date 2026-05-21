@@ -47,6 +47,15 @@ SOURCES += \
     src/data/FileStorage.cpp \
     src/data/SqlBuilder.cpp \
     src/utils/BibleCache.cpp \
+    src/utils/BibleUtils.cpp \
+    src/utils/BibleUpdateStrategy.cpp \
+    src/utils/BibleContextConstants.cpp \
+    src/utils/ChangeRequestIntentUtils.cpp \
+    src/utils/ChangeRequestParseUtils.cpp \
+    src/utils/ChangeRequestTargetUtils.cpp \
+    src/utils/SceneKeyUtils.cpp \
+    src/utils/ShotTypeHelper.cpp \
+    src/utils/StatusHelper.cpp \
     src/models/Novel.cpp \
     src/models/Character.cpp \
     src/models/Storyboard.cpp \
