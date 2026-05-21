@@ -353,6 +353,92 @@ inline QString inferEditIntentFromText(const QString& text)
         return QStringLiteral("set_expression");
     }
 
+    static const QStringList rotationKeywords = {
+        QString::fromUtf8("朝向"),
+        QString::fromUtf8("转身"),
+        QString::fromUtf8("转头"),
+        QString::fromUtf8("转过"),
+        QString::fromUtf8("面向"),
+        QString::fromUtf8("背对"),
+        QString::fromUtf8("背向"),
+        QString::fromUtf8("回头"),
+        QStringLiteral("rotate"),
+        QStringLiteral("turn around"),
+        QStringLiteral("face")
+    };
+    if (containsAnyKeyword(lower, rotationKeywords)) {
+        return QStringLiteral("rotate_subject");
+    }
+
+    static const QStringList poseKeywords = {
+        QString::fromUtf8("姿势"),
+        QString::fromUtf8("姿态"),
+        QString::fromUtf8("动作"),
+        QString::fromUtf8("站姿"),
+        QString::fromUtf8("坐姿"),
+        QString::fromUtf8("站着"),
+        QString::fromUtf8("坐着"),
+        QString::fromUtf8("躺着"),
+        QString::fromUtf8("跪着"),
+        QString::fromUtf8("蹲着"),
+        QString::fromUtf8("趴着"),
+        QStringLiteral("pose"),
+        QStringLiteral("posture")
+    };
+    if (containsAnyKeyword(lower, poseKeywords)) {
+        return QStringLiteral("change_pose");
+    }
+
+    static const QStringList lightingKeywords = {
+        QString::fromUtf8("光线"),
+        QString::fromUtf8("光照"),
+        QString::fromUtf8("打光"),
+        QString::fromUtf8("亮度"),
+        QString::fromUtf8("天气"),
+        QString::fromUtf8("白天"),
+        QString::fromUtf8("夜晚"),
+        QString::fromUtf8("夜里"),
+        QString::fromUtf8("黄昏"),
+        QString::fromUtf8("傍晚"),
+        QString::fromUtf8("清晨"),
+        QString::fromUtf8("下雨"),
+        QString::fromUtf8("下雪"),
+        QString::fromUtf8("阴天"),
+        QString::fromUtf8("晴天"),
+        QStringLiteral("lighting"),
+        QStringLiteral("weather"),
+        QStringLiteral("daylight"),
+        QStringLiteral("sunset"),
+        QStringLiteral("rain"),
+        QStringLiteral("snow")
+    };
+    if (containsAnyKeyword(lower, lightingKeywords)) {
+        return QStringLiteral("change_lighting");
+    }
+
+    static const QStringList compositionKeywords = {
+        QString::fromUtf8("景别"),
+        QString::fromUtf8("远景"),
+        QString::fromUtf8("中景"),
+        QString::fromUtf8("近景"),
+        QString::fromUtf8("特写"),
+        QString::fromUtf8("全景"),
+        QString::fromUtf8("俯视"),
+        QString::fromUtf8("仰视"),
+        QString::fromUtf8("俯拍"),
+        QString::fromUtf8("仰拍"),
+        QString::fromUtf8("构图"),
+        QString::fromUtf8("镜头"),
+        QString::fromUtf8("视角"),
+        QStringLiteral("composition"),
+        QStringLiteral("camera angle"),
+        QStringLiteral("close-up"),
+        QStringLiteral("wide shot")
+    };
+    if (containsAnyKeyword(lower, compositionKeywords)) {
+        return QStringLiteral("change_composition");
+    }
+
     if (containsAnyKeyword(lower, replacementKeywords)) {
         return QStringLiteral("replace_subject");
     }

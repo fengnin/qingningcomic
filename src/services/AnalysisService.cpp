@@ -8,7 +8,6 @@
 #include "services/BibleContextInjector.h"
 #include "api/QwenPromptBuilder.h"
 #include "utils/SchemaFileUtils.h"
-#include "utils/AnalysisTextUtils.h"
 #include "utils/JsonUtils.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"

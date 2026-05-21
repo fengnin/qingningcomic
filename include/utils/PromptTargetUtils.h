@@ -89,7 +89,16 @@ inline bool isCharacterEditIntent(const QString& editIntent)
     const QString normalizedIntent = editIntent.trimmed().toLower();
     return normalizedIntent == QStringLiteral("replace_attribute")
         || normalizedIntent == QStringLiteral("set_expression")
-        || normalizedIntent == QStringLiteral("setexpression");
+        || normalizedIntent == QStringLiteral("setexpression")
+        || normalizedIntent == QStringLiteral("rotate_subject")
+        || normalizedIntent == QStringLiteral("change_pose");
+}
+
+inline bool isCompositionEditIntent(const QString& editIntent)
+{
+    const QString normalizedIntent = editIntent.trimmed().toLower();
+    return normalizedIntent == QStringLiteral("change_composition")
+        || normalizedIntent == QStringLiteral("change_lighting");
 }
 
 inline bool shouldPreferSceneReferenceForEditIntent(const QString& editIntent, const QString& editPrompt)

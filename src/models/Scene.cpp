@@ -184,6 +184,7 @@ bool SceneDetails::hasEmptyFields() const
 QStringList SceneDetails::toDisplayStrings() const
 {
     using namespace BibleUtils::Inference;
+    using namespace BibleUtils::Inference::Translation;
 
     QStringList lines;
 
@@ -211,7 +212,7 @@ QStringList SceneDetails::toDisplayStrings() const
 
     // 环境参数
     appendDisplayLine(lines, QString::fromUtf8("背景设定"), setting);
-    if (!isIndoorSceneType(type)) {
+    if (!::isIndoorSceneType(type)) {
         appendDisplayLine(lines, QString::fromUtf8("天气"), preferZh(QString(), weather, translateWeather));
     }
     appendDisplayLine(lines, QString::fromUtf8("时间段"), preferZh(QString(), timeOfDay, translateTimeOfDay));

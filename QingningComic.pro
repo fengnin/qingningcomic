@@ -21,8 +21,8 @@ msvc {
 
 # MinGW 编译器使用 UTF-8 编码
 mingw {
-    QMAKE_CXXFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8
-    QMAKE_CFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8
+    QMAKE_CXXFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8 -pipe
+    QMAKE_CFLAGS += -fexec-charset=UTF-8 -finput-charset=UTF-8 -pipe
 }
 
 # 启用 Qt 模块

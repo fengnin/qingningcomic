@@ -814,6 +814,32 @@ QString buildInpaintPromptForIntent(const QJsonObject& params,
         return ChangeRequestIntentUtils::buildBackgroundEditPrompt(params);
     }
 
+    if (normalizedIntent == QStringLiteral("rotate_subject")) {
+        const QString subject = ChangeRequestIntentUtils::extractRemovalSubject(params);
+        const QString direction = sourcePrompt.trimmed().isEmpty()
+            ? params.value(QStringLiteral("rawPrompt")).toString().trimmed()
+            : sourcePrompt.trimmed();
+        if (!direction.isEmpty()) {
+            return direction;
+        }
+        return subject.isEmpty()
+            ? QStringLiteral("调整人物朝向，保持其余画面内容不变")
+            : QString(QStringLiteral("调整%1的朝向，保持其余画面内容不变")).arg(subject);
+    }
+
+    if (normalizedIntent == QStringLiteral("change_pose")) {
+        const QString subject = ChangeRequestIntentUtils::extractRemovalSubject(params);
+        const QString poseDesc = sourcePrompt.trimmed().isEmpty()
+            ? params.value(QStringLiteral("rawPrompt")).toString().trimmed()
+            : sourcePrompt.trimmed();
+        if (!poseDesc.isEmpty()) {
+            return poseDesc;
+        }
+        return subject.isEmpty()
+            ? QStringLiteral("调整人物姿势和动作，保持其余画面内容不变")
+            : QString(QStringLiteral("调整%1的姿势和动作，保持其余画面内容不变")).arg(subject);
+    }
+
     const QString subject = ChangeRequestIntentUtils::extractRemovalSubject(params);
     return ChangeRequestIntentUtils::buildRemovalSubjectPrompt(subject);
 }
@@ -1270,6 +1296,12 @@ QJsonObject ChangeRequestService::executeArtOperation(
                 editIntent,
                 rawPrompt);
             editHint = buildLocalObjectReplacementEditHint();
+        } else if (editIntent == QStringLiteral("rotate_subject")
+            || editIntent == QStringLiteral("change_pose")) {
+            prompt = buildInpaintPromptForIntent(
+                op.params,
+                editIntent,
+                rawPrompt);
         } else if (prompt.isEmpty()) {
             if (editIntent == QStringLiteral("remove_subject")) {
                 prompt = buildInpaintPromptForIntent(op.params, editIntent);
@@ -1304,6 +1336,22 @@ QJsonObject ChangeRequestService::executeArtOperation(
 
     } else if (action == QStringLiteral("outpaint")
         || action == QStringLiteral("regen_panel")) {
+        const QString editIntent = op.params.value("editIntent").toString().trimmed();
+        if (PromptTargetUtils::isCompositionEditIntent(editIntent)) {
+            const QString rawPrompt = op.params.value(QStringLiteral("rawPrompt")).toString().trimmed();
+            const QString userPrompt = op.params.value(QStringLiteral("prompt")).toString().trimmed();
+            const QString desc = !userPrompt.isEmpty() ? userPrompt : rawPrompt;
+            if (!desc.isEmpty()) {
+                QJsonObject content = buildPanelContentForWrite(panel);
+                content["visualPrompt"] = desc;
+                annotateArtEditContent(content, action, editIntent);
+                panel.setVisualPrompt(desc);
+                panel.setContent(content);
+                if (!updatePanel(panel)) {
+                    throw std::runtime_error(m_lastError.toStdString());
+                }
+            }
+        }
         if (!runPanelImageGeneration(dsl.targetId, mode, result)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
