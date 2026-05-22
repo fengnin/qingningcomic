@@ -1520,6 +1520,134 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
         if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
+    } else if (action == QStringLiteral("add_dialogue")) {
+        DialogueLine newLine;
+        newLine.speaker = speaker.isEmpty() ? QStringLiteral("Unknown") : speaker;
+        newLine.text = newText;
+        newLine.bubbleType = op.params.value(QStringLiteral("bubbleType")).toString();
+        if (newLine.bubbleType.isEmpty()) newLine.bubbleType = QStringLiteral("speech");
+        newLine.speakerSide = op.params.value(QStringLiteral("speakerSide")).toString();
+        dialogues.append(newLine);
+
+        if (!updatePanelDialogue(dsl.targetId, dialogues, newText)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+
+        QJsonObject generationResult;
+        ImageService::EditHint editHint;
+        editHint.forceProvider = QStringLiteral("qwen");
+        if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+    } else if (action == QStringLiteral("remove_dialogue")) {
+        bool removed = false;
+        if (!dialogueId.isEmpty()) {
+            bool isIndex = false;
+            int idx = dialogueId.toInt(&isIndex);
+            if (isIndex && idx >= 0 && idx < dialogues.size()) {
+                dialogues.removeAt(idx);
+                removed = true;
+            } else {
+                for (int i = 0; i < dialogues.size(); ++i) {
+                    if (dialogues[i].speaker == dialogueId) {
+                        dialogues.removeAt(i);
+                        removed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!removed && !speaker.isEmpty()) {
+            for (int i = 0; i < dialogues.size(); ++i) {
+                if (dialogues[i].speaker == speaker) {
+                    dialogues.removeAt(i);
+                    removed = true;
+                    break;
+                }
+            }
+        }
+        if (!removed && !dialogues.isEmpty()) {
+            dialogues.removeFirst();
+        }
+
+        if (!updatePanelDialogue(dsl.targetId, dialogues, QString())) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+
+        QJsonObject generationResult;
+        ImageService::EditHint editHint;
+        editHint.forceProvider = QStringLiteral("qwen");
+        if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+    } else if (action == QStringLiteral("update_dialogue_side")) {
+        const QString newSide = op.params.value(QStringLiteral("speakerSide")).toString();
+        bool updated = false;
+        if (!dialogueId.isEmpty()) {
+            bool isIndex = false;
+            int idx = dialogueId.toInt(&isIndex);
+            if (isIndex && idx >= 0 && idx < dialogues.size()) {
+                dialogues[idx].speakerSide = newSide;
+                updated = true;
+            } else {
+                for (int i = 0; i < dialogues.size(); ++i) {
+                    if (dialogues[i].speaker == dialogueId) {
+                        dialogues[i].speakerSide = newSide;
+                        updated = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!updated && !speaker.isEmpty()) {
+            for (int i = 0; i < dialogues.size(); ++i) {
+                if (dialogues[i].speaker == speaker) {
+                    dialogues[i].speakerSide = newSide;
+                    updated = true;
+                    break;
+                }
+            }
+        }
+        int updatedIdx = -1;
+        if (!updated && !dialogues.isEmpty()) {
+            dialogues[0].speakerSide = newSide;
+            updatedIdx = 0;
+        }
+
+        // 如果 speaker 参数为空，从实际被修改的 dialogue 条目里取 speaker
+        QString effectiveSpeaker = speaker;
+        if (effectiveSpeaker.isEmpty()) {
+            if (updatedIdx >= 0 && updatedIdx < dialogues.size()) {
+                effectiveSpeaker = dialogues[updatedIdx].speaker;
+            } else if (!dialogues.isEmpty()) {
+                // 找到 speakerSide 已被设置为 newSide 的第一条
+                for (const auto& d : dialogues) {
+                    if (d.speakerSide == newSide) {
+                        effectiveSpeaker = d.speaker;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const QString sideHint = (newSide == QStringLiteral("left"))
+            ? QStringLiteral("on the left")
+            : (newSide == QStringLiteral("right") ? QStringLiteral("on the right") : QString());
+        const QString bubbleSidePrompt = sideHint.isEmpty()
+            ? QString("change the speech bubble tail to point toward %1, keep everything else in the image unchanged").arg(effectiveSpeaker)
+            : QString("change the speech bubble tail to point toward %1 %2, keep everything else in the image unchanged").arg(effectiveSpeaker, sideHint);
+
+        if (!updatePanelDialogue(dsl.targetId, dialogues, QString(),
+                                 QStringLiteral("update_dialogue_side"), bubbleSidePrompt)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+
+        QJsonObject generationResult;
+        ImageService::EditHint editHint;
+        editHint.forceProvider = QStringLiteral("qwen");
+        if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
     }
 
     return ChangeRequestExecutionUtils::buildDialogueResult(
@@ -1816,7 +1944,9 @@ bool ChangeRequestService::updatePanel(const Panel& panel)
 bool ChangeRequestService::updatePanelDialogue(
     const QString& panelId,
     const QList<DialogueLine>& dialogue,
-    const QString& newText)
+    const QString& newText,
+    const QString& editIntent,
+    const QString& visualPrompt)
 {
     Panel panel = loadPanelById(panelId);
     if (!panel.isValid()) {
@@ -1830,25 +1960,35 @@ bool ChangeRequestService::updatePanelDialogue(
         lineObj["speaker"] = line.speaker;
         lineObj["text"] = line.text;
         lineObj["bubbleType"] = line.bubbleType;
+        if (!line.speakerSide.isEmpty()) {
+            lineObj["speakerSide"] = line.speakerSide;
+        }
         dialogueArray.append(lineObj);
     }
 
     QJsonObject content = buildPanelContentForWrite(panel);
     content["dialogue"] = dialogueArray;
-    // 对话修改也是编辑操作，需要设置 editIntent 让 PromptBuilder 走编辑精简模式
-    // 否则会走批量生成分支导致整张图重绘而非局部编辑
-    // 替换 visualPrompt 为对话编辑指令，让 AI 只改气泡文字不改场景
-    // newText 为空时（如删除对话）不设置 editIntent，走批量生成重绘整图
-    if (!newText.isEmpty()) {
+    if (!editIntent.isEmpty()) {
+        content["editIntent"] = editIntent;
+        if (!visualPrompt.isEmpty()) {
+            content["visualPrompt"] = visualPrompt;
+        }
+    } else if (!newText.isEmpty()) {
+        // 对话文字修改：走编辑精简模式，只改气泡文字
         content["editIntent"] = QStringLiteral("rewrite_dialogue");
         content["visualPrompt"] = QString(
             "edit the speech bubble text to: %1, keep everything else in the image unchanged, "
             "do not change characters, background, composition or any other elements")
             .arg(newText);
+    } else {
+        // 无明确编辑意图（如删除对话）：清除旧的 editIntent/visualPrompt，走批量生成重绘整图
+        content.remove(QStringLiteral("editIntent"));
+        content.remove(QStringLiteral("visualPrompt"));
     }
 
     QVariantMap updates;
     updates["content"] = jsonToString(content);
+    updates["visual_prompt"] = content.value(QStringLiteral("visualPrompt")).toString();
     return updateRecordWithTimestamp(m_db, "panels", updates, "id = ?", QVariantList{panelId}, &m_lastError);
 }
 

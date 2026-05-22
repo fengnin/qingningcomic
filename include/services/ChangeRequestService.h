@@ -109,7 +109,7 @@ private:
     Panel loadPanelById(const QString& panelId);
     Panel requirePanelForDsl(const ChangeRequestDsl& dsl, const QString& operationKind);
     bool updatePanel(const Panel& panel);
-    bool updatePanelDialogue(const QString& panelId, const QList<DialogueLine>& dialogue, const QString& newText = QString());
+    bool updatePanelDialogue(const QString& panelId, const QList<DialogueLine>& dialogue, const QString& newText = QString(), const QString& editIntent = QString(), const QString& visualPrompt = QString());
     bool updatePanelLayout(const QString& panelId, int width, int height);
     bool updateStoryboardStyle(const QString& storyboardId, const QJsonObject& styleOverrides);
     QJsonObject buildPanelContentForWrite(const Panel& panel) const;

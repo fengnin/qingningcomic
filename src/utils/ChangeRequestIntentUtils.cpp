@@ -1,12 +1,10 @@
 #include "utils/ChangeRequestIntentUtils.h"
+#include "utils/PromptTargetUtils.h"
 
 namespace ChangeRequestIntentUtils {
 
 bool isBackgroundEditIntentText(const QString& text)
 {
-    const QString lower = text.trimmed().toLower();
-    if (lower.isEmpty()) return false;
-
     static const QStringList keywords = {
         QString::fromUtf8("背景"), QString::fromUtf8("场景"), QString::fromUtf8("环境"),
         QString::fromUtf8("风景"), QString::fromUtf8("地点"), QString::fromUtf8("夜晚"),
@@ -18,35 +16,24 @@ bool isBackgroundEditIntentText(const QString& text)
         QStringLiteral("day"), QStringLiteral("dawn"), QStringLiteral("dusk"),
         QStringLiteral("evening"), QStringLiteral("morning")
     };
-
-    for (const QString& keyword : keywords) {
-        if (lower.contains(keyword.toLower())) return true;
-    }
-    return false;
+    return PromptTargetUtils::containsAny(text, keywords);
 }
 
 bool isAttributeEditIntentText(const QString& text)
 {
-    const QString lower = text.trimmed().toLower();
-    if (lower.isEmpty()) return false;
-
     static const QStringList keywords = {
         QString::fromUtf8("衣服"), QString::fromUtf8("服装"), QString::fromUtf8("服饰"),
         QString::fromUtf8("外套"), QString::fromUtf8("上衣"), QString::fromUtf8("裙子"),
         QString::fromUtf8("裤子"), QString::fromUtf8("鞋子"), QString::fromUtf8("帽子"),
         QString::fromUtf8("配饰"), QString::fromUtf8("饰品"), QString::fromUtf8("发型"),
         QString::fromUtf8("头发"), QString::fromUtf8("刘海"), QString::fromUtf8("颜色"),
-        QString::fromUtf8("色"), QString::fromUtf8("纹理"), QString::fromUtf8("材质"),
+        QString::fromUtf8("纹理"), QString::fromUtf8("材质"),
         QString::fromUtf8("图案"), QString::fromUtf8("装饰"), QString::fromUtf8("瞳色"),
         QStringLiteral("clothing"), QStringLiteral("outfit"), QStringLiteral("hair"),
         QStringLiteral("accessory"), QStringLiteral("accessories"), QStringLiteral("color"),
         QStringLiteral("texture"), QStringLiteral("material"), QStringLiteral("pattern")
     };
-
-    for (const QString& keyword : keywords) {
-        if (lower.contains(keyword.toLower())) return true;
-    }
-    return false;
+    return PromptTargetUtils::containsAny(text, keywords);
 }
 
 QString extractRemovalSubject(const QJsonObject& params)

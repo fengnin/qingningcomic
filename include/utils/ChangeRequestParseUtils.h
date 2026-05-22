@@ -14,12 +14,7 @@ namespace ChangeRequestParseUtils {
 
 inline bool containsAnyKeyword(const QString& text, const QStringList& keywords)
 {
-    for (const QString& keyword : keywords) {
-        if (text.contains(keyword.toLower())) {
-            return true;
-        }
-    }
-    return false;
+    return PromptTargetUtils::containsAny(text, keywords);
 }
 
 QJsonObject buildChangeRequestSchema();

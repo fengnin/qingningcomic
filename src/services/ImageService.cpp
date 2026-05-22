@@ -1770,9 +1770,13 @@ bool ImageService::buildPromptForPanel(GenerationContext& ctx)
         }
 
         // editDirective 需要在 allowReferenceEdit=true 后、构建 prompt 前赋值（用英文版给图像模型）
-        const QString visualPromptForEdit = visualPromptEn.isEmpty()
-            ? panelJson.value("visualPrompt").toString().trimmed()
-            : visualPromptEn;
+        // 当 editIntent 非空时（局部编辑操作），优先用 content["visualPrompt"]（调用方写入的编辑指令）
+        // 否则用 visualPromptEn（面板原有英文场景描述）作为兜底
+        const QString editIntent = panelJson.value("editIntent").toString().trimmed();
+        const QString contentVisualPrompt = panelJson.value("visualPrompt").toString().trimmed();
+        const QString visualPromptForEdit = (!editIntent.isEmpty() && !contentVisualPrompt.isEmpty())
+            ? contentVisualPrompt
+            : (visualPromptEn.isEmpty() ? contentVisualPrompt : visualPromptEn);
         if (ctx.allowReferenceEdit && !visualPromptForEdit.isEmpty()) {
             ctx.editDirective = visualPromptForEdit;
         }
