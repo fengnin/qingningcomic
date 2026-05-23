@@ -1,5 +1,7 @@
 #include "components/EditorStyles.h"
 #include <QStringList>
+#include <QSvgRenderer>
+#include <QPainter>
 
 namespace EditorStyles {
 
@@ -1311,4 +1313,16 @@ QString getRotatingExportIcon()
     const QString &icon = pool.at(index);
     index = (index + 1) % pool.size();
     return icon;
+}
+
+QPixmap renderSvg(const QString &resourcePath, int size)
+{
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+    QSvgRenderer renderer(resourcePath);
+    if (renderer.isValid()) {
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(0, 0, size, size));
+    }
+    return pixmap;
 }

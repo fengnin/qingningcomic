@@ -45,6 +45,7 @@ private slots:
     void onNovelCardClicked(const QString &novelId);
     void onDeleteNovelClicked(const QString &novelId);
     void onEditNovelClicked(const QString &novelId);
+    void onNovelStatusChanged(const QString &novelId, NovelStatus status);
 
 private:
     // ========== UI 初始化 ==========
@@ -78,6 +79,7 @@ private:
     void updateFilterStats();
     Novel* findNovelById(const QString &novelId);
     void removeNovelFromList(const QString &novelId);
+    int indexOfNovel(const QString &novelId) const;
     void deleteNovel(const QString &novelId);
     
     // ========== 对话框辅助方法 ==========

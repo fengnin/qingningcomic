@@ -60,6 +60,8 @@
 #include <QRegularExpression>
 #include <QPainter>
 #include <QPainterPath>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QUuid>
@@ -74,6 +76,23 @@
 namespace {
     using namespace EditorStyles;
     using EditorStyles::UI::setupLayout;
+
+    struct ExportOutput {
+        bool ok = false;
+        QString exportId;
+        QString filePath;
+    };
+
+    QString resolveExportFormat(const QString& displayText)
+    {
+        if (displayText.contains(QStringLiteral("Webtoon"))) {
+            return QStringLiteral("webtoon");
+        }
+        if (displayText.contains(QStringLiteral("ZIP")) || displayText.contains(QStringLiteral("资源"))) {
+            return QStringLiteral("resources");
+        }
+        return QStringLiteral("pdf");
+    }
 
     QString resolvePanelIdForNumber(const QList<Panel>& panels, int requestedPanelNumber)
     {
@@ -584,6 +603,7 @@ namespace {
     QPushButton* createFeatureButton(const QString &text, int width = -1)
     {
         QPushButton *btn = new QPushButton(text);
+        btn->setFocusPolicy(Qt::NoFocus);
         if (width > 0) {
             btn->setFixedSize(width, EditorStyles::Constants::BTN_HEIGHT);
         } else {
@@ -1238,7 +1258,7 @@ QWidget* NovelDetailPage::createExportCard()
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     setupLayout(cardLayout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    cardLayout->addWidget(createCardHeader(tr("导出高清成品"), tr("PDF / Webtoon 长图 / ZIP压缩包")));
+    cardLayout->addWidget(createCardHeader(tr("导出漫画"), tr("PDF / Webtoon 长图 / ZIP压缩包")));
     
     cardLayout->addWidget(createSectionLabel(tr("导出格式")));
     
@@ -1249,7 +1269,7 @@ QWidget* NovelDetailPage::createExportCard()
     m_exportFormatCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     cardLayout->addWidget(m_exportFormatCombo);
     
-    m_exportBtn = createFeatureButton(tr("开始导出"));
+    m_exportBtn = createFeatureButton(tr("开始导出"), EditorStyles::Constants::BTN_CREATE_WIDTH);
     connect(m_exportBtn, &QPushButton::clicked, this, &NovelDetailPage::onExportClicked);
     
     cardLayout->addWidget(createButtonStatusRow(m_exportBtn, tr("就绪")));
@@ -3140,17 +3160,13 @@ void NovelDetailPage::onCharacterVersionClicked(const QString &characterId, cons
 
 void NovelDetailPage::onExportClicked()
 {
-    if (m_currentNovel.id().isEmpty()) {
-        QMessageBox::warning(this, tr("导出失败"), tr("当前没有可导出的作品"));
+    if (m_exporting) {
         return;
     }
 
-    const QString format = m_exportFormatCombo ? m_exportFormatCombo->currentText() : QStringLiteral("PDF");
-    QString exportFormat = QStringLiteral("pdf");
-    if (format.contains(QStringLiteral("Webtoon"))) {
-        exportFormat = QStringLiteral("webtoon");
-    } else if (format.contains(QStringLiteral("ZIP")) || format.contains(QStringLiteral("资源"))) {
-        exportFormat = QStringLiteral("resources");
+    if (m_currentNovel.id().isEmpty()) {
+        QMessageBox::warning(this, tr("导出失败"), tr("当前没有可导出的作品"));
+        return;
     }
 
     ExportService* exportService = ServiceContainer::instance()->exportService();
@@ -3159,17 +3175,50 @@ void NovelDetailPage::onExportClicked()
         return;
     }
 
-    QString exportId;
-    QString filePath;
-    if (!exportService->exportCurrentStory(m_currentNovel.id(), m_currentChapter, exportFormat, &exportId, &filePath)) {
-        QMessageBox::warning(this, tr("导出失败"), tr("导出失败，请检查面板和图片是否齐全"));
-        return;
+    const QString displayText = m_exportFormatCombo ? m_exportFormatCombo->currentText() : QStringLiteral("PDF");
+    const QString exportFormat = resolveExportFormat(displayText);
+    const QString novelId = m_currentNovel.id();
+    const int chapter = m_currentChapter;
+
+    m_exporting = true;
+    if (m_exportBtn) {
+        m_exportBtn->setEnabled(false);
+        m_exportBtn->setText(tr("导出中..."));
+    }
+    if (m_exportStatusLabel) {
+        m_exportStatusLabel->setText(tr("正在导出，请稍候..."));
     }
 
-    if (m_exportStatusLabel) {
-        m_exportStatusLabel->setText(tr("导出完成：%1").arg(exportId));
-    }
-    QMessageBox::information(this, tr("导出完成"), tr("文件已生成：%1").arg(filePath));
+    auto* watcher = new QFutureWatcher<ExportOutput>(this);
+    connect(watcher, &QFutureWatcher<ExportOutput>::finished, this, [this, watcher]() {
+        const ExportOutput result = watcher->result();
+        watcher->deleteLater();
+
+        m_exporting = false;
+        if (m_exportBtn) {
+            m_exportBtn->setEnabled(true);
+            m_exportBtn->setText(tr("导出"));
+        }
+
+        if (!result.ok) {
+            if (m_exportStatusLabel) {
+                m_exportStatusLabel->setText(tr("导出失败"));
+            }
+            QMessageBox::warning(this, tr("导出失败"), tr("导出失败，请检查面板和图片是否齐全"));
+            return;
+        }
+
+        if (m_exportStatusLabel) {
+            m_exportStatusLabel->setText(tr("导出完成：%1").arg(result.exportId));
+        }
+        QMessageBox::information(this, tr("导出完成"), tr("文件已生成：%1").arg(result.filePath));
+    });
+
+    watcher->setFuture(QtConcurrent::run([exportService, novelId, chapter, exportFormat]() -> ExportOutput {
+        ExportOutput out;
+        out.ok = exportService->exportCurrentStory(novelId, chapter, exportFormat, &out.exportId, &out.filePath);
+        return out;
+    }));
 }
 
 void NovelDetailPage::onPanelCardClicked(int panelNumber, const QString& panelId)

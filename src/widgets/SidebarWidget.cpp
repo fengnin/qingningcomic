@@ -4,7 +4,6 @@
 #include <QPainter>
 #include <QLinearGradient>
 #include <QFontMetrics>
-#include <QSvgRenderer>
 
 SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
@@ -42,18 +41,7 @@ void SidebarWidget::createBrandSection(QVBoxLayout *parentLayout)
     QLabel *logoIcon = createLabel("",
         "background: transparent; border: none; min-width: 48px; max-width: 48px; min-height: 48px; max-height: 48px;", 16);
     logoIcon->setAlignment(Qt::AlignCenter);
-    
-    {
-        QSvgRenderer renderer(QStringLiteral(":/icons/logo.svg"));
-        if (renderer.isValid()) {
-            QPixmap pixmap(48, 48);
-            pixmap.fill(Qt::transparent);
-            QPainter painter(&pixmap);
-            renderer.render(&painter, QRectF(0, 0, 48, 48));
-            painter.end();
-            logoIcon->setPixmap(pixmap);
-        }
-    }
+    logoIcon->setPixmap(renderSvg(QStringLiteral(":/icons/logo.svg"), 48));
     
     QWidget *textContainer = createTransparentWidget();
     QVBoxLayout *textLayout = new QVBoxLayout(textContainer);
@@ -149,16 +137,7 @@ void SidebarWidget::addNavItem(const NavItemData &itemData)
     iconLabel->setObjectName("navIcon");
     iconLabel->setFixedSize(28, 28);
     iconLabel->setAlignment(Qt::AlignCenter);
-    
-    QSvgRenderer renderer(itemData.icon);
-    if (renderer.isValid()) {
-        QPixmap pixmap(iconLabel->size());
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(28, 28)));
-        painter.end();
-        iconLabel->setPixmap(pixmap);
-    }
+    iconLabel->setPixmap(renderSvg(itemData.icon, 28));
     
     QLabel *textLabel = createLabel(itemData.text,
         "font-size: 14px; background: transparent; color: #78350f; border: none;", 14);

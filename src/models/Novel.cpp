@@ -17,8 +17,9 @@ void putIfValid(QVariantMap& map, const QString& key, const QDateTime& value)
 const char* Novel::STATUS_NAMES[] = {
     "created",    // NovelStatus::Created = 0
     "analyzing",  // NovelStatus::Analyzing = 1
-    "completed",  // NovelStatus::Completed = 2
-    "error"       // NovelStatus::Error = 3
+    "analyzed",   // NovelStatus::Analyzed = 2
+    "completed",  // NovelStatus::Completed = 3
+    "error"       // NovelStatus::Error = 4
 };
 
 Novel::Novel()
@@ -36,12 +37,12 @@ QString Novel::statusString() const
 QString Novel::statusToString(NovelStatus status)
 {
     int index = static_cast<int>(status);
-    return (index >= 0 && index <= 3) ? QString::fromLatin1(STATUS_NAMES[index]) : QStringLiteral("created");
+    return (index >= 0 && index <= 4) ? QString::fromLatin1(STATUS_NAMES[index]) : QStringLiteral("created");
 }
 
 NovelStatus Novel::stringToStatus(const QString& str)
 {
-    for (int i = 0; i <= 3; ++i) {
+    for (int i = 0; i <= 4; ++i) {
         if (str == QString::fromLatin1(STATUS_NAMES[i])) {
             return static_cast<NovelStatus>(i);
         }

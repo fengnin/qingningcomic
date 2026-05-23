@@ -28,13 +28,15 @@ void NovelViewModel::initialize()
 void NovelViewModel::connectServiceSignals()
 {
     if (!m_novelService) { return; }
-    
-    connect(m_novelService, &NovelService::novelCreated, 
+
+    connect(m_novelService, &NovelService::novelCreated,
             this, &NovelViewModel::onNovelCreated);
-    connect(m_novelService, &NovelService::novelUpdated, 
+    connect(m_novelService, &NovelService::novelUpdated,
             this, &NovelViewModel::onNovelUpdated);
-    connect(m_novelService, &NovelService::novelDeleted, 
+    connect(m_novelService, &NovelService::novelDeleted,
             this, &NovelViewModel::onNovelDeleted);
+    connect(m_novelService, &NovelService::statusChanged,
+            this, &NovelViewModel::onNovelServiceStatusChanged);
 }
 
 void NovelViewModel::loadNovels(const QString& userId, int page, int pageSize)
@@ -155,4 +157,19 @@ void NovelViewModel::onNovelDeleted(const QString& novelId)
         emit currentNovelChanged(m_currentNovel);
     }
     emit novelDeleted(novelId);
+}
+
+void NovelViewModel::onNovelServiceStatusChanged(const QString& novelId, NovelStatus status)
+{
+    for (Novel &novel : m_novels) {
+        if (novel.id() == novelId) {
+            novel.setStatus(status);
+            break;
+        }
+    }
+    if (m_currentNovel.id() == novelId) {
+        m_currentNovel.setStatus(status);
+        emit currentNovelChanged(m_currentNovel);
+    }
+    emit novelStatusChanged(novelId, status);
 }

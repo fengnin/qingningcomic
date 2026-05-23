@@ -10,8 +10,9 @@ QString label(const QString& status)
     static const QMap<QString, QString> labels = {
         {"created",   QString::fromUtf8("已创建")},
         {"analyzing", QString::fromUtf8("分析中")},
+        {"analyzed",  QString::fromUtf8("待生成")},
         {"completed", QString::fromUtf8("已完成")},
-        {"error",     QString::fromUtf8("出错")}
+        {"error",     QString::fromUtf8("处理失败")}
     };
     return labels.value(status, QString::fromUtf8("未知"));
 }
@@ -19,10 +20,11 @@ QString label(const QString& status)
 StatusStyle style(const QString& status)
 {
     static const QMap<QString, StatusStyle> styles = {
-        {"created",   {"已创建", "#4dc7d2fe", "#4f46e5"}},
-        {"analyzing", {"分析中", "#3dd8b4f8", "#7c3aed"}},
-        {"completed", {"已完成", "#3d86efac", "#166534"}},
-        {"error",     {"出错",   "#3def4444", "#dc2626"}}
+        {"created",   {"已创建",   "#4dc7d2fe", "#4f46e5"}},
+        {"analyzing", {"分析中",   "#3dd8b4f8", "#7c3aed"}},
+        {"analyzed",  {"待生成",   "#3dfbbf24", "#92400e"}},
+        {"completed", {"已完成",   "#3d86efac", "#166534"}},
+        {"error",     {"处理失败", "#3def4444", "#dc2626"}}
     };
     return styles.value(status, {"未知", "#336b7280", "#6b7280"});
 }

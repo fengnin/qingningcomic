@@ -42,11 +42,13 @@ signals:
     void novelUpdated(const QString& novelId);
     void novelDeleted(const QString& novelId);
     void currentNovelChanged(const Novel& novel);
+    void novelStatusChanged(const QString& novelId, NovelStatus status);
 
 private slots:
     void onNovelCreated(const Novel& novel);
     void onNovelUpdated(const QString& novelId);
     void onNovelDeleted(const QString& novelId);
+    void onNovelServiceStatusChanged(const QString& novelId, NovelStatus status);
 
 private:
     void connectServiceSignals();

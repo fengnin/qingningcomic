@@ -34,11 +34,12 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QTextDocument>
+#include <QTextCursor>
+#include <QTextLayout>
+#include <QTextBlock>
 #include <QVariantMap>
 
 namespace {
-constexpr int kPdfPageWidth = 1240;
-constexpr int kPdfPageHeight = 1754;
 constexpr int kPdfMargin = 72;
 constexpr int kCardWidth = 1240;
 constexpr int kCardHeight = 1500;
@@ -210,6 +211,30 @@ void drawLabel(QPainter& painter, const QRectF& rect, const QString& text, int p
     painter.drawText(rect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text);
 }
 
+void drawTextBlock(QPainter& painter, const QRectF& rect, const QString& text, int pointSize)
+{
+    if (text.isEmpty() || rect.isEmpty()) {
+        return;
+    }
+
+    QTextDocument doc;
+    doc.setDefaultFont(QFont(QStringLiteral("Microsoft YaHei"), pointSize));
+    doc.setDocumentMargin(0);
+    doc.setPlainText(text);
+    doc.setTextWidth(rect.width());
+
+    QTextCursor cursor(&doc);
+    cursor.select(QTextCursor::Document);
+    QTextCharFormat fmt;
+    fmt.setForeground(QColor("#111827"));
+    cursor.mergeCharFormat(fmt);
+
+    painter.save();
+    painter.translate(rect.topLeft());
+    doc.drawContents(&painter, QRectF(0, 0, rect.width(), 1e6));
+    painter.restore();
+}
+
 QByteArray imageToPngBytes(const QImage& image)
 {
     QByteArray bufferData;
@@ -239,11 +264,46 @@ void drawPdfHeader(QPainter& painter, const Novel& novel)
     painter.drawText(QRectF(100, 120, 700, 80), ExportUtils::sanitizeExportText(title));
 }
 
-void drawPanelInfoField(QPainter& painter, const QRectF& titleRect, const QRectF& valueRect,
-                        const QString& title, const QString& value, int valueFontSize)
+QString truncateToLines(const QString& text, int maxLines, int pointSize, qreal width)
 {
-    drawLabel(painter, titleRect, title, 16, true);
-    drawLabel(painter, valueRect, ExportUtils::sanitizeExportText(value.isEmpty() ? QStringLiteral("—") : value), valueFontSize);
+    if (text.isEmpty()) {
+        return QString();
+    }
+    const QString sanitized = ExportUtils::sanitizeExportText(text);
+    QTextDocument doc;
+    doc.setDefaultFont(QFont(QStringLiteral("Microsoft YaHei"), pointSize));
+    doc.setDocumentMargin(0);
+    doc.setPlainText(sanitized);
+    doc.setTextWidth(width);
+
+    int totalVisualLines = 0;
+    bool needsTruncation = false;
+    int cutoffPosition = sanitized.length();
+
+    for (QTextBlock block = doc.begin(); block.isValid(); block = block.next()) {
+        const QTextLayout* layout = block.layout();
+        if (!layout) continue;
+        for (int i = 0; i < layout->lineCount(); ++i) {
+            ++totalVisualLines;
+            if (totalVisualLines >= maxLines && !needsTruncation) {
+                needsTruncation = true;
+                const QTextLine& line = layout->lineAt(i);
+                cutoffPosition = qMin(cutoffPosition, static_cast<int>(line.textStart() + line.textLength()));
+            }
+        }
+    }
+
+    if (!needsTruncation) {
+        return sanitized;
+    }
+
+    QString truncated = sanitized.left(cutoffPosition).trimmed();
+    while (!truncated.isEmpty() && (truncated.endsWith(',') || truncated.endsWith(QStringLiteral("，")) ||
+                                     truncated.endsWith('.') || truncated.endsWith(QStringLiteral("。")) ||
+                                       truncated.endsWith(';') || truncated.endsWith(QStringLiteral("；")))) {
+        truncated.chop(1);
+    }
+    return truncated + QStringLiteral("...");
 }
 
 qreal measureWrappedTextHeight(const QString& text, qreal width, int pointSize)
@@ -260,31 +320,72 @@ qreal measureWrappedTextHeight(const QString& text, qreal width, int pointSize)
     return doc.size().height();
 }
 
+constexpr qreal kFieldTitleGap = 42;
+constexpr qreal kFieldTitleHeight = 36;
+
+QString resolveFieldText(const QString& text, int maxLines, int fontSize, qreal width)
+{
+    const QString truncated = truncateToLines(text, maxLines, fontSize, width);
+    return truncated.isEmpty() ? text : truncated;
+}
+
+qreal measureFieldHeight(const QString& text, int fontSize, qreal width)
+{
+    const qreal textH = measureWrappedTextHeight(text, width, fontSize);
+    return kFieldTitleGap + qMax(fontSize * 1.8, textH + 4);
+}
+
 qreal drawPanelCardInfoField(QPainter& painter, qreal x, qreal y, qreal width,
                              const QString& title, const QString& value, int valueFontSize)
 {
-    const qreal titleHeight = 28;
-    const qreal valueGap = 34;
-    const QString sanitizedValue = ExportUtils::sanitizeExportText(value.isEmpty() ? QStringLiteral("—") : value);
-    const qreal minValueHeight = valueFontSize * 1.8;
-    const qreal measuredValueHeight = qMax(minValueHeight, measureWrappedTextHeight(sanitizedValue, width, valueFontSize));
+    if (value.isEmpty()) {
+        return 0;
+    }
+    const QString sanitizedValue = ExportUtils::sanitizeExportText(value);
+    const qreal fieldHeight = measureFieldHeight(sanitizedValue, valueFontSize, width);
 
-    drawPanelInfoField(painter, QRectF(x, y, 300, titleHeight), QRectF(x, y + valueGap, width, measuredValueHeight),
-                       title, sanitizedValue, valueFontSize);
-    return valueGap + measuredValueHeight;
+    drawLabel(painter, QRectF(x, y, 300, kFieldTitleHeight), title, 16, true);
+    drawTextBlock(painter, QRectF(x, y + kFieldTitleGap, width, fieldHeight - kFieldTitleGap), sanitizedValue, valueFontSize);
+    return fieldHeight;
+}
+
+struct PanelInfoField {
+    QString title;
+    QString text;
+    int fontSize;
+    qreal spacing;
+};
+
+QList<PanelInfoField> buildPanelInfoFields(const Panel& panel, qreal innerWidth)
+{
+    QList<PanelInfoField> fields;
+    if (!panel.scene().trimmed().isEmpty()) {
+        fields.append({QStringLiteral("场景"),
+                       resolveFieldText(panel.scene(), 3, 14, innerWidth), 14, 18});
+    }
+    if (!panel.shotType().trimmed().isEmpty() || !panel.cameraAngle().trimmed().isEmpty()) {
+        fields.append({QStringLiteral("景别 / 机位"),
+                       QStringLiteral("%1 / %2").arg(panel.shotType(), panel.cameraAngle()), 14, 16});
+    }
+    if (!panel.charactersText().trimmed().isEmpty()) {
+        fields.append({QStringLiteral("角色"),
+                       resolveFieldText(panel.charactersText(), 2, 14, innerWidth), 14, 16});
+    }
+    if (!panel.dialogueText().trimmed().isEmpty()) {
+        fields.append({QStringLiteral("对白"),
+                       resolveFieldText(panel.dialogueText(), 4, 13, innerWidth), 13, 0});
+    }
+    return fields;
 }
 
 qreal measurePanelCardInfoHeight(const Panel& panel, qreal width)
 {
     const qreal innerWidth = qMax<qreal>(width - 64, 0);
     qreal total = 24;
-    total += 34 + qMax<qreal>(14 * 1.8, measureWrappedTextHeight(panel.scene(), innerWidth, 14));
-    total += 18;
-    total += 34 + qMax<qreal>(14 * 1.8, measureWrappedTextHeight(QStringLiteral("%1 / %2").arg(panel.shotType(), panel.cameraAngle()), innerWidth, 14));
-    total += 16;
-    total += 34 + qMax<qreal>(14 * 1.8, measureWrappedTextHeight(panel.charactersText(), innerWidth, 14));
-    total += 16;
-    total += 34 + qMax<qreal>(13 * 1.8, measureWrappedTextHeight(panel.dialogueText(), innerWidth, 13));
+    const auto fields = buildPanelInfoFields(panel, innerWidth);
+    for (const PanelInfoField& field : fields) {
+        total += measureFieldHeight(field.text, field.fontSize, innerWidth) + 8 + field.spacing;
+    }
     total += 24;
     return total;
 }
@@ -293,10 +394,10 @@ qreal measurePanelCardBodyHeight(const Panel& panel, qreal cardWidth)
 {
     const qreal contentWidth = cardWidth - 104;
     const qreal infoHeight = measurePanelCardInfoHeight(panel, contentWidth);
-    const qreal imageHeight = 700;
+    const qreal imageHeight = 650;
     const qreal imageTop = 240;
     const qreal imageBottom = imageTop + imageHeight;
-    const qreal infoTop = qMax(imageBottom + 24, 920.0);
+    const qreal infoTop = qMax(imageBottom + 30, 920.0);
     return infoTop + infoHeight + 40;
 }
 
@@ -306,14 +407,11 @@ void drawPanelCardInfoSection(QPainter& painter, const Panel& panel, const QRect
     const qreal width = infoRect.width() - 64;
     qreal y = infoRect.top() + 24;
 
-    y += drawPanelCardInfoField(painter, left, y, width, QStringLiteral("场景"), panel.scene(), 14);
-    y += 18;
-    y += drawPanelCardInfoField(painter, left, y, width, QStringLiteral("景别 / 机位"),
-                                QStringLiteral("%1 / %2").arg(panel.shotType(), panel.cameraAngle()), 14);
-    y += 16;
-    y += drawPanelCardInfoField(painter, left, y, width, QStringLiteral("角色"), panel.charactersText(), 14);
-    y += 16;
-    drawPanelCardInfoField(painter, left, y, width, QStringLiteral("对白"), panel.dialogueText(), 13);
+    const auto fields = buildPanelInfoFields(panel, width);
+    for (const PanelInfoField& field : fields) {
+        y += drawPanelCardInfoField(painter, left, y, width, field.title, field.text, field.fontSize);
+        y += field.spacing;
+    }
 }
 
 void drawPdfPage(QPainter& painter, QPdfWriter& writer, const Novel& novel, const Storyboard& storyboard,
@@ -326,8 +424,18 @@ void drawPdfPage(QPainter& painter, QPdfWriter& writer, const Novel& novel, cons
     drawPdfHeader(painter, novel);
 
     const QImage card = ExportRenderer::renderPanelCard(novel, storyboard, panel, 1);
-    const QImage scaled = card.scaled(1000, 1300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    painter.drawImage(QRectF(100, 240, 1000, 1300), scaled);
+    const qreal pageWidth = writer.width();
+    const qreal pageHeight = writer.height();
+    const qreal pdfContentWidth = pageWidth - kPdfMargin * 2;
+    const qreal pdfContentHeight = pageHeight - kPdfMargin * 2 - 160;
+    const qreal scale = qMin(pdfContentWidth / static_cast<qreal>(card.width()),
+                             pdfContentHeight / static_cast<qreal>(card.height()));
+    const int scaledWidth = static_cast<int>(card.width() * scale);
+    const int scaledHeight = static_cast<int>(card.height() * scale);
+    const QImage scaled = card.scaled(scaledWidth, scaledHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    const qreal x = (pageWidth - scaledWidth) / 2.0;
+    const qreal y = 200 + (pdfContentHeight - scaledHeight) / 2.0;
+    painter.drawImage(QRectF(x, y, scaledWidth, scaledHeight), scaled);
 }
 
 QList<QPair<QString, QByteArray>> buildExportEntries(const Novel& novel, const Storyboard& storyboard, const QList<Panel>& panels)

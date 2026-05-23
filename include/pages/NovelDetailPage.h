@@ -296,6 +296,7 @@ private:
     int m_completedImageTasks;
     bool m_isBibleImageGenerationRunning = false;
     bool m_deferredBibleRefresh = false;
+    bool m_exporting = false;
     
     int m_characterCount = 0;
     int m_sceneCount = 0;

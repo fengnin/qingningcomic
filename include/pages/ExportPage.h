@@ -54,6 +54,7 @@ private:
     // ========== 业务逻辑 ==========
     void loadHistory();
     void saveHistory(const QString &exportId);
+    void rebuildHistoryList();
     QString formatBytes(qint64 size);
     QString formatDateTime(const QString &dateTime);
     QString formatLabel(const QString &format);

@@ -10,8 +10,9 @@ enum class NovelStatus
 {
     Created,      // 已创建
     Analyzing,    // 分析中
+    Analyzed,     // 待生成
     Completed,    // 已完成
-    Error         // 出错
+    Error         // 处理失败
 };
 
 class Novel

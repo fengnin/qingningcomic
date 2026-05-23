@@ -11,8 +11,6 @@
 #include <QGridLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QFont>
-#include <QSvgRenderer>
-#include <QPainter>
 
 namespace {
     using namespace StatusHelper;
@@ -168,6 +166,14 @@ ExportPage::ExportPage(QWidget *parent)
 {
     setupUI();
     loadHistory();
+
+    ExportService *exportService = ServiceContainer::instance()->exportService();
+    if (exportService) {
+        connect(exportService, &ExportService::exportCompleted,
+                this, [this](const QString &exportId, const QString &) {
+            saveHistory(exportId);
+        });
+    }
 }
 
 ExportPage::~ExportPage()
@@ -288,16 +294,7 @@ QWidget* ExportPage::createHeader()
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
     iconLabel->setAlignment(Qt::AlignCenter);
-    
-    QSvgRenderer renderer(QStringLiteral(":/icons/nav_export.svg"));
-    if (renderer.isValid()) {
-        QPixmap pixmap(48, 48);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        renderer.render(&painter, QRectF(0, 0, 48, 48));
-        painter.end();
-        iconLabel->setPixmap(pixmap);
-    }
+    iconLabel->setPixmap(renderSvg(QStringLiteral(":/icons/nav_export.svg"), 48));
 
     QLabel *titleLabel = createLabel("导出中心", "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
 
@@ -359,17 +356,7 @@ QWidget* ExportPage::createSearchInputRow()
     connect(m_exportIdEdit, &QLineEdit::textChanged, this, &ExportPage::validateInput);
 
     m_searchBtn = new QPushButton("查询");
-    QPixmap searchIcon(18, 18);
-    searchIcon.fill(Qt::transparent);
-    {
-        QSvgRenderer r(QStringLiteral(":/icons/fruit_apple.svg"));
-        if (r.isValid()) {
-            QPainter p(&searchIcon);
-            r.render(&p, QRectF(0, 0, 18, 18));
-            p.end();
-        }
-    }
-    m_searchBtn->setIcon(QIcon(searchIcon));
+    m_searchBtn->setIcon(QIcon(renderSvg(QStringLiteral(":/icons/fruit_apple.svg"), 18)));
     m_searchBtn->setIconSize(QSize(18, 18));
     m_searchBtn->setEnabled(false);
     m_searchBtn->setStyleSheet(BTN_PRIMARY_STYLE);
@@ -401,17 +388,7 @@ QWidget* ExportPage::createResultArea()
     layout->addWidget(createResultDetails());
 
     m_downloadBtn = new QPushButton("打开文件");
-    QPixmap dlIcon(18, 18);
-    dlIcon.fill(Qt::transparent);
-    {
-        QSvgRenderer r(QStringLiteral(":/icons/fruit_strawberry.svg"));
-        if (r.isValid()) {
-            QPainter p(&dlIcon);
-            r.render(&p, QRectF(0, 0, 18, 18));
-            p.end();
-        }
-    }
-    m_downloadBtn->setIcon(QIcon(dlIcon));
+    m_downloadBtn->setIcon(QIcon(renderSvg(QStringLiteral(":/icons/fruit_strawberry.svg"), 18)));
     m_downloadBtn->setIconSize(QSize(18, 18));
     m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
     m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
@@ -544,23 +521,7 @@ void ExportPage::loadHistory()
 {
     QSettings settings("QingningComic", "ExportHistory");
     m_historyData = settings.value("recentExports", QStringList()).toStringList();
-
-    m_historyList->clear();
-    for (const QString &id : m_historyData) {
-        QPixmap iconPixmap(24, 24);
-        iconPixmap.fill(Qt::transparent);
-        {
-            QSvgRenderer renderer(getRotatingExportIcon());
-            if (renderer.isValid()) {
-                QPainter painter(&iconPixmap);
-                renderer.render(&painter, QRectF(0, 0, 24, 24));
-                painter.end();
-            }
-        }
-        QListWidgetItem *item = new QListWidgetItem(id);
-        item->setIcon(QIcon(iconPixmap));
-        m_historyList->addItem(item);
-    }
+    rebuildHistoryList();
 }
 
 void ExportPage::saveHistory(const QString &exportId)
@@ -573,21 +534,15 @@ void ExportPage::saveHistory(const QString &exportId)
 
     QSettings settings("QingningComic", "ExportHistory");
     settings.setValue("recentExports", m_historyData);
+    rebuildHistoryList();
+}
 
+void ExportPage::rebuildHistoryList()
+{
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QPixmap iconPixmap(24, 24);
-        iconPixmap.fill(Qt::transparent);
-        {
-            QSvgRenderer renderer(getRotatingExportIcon());
-            if (renderer.isValid()) {
-                QPainter painter(&iconPixmap);
-                renderer.render(&painter, QRectF(0, 0, 24, 24));
-                painter.end();
-            }
-        }
         QListWidgetItem *item = new QListWidgetItem(id);
-        item->setIcon(QIcon(iconPixmap));
+        item->setIcon(QIcon(renderSvg(getRotatingExportIcon(), 24)));
         m_historyList->addItem(item);
     }
 }

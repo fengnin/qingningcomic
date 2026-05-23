@@ -13,8 +13,6 @@
 #include <QTextEdit>
 #include <QComboBox>
 #include <QMouseEvent>
-#include <QSvgRenderer>
-#include <QPainter>
 #include <QTimer>
 #include <QUuid>
 #include <QFont>
@@ -91,10 +89,11 @@ namespace {
     
     // ========== 筛选项 ==========
     const QVector<FilterItem> FILTER_ITEMS = {
-        {"all", QString::fromUtf8("全部")},
-        {"completed", QString::fromUtf8("已完成")},
+        {"all",       QString::fromUtf8("全部")},
         {"analyzing", QString::fromUtf8("分析中")},
-        {"created", QString::fromUtf8("已创建")}
+        {"analyzed",  QString::fromUtf8("待生成")},
+        {"completed", QString::fromUtf8("已完成")},
+        {"error",     QString::fromUtf8("处理失败")}
     };
     
     // ========== 文本常量 ==========
@@ -104,8 +103,7 @@ namespace {
         const QString JUMP_LABEL = QString::fromUtf8("跳转ID:");
         const QString JUMP_PLACEHOLDER = QString::fromUtf8("输入作品ID");
         const QString CREATE_BTN = QString::fromUtf8("创建新作品");
-        const QString TOTAL_RECORD = QString::fromUtf8("共 %1 条记录");
-        const QString EMPTY_TITLE = QString::fromUtf8("暂无作品");
+        const QString TOTAL_RECORD = QString::fromUtf8("共 %1 条记录");        const QString EMPTY_TITLE = QString::fromUtf8("暂无作品");
         const QString EMPTY_DESC = QString::fromUtf8("还没有上传任何小说作品");
         const QString EMPTY_TIP = QString::fromUtf8("点击右上角「创建新作品」按钮开始创作");
         const QString DELETE_DIALOG_TITLE = QString::fromUtf8("确认删除作品？");
@@ -217,6 +215,9 @@ NovelPage::NovelPage(QWidget *parent)
 {
     setupUI();
     loadNovelsFromDatabase();
+
+    connect(NovelViewModel::instance(), &NovelViewModel::novelStatusChanged,
+            this, &NovelPage::onNovelStatusChanged);
 }
 
 NovelPage::~NovelPage()
@@ -293,16 +294,7 @@ QWidget* NovelPage::createHeroIcon()
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
     iconLabel->setAlignment(Qt::AlignCenter);
-    
-    QSvgRenderer renderer(QStringLiteral(":/icons/nav_projects.svg"));
-    if (renderer.isValid()) {
-        QPixmap pixmap(48, 48);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        renderer.render(&painter, QRectF(0, 0, 48, 48));
-        painter.end();
-        iconLabel->setPixmap(pixmap);
-    }
+    iconLabel->setPixmap(renderSvg(QStringLiteral(":/icons/nav_projects.svg"), 48));
     return iconLabel;
 }
 
@@ -530,15 +522,14 @@ QWidget* NovelPage::createCardActions(const Novel &novel)
     actionsLayout->addWidget(editBtn);
     actionsLayout->addWidget(deleteBtn);
     
-    QString editNovelId = novel.id();
-    QString deleteNovelId = novel.id();
-    
-    connect(editBtn, &QPushButton::clicked, this, [this, editNovelId]() {
-        onEditNovelClicked(editNovelId);
+    QString novelId = novel.id();
+
+    connect(editBtn, &QPushButton::clicked, this, [this, novelId]() {
+        onEditNovelClicked(novelId);
     });
-    
-    connect(deleteBtn, &QPushButton::clicked, this, [this, deleteNovelId]() {
-        onDeleteNovelClicked(deleteNovelId);
+
+    connect(deleteBtn, &QPushButton::clicked, this, [this, novelId]() {
+        onDeleteNovelClicked(novelId);
     });
     
     return actionsWidget;
@@ -591,17 +582,11 @@ QWidget* NovelPage::createEmptyState()
     cardLayout->setSpacing(20);
     cardLayout->setAlignment(Qt::AlignCenter);
     
-    QWidget *iconContainer = new QWidget();
-    iconContainer->setFixedSize(100, 100);
-    iconContainer->setStyleSheet(EMPTY_ICON_CONTAINER_STYLE);
-    QVBoxLayout *iconLayout = new QVBoxLayout(iconContainer);
-    iconLayout->setContentsMargins(0, 0, 0, 0);
-    iconLayout->setAlignment(Qt::AlignCenter);
     QLabel *iconLabel = new QLabel();
-    iconLabel->setText(QChar(0x2728));
-    iconLabel->setStyleSheet("font-size: 48px; background: transparent; border: none;");
+    iconLabel->setFixedSize(80, 80);
+    iconLabel->setStyleSheet("background: transparent; border: none;");
     iconLabel->setAlignment(Qt::AlignCenter);
-    iconLayout->addWidget(iconLabel);
+    iconLabel->setPixmap(renderSvg(QStringLiteral(":/icons/fruit_peach.svg"), 80));
     
     QLabel *titleLabel = new QLabel(Text::EMPTY_TITLE);
     titleLabel->setStyleSheet(EMPTY_TITLE_STYLE);
@@ -616,7 +601,7 @@ QWidget* NovelPage::createEmptyState()
     tipLabel->setStyleSheet(EMPTY_TIP_STYLE);
     tipLabel->setAlignment(Qt::AlignCenter);
     
-    cardLayout->addWidget(iconContainer, 0, Qt::AlignCenter);
+    cardLayout->addWidget(iconLabel, 0, Qt::AlignCenter);
     cardLayout->addWidget(titleLabel);
     cardLayout->addWidget(descLabel);
     cardLayout->addSpacing(10);
@@ -639,13 +624,12 @@ void NovelPage::loadNovelsFromDatabase()
 
 QList<Novel> NovelPage::filterNovels() const
 {
+    if (m_currentFilter == "all") {
+        return m_novels;
+    }
     QList<Novel> result;
     for (const Novel &novel : m_novels) {
-        QString statusStr = Novel::statusToString(novel.status());
-        
-        if (m_currentFilter == "all") {
-            result.append(novel);
-        } else if (statusStr == m_currentFilter) {
+        if (Novel::statusToString(novel.status()) == m_currentFilter) {
             result.append(novel);
         }
     }
@@ -657,7 +641,7 @@ void NovelPage::renderNovelGrid()
     clearGridLayout();
     
     QList<Novel> filteredNovels = filterNovels();
-    m_totalCountLabel->setText(QString("Total %1 records").arg(filteredNovels.size()));
+    m_totalCountLabel->setText(Text::TOTAL_RECORD.arg(filteredNovels.size()));
     
     if (filteredNovels.isEmpty()) {
         m_gridLayout->addWidget(createEmptyState(), 0, 0, 1, EditorStyles::Constants::GRID_COLUMNS);
@@ -721,23 +705,27 @@ const QVector<FilterItem>& NovelPage::getFilterItems() const
 }
 
 
-Novel* NovelPage::findNovelById(const QString &novelId)
+int NovelPage::indexOfNovel(const QString &novelId) const
 {
     for (int i = 0; i < m_novels.size(); ++i) {
         if (m_novels[i].id() == novelId) {
-            return &m_novels[i];
+            return i;
         }
     }
-    return nullptr;
+    return -1;
+}
+
+Novel* NovelPage::findNovelById(const QString &novelId)
+{
+    int idx = indexOfNovel(novelId);
+    return idx >= 0 ? &m_novels[idx] : nullptr;
 }
 
 void NovelPage::removeNovelFromList(const QString &novelId)
 {
-    for (int i = 0; i < m_novels.size(); ++i) {
-        if (m_novels[i].id() == novelId) {
-            m_novels.removeAt(i);
-            return;
-        }
+    int idx = indexOfNovel(novelId);
+    if (idx >= 0) {
+        m_novels.removeAt(idx);
     }
 }
 
@@ -911,4 +899,14 @@ QString NovelPage::findNovelIdFromWidget(QWidget *widget) const
         widget = widget->parentWidget();
     }
     return QString();
+}
+
+void NovelPage::onNovelStatusChanged(const QString &novelId, NovelStatus status)
+{
+    int idx = indexOfNovel(novelId);
+    if (idx >= 0) {
+        m_novels[idx].setStatus(status);
+    }
+    updateFilterStats();
+    renderNovelGrid();
 }
