@@ -118,7 +118,6 @@ SOURCES += \
     src/components/StoryboardItem.cpp \
     src/components/BibleItem.cpp \
     src/components/PanelCard.cpp \
-    src/components/PanelEditorWidget.cpp \
     src/components/EditorCardBase.cpp \
     src/components/EditorStyles.cpp \
     src/components/AnalysisProgressWidget.cpp \
@@ -216,7 +215,6 @@ HEADERS += \
     include/components/StoryboardItem.h \
     include/components/BibleItem.h \
     include/components/PanelCard.h \
-    include/components/PanelEditorWidget.h \
     include/components/EditorCardBase.h \
     include/components/EditorStyles.h \
     include/components/AnalysisProgressWidget.h \

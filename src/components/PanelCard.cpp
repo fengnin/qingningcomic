@@ -1,5 +1,4 @@
 #include "components/PanelCard.h"
-#include "components/PanelEditorWidget.h"
 #include "components/EditorStyles.h"
 #include "utils/AsyncImageLoader.h"
 #include "data/FileStorage.h"
@@ -99,36 +98,6 @@ void PanelCard::setupMainLayout()
     layout->addWidget(createPreviewSection());
     layout->addWidget(createNumberLabel());
     layout->addWidget(createDescriptionLabel(), 1);
-}
-
-void PanelCard::setupEditorCard()
-{
-    m_overlayWidget = createOverlay();
-    m_overlayWidget->installEventFilter(this);
-    
-    m_editorWidget = new PanelEditorWidget(m_overlayWidget);
-    m_editorWidget->setPanelInfo(m_chapterNumber, m_panelNumber, m_panelId);
-    m_editorWidget->setSceneDescription(m_description);
-    m_editorWidget->setPreviewUrl(m_previewUrl);
-    
-    connect(m_editorWidget, &PanelEditorWidget::sceneDescriptionChanged,
-            this, &PanelCard::onSceneDescriptionChanged);
-    connect(m_editorWidget, &PanelEditorWidget::editSubmitted,
-            this, &PanelCard::onEditSubmitted);
-    connect(m_editorWidget, &PanelEditorWidget::imageGenerated,
-            this, &PanelCard::onImageGenerated);
-    connect(m_editorWidget, &PanelEditorWidget::closed,
-            this, &PanelCard::onEditorClosed);
-    
-    m_editorCard = m_editorWidget;
-}
-
-void PanelCard::syncDataToEditor()
-{
-    if (m_editorWidget) {
-        m_editorWidget->setSceneDescription(m_description);
-        m_editorWidget->setPreviewUrl(m_previewUrl);
-    }
 }
 
 QWidget* PanelCard::createPreviewSection()
@@ -283,10 +252,6 @@ void PanelCard::setPreviewPixmap(const QPixmap &pixmap)
         m_previewLabel->setText("");
         m_previewLabel->setStyleSheet("background: transparent; border: none;");
     }
-    
-    if (m_editorWidget) {
-        m_editorWidget->setPreviewPixmap(pixmap);
-    }
 }
 
 void PanelCard::setImageSize(int width, int height)
@@ -351,33 +316,5 @@ bool PanelCard::eventFilter(QObject *watched, QEvent *event)
 void PanelCard::mousePressEvent(QMouseEvent *event)
 {
     EditorCardBase::mousePressEvent(event);
-    showEditorCard();
     emit clicked(m_panelNumber);
-}
-
-void PanelCard::onSceneDescriptionChanged(const QString &description)
-{
-    m_description = description;
-    if (m_descLabel) {
-        m_descLabel->setText(description);
-    }
-    emit dataChanged(m_panelNumber, description);
-}
-
-void PanelCard::onEditSubmitted(int editMode, const QString &instruction, const QString &maskPath)
-{
-    Q_UNUSED(editMode)
-    Q_UNUSED(instruction)
-    Q_UNUSED(maskPath)
-}
-
-void PanelCard::onImageGenerated(const QString &imageUrl)
-{
-    setPreviewUrl(imageUrl);
-    emit imageGenerated(m_panelNumber, imageUrl);
-}
-
-void PanelCard::onEditorClosed()
-{
-    hideEditorCard();
 }

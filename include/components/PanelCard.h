@@ -5,8 +5,6 @@
 #include <QMouseEvent>
 #include <QPixmap>
 
-class PanelEditorWidget;
-
 class PanelCard : public EditorCardBase
 {
     Q_OBJECT
@@ -30,14 +28,9 @@ protected:
 signals:
     void clicked(int panelNumber);
     void dataChanged(int panelNumber, const QString &description);
-    void imageGenerated(int panelNumber, const QString &imageUrl);
     void imageClicked(const QString &imagePath);
 
 private slots:
-    void onSceneDescriptionChanged(const QString &description);
-    void onEditSubmitted(int editMode, const QString &instruction, const QString &maskPath);
-    void onImageGenerated(const QString &imageUrl);
-    void onEditorClosed();
     void onAsyncImageLoaded(const QString& id, const QString& cacheKey, const QPixmap& pixmap);
 
 private:
@@ -51,9 +44,7 @@ private:
     void setupUI();
     void setupCardAppearance();
     void setupMainLayout();
-    void setupEditorCard() override;
-    void syncDataToEditor() override;
-    
+
     QWidget* createPreviewSection();
     QWidget* createNumberLabel();
     QWidget* createDescriptionLabel();
@@ -70,9 +61,7 @@ private:
     int m_chapterNumber;
     int m_panelNumber;
     QString m_description;
-    
-    PanelEditorWidget *m_editorWidget = nullptr;
-    
+
     QString m_panelId;
     QString m_previewUrl;
     QString m_currentImagePath;

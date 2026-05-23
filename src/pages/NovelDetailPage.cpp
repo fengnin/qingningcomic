@@ -3179,33 +3179,4 @@ void NovelDetailPage::onPanelCardClicked(int panelNumber, const QString& panelId
     if (m_selectedPanelId.isEmpty() && m_selectedPanelNumber > 0) {
         m_selectedPanelId = resolvePanelIdForNumber(m_currentPanels, m_selectedPanelNumber);
     }
-
-    if (!m_storyboardContainer) {
-        return;
-    }
-    
-    QVBoxLayout *containerLayout = qobject_cast<QVBoxLayout*>(m_storyboardContainer->layout());
-    if (!containerLayout) {
-        return;
-    }
-    
-    for (int i = 0; i < containerLayout->count(); ++i) {
-        QLayoutItem *item = containerLayout->itemAt(i);
-        if (QWidget *widget = item->widget()) {
-            StoryboardItem *storyboardItem = qobject_cast<StoryboardItem*>(widget);
-            if (storyboardItem && storyboardItem->panelNumber() == panelNumber) {
-                QScrollArea *scrollArea = qobject_cast<QScrollArea*>(m_storyboardContainer->parentWidget()->parentWidget());
-                if (scrollArea) {
-                    scrollArea->ensureWidgetVisible(storyboardItem);
-                }
-                storyboardItem->setStyleSheet(storyboardItem->styleSheet() + 
-                    " QFrame { border: 2px solid #9333EA; }");
-                QTimer::singleShot(2000, [storyboardItem]() {
-                    storyboardItem->setStyleSheet(storyboardItem->styleSheet().replace(
-                        " border: 2px solid #9333EA;", ""));
-                });
-                break;
-            }
-        }
-    }
 }
