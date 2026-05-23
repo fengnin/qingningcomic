@@ -1,29 +1,22 @@
 #include "pages/ExportPage.h"
 #include "components/EditorStyles.h"
+#include "components/ExportDetailDialog.h"
 #include "utils/StatusHelper.h"
 #include "services/ExportService.h"
 #include "services/ServiceContainer.h"
 #include "utils/EncodingUtils.h"
-#include "data/FileStorage.h"
-#include <QDateTime>
-#include <QDesktopServices>
-#include <QUrl>
-#include <QGridLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QFont>
+
+using EditorStyles::UI::createTransparentWidget;
+using EditorStyles::UI::createLabel;
+using EditorStyles::UI::setupLayout;
 
 namespace {
     using namespace StatusHelper;
     constexpr int INPUT_HEIGHT = 50;
     constexpr int SEARCH_BTN_WIDTH = 140;
-    constexpr int DETAIL_ITEM_HEIGHT = 72;
     constexpr int HISTORY_LIST_HEIGHT = 160;
-    const QString COLOR_PRIMARY = "#84cc16";
-    const QString COLOR_SUCCESS = "#10b981";
-    const QString COLOR_ERROR = "#ef4444";
-    const QString COLOR_TEXT = "#1e293b";
-    const QString COLOR_TEXT_LIGHT = "#64748b";
-    const QString COLOR_BORDER = "#d4d4d4";
     const QString INPUT_STYLE = R"(
         QLineEdit {
             padding: 14px 16px;
@@ -63,23 +56,6 @@ namespace {
         }
     )";
     
-    const QString BTN_SUCCESS_STYLE = R"(
-        QPushButton {
-            padding: 14px 24px;
-            font-size: 14px;
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #10b981, stop:1 #34d399);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-        }
-        QPushButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #059669, stop:1 #10b981);
-        }
-    )";
-    
     const QString ERROR_LABEL_STYLE = R"(
         QLabel {
             padding: 14px 18px;
@@ -88,14 +64,6 @@ namespace {
             border-radius: 12px;
             color: #dc2626;
             font-size: 14px;
-        }
-    )";
-    
-    const QString DETAIL_ITEM_STYLE = R"(
-        #detailItem {
-            background: #0a6366f1;
-            border-radius: 12px;
-            border: 1px solid #146366f1;
         }
     )";
     
@@ -154,14 +122,6 @@ ExportPage::ExportPage(QWidget *parent)
     , m_exportIdEdit(nullptr)
     , m_searchBtn(nullptr)
     , m_errorLabel(nullptr)
-    , m_resultWidget(nullptr)
-    , m_resultNovelIdLabel(nullptr)
-    , m_resultFormatLabel(nullptr)
-    , m_resultStatusLabel(nullptr)
-    , m_resultFileSizeLabel(nullptr)
-    , m_resultCreatedAtLabel(nullptr)
-    , m_resultFileUrlLabel(nullptr)
-    , m_downloadBtn(nullptr)
     , m_historyList(nullptr)
 {
     setupUI();
@@ -180,30 +140,6 @@ ExportPage::~ExportPage()
 {
 }
 
-
-QWidget* ExportPage::createTransparentWidget()
-{
-    
-    QWidget *widget = new QWidget();
-    widget->setStyleSheet("background: transparent;");
-    return widget;
-}
-
-QLabel* ExportPage::createLabel(const QString &text, const QString &style, int fontSize, bool bold)
-{
-    QLabel *label = new QLabel(text);
-    label->setStyleSheet(style);
-    if (fontSize > 0) {
-        label->setFont(QFont("Microsoft YaHei", fontSize, bold ? QFont::Bold : QFont::Normal));
-    }
-    return label;
-}
-
-void ExportPage::setupLayout(QLayout *layout, int left, int top, int right, int bottom, int spacing)
-{
-    layout->setContentsMargins(left, top, right, bottom);
-    layout->setSpacing(spacing);
-}
 
 QWidget* ExportPage::createCard(const QString &objectName)
 {
@@ -319,7 +255,6 @@ QWidget* ExportPage::createSearchCard()
     setupLayout(layout, 32, 28, 32, 28, 24);
 
     layout->addWidget(createSearchArea());
-    layout->addWidget(createResultArea());
 
     return card;
 }
@@ -369,109 +304,6 @@ QWidget* ExportPage::createSearchInputRow()
 
     return searchRow;
 }
-
-QWidget* ExportPage::createResultArea()
-{
-    m_resultWidget = createTransparentWidget();
-    m_resultWidget->setVisible(false);
-
-    QVBoxLayout *layout = new QVBoxLayout(m_resultWidget);
-    setupLayout(layout, 0, 0, 0, 0, 20);
-
-    QFrame *separator = new QFrame();
-    separator->setFrameShape(QFrame::HLine);
-    separator->setStyleSheet("background: #e2e8f0;");
-    separator->setFixedHeight(1);
-
-    layout->addWidget(separator);
-    layout->addWidget(createResultHeader());
-    layout->addWidget(createResultDetails());
-
-    m_downloadBtn = new QPushButton("打开文件");
-    m_downloadBtn->setIcon(QIcon(renderSvg(QStringLiteral(":/icons/fruit_strawberry.svg"), 18)));
-    m_downloadBtn->setIconSize(QSize(18, 18));
-    m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
-    m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
-    m_downloadBtn->setCursor(Qt::PointingHandCursor);
-    connect(m_downloadBtn, &QPushButton::clicked, [this]() {
-        if (!m_resultWidget) {
-            return;
-        }
-        if (!m_resultFileUrlLabel) {
-            return;
-        }
-        const QString path = m_resultFileUrlLabel->text().trimmed();
-        if (path.isEmpty() || path == "—") {
-            return;
-        }
-        const QUrl url = QUrl::fromLocalFile(path);
-        if (url.isValid()) {
-            QDesktopServices::openUrl(url);
-        }
-    });
-    layout->addWidget(m_downloadBtn);
-
-    return m_resultWidget;
-}
-
-QWidget* ExportPage::createResultHeader()
-{
-    QWidget *headerRow = createTransparentWidget();
-    QHBoxLayout *headerLayout = new QHBoxLayout(headerRow);
-    setupLayout(headerLayout, 0, 0, 0, 0, 0);
-
-    QLabel *resultTitle = createLabel("导出详情", "font-size: 16px; font-weight: bold; color: #1e293b; background: transparent;");
-
-    QLabel *resultIdLabel = new QLabel();
-    resultIdLabel->setObjectName("resultIdLabel");
-    resultIdLabel->setStyleSheet("font-size: 13px; color: #94a3b8; background: transparent;");
-
-    headerLayout->addWidget(resultTitle);
-    headerLayout->addWidget(resultIdLabel);
-    headerLayout->addStretch();
-
-    return headerRow;
-}
-
-QWidget* ExportPage::createResultDetails()
-{
-    QWidget *detailsGrid = createTransparentWidget();
-    QGridLayout *gridLayout = new QGridLayout(detailsGrid);
-    gridLayout->setContentsMargins(0, 0, 0, 0);
-    gridLayout->setSpacing(14);
-    gridLayout->addWidget(createDetailItem("作品 ID", &m_resultNovelIdLabel), 0, 0);
-    gridLayout->addWidget(createDetailItem(tr("格式"), &m_resultFormatLabel), 0, 1);
-    gridLayout->addWidget(createDetailItem(tr("状态"), &m_resultStatusLabel), 1, 0);
-    gridLayout->addWidget(createDetailItem(tr("文件大小"), &m_resultFileSizeLabel), 1, 1);
-    gridLayout->addWidget(createDetailItem("创建时间", &m_resultCreatedAtLabel), 2, 0, 1, 2);
-    gridLayout->addWidget(createDetailItem(tr("文件路径"), &m_resultFileUrlLabel), 3, 0, 1, 2);
-
-    return detailsGrid;
-}
-
-QWidget* ExportPage::createDetailItem(const QString &labelText, QLabel **valueLabel)
-{
-    QWidget *widget = new QWidget();
-    widget->setObjectName("detailItem");
-    widget->setStyleSheet(DETAIL_ITEM_STYLE);
-    widget->setMinimumHeight(DETAIL_ITEM_HEIGHT);
-
-    QVBoxLayout *layout = new QVBoxLayout(widget);
-    setupLayout(layout, 16, 12, 16, 12, 6);
-
-    QLabel *label = createLabel(labelText, "font-size: 12px; color: #64748b; background: transparent;");
-
-    *valueLabel = new QLabel();
-    (*valueLabel)->setStyleSheet("font-size: 14px; color: #1e293b; background: transparent;");
-    (*valueLabel)->setWordWrap(true);
-    (*valueLabel)->setMinimumHeight(24);
-
-    layout->addWidget(label);
-    layout->addWidget(*valueLabel);
-
-    return widget;
-}
-
 
 QWidget* ExportPage::createHistoryCard()
 {
@@ -572,7 +404,7 @@ void ExportPage::onSearchClicked()
     }
 
     ExportResult result = exportService->getById(exportId);
-    
+
     if (result.id.isEmpty()) {
         showError(TR("未找到导出记录: %1").arg(exportId));
         m_searchBtn->setText(TR("查询"));
@@ -580,16 +412,7 @@ void ExportPage::onSearchClicked()
         return;
     }
 
-    QVariantMap data;
-    data["id"] = result.id;
-    data["novelId"] = result.novelId;
-    data["format"] = result.format;
-    data["status"] = result.status;
-    data["fileSize"] = result.fileSize;
-    data["createdAt"] = result.createdAt;
-    data["fileUrl"] = result.fileUrl;
-
-    showResult(data);
+    showResult(result);
     saveHistory(exportId);
 
     m_searchBtn->setText(TR("查询"));
@@ -612,36 +435,6 @@ void ExportPage::validateInput()
     m_searchBtn->setEnabled(isValid);
 }
 
-QString ExportPage::formatBytes(qint64 size)
-{
-    if (size <= 0) return "—";
-    if (size < 1024) return QString("%1 B").arg(size);
-    if (size < 1024 * 1024) return QString("%1 KB").arg((double)size / 1024, 0, 'f', 1);
-    if (size < 1024 * 1024 * 1024) return QString("%1 MB").arg((double)size / 1024 / 1024, 0, 'f', 1);
-    return QString("%1 GB").arg((double)size / 1024 / 1024 / 1024, 0, 'f', 2);
-}
-
-QString ExportPage::formatDateTime(const QString &dateTime)
-{
-    if (dateTime.isEmpty()) return "—";
-    QDateTime dt = QDateTime::fromString(dateTime, Qt::ISODate);
-    if (!dt.isValid()) return dateTime;
-    return dt.toLocalTime().toString("yyyy-MM-dd hh:mm:ss");
-}
-
-QString ExportPage::formatLabel(const QString &format)
-{
-    if (format == "pdf") return "PDF";
-    if (format == "webtoon") return "Webtoon 长图";
-    if (format == "resources") return "资源包 (ZIP)";
-    return format;
-}
-
-QString ExportPage::statusLabel(const QString &status)
-{
-    return Job::statusLabel(status);
-}
-
 void ExportPage::showError(const QString &message)
 {
     clearMessages();
@@ -649,28 +442,13 @@ void ExportPage::showError(const QString &message)
     m_errorLabel->setVisible(true);
 }
 
-void ExportPage::showResult(const QVariantMap &data)
+void ExportPage::showResult(const ExportResult &result)
 {
-    if (!m_resultWidget || !m_resultNovelIdLabel || !m_resultFormatLabel ||
-        !m_resultStatusLabel || !m_resultFileSizeLabel || !m_resultCreatedAtLabel || !m_resultFileUrlLabel) {
-        return;
-    }
-
     clearMessages();
-
-    QLabel *resultIdLabel = m_resultWidget->findChild<QLabel*>("resultIdLabel");
-    if (resultIdLabel) {
-        resultIdLabel->setText(data["id"].toString());
-    }
-
-    m_resultNovelIdLabel->setText(data["novelId"].toString());
-    m_resultFormatLabel->setText(formatLabel(data["format"].toString()));
-    m_resultStatusLabel->setText(statusLabel(data["status"].toString()));
-    m_resultFileSizeLabel->setText(formatBytes(data["fileSize"].toLongLong()));
-    m_resultCreatedAtLabel->setText(formatDateTime(data["createdAt"].toString()));
-    m_resultFileUrlLabel->setText(data["fileUrl"].toString().isEmpty() ? QStringLiteral("—") : data["fileUrl"].toString());
-
-    m_resultWidget->setVisible(true);
+    ExportDetailDialog *dialog = new ExportDetailDialog(this);
+    dialog->setData(result);
+    dialog->exec();
+    dialog->deleteLater();
 }
 
 void ExportPage::clearMessages()
@@ -678,5 +456,4 @@ void ExportPage::clearMessages()
     if (m_errorLabel) {
         m_errorLabel->setVisible(false);
     }
-    m_resultWidget->setVisible(false);
 }

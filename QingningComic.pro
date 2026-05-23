@@ -107,6 +107,7 @@ SOURCES += \
     src/utils/ExportDataHelper.cpp \
     src/utils/CharacterEditPromptBuilder.cpp \
     src/components/SuccessDialog.cpp \
+    src/components/ExportDetailDialog.cpp \
     src/components/ConfirmDialog.cpp \
     src/components/DeleteConfirmDialog.cpp \
     src/utils/SchemaToPrompt.cpp \
@@ -195,6 +196,7 @@ HEADERS += \
     include/utils/AppConfig.h \
     include/utils/UserSession.h \
     include/components/SuccessDialog.h \
+    include/components/ExportDetailDialog.h \
     include/components/ConfirmDialog.h \
     include/components/DeleteConfirmDialog.h \
     include/utils/SchemaToPrompt.h \

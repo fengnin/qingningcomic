@@ -15,7 +15,9 @@ const TaskTypeEntry kTaskTypeEntries[] = {
     {TaskType::GenerateStoryboard, "GenerateStoryboard", {"generatestoryboard", "generate_storyboard"}},
     {TaskType::GeneratePanels, "GeneratePanels", {"generatepanels", "generate_panels"}},
     {TaskType::GeneratePanelImage, "GeneratePanelImage", {"generatepanelimage", "generate_panel_image"}},
-    {TaskType::ExportPdf, "ExportPdf", {"exportpdf", "export_pdf"}}
+    {TaskType::ExportPdf, "ExportPdf", {"exportpdf", "export_pdf"}},
+    {TaskType::ExportWebtoon, "ExportWebtoon", {"exportwebtoon", "export_webtoon"}},
+    {TaskType::ExportResources, "ExportResources", {"exportresources", "export_resources"}}
 };
 
 QString normalizeTaskToken(const QString& value)

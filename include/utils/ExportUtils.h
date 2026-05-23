@@ -16,8 +16,8 @@ enum class ExportFormat {
 
 QString exportFormatToString(ExportFormat format);
 QString exportFormatLabel(ExportFormat format);
+QString exportFormatLabel(const QString& formatStr);
 QString exportFileExtension(ExportFormat format);
-QString exportStatusLabel(const QString& status);
 QList<Panel> sortPanelsForExport(const QList<Panel>& panels);
 QString panelBaseName(const Panel& panel, int index);
 QString panelDisplayIndex(const Panel& panel);

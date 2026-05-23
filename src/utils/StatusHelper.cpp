@@ -51,7 +51,9 @@ QString typeLabel(const QString& type)
         {"export_pdf",           QString::fromUtf8("导出 PDF")},
         {"ExportPdf",            QString::fromUtf8("导出 PDF")},
         {"export_webtoon",       QString::fromUtf8("导出 Webtoon")},
-        {"export_resources",     QString::fromUtf8("导出资源包")}
+        {"ExportWebtoon",        QString::fromUtf8("导出 Webtoon")},
+        {"export_resources",     QString::fromUtf8("导出资源包")},
+        {"ExportResources",      QString::fromUtf8("导出资源包")}
     };
     if (type.isEmpty()) return QString::fromUtf8("未知任务");
     return labels.value(type, QString::fromUtf8("未知任务"));

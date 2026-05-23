@@ -24,7 +24,6 @@ QImage renderPanelCard(const Novel& novel, const Storyboard& storyboard, const P
 QByteArray exportPanelsToPdf(const Novel& novel, const Storyboard& storyboard, const QList<Panel>& panels);
 QByteArray exportPanelsToWebtoon(const QList<Panel>& panels);
 QByteArray exportPanelsToResourcesZip(const Novel& novel, const Storyboard& storyboard, const QList<Panel>& panels);
-bool writeExportFile(const QString& exportPath, const QByteArray& data);
 
 }
 

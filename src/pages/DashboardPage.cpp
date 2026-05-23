@@ -5,6 +5,7 @@
 #include "viewmodels/StoryboardViewModel.h"
 #include "viewmodels/NovelViewModel.h"
 #include "services/ChangeRequestService.h"
+#include "services/ExportService.h"
 #include "services/ServiceContainer.h"
 #include "services/TaskQueue.h"
 #include "components/EditorStyles.h"
@@ -63,10 +64,7 @@ namespace {
             QString::fromUtf8("全部类型"),
             QString::fromUtf8("分析小说"),
             QString::fromUtf8("面板预览"),
-            QString::fromUtf8("面板高清"),
             QString::fromUtf8("修改请求"),
-            QString::fromUtf8("面板编辑"),
-            QString::fromUtf8("角色标准像"),
             QString::fromUtf8("导出 PDF"),
             QString::fromUtf8("导出 Webtoon"),
             QString::fromUtf8("导出资源包")
@@ -107,15 +105,6 @@ namespace {
         }
         return normalized != "cancelled";
     }
-
-    QDateTime parseDashboardDateTimeImpl(const QString& value)
-    {
-        QDateTime dt = QDateTime::fromString(value, QStringLiteral("yyyy-MM-dd HH:mm:ss"));
-        if (!dt.isValid()) {
-            dt = QDateTime::fromString(value, Qt::ISODate);
-        }
-        return dt;
-    }
 }
 
 DashboardPage::DashboardPage(QWidget *parent)
@@ -128,19 +117,30 @@ DashboardPage::DashboardPage(QWidget *parent)
 
 void DashboardPage::setupConnections()
 {
+    m_refreshTimer = new QTimer(this);
+    connect(m_refreshTimer, &QTimer::timeout, this, &DashboardPage::refreshActiveJobs);
+
+    m_syncRefreshTimer = new QTimer(this);
+    m_syncRefreshTimer->setSingleShot(true);
+    connect(m_syncRefreshTimer, &QTimer::timeout, this, &DashboardPage::refresh);
+
     StoryboardViewModel* vm = StoryboardViewModel::instance();
-    NovelViewModel* novelVm = NovelViewModel::instance();
-    TaskQueue* taskQueue = TaskQueue::instance();
-    
     connect(vm, &StoryboardViewModel::storyboardsLoaded,
             this, [this](const QString&, const QList<Storyboard>&) { refresh(); }, Qt::QueuedConnection);
-    connect(vm, &StoryboardViewModel::analysisStarted,
-            this, &DashboardPage::refresh, Qt::QueuedConnection);
-    connect(vm, &StoryboardViewModel::analysisCompleted,
-            this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
-    connect(vm, &StoryboardViewModel::analysisFailed,
-            this, [this]() { QTimer::singleShot(500, this, &DashboardPage::refresh); }, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::analysisStarted, this, [this]() {
+        refresh();
+        startPolling();
+    }, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::analysisCompleted, this, [this]() {
+        QTimer::singleShot(500, this, &DashboardPage::refresh);
+        QTimer::singleShot(1000, this, &DashboardPage::stopPolling);
+    }, Qt::QueuedConnection);
+    connect(vm, &StoryboardViewModel::analysisFailed, this, [this]() {
+        QTimer::singleShot(500, this, &DashboardPage::refresh);
+        QTimer::singleShot(1000, this, &DashboardPage::stopPolling);
+    }, Qt::QueuedConnection);
 
+    TaskQueue* taskQueue = TaskQueue::instance();
     if (taskQueue) {
         connect(taskQueue, &TaskQueue::taskEnqueued,
                 this, [this](const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
@@ -167,21 +167,18 @@ void DashboardPage::setupConnections()
         connect(changeRequestService, &ChangeRequestService::progressChanged,
                 this, [this](const QString&, int, int, const QString&) { onTaskQueueChanged(); }, Qt::QueuedConnection);
     }
-    
-    m_refreshTimer = new QTimer(this);
-    connect(m_refreshTimer, &QTimer::timeout, this, &DashboardPage::refreshActiveJobs);
 
-    m_syncRefreshTimer = new QTimer(this);
-    m_syncRefreshTimer->setSingleShot(true);
-    connect(m_syncRefreshTimer, &QTimer::timeout, this, &DashboardPage::refresh);
-    
-    connect(vm, &StoryboardViewModel::analysisStarted,
-            this, [this]() { startPolling(); }, Qt::QueuedConnection);
-    connect(vm, &StoryboardViewModel::analysisCompleted,
-            this, [this]() { QTimer::singleShot(1000, this, &DashboardPage::stopPolling); }, Qt::QueuedConnection);
-    connect(vm, &StoryboardViewModel::analysisFailed,
-            this, [this]() { QTimer::singleShot(1000, this, &DashboardPage::stopPolling); }, Qt::QueuedConnection);
+    ExportService* exportService = ServiceContainer::instance()->exportService();
+    if (exportService) {
+        connect(exportService, &ExportService::exportCreated,
+                this, [this](const ExportResult&) { scheduleRefresh(0); }, Qt::QueuedConnection);
+        connect(exportService, &ExportService::exportCompleted,
+                this, [this](const QString&, const QString&) { scheduleRefresh(0); }, Qt::QueuedConnection);
+        connect(exportService, &ExportService::exportFailed,
+                this, [this](const QString&, const QString&) { scheduleRefresh(0); }, Qt::QueuedConnection);
+    }
 
+    NovelViewModel* novelVm = NovelViewModel::instance();
     if (novelVm) {
         connect(novelVm, &NovelViewModel::novelCreated,
                 this, [this](const ::Novel&) { refresh(); }, Qt::QueuedConnection);
@@ -822,27 +819,20 @@ QWidget* DashboardPage::createActiveJobsFooter()
 
 QDateTime DashboardPage::parseDashboardDateTime(const QString &value)
 {
-    return parseDashboardDateTimeImpl(value);
+    QDateTime dt = QDateTime::fromString(value, QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+    if (!dt.isValid()) {
+        dt = QDateTime::fromString(value, Qt::ISODate);
+    }
+    return dt;
 }
 
 int DashboardPage::changeRequestProgressForStatus(const QString &status)
 {
     const QString normalized = status.trimmed().toLower();
-    if (normalized == QStringLiteral("queued")) {
-        return 10;
-    }
-    if (normalized == QStringLiteral("pending")) {
-        return 35;
-    }
-    if (normalized == QStringLiteral("in_progress")) {
-        return 70;
-    }
-    if (normalized == QStringLiteral("completed")) {
-        return 100;
-    }
-    if (normalized == QStringLiteral("failed")) {
-        return 0;
-    }
+    if (normalized == QStringLiteral("queued"))      return 10;
+    if (normalized == QStringLiteral("pending"))     return 35;
+    if (normalized == QStringLiteral("in_progress")) return 70;
+    if (normalized == QStringLiteral("completed"))   return 100;
     return 0;
 }
 

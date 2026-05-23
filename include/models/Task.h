@@ -8,8 +8,10 @@
 enum class TaskType {
     GenerateStoryboard,
     GeneratePanels,
-    GeneratePanelImage,  // 单个面板图像生成
-    ExportPdf
+    GeneratePanelImage,
+    ExportPdf,
+    ExportWebtoon,
+    ExportResources
 };
 
 enum class TaskStatus {

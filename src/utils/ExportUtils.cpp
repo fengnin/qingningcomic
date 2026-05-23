@@ -57,6 +57,14 @@ QString exportFormatLabel(ExportFormat format)
     return QStringLiteral("PDF");
 }
 
+QString exportFormatLabel(const QString& formatStr)
+{
+    if (formatStr == QLatin1String("pdf"))       return QStringLiteral("PDF");
+    if (formatStr == QLatin1String("webtoon"))   return QStringLiteral("Webtoon 长图");
+    if (formatStr == QLatin1String("resources")) return QStringLiteral("资源包 (ZIP)");
+    return formatStr;
+}
+
 QString exportFileExtension(ExportFormat format)
 {
     switch (format) {
@@ -68,15 +76,6 @@ QString exportFileExtension(ExportFormat format)
         return QStringLiteral("zip");
     }
     return QStringLiteral("pdf");
-}
-
-QString exportStatusLabel(const QString& status)
-{
-    if (status == QLatin1String("pending")) return QStringLiteral("排队中");
-    if (status == QLatin1String("processing")) return QStringLiteral("生成中");
-    if (status == QLatin1String("completed")) return QStringLiteral("已完成");
-    if (status == QLatin1String("failed")) return QStringLiteral("失败");
-    return QStringLiteral("未知状态");
 }
 
 QList<Panel> sortPanelsForExport(const QList<Panel>& panels)
