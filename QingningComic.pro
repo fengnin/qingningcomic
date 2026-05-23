@@ -26,7 +26,7 @@ mingw {
 }
 
 # 启用 Qt 模块
-QT += core network sql widgets concurrent printsupport
+QT += core network sql widgets concurrent printsupport svg
 
 # 源文件列表
 SOURCES += \
@@ -236,6 +236,9 @@ HEADERS += \
     include/services/ChangeRequestService.h \
     include/components/BibleSectionWidget.h \
     include/components/PanelPreviewWidget.h
+
+# 资源文件
+RESOURCES += resources/resources.qrc
 
 # 包含目录
 INCLUDEPATH += \

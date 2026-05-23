@@ -13,6 +13,8 @@
 #include <QTextEdit>
 #include <QComboBox>
 #include <QMouseEvent>
+#include <QSvgRenderer>
+#include <QPainter>
 #include <QTimer>
 #include <QUuid>
 #include <QFont>
@@ -290,16 +292,17 @@ QWidget* NovelPage::createHeroIcon()
 {
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
-    iconLabel->setStyleSheet(R"(
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-            stop:0 #84cc16, stop:1 #65a30d);
-        border-radius: 14px;
-        color: white;
-        font-size: 24px;
-    )");
-    iconLabel->setText(QString::fromUtf8("📚"));
-    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
     iconLabel->setAlignment(Qt::AlignCenter);
+    
+    QSvgRenderer renderer(QStringLiteral(":/icons/nav_projects.svg"));
+    if (renderer.isValid()) {
+        QPixmap pixmap(48, 48);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(0, 0, 48, 48));
+        painter.end();
+        iconLabel->setPixmap(pixmap);
+    }
     return iconLabel;
 }
 

@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="nav_dashboard.svg">icons/nav_dashboard.svg</file>
+        <file alias="nav_upload.svg">icons/nav_upload.svg</file>
+        <file alias="nav_projects.svg">icons/nav_projects.svg</file>
+        <file alias="nav_export.svg">icons/nav_export.svg</file>
+        <file alias="logo.svg">icons/logo.svg</file>
+        <file alias="emotion_snicker.svg">icons/emotion_snicker.svg</file>
+        <file alias="emotion_peeking.svg">icons/emotion_peeking.svg</file>
+        <file alias="emotion_happy.svg">icons/emotion_happy.svg</file>
+        <file alias="emotion_surprised.svg">icons/emotion_surprised.svg</file>
+        <file alias="emotion_expect.svg">icons/emotion_expect.svg</file>
+        <file alias="emotion_confused.svg">icons/emotion_confused.svg</file>
+        <file alias="emotion_watching.svg">icons/emotion_watching.svg</file>
+        <file alias="emotion_smile.svg">icons/emotion_smile.svg</file>
+        <file alias="emotion_grimace.svg">icons/emotion_grimace.svg</file>
+        <file alias="fruit_apple.svg">icons/fruit_apple.svg</file>
+        <file alias="fruit_strawberry.svg">icons/fruit_strawberry.svg</file>
+        <file alias="fruit_tomato.svg">icons/fruit_tomato.svg</file>
+    </qresource>
+</RCC>

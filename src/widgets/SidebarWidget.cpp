@@ -1,8 +1,10 @@
 #include "widgets/SidebarWidget.h"
 #include "widgets/FortuneCookieWidget.h"
+#include "components/EditorStyles.h"
 #include <QPainter>
 #include <QLinearGradient>
 #include <QFontMetrics>
+#include <QSvgRenderer>
 
 SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
@@ -37,9 +39,21 @@ void SidebarWidget::createBrandSection(QVBoxLayout *parentLayout)
     QHBoxLayout *brandLayout = new QHBoxLayout(brandContainer);
     setupMargins(brandLayout, 16, 8, 12, 4, 6);
     
-    QLabel *logoIcon = createLabel(QStringLiteral("🍋"),
-        "font-size: 28px; background: transparent; border: none; outline: none; min-width: 48px; max-width: 48px; min-height: 48px; max-height: 48px;");
-    logoIcon->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 28));
+    QLabel *logoIcon = createLabel("",
+        "background: transparent; border: none; min-width: 48px; max-width: 48px; min-height: 48px; max-height: 48px;", 16);
+    logoIcon->setAlignment(Qt::AlignCenter);
+    
+    {
+        QSvgRenderer renderer(QStringLiteral(":/icons/logo.svg"));
+        if (renderer.isValid()) {
+            QPixmap pixmap(48, 48);
+            pixmap.fill(Qt::transparent);
+            QPainter painter(&pixmap);
+            renderer.render(&painter, QRectF(0, 0, 48, 48));
+            painter.end();
+            logoIcon->setPixmap(pixmap);
+        }
+    }
     
     QWidget *textContainer = createTransparentWidget();
     QVBoxLayout *textLayout = new QVBoxLayout(textContainer);
@@ -85,10 +99,10 @@ void SidebarWidget::createNavSection(QVBoxLayout *parentLayout)
         }
     });
     
-    addNavItem({QStringLiteral("🏠"), QString::fromUtf8("总览"), QString::fromUtf8("总览"), 0});
-    addNavItem({QStringLiteral("📄"), QString::fromUtf8("上传作品"), QString::fromUtf8("上传作品"), 1});
-    addNavItem({QString::fromUtf8("📚"), QString::fromUtf8("项目空间"), QString::fromUtf8("项目空间"), 2});
-    addNavItem({QStringLiteral("📦"), QString::fromUtf8("导出中心"), QString::fromUtf8("导出中心"), 3});
+    addNavItem({QStringLiteral(":/icons/nav_dashboard.svg"), QString::fromUtf8("总览"), QString::fromUtf8("总览"), 0});
+    addNavItem({QStringLiteral(":/icons/nav_upload.svg"), QString::fromUtf8("上传作品"), QString::fromUtf8("上传作品"), 1});
+    addNavItem({QStringLiteral(":/icons/nav_projects.svg"), QString::fromUtf8("项目空间"), QString::fromUtf8("项目空间"), 2});
+    addNavItem({QStringLiteral(":/icons/nav_export.svg"), QString::fromUtf8("导出中心"), QString::fromUtf8("导出中心"), 3});
     
     parentLayout->addWidget(m_navList, 1);
 }
@@ -130,12 +144,21 @@ void SidebarWidget::addNavItem(const NavItemData &itemData)
     QHBoxLayout *layout = new QHBoxLayout(itemWidget);
     setupMargins(layout, 12, 0, 12, 0, 10);
     
-    QLabel *iconLabel = createLabel(itemData.icon,
-        "font-size: 22px; background: transparent; border: none;", 22);
+    QLabel *iconLabel = createLabel("",
+        "background: transparent; border: none;", 16);
     iconLabel->setObjectName("navIcon");
-    iconLabel->setFixedWidth(32);
+    iconLabel->setFixedSize(28, 28);
     iconLabel->setAlignment(Qt::AlignCenter);
-    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 22));
+    
+    QSvgRenderer renderer(itemData.icon);
+    if (renderer.isValid()) {
+        QPixmap pixmap(iconLabel->size());
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(28, 28)));
+        painter.end();
+        iconLabel->setPixmap(pixmap);
+    }
     
     QLabel *textLabel = createLabel(itemData.text,
         "font-size: 14px; background: transparent; color: #78350f; border: none;", 14);

@@ -15,6 +15,8 @@
 #include <QFont>
 #include <QTimer>
 #include <QMap>
+#include <QSvgRenderer>
+#include <QPainter>
 
 using namespace EditorStyles;
 using namespace StatusHelper;
@@ -350,9 +352,17 @@ QWidget* DashboardPage::createHeroTextSection()
     
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(Constants::DASHBOARD_ICON_SIZE, Constants::DASHBOARD_ICON_SIZE);
-    iconLabel->setStyleSheet(dashboardIconStyle());
-    iconLabel->setText(QString::fromUtf8("🏠"));
     iconLabel->setAlignment(Qt::AlignCenter);
+    
+    QSvgRenderer renderer(QStringLiteral(":/icons/nav_dashboard.svg"));
+    if (renderer.isValid()) {
+        QPixmap pixmap(Constants::DASHBOARD_ICON_SIZE, Constants::DASHBOARD_ICON_SIZE);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(0, 0, Constants::DASHBOARD_ICON_SIZE, Constants::DASHBOARD_ICON_SIZE));
+        painter.end();
+        iconLabel->setPixmap(pixmap);
+    }
     
     QLabel *titleLabel = createLabel(
         QString::fromUtf8("工作台"),

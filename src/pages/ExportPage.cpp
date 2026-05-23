@@ -11,6 +11,8 @@
 #include <QGridLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QFont>
+#include <QSvgRenderer>
+#include <QPainter>
 
 namespace {
     using namespace StatusHelper;
@@ -285,15 +287,17 @@ QWidget* ExportPage::createHeader()
 
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
-    iconLabel->setStyleSheet(R"(
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-            stop:0 #84cc16, stop:1 #65a30d);
-        border-radius: 14px;
-        color: white;
-        font-size: 24px;
-    )");
-    iconLabel->setText(QString::fromUtf8("\U0001F4E6"));
     iconLabel->setAlignment(Qt::AlignCenter);
+    
+    QSvgRenderer renderer(QStringLiteral(":/icons/nav_export.svg"));
+    if (renderer.isValid()) {
+        QPixmap pixmap(48, 48);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(0, 0, 48, 48));
+        painter.end();
+        iconLabel->setPixmap(pixmap);
+    }
 
     QLabel *titleLabel = createLabel("导出中心", "font-size: 26px; font-weight: bold; color: #1e293b; background: transparent;", 26, true);
 
@@ -354,7 +358,19 @@ QWidget* ExportPage::createSearchInputRow()
     m_exportIdEdit->setMinimumHeight(INPUT_HEIGHT);
     connect(m_exportIdEdit, &QLineEdit::textChanged, this, &ExportPage::validateInput);
 
-    m_searchBtn = new QPushButton("🔍 查询");
+    m_searchBtn = new QPushButton("查询");
+    QPixmap searchIcon(18, 18);
+    searchIcon.fill(Qt::transparent);
+    {
+        QSvgRenderer r(QStringLiteral(":/icons/fruit_apple.svg"));
+        if (r.isValid()) {
+            QPainter p(&searchIcon);
+            r.render(&p, QRectF(0, 0, 18, 18));
+            p.end();
+        }
+    }
+    m_searchBtn->setIcon(QIcon(searchIcon));
+    m_searchBtn->setIconSize(QSize(18, 18));
     m_searchBtn->setEnabled(false);
     m_searchBtn->setStyleSheet(BTN_PRIMARY_STYLE);
     m_searchBtn->setMinimumSize(SEARCH_BTN_WIDTH, INPUT_HEIGHT);
@@ -384,7 +400,19 @@ QWidget* ExportPage::createResultArea()
     layout->addWidget(createResultHeader());
     layout->addWidget(createResultDetails());
 
-    m_downloadBtn = new QPushButton("📥 打开文件");
+    m_downloadBtn = new QPushButton("打开文件");
+    QPixmap dlIcon(18, 18);
+    dlIcon.fill(Qt::transparent);
+    {
+        QSvgRenderer r(QStringLiteral(":/icons/fruit_strawberry.svg"));
+        if (r.isValid()) {
+            QPainter p(&dlIcon);
+            r.render(&p, QRectF(0, 0, 18, 18));
+            p.end();
+        }
+    }
+    m_downloadBtn->setIcon(QIcon(dlIcon));
+    m_downloadBtn->setIconSize(QSize(18, 18));
     m_downloadBtn->setStyleSheet(BTN_SUCCESS_STYLE);
     m_downloadBtn->setMinimumHeight(INPUT_HEIGHT);
     m_downloadBtn->setCursor(Qt::PointingHandCursor);
@@ -519,7 +547,18 @@ void ExportPage::loadHistory()
 
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
+        QPixmap iconPixmap(24, 24);
+        iconPixmap.fill(Qt::transparent);
+        {
+            QSvgRenderer renderer(getRotatingExportIcon());
+            if (renderer.isValid()) {
+                QPainter painter(&iconPixmap);
+                renderer.render(&painter, QRectF(0, 0, 24, 24));
+                painter.end();
+            }
+        }
+        QListWidgetItem *item = new QListWidgetItem(id);
+        item->setIcon(QIcon(iconPixmap));
         m_historyList->addItem(item);
     }
 }
@@ -537,7 +576,18 @@ void ExportPage::saveHistory(const QString &exportId)
 
     m_historyList->clear();
     for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem("📄 " + id);
+        QPixmap iconPixmap(24, 24);
+        iconPixmap.fill(Qt::transparent);
+        {
+            QSvgRenderer renderer(getRotatingExportIcon());
+            if (renderer.isValid()) {
+                QPainter painter(&iconPixmap);
+                renderer.render(&painter, QRectF(0, 0, 24, 24));
+                painter.end();
+            }
+        }
+        QListWidgetItem *item = new QListWidgetItem(id);
+        item->setIcon(QIcon(iconPixmap));
         m_historyList->addItem(item);
     }
 }

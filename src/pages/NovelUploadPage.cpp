@@ -13,6 +13,8 @@
 #include <QUuid>
 #include <QGraphicsDropShadowEffect>
 #include <QJsonObject>
+#include <QSvgRenderer>
+#include <QPainter>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
@@ -211,10 +213,17 @@ QWidget* NovelUploadPage::createHeaderSection()
 
     QLabel *iconLabel = new QLabel();
     iconLabel->setFixedSize(48, 48);
-    iconLabel->setStyleSheet(uploadHeaderIconStyle());
-    iconLabel->setText("📝");
-    iconLabel->setFont(QFont(QStringLiteral("Segoe UI Emoji"), 24));
     iconLabel->setAlignment(Qt::AlignCenter);
+    
+    QSvgRenderer renderer(QStringLiteral(":/icons/nav_upload.svg"));
+    if (renderer.isValid()) {
+        QPixmap pixmap(48, 48);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter, QRectF(0, 0, 48, 48));
+        painter.end();
+        iconLabel->setPixmap(pixmap);
+    }
 
     m_headerTitleLabel = createLabel(QString::fromUtf8("上传小说"), uploadPageTitleStyle());
     QFont titleFont = m_headerTitleLabel->font();
@@ -321,7 +330,23 @@ QWidget* NovelUploadPage::createTipsSection()
     QVBoxLayout *layout = new QVBoxLayout(section);
     setupLayout(layout, 20, 18, 20, 18, 12);
 
-    layout->addWidget(createLabel(QString::fromUtf8("💡 温馨提示"), uploadTipsTitleStyle()));
+    QPixmap tipIcon(24, 24);
+    tipIcon.fill(Qt::transparent);
+    {
+        QSvgRenderer r(QStringLiteral(":/icons/fruit_tomato.svg"));
+        if (r.isValid()) {
+            QPainter p(&tipIcon);
+            r.render(&p, QRectF(0, 0, 24, 24));
+            p.end();
+        }
+    }
+    QLabel *tipIconLabel = new QLabel();
+    tipIconLabel->setPixmap(tipIcon);
+    tipIconLabel->setFixedSize(24, 24);
+    tipIconLabel->setStyleSheet("background: transparent; border: none;");
+    layout->addWidget(tipIconLabel);
+
+    layout->addWidget(createLabel(QString::fromUtf8("温馨提示"), uploadTipsTitleStyle()));
 
     QWidget *tipsList = createTransparentWidget();
     QVBoxLayout *tipsLayout = new QVBoxLayout(tipsList);
