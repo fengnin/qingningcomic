@@ -1189,13 +1189,16 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING,
                 EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(tr("面板批量生成"), tr("AI一键生成漫画面板")));
+    layout->addWidget(createCardHeader(tr("面板批量生成"), tr("为当前章节批量生成漫画面板")));
     
     layout->addWidget(createSectionLabel(tr("生成模式")));
     
     m_generateModeCombo = new ModeComboBox();
+    // 1:1 正方形 — 人物特写、封面缩略图、方形构图，视觉最聚焦
     m_generateModeCombo->addItem(tr("1:1（1024×1024）"));
+    // 3:2 经典横版 — 双人对话、中景叙事、日常场景，万能通用比例
     m_generateModeCombo->addItem(tr("3:2（1536×1024）"));
+    // 16:9 宽银幕 — 大场景全景、动作场面、环境氛围，电影感最强
     m_generateModeCombo->addItem(tr("16:9（1280×720）"));
     m_generateModeCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     layout->addWidget(m_generateModeCombo);
@@ -1215,7 +1218,15 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
 
     m_panelGenerateProgress = new AnalysisProgressWidget();
     layout->addWidget(m_panelGenerateProgress);
-    
+
+    QLabel *ratioDescLabel = createLabel(
+        tr("1:1 正方形 — 人物特写、封面缩略图、方形构图，视觉最聚焦\n"
+           "3:2 经典横版 — 双人对话、中景叙事、日常场景，万能通用比例\n"
+           "16:9 宽银幕 — 大场景全景、动作场面、环境氛围，电影感最强"),
+        m_colorHint, 12);
+    ratioDescLabel->setWordWrap(true);
+    layout->addWidget(ratioDescLabel);
+
     layout->addStretch();
     return card;
 }
@@ -1226,7 +1237,7 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     QVBoxLayout *layout = new QVBoxLayout(card);
     setupLayout(layout, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, EditorStyles::Constants::CARD_PADDING, 16);
     
-    layout->addWidget(createCardHeader(tr("自然语言修改请求"), tr("自动解析 CR-DSL 并执行修改闭环")));
+    layout->addWidget(createCardHeader(tr("自然语言修改请求"), tr("描述改动意图，自动生成并执行修改方案")));
     
     layout->addWidget(createSectionLabel(tr("修改指令")));
     

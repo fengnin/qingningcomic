@@ -47,9 +47,10 @@ namespace {
     };
     
     const GuideStepData GUIDE_STEPS[] = {
-        {1, QString::fromUtf8("上传或选择作品"), QString::fromUtf8("在「项目空间」确认作品信息，确保已经分析小说。")},
-        {2, QString::fromUtf8("提交自然语言修改"), QString::fromUtf8("作品详情页 → 修改请求，输入自然语言即可触发 CR-DSL 解析。")},
-        {3, QString::fromUtf8("高清生成与导出"), QString::fromUtf8("选择预览/高清模式生成面板，完成后在导出中心获取 PDF / Webtoon。")}
+        {1, QString::fromUtf8("上传小说"), QString::fromUtf8("在「上传」页面粘贴文本或导入 TXT 文件，完成作品创建与章节分析。")},
+        {2, QString::fromUtf8("批量生成面板"), QString::fromUtf8("在「面板批量生成」中选择画面比例（1:1 / 3:2 / 16:9），点击「开始生成」。")},
+        {3, QString::fromUtf8("提交修改请求"), QString::fromUtf8("在「自然语言修改请求」中描述改动意图，系统自动解析并执行修改闭环。")},
+        {4, QString::fromUtf8("导出漫画"), QString::fromUtf8("在「导出漫画」中选择格式（PDF / Webtoon 长图 / ZIP），提交后在导出中心查询结果。")}
     };
     const int GUIDE_STEPS_COUNT = sizeof(GUIDE_STEPS) / sizeof(GuideStepData);
     
@@ -93,7 +94,7 @@ namespace {
     const QString CARD_TITLE_ACTIVE_JOBS = QString::fromUtf8("进行中的修改");
     const QString CARD_SUBTITLE_ACTIVE_JOBS = QString::fromUtf8("CR / 导出 / 面板任务进展");
     const QString CARD_TITLE_GUIDE = QString::fromUtf8("操作指引");
-    const QString CARD_SUBTITLE_GUIDE = QString::fromUtf8("三步完成创作闭环");
+    const QString CARD_SUBTITLE_GUIDE = QString::fromUtf8("四步完成创作闭环");
     const QString FOOTER_TEXT_ACTIVE_JOBS = QString::fromUtf8("所有任务均可在 作品详情 → 修改请求 / 导出中心 中触发，执行进度将在此同步更新。");
     const QString HERO_DESC_TEXT = QString::fromUtf8("实时掌握小说转漫画链路的任务状态，查看修改闭环、高清批跑与导出中心的运行情况。");
 
