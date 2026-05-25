@@ -2,6 +2,8 @@
 #define APPCONFIG_H
 
 #include <QString>
+#include <QList>
+#include <QPair>
 #include <QSettings>
 #include <mutex>
 
@@ -74,6 +76,11 @@ public:
         QString provider = "qwen";  // qwen 或 volcengine
     };
 
+    struct DemoConfig {
+        bool enabled = false;
+        QList<QPair<QString, QString>> users; // username, password
+    };
+
     static AppConfig* instance();
 
     bool load(const QString& configPath = QString());
@@ -85,6 +92,7 @@ public:
     QwenImageConfig qwenImage() const { return m_qwenImage; }
     VolcEngineConfig volcEngine() const { return m_volcEngine; }
     ImageServiceConfig imageService() const { return m_imageService; }
+    DemoConfig demo() const { return m_demo; }
     QString configPath() const { return m_configPath; }
     QString lastError() const { return m_lastError; }
 
@@ -100,6 +108,7 @@ private:
     void readQwenImageConfig(QSettings& settings);
     void readVolcEngineConfig(QSettings& settings);
     void readImageServiceConfig(QSettings& settings);
+    void readDemoConfig(QSettings& settings);
     bool validateConfig();
     bool validateQwenConfig();
     bool validateS3Config();
@@ -114,6 +123,7 @@ private:
     QwenImageConfig m_qwenImage;
     VolcEngineConfig m_volcEngine;
     ImageServiceConfig m_imageService;
+    DemoConfig m_demo;
     
     QString m_configPath;
     QString m_lastError;

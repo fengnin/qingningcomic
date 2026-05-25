@@ -1,6 +1,7 @@
 #include "utils/UserSession.h"
 #include "utils/AppConfig.h"
 #include "utils/Logger.h"
+#include "data/DatabaseManager.h"
 
 UserSession* UserSession::m_instance = nullptr;
 std::once_flag UserSession::m_instanceOnceFlag;
@@ -43,12 +44,19 @@ void UserSession::login(const QString& userId, const QString& username)
 void UserSession::logout()
 {
     QString oldUser = m_currentUserId;
-    
+
+    if (!oldUser.isEmpty()) {
+        DatabaseManager::instance()->executeUpdate(
+            "UPDATE users SET is_online = 0 WHERE id = ?",
+            QVariantList() << oldUser
+        );
+    }
+
     m_currentUserId.clear();
     m_currentUsername.clear();
-    
+
     LOG_INFO("UserSession", QString("User logged out: %1").arg(oldUser));
-    
+
     emit userChanged(QString());
     emit logoutSuccess();
 }

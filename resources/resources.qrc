@@ -1,4 +1,11 @@
 <RCC>
+    <qresource prefix="/images">
+        <file alias="facebook.svg">images/facebook.svg</file>
+        <file alias="apple.svg">images/apple.svg</file>
+        <file alias="google.svg">images/google.svg</file>
+        <file alias="home.svg">images/home.svg</file>
+        <file alias="Image.svg">images/Image.svg</file>
+    </qresource>
     <qresource prefix="/icons">
         <file alias="nav_dashboard.svg">icons/nav_dashboard.svg</file>
         <file alias="nav_upload.svg">icons/nav_upload.svg</file>

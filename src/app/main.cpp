@@ -6,8 +6,11 @@
 #include <QTextStream>
 #include "app/MainWindow.h"
 #include "app/AppInitializer.h"
+#include "pages/LoginPage.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
+#include "utils/UserSession.h"
+#include "data/DatabaseManager.h"
 
 namespace {
 void bootMark(const char* stage)
@@ -60,13 +63,35 @@ int main(int argc, char *argv[])
             QObject::tr("QwenClient 初始化失败：%1").arg(initResult.errorMessage));
     }
 
-    MainWindow window;
-    bootMark("after MainWindow ctor");
-    window.show();
-    bootMark("after window.show");
+    LoginPage loginPage;
+    bootMark("after LoginPage ctor");
+
+    MainWindow* window = nullptr;
+
+    QObject::connect(&loginPage, &LoginPage::loginSuccess,
+        [&](const QString& /*userId*/, const QString& /*username*/) {
+            loginPage.hide();
+            window = new MainWindow();
+            bootMark("after MainWindow ctor");
+            window->show();
+            bootMark("after window.show");
+        });
+
+    loginPage.show();
+    bootMark("after loginPage.show");
 
     int result = app.exec();
 
+    // 程序退出时清除在线状态，防止异常关闭后账号被锁
+    const QString uid = UserSession::instance()->currentUserId();
+    if (!uid.isEmpty()) {
+        DatabaseManager::instance()->executeUpdate(
+            "UPDATE users SET is_online = 0 WHERE id = ?",
+            QVariantList() << uid
+        );
+    }
+
+    delete window;
     LOG_INFO("Application", "QingningComic exiting...");
     return result;
 }

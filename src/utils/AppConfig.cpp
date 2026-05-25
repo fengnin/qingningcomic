@@ -44,6 +44,7 @@ bool AppConfig::load(const QString& configPath)
     readQwenImageConfig(settings);
     readVolcEngineConfig(settings);
     readImageServiceConfig(settings);
+    readDemoConfig(settings);
 
     return validateConfig();
 }
@@ -126,6 +127,37 @@ void AppConfig::readImageServiceConfig(QSettings& settings)
 {
     settings.beginGroup("imageService");
     m_imageService.provider = settings.value("provider", "qwen").toString();
+    settings.endGroup();
+}
+
+void AppConfig::readDemoConfig(QSettings& settings)
+{
+    settings.beginGroup("demo");
+    m_demo.enabled = settings.value("enabled", false).toBool();
+    settings.endGroup();
+
+    if (!m_demo.enabled) return;
+
+    settings.beginGroup("demo.users");
+    const QStringList keys = settings.childKeys();
+    QMap<int, QPair<QString,QString>> indexed;
+    for (const QString& key : keys) {
+        // key 格式: "1_username", "1_password", ...
+        const int sep = key.indexOf('_');
+        if (sep < 1) continue;
+        bool ok = false;
+        const int idx = key.left(sep).toInt(&ok);
+        if (!ok) continue;
+        const QString field = key.mid(sep + 1);
+        if (field == "username")
+            indexed[idx].first  = settings.value(key).toString();
+        else if (field == "password")
+            indexed[idx].second = settings.value(key).toString();
+    }
+    for (auto it = indexed.cbegin(); it != indexed.cend(); ++it) {
+        if (!it->first.isEmpty() && !it->second.isEmpty())
+            m_demo.users.append(*it);
+    }
     settings.endGroup();
 }
 

@@ -84,3 +84,14 @@ presignApiEndpoint =
 
 # API 认证 Token（可选，用于身份验证）
 authToken =
+
+[demo]
+# 演示账号配置，启动时自动创建（若账号已存在则跳过）
+# 面试演示时填入，正式部署时可设 enabled = false
+enabled = true
+
+[demo.users]
+1_username = qingning
+1_password = demo123
+2_username = interviewer
+2_password = demo456

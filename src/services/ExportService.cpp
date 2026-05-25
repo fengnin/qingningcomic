@@ -7,6 +7,7 @@
 #include "utils/ExportDataHelper.h"
 #include "utils/ExportUtils.h"
 #include "utils/Logger.h"
+#include "utils/UserSession.h"
 #include <QUuid>
 #include <QDateTime>
 
@@ -266,6 +267,11 @@ QList<ExportResult> ExportService::getRecentExports(int limit)
     if (!checkConnection("getRecentExports")) {
         return QList<ExportResult>();
     }
+    const QString userId = UserSession::instance()->currentUserId();
     return exportResultsFromRows(
-        m_db->selectAll("exports", QString(), QVariantList(), "created_at DESC", limit));
+        m_db->selectAll("exports",
+                        "novel_id IN (SELECT id FROM novels WHERE user_id = ?)",
+                        QVariantList{userId},
+                        "created_at DESC",
+                        limit));
 }

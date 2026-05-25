@@ -25,6 +25,8 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QSettings>
+#include <QCryptographicHash>
+#include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace {
@@ -118,38 +120,38 @@ QString AppInitializer::findConfigFile()
 
 void AppInitializer::ensureDefaultUserExists()
 {
-    // 仅在开发模式下创建默认用户
-    // 通过环境变量 QINGNING_DEV_MODE=1 启用
-    QString devMode = qEnvironmentVariable("QINGNING_DEV_MODE");
-    if (devMode != "1" && devMode.toLower() != "true") {
-        LOG_INFO("Database", "Skipping default user creation (not in dev mode)");
+    const AppConfig::DemoConfig demo = AppConfig::instance()->demo();
+    if (!demo.enabled || demo.users.isEmpty()) {
+        LOG_INFO("AppInitializer", "Demo accounts not configured, skipping user creation");
         return;
     }
-    
+
     DatabaseManager* db = ServiceContainer::instance()->databaseManager();
     if (!db) return;
-    
-    QList<QVariantMap> results = db->selectAll(
-        QStringLiteral("users"),
-        QStringLiteral("id = ?"),
-        QVariantList() << UserSession::instance()->currentUserId()
-    );
-    
-    if (!results.isEmpty()) {
-        return;
-    }
-    
-    QVariantMap userData;
-    userData[QStringLiteral("id")] = UserSession::instance()->currentUserId();
-    userData[QStringLiteral("username")] = UserSession::instance()->currentUserId();
-    userData[QStringLiteral("email")] = UserSession::instance()->currentUserId() + "@local.com";
-    userData[QStringLiteral("password_hash")] = QStringLiteral("dev_placeholder_do_not_use_in_production");
-    
-    qint64 result = db->insert(QStringLiteral("users"), userData);
-    if (result > 0) {
-        LOG_WARNING("Database", "Default user created in DEV MODE - DO NOT use in production!");
-    } else {
-        LOG_ERROR("Database", QString("Failed to create default user: %1").arg(db->lastError()));
+
+    for (const auto& user : demo.users) {
+        const QString& username = user.first;
+        const QString& password = user.second;
+
+        if (username.isEmpty() || password.isEmpty()) continue;
+
+        if (!db->selectAll("users", "username = ?", QVariantList{username}).isEmpty())
+            continue;
+
+        const QString passwordHash = QString(
+            QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+
+        QVariantMap userData;
+        userData["id"]            = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        userData["username"]      = username;
+        userData["email"]         = username + "@demo.local";
+        userData["password_hash"] = passwordHash;
+
+        if (db->insert("users", userData) > 0) {
+            LOG_INFO("AppInitializer", QString("Demo account created: %1").arg(username));
+        } else {
+            LOG_ERROR("AppInitializer", QString("Failed to create demo account: %1").arg(db->lastError()));
+        }
     }
 }
 

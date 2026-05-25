@@ -36,6 +36,7 @@ SOURCES += \
     src/viewmodels/BaseViewModel.cpp \
     src/viewmodels/NovelViewModel.cpp \
     src/viewmodels/StoryboardViewModel.cpp \
+    src/pages/LoginPage.cpp \
     src/pages/DashboardPage.cpp \
     src/pages/CharacterDetailPage.cpp \
     src/pages/ExportPage.cpp \
@@ -140,6 +141,7 @@ SOURCES += \
 HEADERS += \
     include/AppInitializer.h \
     include/app/MainWindow.h \
+    include/pages/LoginPage.h \
     include/pages/DashboardPage.h \
     include/pages/NovelUploadPage.h \
     include/pages/ExportPage.h \
@@ -319,6 +321,11 @@ win32 {
     copy_schemas.commands = $(COPY_DIR) $$shell_path($$PWD/schemas) $$shell_path($$OUT_PWD/bin/schemas)
     first.depends = $(first) copy_schemas
     QMAKE_EXTRA_TARGETS += copy_schemas
+
+    # 复制登录页插图到 build 目录
+    copy_login_images.commands = $(COPY_DIR) $$shell_path($$PWD/resources/images) $$shell_path($$OUT_PWD/bin/images)
+    first.depends += copy_login_images
+    QMAKE_EXTRA_TARGETS += copy_login_images
 }
 
 # 打印配置信息
