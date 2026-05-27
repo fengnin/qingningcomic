@@ -86,7 +86,7 @@ namespace {
     const QString CATEGORY_DASHBOARD = QString::fromUtf8("总览");
     const QString EMPTY_JOBS_TEXT = QString::fromUtf8("暂无任务记录");
     const QString EMPTY_ACTIVE_JOBS_TEXT = QString::fromUtf8("暂无进行中的任务");
-    const QString ACTIVE_JOBS_WHERE = "status IN ('running', 'in_progress', 'pending')";
+    const QString ACTIVE_JOBS_WHERE = "status IN ('queued', 'running', 'in_progress', 'pending')";
     const QString ACTIVE_CHANGE_REQUESTS_WHERE = "status IN ('queued', 'pending', 'in_progress')";
     
     const QString CARD_TITLE_JOB_OVERVIEW = QString::fromUtf8("任务总览");
@@ -237,15 +237,17 @@ void DashboardPage::refresh()
 
 void DashboardPage::refreshActiveJobs()
 {
-    if (m_activeJobsLayout) {
-        populateActiveJobsList();
-    }
+    if (m_activeJobsLayout)
+        populateJobList(m_activeJobsLayout, loadActiveTimelineItems(),
+                        Constants::DASHBOARD_MAX_ACTIVE_JOBS, EMPTY_ACTIVE_JOBS_TEXT);
 }
 
 void DashboardPage::refreshJobLists()
 {
-    populateJobOverviewList();
-    populateActiveJobsList();
+    populateJobList(m_jobOverviewLayout, loadOverviewTimelineItems(),
+                    Constants::DASHBOARD_MAX_OVERVIEW_JOBS, EMPTY_JOBS_TEXT);
+    populateJobList(m_activeJobsLayout, loadActiveTimelineItems(),
+                    Constants::DASHBOARD_MAX_ACTIVE_JOBS, EMPTY_ACTIVE_JOBS_TEXT);
 }
 
 void DashboardPage::clearLayout(QLayout *layout)
@@ -436,14 +438,15 @@ QWidget* DashboardPage::createStatCard(const QString &label, const QString &bgCo
 
 QWidget* DashboardPage::createControlsSection()
 {
-    QWidget *controlsWidget = createTransparentWidget();
+    QWidget *controlsWidget = new QWidget();
+    controlsWidget->setObjectName("controlsSection");
+    controlsWidget->setStyleSheet("#controlsSection { background: transparent; }");
     QHBoxLayout *controlsLayout = new QHBoxLayout(controlsWidget);
     setupLayout(controlsLayout, 0, 0, 0, 0, 16);
     
     controlsLayout->addWidget(createFilterGroup());
     controlsLayout->addStretch();
-    controlsLayout->addWidget(createRefreshButton());
-    
+
     return controlsWidget;
 }
 
@@ -479,14 +482,6 @@ QWidget* DashboardPage::createFilter(const QString &label, const QStringList &it
     return filterWidget;
 }
 
-QPushButton* DashboardPage::createRefreshButton()
-{
-    m_refreshBtn = new QPushButton(TR("刷新列表"));
-    m_refreshBtn->setStyleSheet(refreshButtonStyle());
-    m_refreshBtn->setCursor(Qt::PointingHandCursor);
-    connect(m_refreshBtn, &QPushButton::clicked, this, &DashboardPage::refresh);
-    return m_refreshBtn;
-}
 
 // ========== 内容区域 ==========
 
@@ -553,64 +548,31 @@ QWidget* DashboardPage::createJobOverviewCard()
     setupLayout(m_jobOverviewLayout, 0, 0, 0, 0, Constants::DASHBOARD_JOB_ITEM_SPACING);
     jobListWidget->setMinimumHeight(Constants::DASHBOARD_JOB_LIST_MIN_HEIGHT);
     
-    populateJobOverviewList();
+    populateJobList(m_jobOverviewLayout, loadOverviewTimelineItems(),
+                    Constants::DASHBOARD_MAX_OVERVIEW_JOBS, EMPTY_JOBS_TEXT);
     
     cardLayout->addWidget(jobListWidget);
     
     return card;
 }
 
-void DashboardPage::populateJobOverviewList()
+void DashboardPage::populateJobList(QVBoxLayout *layout, const QList<JobItemData> &items,
+                                     int maxItems, const QString &emptyText)
 {
-    QList<JobItemData> jobs = loadOverviewTimelineItems();
-    std::sort(jobs.begin(), jobs.end(), [](const JobItemData& left, const JobItemData& right) {
-        return left.sortTime > right.sortTime;
+    QList<JobItemData> sorted = items;
+    std::sort(sorted.begin(), sorted.end(), [](const JobItemData &a, const JobItemData &b) {
+        return a.sortTime > b.sortTime;
     });
-
-    if (jobs.size() > Constants::DASHBOARD_MAX_OVERVIEW_JOBS) {
-        jobs = jobs.mid(0, Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
-    }
-
-    renderJobList(m_jobOverviewLayout, jobs, EMPTY_JOBS_TEXT);
+    if (sorted.size() > maxItems)
+        sorted = sorted.mid(0, maxItems);
+    renderJobList(layout, sorted, emptyText);
 }
 
-void DashboardPage::populateActiveJobsList()
-{
-    QList<JobItemData> items = loadActiveTimelineItems();
-    std::sort(items.begin(), items.end(), [](const JobItemData& left, const JobItemData& right) {
-        return left.sortTime > right.sortTime;
-    });
-
-    if (items.size() > Constants::DASHBOARD_MAX_ACTIVE_JOBS) {
-        items = items.mid(0, Constants::DASHBOARD_MAX_ACTIVE_JOBS);
-    }
-
-    renderJobList(m_activeJobsLayout, items, EMPTY_ACTIVE_JOBS_TEXT);
-}
-
-QList<QVariantMap> DashboardPage::loadDashboardJobs(const QString &whereClause,
-                                                    const QVariantList &whereValues,
-                                                    const QString &orderBy,
-                                                    int limit) const
-{
-    DatabaseManager* db = DatabaseManager::instance();
-    QString userId = UserSession::instance()->currentUserId();
-    
-    QString finalWhere = "novel_id IN (SELECT id FROM novels WHERE user_id = ?)";
-    QVariantList finalValues = QVariantList{userId};
-    
-    if (!whereClause.isEmpty()) {
-        finalWhere += " AND " + whereClause;
-        finalValues.append(whereValues);
-    }
-    
-    return db->selectAll("jobs", finalWhere, finalValues, orderBy, limit);
-}
-
-QList<QVariantMap> DashboardPage::loadDashboardChangeRequests(const QString &whereClause,
-                                                              const QVariantList &whereValues,
-                                                              const QString &orderBy,
-                                                              int limit) const
+QList<QVariantMap> DashboardPage::loadDashboardRecords(const QString &table,
+                                                        const QString &whereClause,
+                                                        const QVariantList &whereValues,
+                                                        const QString &orderBy,
+                                                        int limit) const
 {
     DatabaseManager* db = DatabaseManager::instance();
     QString userId = UserSession::instance()->currentUserId();
@@ -623,60 +585,45 @@ QList<QVariantMap> DashboardPage::loadDashboardChangeRequests(const QString &whe
         finalValues.append(whereValues);
     }
 
-    return db->selectAll("change_requests", finalWhere, finalValues, orderBy, limit);
-}
-
-QList<DashboardPage::JobItemData> DashboardPage::loadActiveJobItems() const
-{
-    QList<JobItemData> items;
-    const QList<QVariantMap> jobs = loadDashboardJobs(ACTIVE_JOBS_WHERE, QVariantList(),
-                                                      "created_at DESC",
-                                                      Constants::DASHBOARD_MAX_ACTIVE_JOBS);
-    for (const QVariantMap& job : jobs) {
-        items.append(buildJobItemData(job, true));
-    }
-    return items;
-}
-
-QList<DashboardPage::JobItemData> DashboardPage::loadActiveChangeRequestItems() const
-{
-    QList<JobItemData> items;
-    const QList<QVariantMap> changeRequests = loadDashboardChangeRequests(
-        ACTIVE_CHANGE_REQUESTS_WHERE,
-        QVariantList(),
-        "created_at DESC",
-        Constants::DASHBOARD_MAX_ACTIVE_JOBS);
-    for (const QVariantMap& row : changeRequests) {
-        items.append(buildChangeRequestItemData(row, true));
-    }
-    return items;
+    return db->selectAll(table, finalWhere, finalValues, orderBy, limit);
 }
 
 QList<DashboardPage::JobItemData> DashboardPage::loadOverviewTimelineItems() const
 {
     QList<JobItemData> items;
 
-    const QList<QVariantMap> jobs = loadDashboardJobs(QString(), QVariantList(),
-                                                      "created_at DESC",
-                                                      Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
-    for (const QVariantMap& job : jobs) {
+    const QList<QVariantMap> jobs = loadDashboardRecords("jobs", QString(), QVariantList(),
+                                                          "created_at DESC",
+                                                          Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    for (const QVariantMap& job : jobs)
         items.append(buildJobItemData(job, false));
-    }
 
-    const QList<QVariantMap> changeRequests = loadDashboardChangeRequests(QString(), QVariantList(),
-                                                                          "created_at DESC",
-                                                                          Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
-    for (const QVariantMap& changeRequest : changeRequests) {
+    const QList<QVariantMap> changeRequests = loadDashboardRecords("change_requests", QString(), QVariantList(),
+                                                                    "created_at DESC",
+                                                                    Constants::DASHBOARD_MAX_OVERVIEW_JOBS);
+    for (const QVariantMap& changeRequest : changeRequests)
         items.append(buildChangeRequestItemData(changeRequest, false));
-    }
 
     return items;
 }
 
 QList<DashboardPage::JobItemData> DashboardPage::loadActiveTimelineItems() const
 {
-    QList<JobItemData> items = loadActiveJobItems();
-    items.append(loadActiveChangeRequestItems());
+    QList<JobItemData> items;
+
+    const QList<QVariantMap> jobs = loadDashboardRecords("jobs", ACTIVE_JOBS_WHERE, QVariantList(),
+                                                          "created_at DESC",
+                                                          Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    for (const QVariantMap& job : jobs)
+        items.append(buildJobItemData(job, true));
+
+    const QList<QVariantMap> changeRequests = loadDashboardRecords("change_requests",
+                                                                    ACTIVE_CHANGE_REQUESTS_WHERE, QVariantList(),
+                                                                    "created_at DESC",
+                                                                    Constants::DASHBOARD_MAX_ACTIVE_JOBS);
+    for (const QVariantMap& row : changeRequests)
+        items.append(buildChangeRequestItemData(row, true));
+
     return items;
 }
 
@@ -793,7 +740,8 @@ QWidget* DashboardPage::createActiveJobsCard()
     m_activeJobsLayout->setAlignment(Qt::AlignTop);
     timelineWidget->setMinimumHeight(Constants::DASHBOARD_JOB_LIST_MIN_HEIGHT);
     
-    populateActiveJobsList();
+    populateJobList(m_activeJobsLayout, loadActiveTimelineItems(),
+                    Constants::DASHBOARD_MAX_ACTIVE_JOBS, EMPTY_ACTIVE_JOBS_TEXT);
     
     cardLayout->addWidget(timelineWidget);
     cardLayout->addWidget(createActiveJobsFooter());

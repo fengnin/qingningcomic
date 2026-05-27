@@ -22,6 +22,8 @@ public:
     explicit DashboardPage(QWidget *parent = nullptr);
     ~DashboardPage();
 
+signals:
+
 public slots:
     void updateJobStats(int total, int running, int completed, int failed);
     void refresh();
@@ -49,7 +51,6 @@ private:
     QWidget* createControlsSection();
     QWidget* createFilterGroup();
     QWidget* createFilter(const QString &label, const QStringList &items, ModeComboBox **comboPtr);
-    QPushButton* createRefreshButton();
     
     // ========== 内容区域 ==========
     QWidget* createContentGrid();
@@ -68,18 +69,14 @@ private:
     };
     
     QWidget* createJobOverviewCard();
-    void populateJobOverviewList();
-    
     QWidget* createActiveJobsCard();
-    void populateActiveJobsList();
-    QList<QVariantMap> loadDashboardJobs(const QString &whereClause,
-                                         const QVariantList &whereValues,
-                                         const QString &orderBy,
-                                         int limit) const;
-    QList<QVariantMap> loadDashboardChangeRequests(const QString &whereClause,
-                                                  const QVariantList &whereValues,
-                                                  const QString &orderBy,
-                                                  int limit) const;
+    void populateJobList(QVBoxLayout *layout, const QList<JobItemData> &items,
+                         int maxItems, const QString &emptyText);
+    QList<QVariantMap> loadDashboardRecords(const QString &table,
+                                            const QString &whereClause,
+                                            const QVariantList &whereValues,
+                                            const QString &orderBy,
+                                            int limit) const;
     void renderJobList(QVBoxLayout *layout, const QList<JobItemData> &jobs,
                        const QString &emptyText);
 
@@ -92,8 +89,6 @@ private:
     QWidget* createActiveJobsFooter();
     QList<JobItemData> loadOverviewTimelineItems() const;
     QList<JobItemData> loadActiveTimelineItems() const;
-    QList<JobItemData> loadActiveJobItems() const;
-    QList<JobItemData> loadActiveChangeRequestItems() const;
     static QDateTime parseDashboardDateTime(const QString &value);
     static int changeRequestProgressForStatus(const QString &status);
     
@@ -124,7 +119,6 @@ private:
     
     ModeComboBox *m_typeCombo = nullptr;
     ModeComboBox *m_statusCombo = nullptr;
-    QPushButton *m_refreshBtn = nullptr;
     QTimer *m_refreshTimer = nullptr;
     QTimer *m_syncRefreshTimer = nullptr;
 };

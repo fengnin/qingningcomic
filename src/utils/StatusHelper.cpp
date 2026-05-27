@@ -62,8 +62,10 @@ QString typeLabel(const QString& type)
 QString statusLabel(const QString& status)
 {
     static const QMap<QString, QString> labels = {
+        {"queued",     QString::fromUtf8("排队中")},
         {"pending",    QString::fromUtf8("排队中")},
         {"Pending",    QString::fromUtf8("排队中")},
+        {"parsing",    QString::fromUtf8("解析中")},
         {"in_progress",QString::fromUtf8("进行中")},
         {"running",    QString::fromUtf8("进行中")},
         {"Running",    QString::fromUtf8("进行中")},

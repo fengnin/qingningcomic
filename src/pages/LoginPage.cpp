@@ -81,45 +81,24 @@ void LoginPage::setupLeftPanel(QHBoxLayout* root)
     form->setContentsMargins(97, 0, 97, 0);
     form->setSpacing(0);
 
-    // 标题
-    QLabel* welcomeLabel = new QLabel("WELCOME TO QING NING COMIC STUDIO", leftPanel);
+    QLabel* welcomeLabel = new QLabel("欢迎使用 青柠漫画创作平台", leftPanel);
     welcomeLabel->setObjectName("subtitleLabel");
-
     form->addStretch(2);
     form->addWidget(welcomeLabel);
     form->addSpacing(36);
 
-    // 用户名
     m_usernameEdit = new QLineEdit(leftPanel);
     m_usernameEdit->setObjectName("inputField");
-    m_usernameEdit->setPlaceholderText("Enter your username");
+    m_usernameEdit->setPlaceholderText("请输入用户名");
     m_usernameEdit->setFixedHeight(78);
-    addFormField(form, "Username", leftPanel, m_usernameEdit, 24);
+    addFormField(form, "用户名", leftPanel, m_usernameEdit, 24);
 
-    // 密码
-    QWidget* pwWrapper = new QWidget(leftPanel);
-    pwWrapper->setObjectName("passwordWrapper");
-    pwWrapper->setFixedHeight(78);
-    QHBoxLayout* pwLayout = new QHBoxLayout(pwWrapper);
-    pwLayout->setContentsMargins(24, 0, 12, 0);
-    pwLayout->setSpacing(0);
+    m_passwordEdit = new QLineEdit(leftPanel);
+    m_passwordEdit->setObjectName("inputField");
+    m_passwordEdit->setPlaceholderText("请输入密码");
+    m_passwordEdit->setFixedHeight(78);
+    addFormField(form, "密码", leftPanel, m_passwordEdit, 28);
 
-    m_passwordEdit = new QLineEdit(pwWrapper);
-    m_passwordEdit->setObjectName("passwordField");
-    m_passwordEdit->setEchoMode(QLineEdit::Password);
-    m_passwordEdit->setPlaceholderText("Enter your password");
-    m_passwordEdit->setFrame(false);
-
-    m_passwordToggle = new QPushButton("👁", pwWrapper);
-    m_passwordToggle->setObjectName("eyeBtn");
-    m_passwordToggle->setFixedSize(40, 40);
-    m_passwordToggle->setCursor(Qt::PointingHandCursor);
-
-    pwLayout->addWidget(m_passwordEdit);
-    pwLayout->addWidget(m_passwordToggle);
-    addFormField(form, "Password", leftPanel, pwWrapper, 28);
-
-    // 错误提示
     m_errorLabel = new QLabel(leftPanel);
     m_errorLabel->setObjectName("errorLabel");
     m_errorLabel->setAlignment(Qt::AlignCenter);
@@ -128,15 +107,13 @@ void LoginPage::setupLeftPanel(QHBoxLayout* root)
     m_errorLabel->hide();
     form->addWidget(m_errorLabel);
 
-    // 登录按钮
-    m_loginButton = new QPushButton("Sign in", leftPanel);
+    m_loginButton = new QPushButton("登 录", leftPanel);
     m_loginButton->setObjectName("loginBtn");
     m_loginButton->setFixedHeight(80);
     m_loginButton->setCursor(Qt::PointingHandCursor);
     form->addWidget(m_loginButton);
     form->addStretch(3);
 
-    // 左右分割线
     QFrame* divider = new QFrame(this);
     divider->setObjectName("panelDivider");
     divider->setFrameShape(QFrame::VLine);
@@ -181,10 +158,9 @@ void LoginPage::setupRightPanel(QHBoxLayout* root)
 
 void LoginPage::setupConnections()
 {
-    connect(m_loginButton,    &QPushButton::clicked,     this, &LoginPage::onLoginClicked);
-    connect(m_passwordToggle, &QPushButton::clicked,     this, &LoginPage::onPasswordToggle);
-    connect(m_usernameEdit,   &QLineEdit::returnPressed, this, &LoginPage::onLoginClicked);
-    connect(m_passwordEdit,   &QLineEdit::returnPressed, this, &LoginPage::onLoginClicked);
+    connect(m_loginButton,  &QPushButton::clicked,     this, &LoginPage::onLoginClicked);
+    connect(m_usernameEdit, &QLineEdit::returnPressed, this, &LoginPage::onLoginClicked);
+    connect(m_passwordEdit, &QLineEdit::returnPressed, this, &LoginPage::onLoginClicked);
 }
 
 // ── 样式 ──────────────────────────────────────────────────
@@ -229,27 +205,6 @@ void LoginPage::setupStyles()
             border-color: #5578C8;
         }
 
-        QWidget#passwordWrapper {
-            background-color: white;
-            border: 2px solid #789ADE;
-            border-radius: 39px;
-        }
-        QLineEdit#passwordField {
-            background-color: transparent;
-            border: none;
-            padding: 0;
-        }
-        QPushButton#eyeBtn {
-            background: transparent;
-            border: none;
-            font-size: 18px;
-            color: #9EB0EA;
-            border-radius: 8px;
-        }
-        QPushButton#eyeBtn:hover {
-            background: #EEF2FF;
-        }
-
         QFrame#panelDivider {
             color: #E0E8F8;
         }
@@ -279,13 +234,6 @@ void LoginPage::setupStyles()
 
 // ── 槽函数 ────────────────────────────────────────────────
 
-void LoginPage::onPasswordToggle()
-{
-    m_passwordVisible = !m_passwordVisible;
-    m_passwordEdit->setEchoMode(m_passwordVisible ? QLineEdit::Normal : QLineEdit::Password);
-    m_passwordToggle->setText(m_passwordVisible ? "🙈" : "👁");
-}
-
 void LoginPage::onLoginClicked()
 {
     m_errorLabel->hide();
@@ -294,7 +242,7 @@ void LoginPage::onLoginClicked()
     const QString password = m_passwordEdit->text();
 
     if (username.isEmpty() || password.isEmpty()) {
-        showError("Please enter username and password.");
+        showError("请输入用户名和密码。");
         return;
     }
 
@@ -307,7 +255,7 @@ void LoginPage::onLoginClicked()
     );
 
     if (rows.isEmpty()) {
-        showError("Incorrect username or password.");
+        showError("用户名或密码错误。");
         LOG_WARNING("LoginPage", QString("Login failed for user: %1").arg(username));
         return;
     }

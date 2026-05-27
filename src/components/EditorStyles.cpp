@@ -367,7 +367,7 @@ QString featureButtonStyle()
 QString refreshButtonStyle()
 {
     return R"(
-        QPushButton {
+        QPushButton#refreshListBtn {
             border-radius: 8px;
             border: 1px solid #d4d4d4;
             background: #f7fee7;
@@ -375,7 +375,8 @@ QString refreshButtonStyle()
             font-size: 14px;
             padding: 8px 16px;
         }
-        QPushButton:hover { background: #ecfccb; }
+        QPushButton#refreshListBtn:hover { background: #ecfccb; }
+        QPushButton#refreshListBtn:pressed { background: #d9f99d; }
     )";
 }
 
@@ -1296,25 +1297,6 @@ void setupLayout(QLayout *layout, int left, int top, int right, int bottom, int 
 }
 
 // 导出图标轮转池：9 个表情图标按顺序轮流出现
-QString getRotatingExportIcon()
-{
-    static const QStringList pool = {
-        QStringLiteral(":/icons/emotion_snicker.svg"),
-        QStringLiteral(":/icons/emotion_peeking.svg"),
-        QStringLiteral(":/icons/emotion_happy.svg"),
-        QStringLiteral(":/icons/emotion_surprised.svg"),
-        QStringLiteral(":/icons/emotion_expect.svg"),
-        QStringLiteral(":/icons/emotion_confused.svg"),
-        QStringLiteral(":/icons/emotion_watching.svg"),
-        QStringLiteral(":/icons/emotion_smile.svg"),
-        QStringLiteral(":/icons/emotion_grimace.svg")
-    };
-    static int index = 0;
-    const QString &icon = pool.at(index);
-    index = (index + 1) % pool.size();
-    return icon;
-}
-
 QPixmap renderSvg(const QString &resourcePath, int size)
 {
     QPixmap pixmap(size, size);

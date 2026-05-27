@@ -156,11 +156,15 @@ void MainWindow::connectPageSignals()
                     if (page) page->resetToCreateMode();
                 });
     }
-    
+
     auto *detailPage = qobject_cast<NovelDetailPage*>(m_novelDetailPage);
     if (detailPage) {
         connect(detailPage, &NovelDetailPage::backClicked,
                 this, &MainWindow::onBackToNovelPage);
+        connect(detailPage, &NovelDetailPage::navigateToExportRequested,
+                this, [this]() {
+                    switchToPage(3, QString::fromUtf8("导出中心"));
+                });
     }
 }
 

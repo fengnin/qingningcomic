@@ -20,7 +20,6 @@ signals:
 
 private slots:
     void onLoginClicked();
-    void onPasswordToggle();
 
 private:
     void setupUi();
@@ -37,9 +36,6 @@ private:
     QLabel*      m_illustration   = nullptr;
     QLineEdit*   m_usernameEdit   = nullptr;
     QLineEdit*   m_passwordEdit   = nullptr;
-    QPushButton* m_passwordToggle = nullptr;
     QPushButton* m_loginButton    = nullptr;
     QLabel*      m_errorLabel     = nullptr;
-
-    bool m_passwordVisible = false;
 };

@@ -796,33 +796,31 @@ void NovelPage::showDeleteConfirmDialog(const QString &novelId, const QString &t
     dialog.setMinimumWidth(420);
     dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
     dialog.setStyleSheet(DIALOG_BASE_STYLE);
-    
+
     QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
     mainLayout->setContentsMargins(32, 28, 32, 24);
     mainLayout->setSpacing(20);
-    
+
     mainLayout->addWidget(createDialogLabel(Text::DELETE_DIALOG_TITLE, DIALOG_TITLE_STYLE));
     mainLayout->addWidget(createDialogLabel(QString::fromUtf8("您即将删除作品「%1」，此操作不可恢复。").arg(title), DIALOG_SUBTITLE_STYLE));
     mainLayout->addWidget(createWarningLabel(Text::WARNING_DELETE));
-    
+
     QPushButton *cancelBtn = createSecondaryButton(Text::BTN_CANCEL);
     QPushButton *confirmBtn = createDialogButton(Text::BTN_CONFIRM_DELETE, Colors::COLOR_ERROR, Colors::COLOR_ERROR_HOVER);
     cancelBtn->setFixedSize(80, 36);
     confirmBtn->setFixedSize(100, 36);
-    
     connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(confirmBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
-    
+
     QHBoxLayout *btnLayout = new QHBoxLayout();
     btnLayout->setSpacing(12);
     btnLayout->addStretch();
     btnLayout->addWidget(cancelBtn);
     btnLayout->addWidget(confirmBtn);
     mainLayout->addLayout(btnLayout);
-    
-    if (dialog.exec() == QDialog::Accepted) {
+
+    if (dialog.exec() == QDialog::Accepted)
         deleteNovel(novelId);
-    }
 }
 
 void NovelPage::showSuccessMessage(const QString &title, const QString &message)
@@ -842,28 +840,28 @@ void NovelPage::showMessageDialog(const QString &title, const QString &message, 
     dialog.setMinimumWidth(360);
     dialog.setWindowFlags(dialog.windowFlags() & ~Qt::WindowContextHelpButtonHint);
     dialog.setStyleSheet(DIALOG_BASE_STYLE);
-    
+
     QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
     mainLayout->setContentsMargins(32, 28, 32, 24);
     mainLayout->setSpacing(16);
-    
+
     bool isSuccess = (type == MessageType::Success);
-    QString bgColor = isSuccess ? "#1a22c55e" : "#1aef4444";
-    QString iconColor = isSuccess ? Colors::COLOR_SUCCESS : Colors::COLOR_ERROR;
-    QString iconText = isSuccess ? QString::fromUtf8("✅") : QString::fromUtf8("❌");
-    QString btnBgColor = isSuccess ? Colors::COLOR_SUCCESS : Colors::COLOR_ERROR;
+    QString bgColor      = isSuccess ? "#1a22c55e"              : "#1aef4444";
+    QString iconColor    = isSuccess ? Colors::COLOR_SUCCESS     : Colors::COLOR_ERROR;
+    QString iconText     = isSuccess ? QString::fromUtf8("✅")  : QString::fromUtf8("❌");
+    QString btnBgColor   = isSuccess ? Colors::COLOR_SUCCESS     : Colors::COLOR_ERROR;
     QString btnHoverColor = isSuccess ? Colors::COLOR_SUCCESS_HOVER : Colors::COLOR_ERROR_HOVER;
-    
+
     mainLayout->addWidget(createMessageIcon(bgColor, iconColor, iconText), 0, Qt::AlignCenter);
     mainLayout->addWidget(createDialogLabel(title, DIALOG_TITLE_STYLE), 0, Qt::AlignCenter);
     mainLayout->addWidget(createDialogLabel(message, DIALOG_SUBTITLE_STYLE), 0, Qt::AlignCenter);
     mainLayout->addSpacing(8);
-    
+
     QPushButton *okBtn = createDialogButton(Text::BTN_OK, btnBgColor, btnHoverColor);
     okBtn->setFixedSize(100, 36);
     connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     mainLayout->addWidget(okBtn, 0, Qt::AlignCenter);
-    
+
     dialog.exec();
 }
 

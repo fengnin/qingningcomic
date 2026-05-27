@@ -1249,7 +1249,7 @@ QWidget* NovelDetailPage::createChangeRequestCard()
     
     layout->addSpacing(14);
     
-    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交修改请求"), tr("任务状态 就绪"));
+    QWidget *btnRow = createButtonRow(m_submitChangeRequestBtn, tr("提交修改请求"), tr("就绪"));
     connect(m_submitChangeRequestBtn, &QPushButton::clicked, this, &NovelDetailPage::onSubmitChangeRequestClicked);
     layout->addWidget(btnRow);
 
@@ -2633,7 +2633,7 @@ void NovelDetailPage::beginChangeRequestProgress(const QString& requestId, const
     if (m_submitChangeRequestBtn) {
         m_submitChangeRequestBtn->setEnabled(false);
     }
-    updateButtonStatus(m_submitChangeRequestBtn, tr("任务状态 处理中"), "#F59E0B");
+    updateButtonStatus(m_submitChangeRequestBtn, tr("处理中"), "#F59E0B");
 
     if (m_changeRequestProgress) {
         m_changeRequestProgress->reset();
@@ -2680,7 +2680,7 @@ void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& m
     if (m_submitChangeRequestBtn) {
         m_submitChangeRequestBtn->setEnabled(true);
     }
-    updateButtonStatus(m_submitChangeRequestBtn, success ? tr("任务状态 完成") : tr("任务状态 失败"),
+    updateButtonStatus(m_submitChangeRequestBtn, success ? tr("完成") : tr("失败"),
                        success ? "#10B981" : "#EF4444");
 
     if (m_changeRequestProgress) {
@@ -2715,7 +2715,7 @@ void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& m
         if (m_changeRequestOverviewProgress) {
             m_changeRequestOverviewProgress->reset();
         }
-        updateButtonStatus(m_submitChangeRequestBtn, tr("任务状态 就绪"), "#6B7280");
+        updateButtonStatus(m_submitChangeRequestBtn, tr("就绪"), "#6B7280");
         updateChangeRequestOverviewStatus(tr("修改请求"), "#374151");
     });
 }

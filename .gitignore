@@ -1,4 +1,33 @@
-# 1. 忽略编译生成的二进制文件和临时文件
+slides.md
+*.html
+功能实现详解.md
+agents.md
+QingNing-面试文档.md
+README_SimpleTest.md
+DATABASE_DESIGN.md
+IMPLEMENTATION_ROADMAP.md
+MODULE_ANALYSIS.md
+PROJECT_STATUS.md
+Makefile.analysischeck
+Makefile.analysischeck.Debug
+Makefile.analysischeck.Release
+requirements.txt
+config.ini.example
+QingningComic.pro
+.qmake.stash
+.editorconfig
+.gitattributes
+
+# 忽略 Visual Studio 本地工作区
+.vs/
+
+# 忽略 Trae IDE 配置
+.trae/
+
+# 忽略文档目录
+docs/
+
+# 忽略编译生成的二进制文件和临时文件
 *.exe
 *.o
 *.obj
@@ -10,13 +39,13 @@
 *.so
 *.dll
 
-# 2. 忽略 Qt 生成的 moc 文件 (非常重要！)
+# 忽略 Qt 生成的 moc 文件
 moc_*.cpp
 moc_*.h
 qrc_*.cpp
 ui_*.h
 
-# 3. 忽略整个 build 目录 (这是最大的垃圾堆)
+# 忽略整个 build 目录
 build/
 tests/
 config.ini
@@ -25,29 +54,30 @@ Makefile.Debug
 Makefile.Release
 object_script.*
 
-# 4. 忽略 Qt 项目配置文件 (每个人的电脑配置不同，不要上传)
+# 忽略 Qt 项目配置文件
 *.pro.user
 *.pro.user.*
 *.qbs.user
 *.qbs.user.*
 
-# 5. 忽略日志和缓存
+# 忽略日志和缓存
 *.log
 .cache
 qwen.log
 
-# 6. 忽略系统文件
+# 忽略系统文件
 Thumbs.db
 .DS_Store
 
-# 7. 忽略临时文件和 Claude 工作目录
+# 忽略临时文件和 Claude 工作目录
 temp_*
 .claude/
 src/控制台.txt
-QingNing-面试文档.md
+src/*.txt
+src/figma_extract/
 
-# 8. 忽略 Visual Studio 本地工作区
-.vs/
+# 忽略临时脚本
+patch_dialogue.py
 
 # 9. 忽略临时脚本
 patch_dialogue.py

@@ -222,9 +222,6 @@ constexpr const char* TRANSPARENT_BG = "background: transparent;";
 
 }
 
-// 导出图标轮转：每次调用返回下一个表情图标，9 种轮流出现
-QString getRotatingExportIcon();
-
 // 将 SVG 资源渲染为指定尺寸的 QPixmap
 QPixmap renderSvg(const QString &resourcePath, int size);
 

@@ -371,10 +371,22 @@ void ExportPage::saveHistory(const QString &exportId)
 
 void ExportPage::rebuildHistoryList()
 {
+    static const QStringList iconPool = {
+        QStringLiteral(":/icons/emotion_snicker.svg"),
+        QStringLiteral(":/icons/emotion_peeking.svg"),
+        QStringLiteral(":/icons/emotion_happy.svg"),
+        QStringLiteral(":/icons/emotion_surprised.svg"),
+        QStringLiteral(":/icons/emotion_expect.svg"),
+        QStringLiteral(":/icons/emotion_confused.svg"),
+        QStringLiteral(":/icons/emotion_watching.svg"),
+        QStringLiteral(":/icons/emotion_smile.svg"),
+        QStringLiteral(":/icons/emotion_grimace.svg")
+    };
+
     m_historyList->clear();
-    for (const QString &id : m_historyData) {
-        QListWidgetItem *item = new QListWidgetItem(id);
-        item->setIcon(QIcon(renderSvg(getRotatingExportIcon(), 24)));
+    for (int i = 0; i < m_historyData.size(); ++i) {
+        QListWidgetItem *item = new QListWidgetItem(m_historyData.at(i));
+        item->setIcon(QIcon(renderSvg(iconPool.at(i % iconPool.size()), 24)));
         m_historyList->addItem(item);
     }
 }
