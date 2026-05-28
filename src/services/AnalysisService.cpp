@@ -644,7 +644,7 @@ void AnalysisService::finalizeAnalysis()
     AnalysisJobUtils::updateJobStatus(m_currentJobId, "completed");
     
     if (!m_currentNovelId.isEmpty()) {
-        NovelService::instance()->updateStatus(m_currentNovelId, NovelStatus::Analyzed);
+        NovelService::instance()->updateStatusAfterTask(m_currentNovelId);
     }
     
     finishProcessing();

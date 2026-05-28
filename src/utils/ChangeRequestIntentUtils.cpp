@@ -267,6 +267,9 @@ QString extractBackgroundSubject(const QJsonObject& params)
         return timeOfDay + QString::fromUtf8("背景");
     }
 
+    const QString promptFallback = params.value(QStringLiteral("prompt")).toString().trimmed();
+    if (!promptFallback.isEmpty()) return promptFallback;
+
     return QString::fromUtf8("背景");
 }
 
@@ -277,6 +280,38 @@ QString buildBackgroundEditPrompt(const QJsonObject& params)
         extractBackgroundSubject(params),
         QString::fromUtf8("保持人物、构图、透视、镜头、光线、色调和画幅比例不变"),
         1.20);
+}
+
+static QString describeEffect(const QString& effect, double intensity)
+{
+    static const QMap<QString, QString> effectLabels = {
+        {QStringLiteral("tone"),       QString::fromUtf8("网点纹理特效")},
+        {QStringLiteral("halftone"),   QString::fromUtf8("半调网点特效")},
+        {QStringLiteral("speedline"),  QString::fromUtf8("速度线特效")},
+        {QStringLiteral("rain"),       QString::fromUtf8("雨滴特效")},
+        {QStringLiteral("snow"),       QString::fromUtf8("雪花特效")},
+        {QStringLiteral("blur"),       QString::fromUtf8("动态模糊特效")},
+        {QStringLiteral("glow"),       QString::fromUtf8("发光光晕特效")},
+        {QStringLiteral("vignette"),   QString::fromUtf8("暗角特效")},
+        {QStringLiteral("noise"),      QString::fromUtf8("颗粒噪点特效")},
+    };
+
+    const QString label = effectLabels.value(effect.toLower(),
+        QString::fromUtf8("视觉特效（%1）").arg(effect));
+
+    if (intensity >= 0.8) {
+        return QString::fromUtf8("强烈的%1").arg(label);
+    } else if (intensity <= 0.3) {
+        return QString::fromUtf8("轻微的%1").arg(label);
+    }
+    return label;
+}
+
+QString buildEffectEditPrompt(const QString& effect, double intensity)
+{
+    return LocalEditPromptUtils::buildLocalEffectEditPrompt(
+        describeEffect(effect, intensity),
+        intensity * 1.5);
 }
 
 } // namespace ChangeRequestIntentUtils

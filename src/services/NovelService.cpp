@@ -161,69 +161,56 @@ bool NovelService::deleteNovel(const QString& novelId)
         return false;
     }
 
-    auto tryDelete = [this, &novelId](QString* errorOut) -> bool {
+    auto execDeleteQuery = [this](QSqlQuery& query, QString* errorOut) -> bool {
+        if (query.exec()) {
+            return true;
+        }
+        const QString error = query.lastError().text();
+        emitError("deleteNovel", error);
+        if (errorOut) {
+            *errorOut = error;
+        }
+        return false;
+    };
+
+    auto tryDelete = [this, &novelId, &execDeleteQuery](QString* errorOut) -> bool {
         return m_db->transaction([&]() -> bool {
             QStringList storyboardIds;
             {
                 QSqlQuery query(m_db->database());
                 query.prepare("SELECT id FROM storyboards WHERE novel_id = ?");
                 query.addBindValue(novelId);
-
-                if (!query.exec()) {
-                    const QString error = query.lastError().text();
-                    emitError("deleteNovel", error);
-                    if (errorOut) {
-                        *errorOut = error;
-                    }
+                if (!execDeleteQuery(query, errorOut)) {
                     return false;
                 }
-
                 while (query.next()) {
                     storyboardIds.append(query.value(0).toString());
                 }
             }
 
             for (const QString& storyboardId : storyboardIds) {
-                QSqlQuery deletePanels(m_db->database());
-                deletePanels.prepare("DELETE FROM panels WHERE storyboard_id = ?");
-                deletePanels.addBindValue(storyboardId);
-
-                if (!deletePanels.exec()) {
-                    const QString error = deletePanels.lastError().text();
-                    emitError("deleteNovel", error);
-                    if (errorOut) {
-                        *errorOut = error;
-                    }
+                QSqlQuery q(m_db->database());
+                q.prepare("DELETE FROM panels WHERE storyboard_id = ?");
+                q.addBindValue(storyboardId);
+                if (!execDeleteQuery(q, errorOut)) {
                     return false;
                 }
             }
 
             {
-                QSqlQuery deleteStoryboards(m_db->database());
-                deleteStoryboards.prepare("DELETE FROM storyboards WHERE novel_id = ?");
-                deleteStoryboards.addBindValue(novelId);
-
-                if (!deleteStoryboards.exec()) {
-                    const QString error = deleteStoryboards.lastError().text();
-                    emitError("deleteNovel", error);
-                    if (errorOut) {
-                        *errorOut = error;
-                    }
+                QSqlQuery q(m_db->database());
+                q.prepare("DELETE FROM storyboards WHERE novel_id = ?");
+                q.addBindValue(novelId);
+                if (!execDeleteQuery(q, errorOut)) {
                     return false;
                 }
             }
 
             {
-                QSqlQuery deleteNovelQuery(m_db->database());
-                deleteNovelQuery.prepare("DELETE FROM novels WHERE id = ?");
-                deleteNovelQuery.addBindValue(novelId);
-
-                if (!deleteNovelQuery.exec()) {
-                    const QString error = deleteNovelQuery.lastError().text();
-                    emitError("deleteNovel", error);
-                    if (errorOut) {
-                        *errorOut = error;
-                    }
+                QSqlQuery q(m_db->database());
+                q.prepare("DELETE FROM novels WHERE id = ?");
+                q.addBindValue(novelId);
+                if (!execDeleteQuery(q, errorOut)) {
                     return false;
                 }
             }
@@ -255,17 +242,48 @@ bool NovelService::updateStatus(const QString& novelId, NovelStatus status)
     if (!checkConnection("updateStatus")) {
         return false;
     }
-    
+
     QVariantMap data;
     data["status"] = Novel::statusToString(status);
-    
+
     if (!m_db->update(TABLE_NOVELS, data, "id = ?", QVariantList{novelId})) {
         emitError("updateStatus", m_db->lastError());
         return false;
     }
-    
+
     emit statusChanged(novelId, status);
     return true;
+}
+
+NovelStatus NovelService::resolveStatusAfterTask(const QString& novelId)
+{
+    if (!checkConnection("resolveStatusAfterTask")) {
+        return NovelStatus::Analyzed;
+    }
+
+    QSqlQuery q(m_db->database());
+    q.prepare(
+        "SELECT "
+        "  COUNT(*) AS total, "
+        "  SUM(CASE WHEN p.preview_image_path IS NULL OR p.preview_image_path = '' THEN 1 ELSE 0 END) AS missing "
+        "FROM panels p "
+        "JOIN storyboards s ON p.storyboard_id = s.id "
+        "WHERE s.novel_id = ?");
+    q.addBindValue(novelId);
+
+    if (!q.exec() || !q.next()) {
+        return NovelStatus::Analyzed;
+    }
+
+    const int total   = q.value("total").toInt();
+    const int missing = q.value("missing").toInt();
+
+    return (total > 0 && missing == 0) ? NovelStatus::Completed : NovelStatus::Analyzed;
+}
+
+void NovelService::updateStatusAfterTask(const QString& novelId)
+{
+    updateStatus(novelId, resolveStatusAfterTask(novelId));
 }
 
 int NovelService::countNovels(const QString& userId, const QString& status)

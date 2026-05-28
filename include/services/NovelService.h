@@ -33,6 +33,8 @@ public:
     bool deleteNovel(const QString& novelId);
     
     bool updateStatus(const QString& novelId, NovelStatus status);
+    NovelStatus resolveStatusAfterTask(const QString& novelId);
+    void updateStatusAfterTask(const QString& novelId);
     int countNovels(const QString& userId, const QString& status = QString());
     
     bool saveText(const QString& novelId, const QString& text);

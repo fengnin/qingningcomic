@@ -1,6 +1,7 @@
 #include "services/ExportService.h"
 #include "data/DatabaseManager.h"
 #include "services/StoryboardService.h"
+#include "services/NovelService.h"
 #include "data/FileStorage.h"
 #include "models/Task.h"
 #include "utils/ExportRenderer.h"
@@ -37,7 +38,7 @@ TaskType exportFormatToTaskType(ExportUtils::ExportFormat format)
     }
 }
 
-QString writeExportJobRow(DatabaseManager* db, const QString& novelId, TaskType taskType)
+QString createExportJobRow(DatabaseManager* db, const QString& novelId, TaskType taskType)
 {
     TaskData job;
     job.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -215,7 +216,7 @@ bool ExportService::exportCurrentStory(const QString& novelId, int chapterNumber
     }
 
     const ExportUtils::ExportFormat exportFormat = parseExportFormat(format);
-    const QString jobId = writeExportJobRow(m_db, novelId, exportFormatToTaskType(exportFormat));
+    const QString jobId = createExportJobRow(m_db, novelId, exportFormatToTaskType(exportFormat));
 
     const ExportResult record = createExport(novelId, ExportUtils::exportFormatToString(exportFormat));
     if (record.id.isEmpty()) {
@@ -223,26 +224,32 @@ bool ExportService::exportCurrentStory(const QString& novelId, int chapterNumber
         return false;
     }
 
+    auto failExport = [&](const QString& error, bool emitSignal = true) {
+        updateExport(record.id, "failed");
+        updateExportJobRow(m_db, jobId, false, error);
+        NovelService::instance()->updateStatusAfterTask(novelId);
+        if (emitSignal) {
+            emit exportFailed(record.id, error);
+        }
+    };
+
+    NovelService::instance()->updateStatus(novelId, NovelStatus::Analyzing);
+
     const QByteArray data = renderExportData(exportFormat, novel, storyboard, panels);
     if (data.isEmpty()) {
-        updateExport(record.id, "failed");
-        updateExportJobRow(m_db, jobId, false, tr("导出数据为空"));
-        emit exportFailed(record.id, tr("导出数据为空"));
+        failExport(tr("导出数据为空"));
         return false;
     }
 
     const QString relativePath = FileStorage::instance()->saveExportFile(
         record.id, data, ExportUtils::exportFormatToString(exportFormat));
     if (relativePath.isEmpty()) {
-        const QString saveError = FileStorage::instance()->lastError();
-        updateExport(record.id, "failed");
-        updateExportJobRow(m_db, jobId, false, saveError);
-        emit exportFailed(record.id, saveError);
+        failExport(FileStorage::instance()->lastError());
         return false;
     }
 
     if (!updateExport(record.id, "completed", data.size())) {
-        updateExportJobRow(m_db, jobId, false, tr("更新导出状态失败"));
+        failExport(tr("更新导出状态失败"), false);
         return false;
     }
 
@@ -258,6 +265,7 @@ bool ExportService::exportCurrentStory(const QString& novelId, int chapterNumber
     if (outExportId)  *outExportId  = record.id;
     if (outFilePath)  *outFilePath  = fullPath;
 
+    NovelService::instance()->updateStatusAfterTask(novelId);
     emit exportCompleted(record.id, fullPath);
     return true;
 }

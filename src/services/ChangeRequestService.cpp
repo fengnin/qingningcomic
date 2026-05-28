@@ -2,6 +2,7 @@
 #include "api/QwenClient.h"
 #include "services/ImageService.h"
 #include "services/StoryboardService.h"
+#include "services/NovelService.h"
 #include "utils/UserSession.h"
 #include "data/FileStorage.h"
 #include "api/QwenImageClient.h"
@@ -1036,6 +1037,8 @@ QJsonObject ChangeRequestService::executeChangeRequest(const QString& crId)
     }
     LOG_DEBUG("ChangeRequest", QString("状态已切换为 in_progress: %1").arg(crId));
 
+    NovelService::instance()->updateStatus(cr.novelId(), NovelStatus::Analyzing);
+
     try {
         emit progressChanged(crId, 10, 100, QStringLiteral("正在解析自然语言修改请求"));
         ChangeRequestDsl dsl = prepareChangeRequestDsl(cr);
@@ -1067,6 +1070,8 @@ QJsonObject ChangeRequestService::executeChangeRequest(const QString& crId)
             throw std::runtime_error(m_lastError.toStdString());
         }
 
+        NovelService::instance()->updateStatusAfterTask(cr.novelId());
+
         LOG_INFO("ChangeRequest", QString("变更请求执行完成: %1").arg(crId));
         emit changeRequestCompleted(crId, result);
         return result;
@@ -1074,6 +1079,7 @@ QJsonObject ChangeRequestService::executeChangeRequest(const QString& crId)
         m_lastError = QString::fromUtf8(e.what());
         LOG_ERROR("ChangeRequest", QString("变更请求执行失败: %1 | error=%2").arg(crId, m_lastError));
         writeChangeRequestStatus(crId, cr.novelId(), "failed", m_lastError);
+        NovelService::instance()->updateStatusAfterTask(cr.novelId());
         emit changeRequestFailed(crId, m_lastError);
         return result;
     }
@@ -1326,7 +1332,6 @@ QJsonObject ChangeRequestService::executeArtOperation(
 
         QJsonObject generationResult;
 
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, mode, generationResult, editHint)) {
             restorePanelAfterFailedArtEdit(originalPanel, dsl.targetId);
             throw std::runtime_error(m_lastError.toStdString());
@@ -1357,9 +1362,28 @@ QJsonObject ChangeRequestService::executeArtOperation(
         }
 
     } else if (action == QStringLiteral("add_effect")) {
-        QString effect = op.params["effect"].toString("tone");
-        double intensity = op.params["intensity"].toDouble(0.5);
+        const Panel originalPanel = panel;
+        const QString effect = op.params["effect"].toString(QStringLiteral("tone"));
+        const double intensity = op.params["intensity"].toDouble(0.5);
 
+        const QString prompt = ChangeRequestIntentUtils::buildEffectEditPrompt(effect, intensity);
+        QJsonObject content = buildPanelContentForWrite(panel);
+        content["visualPrompt"] = prompt;
+        content["editIntent"] = QStringLiteral("add_effect");
+        content["editTarget"] = QStringLiteral("panel");
+        content["effect"] = effect;
+        content["intensity"] = intensity;
+        panel.setVisualPrompt(prompt);
+        panel.setContent(content);
+        if (!updatePanel(panel)) {
+            throw std::runtime_error(m_lastError.toStdString());
+        }
+
+        ImageService::EditHint editHint;
+        if (!runPanelImageGeneration(dsl.targetId, mode, result, editHint)) {
+            restorePanelAfterFailedArtEdit(originalPanel, dsl.targetId);
+            throw std::runtime_error(m_lastError.toStdString());
+        }
         result["effect"] = effect;
         result["intensity"] = intensity;
 
@@ -1516,7 +1540,6 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
 
         QJsonObject generationResult;
         ImageService::EditHint editHint;
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
@@ -1535,7 +1558,6 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
 
         QJsonObject generationResult;
         ImageService::EditHint editHint;
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
@@ -1576,7 +1598,6 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
 
         QJsonObject generationResult;
         ImageService::EditHint editHint;
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
@@ -1644,7 +1665,6 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
 
         QJsonObject generationResult;
         ImageService::EditHint editHint;
-        editHint.forceProvider = QStringLiteral("qwen");
         if (!runPanelImageGeneration(dsl.targetId, QStringLiteral("preview"), generationResult, editHint)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
@@ -2036,22 +2056,27 @@ bool ChangeRequestService::runPanelImageGeneration(const QString& panelId,
         ? ImageService::GenerateMode::HD
         : ImageService::GenerateMode::Preview;
 
+    ImageService::EditHint effectiveHint = editHint;
+    if (effectiveHint.forceProvider.isEmpty()) {
+        effectiveHint.forceProvider = QStringLiteral("qwen");
+    }
+
     LOG_INFO("ChangeRequest", QString("开始生成面板图片: panelId=%1, mode=%2")
         .arg(panelId)
         .arg(mode));
-    if (editHint.faceOnly) {
+    if (effectiveHint.faceOnly) {
         QString strategyName = QStringLiteral("default");
-        if (editHint.strategy == ImageService::EditHint::Strategy::FaceExpression) {
+        if (effectiveHint.strategy == ImageService::EditHint::Strategy::FaceExpression) {
             strategyName = QStringLiteral("face_expression");
-        } else if (editHint.strategy == ImageService::EditHint::Strategy::SubjectReplacement) {
+        } else if (effectiveHint.strategy == ImageService::EditHint::Strategy::SubjectReplacement) {
             strategyName = QStringLiteral("subject_replacement");
         }
         LOG_DEBUG("ChangeRequest", QString("局部编辑提示: faceOnly=true, strategy=%1, expression=%2")
             .arg(strategyName)
-            .arg(editHint.expression));
+            .arg(effectiveHint.expression));
     }
-    
-    ImageService::GenerateResult genResult = m_imageService->regeneratePanelImage(panelId, generateMode, editHint);
+
+    ImageService::GenerateResult genResult = m_imageService->regeneratePanelImage(panelId, generateMode, effectiveHint);
     if (!genResult.success) {
         m_lastError = genResult.errorMessage;
         LOG_ERROR("ChangeRequest", QString("面板图片生成失败: panelId=%1, mode=%2, error=%3")

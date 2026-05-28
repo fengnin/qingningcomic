@@ -67,7 +67,9 @@ void setPanelBatchResult(TaskData& task, const ImageService::BatchResult& result
     if (success) {
         task.result["status"] = "completed";
         task.result["message"] = "Batch generation completed";
-        updateTaskNovelStatus(task.novelId, NovelStatus::Completed);
+        if (!task.novelId.isEmpty()) {
+            NovelService::instance()->updateStatusAfterTask(task.novelId);
+        }
         return;
     }
 
@@ -105,7 +107,9 @@ void executePanelBatch(TaskData& task, ImageService* imageService)
 
     if (task.total == 0) {
         task.result = buildBatchResult(0, 0, 0);
-        updateTaskNovelStatus(task.novelId, NovelStatus::Completed);
+        if (!task.novelId.isEmpty()) {
+            NovelService::instance()->updateStatusAfterTask(task.novelId);
+        }
         return;
     }
 

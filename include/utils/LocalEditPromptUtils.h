@@ -222,6 +222,23 @@ inline QString buildLocalBackgroundEditPrompt(const QString& targetDescription,
         strength));
 }
 
+inline LocalEditPromptSpec buildLocalEffectEditSpec(const QString& effectDescription,
+                                                    double strength)
+{
+    LocalEditPromptSpec spec;
+    spec.targetDescription = QStringLiteral("整体画面");
+    spec.allowedChangeDescription = QStringLiteral("仅叠加视觉特效，不改变构图和内容");
+    spec.changeTargetDescription = normalizedOrDefault(effectDescription, QStringLiteral("添加视觉特效"));
+    spec.preserveDescription = QStringLiteral("保持人物、背景、构图、透视、表情、服装和画幅比例完全不变");
+    spec.strength = strength;
+    return spec;
+}
+
+inline QString buildLocalEffectEditPrompt(const QString& effectDescription, double strength)
+{
+    return buildLocalEditPrompt(buildLocalEffectEditSpec(effectDescription, strength));
+}
+
 }
 
 #endif // LOCALEDITPROMPTUTILS_H

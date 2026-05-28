@@ -45,6 +45,7 @@ QString extractLocalObjectSubjectFromParams(const QJsonObject& params, const QSt
 QString extractLocalObjectDestinationFromParams(const QJsonObject& params, const QString& sourcePrompt);
 QString extractBackgroundSubject(const QJsonObject& params);
 QString buildBackgroundEditPrompt(const QJsonObject& params);
+QString buildEffectEditPrompt(const QString& effect, double intensity);
 QString extractRemovalSubject(const QJsonObject& params);
 QString cleanupReplacementTarget(QString text);
 int lastLocalContextMarkerIndex(const QString& text);
