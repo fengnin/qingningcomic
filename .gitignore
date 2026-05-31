@@ -79,6 +79,4 @@ src/figma_extract/
 
 # 忽略临时脚本
 patch_dialogue.py
-
-# 9. 忽略临时脚本
-patch_dialogue.py
+gen_slides.py
