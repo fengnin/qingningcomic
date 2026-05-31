@@ -102,7 +102,7 @@ QString buildChangeRequestUserPrompt(const QString& naturalLanguage, const QJson
         sections << QStringLiteral("上下文信息：\n%1")
             .arg(QString::fromUtf8(QJsonDocument(context).toJson(QJsonDocument::Indented)));
     }
-    sections << QStringLiteral("请输出符合 CR-DSL JSON 的内容，并尽量补全：\n- scope：根据修改范围选择 global / character / panel / page\n- type：根据修改类型选择 art / dialogue / layout / style\n- action：根据 type 选择对应的操作（art→inpaint/setExpression等，dialogue→rewrite_dialogue/add_dialogue/remove_dialogue/update_dialogue_side，layout→reorder/resize，style→update_style）\n- 绝对规则：未明确提及的内容一律不改，不要自行扩展到颜色、光线、背景、构图、人物姿态、服装、发型或其他无关部分\n- 如果用户明确要求”只改文字/对白/台词”，请输出 dialogue + rewrite_dialogue，不要输出 art\n- 如果用户要求”添加/新增气泡/对白”，请输出 dialogue + add_dialogue，params 包含 speaker、text、bubbleType（默认 speech）、speakerSide（left 或 right）\n- 如果用户要求”删除/去掉气泡/对白”，请输出 dialogue + remove_dialogue，params 包含 dialogueId 或 speaker\n- 如果用户要求”修改气泡指向/方向/朝向”，请输出 dialogue + update_dialogue_side，params 包含 dialogueId 或 speaker，以及 speakerSide（left 或 right）\n- targetId：如果上下文里提供了 targetPanelId / targetPanelNumber，请直接映射到对应 ID\n- targetId：如果 type=style，请优先映射到 storyboardId\n- targetId：如果能明确到具体对象，请填写对应 ID\n- params.editIntent：如果属于局部编辑，尽量填写 remove_subject / replace_subject / move_subject / insert_subject / replace_attribute / replace_background / set_expression\n- params.maskRegion：如果是局部替换，请填写最小、最具体的被替换对象，不要写容器、整个人物或整页场景\n- params.prompt：尽量保留原始自然语言中的具体对象名，例如”桌上的水杯”优先于”桌上”\n- params.prompt：如果是局部编辑，必须额外写出”未提到的部分保持不变”\n- ops：至少包含一条可执行操作，action 必须与 type 匹配");
+    sections << QStringLiteral("请输出符合 CR-DSL JSON 的内容，并尽量补全：\n- scope：根据修改范围选择 global / character / panel / page\n- type：根据修改类型选择 art / dialogue / layout / style\n- action：根据 type 选择对应的操作（art→inpaint/setExpression等，dialogue→rewrite_dialogue/add_dialogue/remove_dialogue/update_dialogue_side，layout→reorder/resize，style→update_style）\n- 绝对规则：未明确提及的内容一律不改，不要自行扩展到颜色、光线、背景、构图、人物姿态、服装、发型或其他无关部分\n- 如果用户明确要求”只改文字/对白/台词”，请输出 dialogue + rewrite_dialogue，不要输出 art\n- 如果用户要求”添加/新增气泡/对白”，请输出 dialogue + add_dialogue，params 包含 speaker、text、bubbleType（默认 speech）、speakerSide（left 或 right）\n- 如果用户要求”删除/去掉气泡/对白”，请输出 dialogue + remove_dialogue，params 包含 dialogueId 或 speaker\n- 如果用户要求”修改气泡指向/方向/朝向”，请输出 dialogue + update_dialogue_side，params 包含 dialogueId 或 speaker，以及 speakerSide（left 或 right）\n- targetId：如果上下文里提供了 targetPanelId / targetPanelNumber，请直接映射到对应 ID\n- targetId：如果 type=style，请优先映射到 storyboardId\n- targetId：如果能明确到具体对象，请填写对应 ID\n- params.editIntent：如果属于局部编辑，尽量填写 remove_subject / replace_subject / move_subject / insert_subject / replace_attribute / replace_background / set_expression\n- params.maskRegion：如果是局部替换，请填写最小、最具体的被替换对象，不要写容器、整个人物或整页场景\n- params.prompt：必须使用中文\n- params.prompt：尽量保留原始自然语言中的具体对象名，例如”桌上的水杯”优先于”桌上”\n- params.prompt：如果是局部编辑，必须额外写出”未提到的部分保持不变”\n- ops：至少包含一条可执行操作，action 必须与 type 匹配");
     return sections.join(QStringLiteral("\n\n"));
 }
 bool isValidParsedDsl(const ChangeRequestDsl& dsl, QString* errorMessage)
@@ -208,7 +208,9 @@ QString inferDefaultScopeForType(const QString& type)
 }
 QString inferEditIntentFromText(const QString& text)
 {
-    const QString lower = text.trimmed().toLower();
+    QString stripped = text.trimmed();
+    stripped.remove(QRegularExpression(QString::fromUtf8("[（(][^）)]*[）)]")));
+    const QString lower = stripped.trimmed().toLower();
     if (lower.isEmpty()) return QString();
 
     if (PromptTargetUtils::isRemovalIntentText(lower))
@@ -251,10 +253,23 @@ QString inferEditIntentFromText(const QString& text)
         QStringLiteral("daylight"), QStringLiteral("sunset"), QStringLiteral("rain"),
         QStringLiteral("snow"), QStringLiteral("lighting"), QStringLiteral("weather")
     };
+    static const QStringList compositionKeywords = {
+        QString::fromUtf8("景别"), QString::fromUtf8("远景"), QString::fromUtf8("中景"),
+        QString::fromUtf8("近景"), QString::fromUtf8("特写"), QString::fromUtf8("全景"),
+        QString::fromUtf8("俯视"), QString::fromUtf8("仰视"), QString::fromUtf8("俯拍"),
+        QString::fromUtf8("仰拍"), QString::fromUtf8("构图"), QString::fromUtf8("镜头"),
+        QString::fromUtf8("视角"),
+        QStringLiteral("composition"), QStringLiteral("camera angle"),
+        QStringLiteral("close-up"), QStringLiteral("wide shot")
+    };
 
     // Compound rules: keyword group + change verb required
     const bool hasChangeVerb = PromptTargetUtils::containsAny(lower, changeVerbKeywords);
     if (hasChangeVerb) {
+        // Composition keywords take priority — "改成更宽的视角，展示更多背景" should be
+        // change_composition, not replace_background, even though "背景" appears in the text.
+        if (PromptTargetUtils::containsAny(lower, compositionKeywords))
+            return QStringLiteral("change_composition");
         if (PromptTargetUtils::containsAny(lower, pureBackgroundKeywords))
             return QStringLiteral("replace_background");
         if (PromptTargetUtils::containsAny(lower, lightingTimeKeywords))
@@ -297,16 +312,6 @@ QString inferEditIntentFromText(const QString& text)
         QStringLiteral("lighting"), QStringLiteral("weather"), QStringLiteral("daylight"),
         QStringLiteral("sunset"), QStringLiteral("rain"), QStringLiteral("snow")
     };
-    static const QStringList compositionKeywords = {
-        QString::fromUtf8("景别"), QString::fromUtf8("远景"), QString::fromUtf8("中景"),
-        QString::fromUtf8("近景"), QString::fromUtf8("特写"), QString::fromUtf8("全景"),
-        QString::fromUtf8("俯视"), QString::fromUtf8("仰视"), QString::fromUtf8("俯拍"),
-        QString::fromUtf8("仰拍"), QString::fromUtf8("构图"), QString::fromUtf8("镜头"),
-        QString::fromUtf8("视角"),
-        QStringLiteral("composition"), QStringLiteral("camera angle"),
-        QStringLiteral("close-up"), QStringLiteral("wide shot")
-    };
-
     struct SimpleRule { const QStringList* kw; const char* intent; };
     static const SimpleRule tailRules[] = {
         {&expressionKeywords,  "set_expression"},

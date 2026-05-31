@@ -41,8 +41,6 @@ CREATE TABLE IF NOT EXISTS characters (
     appearance JSON,
     personalities JSON,
     portrait_path VARCHAR(255),
-    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-    deleted_at TIMESTAMP NULL,
     default_config_id VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -59,29 +57,11 @@ CREATE TABLE IF NOT EXISTS scenes (
     details JSON,
     tags JSON,
     reference_image_path VARCHAR(255),
-    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-    deleted_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE,
     INDEX idx_novel_id (novel_id),
     INDEX idx_scene_id (scene_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 5. 角色配置表
-CREATE TABLE IF NOT EXISTS character_configs (
-    id VARCHAR(36) PRIMARY KEY,
-    character_id VARCHAR(36) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    appearance JSON,
-    tags JSON,
-    generated_portraits JSON,
-    is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
-    INDEX idx_character_id (character_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. 分镜表
@@ -137,25 +117,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     INDEX idx_novel_id (novel_id),
     INDEX idx_status (status),
     INDEX idx_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. 面板子任务表
-CREATE TABLE IF NOT EXISTS panel_tasks (
-    id VARCHAR(36) PRIMARY KEY,
-    job_id VARCHAR(36) NOT NULL,
-    panel_id VARCHAR(36) NOT NULL,
-    mode VARCHAR(10) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',
-    character_refs JSON,
-    result_path VARCHAR(255),
-    retry_count INT DEFAULT 0,
-    error_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
-    FOREIGN KEY (panel_id) REFERENCES panels(id) ON DELETE CASCADE,
-    INDEX idx_job_id (job_id),
-    INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 9. 修改请求表

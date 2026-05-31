@@ -13,7 +13,6 @@
 #include "utils/FileManager.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
-#include "api/StorageClient.h"
 #include "data/FileStorage.h"
 #include "services/StoryboardService.h"
 #include "services/CharacterExtractor.h"
@@ -269,81 +268,6 @@ QByteArray buildFaceEditMaskBytesImpl(const QRectF& region,
     return imageToPngBytes(mask);
 }
 
-QImage loadImageFromBytes(const QByteArray& data)
-{
-    QImage image;
-    image.loadFromData(data);
-    if (image.isNull()) {
-        return image;
-    }
-    return image.convertToFormat(QImage::Format_ARGB32);
-}
-
-QByteArray blendEditedCropIntoOriginalImpl(const QByteArray& originalImage,
-                                           const QByteArray& editedImage,
-                                           const QRect& cropRect,
-                                           const QByteArray& maskImage)
-{
-    if (originalImage.isEmpty() || editedImage.isEmpty() || !cropRect.isValid() || cropRect.isEmpty()) {
-        return editedImage.isEmpty() ? originalImage : editedImage;
-    }
-
-    const QImage original = loadImageFromBytes(originalImage);
-    QImage edited = loadImageFromBytes(editedImage);
-    const QImage mask = loadImageFromBytes(maskImage);
-
-    if (original.isNull() || edited.isNull()) {
-        return editedImage;
-    }
-
-    const QRect targetRect = cropRect.intersected(original.rect());
-    if (targetRect.isEmpty()) {
-        return editedImage;
-    }
-
-    const QSize targetSize = targetRect.size();
-    if (edited.size() != targetSize) {
-        edited = edited.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-            .convertToFormat(QImage::Format_ARGB32);
-    } else {
-        edited = edited.convertToFormat(QImage::Format_ARGB32);
-    }
-
-    QImage normalizedMask;
-    if (!mask.isNull() && mask.size() == targetSize) {
-        normalizedMask = mask.convertToFormat(QImage::Format_ARGB32);
-    } else if (!mask.isNull() && !mask.size().isEmpty()) {
-        normalizedMask = mask.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-            .convertToFormat(QImage::Format_ARGB32);
-    } else {
-        normalizedMask = QImage();
-    }
-
-    const QImage originalArgb = original.convertToFormat(QImage::Format_ARGB32);
-    QImage blended = originalArgb;
-    const bool hasMask = !normalizedMask.isNull();
-
-    for (int y = 0; y < targetSize.height(); ++y) {
-        const int originalY = targetRect.y() + y;
-        const QRgb* originalLine = reinterpret_cast<const QRgb*>(originalArgb.constScanLine(originalY));
-        const QRgb* editedLine = reinterpret_cast<const QRgb*>(edited.constScanLine(y));
-        const QRgb* maskLine = hasMask ? reinterpret_cast<const QRgb*>(normalizedMask.constScanLine(y)) : nullptr;
-        QRgb* blendedLine = reinterpret_cast<QRgb*>(blended.scanLine(originalY));
-
-        for (int x = 0; x < targetSize.width(); ++x) {
-            const int originalX = targetRect.x() + x;
-            const int alpha = hasMask ? qAlpha(maskLine[x]) : 255;
-            const int inverseAlpha = 255 - alpha;
-            const int r = (qRed(editedLine[x]) * alpha + qRed(originalLine[originalX]) * inverseAlpha) / 255;
-            const int g = (qGreen(editedLine[x]) * alpha + qGreen(originalLine[originalX]) * inverseAlpha) / 255;
-            const int b = (qBlue(editedLine[x]) * alpha + qBlue(originalLine[originalX]) * inverseAlpha) / 255;
-            const int a = qMax(qAlpha(originalLine[originalX]), qAlpha(editedLine[x]));
-            blendedLine[originalX] = qRgba(r, g, b, a);
-        }
-    }
-
-    return imageToPngBytes(blended);
-}
 
 TaskData createPanelTask(const QString& panelId, TaskType type, const QString& modeValue, int total)
 {
@@ -1078,7 +1002,8 @@ bool ImageService::prepareFaceOnlyEditContext(GenerationContext& ctx) const
 {
     if (ctx.editTargetRect.isValid() && !ctx.editTargetRect.isEmpty()
         && !ctx.editSourceImageData.isEmpty()
-        && !ctx.editMaskData.isEmpty()) {
+        && !ctx.editMaskData.isEmpty()
+        && ctx.editRegionRect.isValid() && !ctx.editRegionRect.isEmpty()) {
         return true;
     }
 
@@ -1098,6 +1023,7 @@ bool ImageService::prepareFaceOnlyEditContext(GenerationContext& ctx) const
     }
 
     ctx.editTargetRect = QRect(0, 0, ctx.refImageWidth, ctx.refImageHeight);
+    ctx.editRegionRect = editRegion;
     ctx.editSourceImageData = ctx.refImageData;
     if (ctx.editSourceImageData.isEmpty()) {
         LOG_WARNING("ImageService", QString("Failed to prepare face edit source for panel: %1").arg(ctx.panelId));
@@ -1177,7 +1103,6 @@ void ImageService::applyFaceOnlyEditHints(GenerationContext& ctx, QwenImageClien
 
     options.prompt = buildFaceEditPrompt(ctx);
     options.sourceImage = ctx.editSourceImageData;
-    options.maskImage = ctx.editMaskData;
     options.size = QwenImageClient::ImageSize::Custom;
     options.width = ctx.refImageWidth > 0 ? ctx.refImageWidth : ctx.editTargetRect.width();
     options.height = ctx.refImageHeight > 0 ? ctx.refImageHeight : ctx.editTargetRect.height();
@@ -1185,25 +1110,9 @@ void ImageService::applyFaceOnlyEditHints(GenerationContext& ctx, QwenImageClien
 
 bool ImageService::applyFaceOnlyEditPostProcess(GenerationContext& ctx)
 {
-    if (!ctx.faceOnlyEdit || ctx.refImageData.isEmpty() || ctx.imageData.isEmpty()) {
+    if (!ctx.faceOnlyEdit || ctx.imageData.isEmpty()) {
         return true;
     }
-
-    if (!ctx.editTargetRect.isValid() || ctx.editTargetRect.isEmpty()) {
-        return true;
-    }
-
-    if (ctx.editMaskData.isEmpty()) {
-        ctx.editMaskData = buildFaceEditMask(ctx);
-    }
-
-    ctx.imageData = blendEditedCropIntoOriginalImpl(ctx.refImageData, ctx.imageData, ctx.editTargetRect, ctx.editMaskData);
-    LOG_INFO("ImageService", QString("Applied local edit blend for panel: %1, editRect=%2,%3 %4x%5")
-        .arg(ctx.panelId)
-        .arg(ctx.editTargetRect.x())
-        .arg(ctx.editTargetRect.y())
-        .arg(ctx.editTargetRect.width())
-        .arg(ctx.editTargetRect.height()));
     return !ctx.imageData.isEmpty();
 }
 
@@ -1232,22 +1141,24 @@ bool ImageService::finalizeGeneratedImage(GenerationContext& ctx, const QByteArr
     }
 
     ctx.imageData = normalizeImageSize(imageData, targetWidth, targetHeight);
-    const QByteArray before = ctx.imageData;
-    const QByteArray after = ImageBorderTrimmer::trimDarkBorderImageData(before);
-    if (after != before) {
-        QImage beforeImage;
-        QImage afterImage;
-        beforeImage.loadFromData(before);
-        afterImage.loadFromData(after);
-        if (!beforeImage.isNull() && !afterImage.isNull()) {
-            LOG_INFO("ImageService", QString("Trimmed dark border from %1x%2 to %3x%4")
-                .arg(beforeImage.width())
-                .arg(beforeImage.height())
-                .arg(afterImage.width())
-                .arg(afterImage.height()));
+    if (!ctx.allowReferenceEdit) {
+        const QByteArray before = ctx.imageData;
+        const QByteArray after = ImageBorderTrimmer::trimDarkBorderImageData(before);
+        if (after != before) {
+            QImage beforeImage;
+            QImage afterImage;
+            beforeImage.loadFromData(before);
+            afterImage.loadFromData(after);
+            if (!beforeImage.isNull() && !afterImage.isNull()) {
+                LOG_INFO("ImageService", QString("Trimmed dark border from %1x%2 to %3x%4")
+                    .arg(beforeImage.width())
+                    .arg(beforeImage.height())
+                    .arg(afterImage.width())
+                    .arg(afterImage.height()));
+            }
         }
+        ctx.imageData = after;
     }
-    ctx.imageData = after;
     return applyFaceOnlyEditPostProcess(ctx);
 }
 
@@ -1617,34 +1528,22 @@ bool ImageService::storeImage(GenerationContext& ctx)
             ? QString("panels/%1/%2_%3.png").arg(ctx.panelId.left(8)).arg(ctx.panelId).arg(ctx.presetMode)
             : generateS3Key(ctx.panelId, ctx.mode);
 
-        if (StorageClient::instance()->isInitialized()) {
-            StorageClient::UploadResult result = StorageClient::instance()->upload(
-                ctx.s3Key, ctx.imageData, "image/png");
+        QString modeStr = (ctx.mode == GenerateMode::Preview) ? "preview" : "hd";
+        QString localPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, modeStr);
 
-            if (!result.success) {
-                setError(TR_FMT("Cloud upload failed: %1", result.errorMessage));
-                return false;
-            }
+        if (localPath.isEmpty()) {
+            setError(TR_FMT("Local save failed: %1", FileStorage::instance()->lastError()));
+            return false;
+        }
 
-            LOG_INFO("ImageService", QString("Image stored to cloud: %1").arg(ctx.s3Key));
-        } else {
-            QString modeStr = (ctx.mode == GenerateMode::Preview) ? "preview" : "hd";
-            QString localPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, modeStr);
+        ctx.s3Key = localPath;
+        LOG_INFO("ImageService", QString("Image stored locally: %1").arg(localPath));
 
-            if (localPath.isEmpty()) {
-                setError(TR_FMT("Local save failed: %1", FileStorage::instance()->lastError()));
-                return false;
-            }
-
-            ctx.s3Key = localPath;
-            LOG_INFO("ImageService", QString("Image stored locally: %1").arg(localPath));
-
-            // hd 编辑结果同步写入 preview，确保 UI 能立即看到变化
-            if (ctx.mode == GenerateMode::HD) {
-                QString previewPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, "preview");
-                if (!previewPath.isEmpty()) {
-                    LOG_INFO("ImageService", QString("HD edit result synced to preview: %1").arg(previewPath));
-                }
+        // hd 编辑结果同步写入 preview，确保 UI 能立即看到变化
+        if (ctx.mode == GenerateMode::HD) {
+            QString previewPath = FileStorage::instance()->savePanelImage(ctx.panelId, ctx.imageData, "preview");
+            if (!previewPath.isEmpty()) {
+                LOG_INFO("ImageService", QString("HD edit result synced to preview: %1").arg(previewPath));
             }
         }
 
@@ -2206,11 +2105,7 @@ ImageService::GenerateResult ImageService::finalizeResult(GenerationContext& ctx
     result.s3Key = ctx.s3Key;
     
     try {
-        if (StorageClient::instance()->isInitialized()) {
-            result.imageUrl = StorageClient::instance()->getPresignedUrl(ctx.s3Key);
-        } else {
-            result.imageUrl = FileStorage::instance()->getFullPath(ctx.s3Key);
-        }
+        result.imageUrl = FileStorage::instance()->getFullPath(ctx.s3Key);
     } catch (...) {
         result.imageUrl = FileStorage::instance()->getFullPath(ctx.s3Key);
     }

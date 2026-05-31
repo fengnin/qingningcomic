@@ -68,23 +68,6 @@ QString cleanupReplacementTarget(QString text)
     return text.trimmed();
 }
 
-int lastLocalContextMarkerIndex(const QString& text)
-{
-    static const QStringList markers = {
-        QStringLiteral("的"), QStringLiteral("上"), QStringLiteral("中"),
-        QStringLiteral("里"), QStringLiteral("内"), QStringLiteral("下"),
-        QString::fromUtf8("旁边"), QString::fromUtf8("前面"), QString::fromUtf8("后面"),
-        QString::fromUtf8("左边"), QString::fromUtf8("右边"), QString::fromUtf8("角落")
-    };
-
-    int bestIndex = -1;
-    for (const QString& marker : markers) {
-        const int index = text.lastIndexOf(marker);
-        if (index > bestIndex) bestIndex = index;
-    }
-    return bestIndex;
-}
-
 QString cleanupReplacementSource(QString text)
 {
     text = cleanupReplacementTarget(text);
@@ -93,12 +76,10 @@ QString cleanupReplacementSource(QString text)
     text.remove(QRegularExpression(QString::fromUtf8(
         "^(?:把|将|请把|请将|这个|该|这张|这幅|这页|画面中的|图中的|图里|画面里|角色|人物|主体|对象|物体|物品)\\s*")));
 
-    // Keep the most local edited noun phrase when the request mentions a container or location.
-    const int lastStructuralMarker = lastLocalContextMarkerIndex(text);
-    if (lastStructuralMarker >= 0 && lastStructuralMarker + 1 < text.size()) {
-        const QString localSuffix = text.mid(lastStructuralMarker + 1).trimmed();
-        if (!localSuffix.isEmpty()) text = localSuffix;
-    }
+    // Strip panel-number container prefix like "第3个面板" or "第3格" but keep everything after.
+    text.remove(QRegularExpression(QString::fromUtf8(
+        "^第\\s*\\d+\\s*(?:个|张|格|幅|页)?\\s*(?:面板|格子|画格|画面)?\\s*")));
+
     return text.trimmed();
 }
 

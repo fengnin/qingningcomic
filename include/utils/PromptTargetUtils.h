@@ -89,7 +89,6 @@ inline bool isCharacterEditIntent(const QString& editIntent)
     const QString normalizedIntent = editIntent.trimmed().toLower();
     return normalizedIntent == QStringLiteral("replace_attribute")
         || normalizedIntent == QStringLiteral("set_expression")
-        || normalizedIntent == QStringLiteral("setexpression")
         || normalizedIntent == QStringLiteral("rotate_subject")
         || normalizedIntent == QStringLiteral("change_pose");
 }

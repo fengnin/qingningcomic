@@ -4,7 +4,6 @@
 #include "api/QwenClient.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
-#include "api/StorageClient.h"
 #include "data/FileStorage.h"
 #include "services/NovelService.h"
 #include "services/StoryboardService.h"
@@ -288,48 +287,6 @@ bool AppInitializer::initializeVolcEngineImageClient(InitResult& result)
     return true;
 }
 
-bool AppInitializer::initializeStorageClient(InitResult& result)
-{
-    AppConfig::StorageConfig storageConfig = AppConfig::instance()->storage();
-    
-    // 如果使用本地存储，跳过 StorageClient 初始化
-    if (storageConfig.type == "local") {
-        LOG_INFO("AppInitializer", "Using local storage, skipping StorageClient initialization");
-        result.storageSuccess = true;
-        return true;
-    }
-    
-    StorageClient::Config config;
-    config.endpoint = storageConfig.endpoint;
-    config.bucket = storageConfig.bucket;
-    config.accessKey = storageConfig.accessKey;
-    config.secretKey = storageConfig.secretKey;
-    config.region = storageConfig.region;
-    config.presignExpiresIn = storageConfig.presignExpiresIn;
-    config.presignApiEndpoint = storageConfig.presignApiEndpoint;
-    config.authToken = storageConfig.authToken;
-    
-    bool usePresignApi = !config.presignApiEndpoint.isEmpty();
-    bool useDirectMode = !config.accessKey.isEmpty() && !config.secretKey.isEmpty();
-    
-    if (!usePresignApi && !useDirectMode) {
-        LOG_WARNING("AppInitializer", "StorageClient not configured for S3 mode, skipping");
-        result.storageSuccess = false;
-        return true;  // 不是致命错误
-    }
-    
-    StorageClient* storageClient = nullptr;
-    if (!initService(storageClient, config, "StorageClient")) {
-        LOG_WARNING("AppInitializer", "Failed to initialize StorageClient, continuing without cloud storage");
-        result.storageSuccess = false;
-        return true;  // 不是致命错误
-    }
-    
-    ServiceContainer::instance()->setStorageClient(storageClient);
-    result.storageSuccess = true;
-    return true;
-}
-
 void AppInitializer::registerTaskHandlers()
 {
     TaskRegistry::instance()->registerAllHandlers();
@@ -439,7 +396,6 @@ AppInitializer::InitResult AppInitializer::initialize()
     initializeQwenClient(result);
     initializeQwenImageClient(result);
     initializeVolcEngineImageClient(result);
-    initializeStorageClient(result);
 
     QString dataDir = AppConfig::instance()->storage().dataDir;
     FileStorage::instance()->init(dataDir);

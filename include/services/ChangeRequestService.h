@@ -113,6 +113,7 @@ private:
     bool updatePanelLayout(const QString& panelId, int width, int height);
     bool updateStoryboardStyle(const QString& storyboardId, const QJsonObject& styleOverrides);
     QJsonObject buildPanelContentForWrite(const Panel& panel) const;
+    bool writePanelVisualPrompt(Panel& panel, const QString& prompt, const QString& action, const QString& editIntent, const QJsonObject& extraFields = {});
     ImageService::EditHint buildExpressionEditHint(const QString& expression) const;
     ImageService::EditHint buildSubjectReplacementEditHint(const QJsonObject& params) const;
     ImageService::EditHint buildLocalObjectReplacementEditHint() const;

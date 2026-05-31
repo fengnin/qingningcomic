@@ -166,6 +166,7 @@ private:
         double editMaskCoreRatio = 0.90;
         double editMaskFeatherRatio = 0.10;
         QRect editTargetRect;
+        QRectF editRegionRect;
         QByteArray editSourceImageData;
         QString prompt;
         QString editDirective;  // 编辑操作的原始指令（仅用于千问编辑API，不含角色/场景描述）

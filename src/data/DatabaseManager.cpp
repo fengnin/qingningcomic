@@ -649,43 +649,6 @@ bool DatabaseManager::tryLock(int timeoutMs)
     return m_mutex.tryLock(timeoutMs);
 }
 
-bool DatabaseManager::ensureSoftDeleteColumns(const QString& tableName)
-{
-    static QSet<QString> s_ensuredTables;
-    
-    if (s_ensuredTables.contains(tableName)) {
-        return true;
-    }
-    
-    auto hasColumn = [this, &tableName](const QString& columnName) -> bool {
-        const QString sql = QString(
-            "SELECT COUNT(*) AS cnt FROM information_schema.columns "
-            "WHERE table_schema = DATABASE() AND table_name = '%1' AND column_name = '%2'")
-            .arg(tableName, columnName);
-        QList<QVariantMap> rows = executeQuery(sql);
-        return !rows.isEmpty() && rows.first().value("cnt").toInt() > 0;
-    };
-
-    QStringList alters;
-    if (!hasColumn("is_deleted")) {
-        alters << "ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0";
-    }
-    if (!hasColumn("deleted_at")) {
-        alters << "ADD COLUMN deleted_at TIMESTAMP NULL";
-    }
-
-    if (alters.isEmpty()) {
-        s_ensuredTables.insert(tableName);
-        return true;
-    }
-
-    bool success = executeSql(QString("ALTER TABLE %1 %2").arg(tableName, alters.join(", ")));
-    if (success) {
-        s_ensuredTables.insert(tableName);
-    }
-    return success;
-}
-
 bool DatabaseManager::ensureCharacterPortraitVersionsSchema()
 {
     static std::atomic<bool> s_ensured{false};

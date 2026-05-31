@@ -409,33 +409,34 @@ void annotateArtEditContent(QJsonObject& content, const QString& action, const Q
         return;
     }
 
+    // replace_subject has no fixed editTarget (depends on whether it's a character or object replacement)
     if (editIntent == QStringLiteral("replace_subject")) {
         content["editIntent"] = QStringLiteral("replace_subject");
         content.remove(QStringLiteral("editTarget"));
         return;
     }
 
+    // Local object movement intents (move/insert) keep their specific intent value
     if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)) {
         content["editIntent"] = editIntent;
         content["editTarget"] = QStringLiteral("scene");
         return;
     }
 
-    if (editIntent == QStringLiteral("replace_attribute")) {
-        content["editIntent"] = QStringLiteral("replace_attribute");
-        content["editTarget"] = QStringLiteral("character");
-        return;
-    }
-
-    if (editIntent == QStringLiteral("remove_subject")) {
-        content["editIntent"] = QStringLiteral("remove_subject");
-        content["editTarget"] = QStringLiteral("scene");
-        return;
-    }
-
-    if (editIntent == QStringLiteral("set_expression")) {
-        content["editIntent"] = QStringLiteral("set_expression");
-        content["editTarget"] = QStringLiteral("character");
+    struct IntentAnnotation { const char* intent; const char* target; };
+    static const IntentAnnotation table[] = {
+        { "replace_attribute", "character" },
+        { "remove_subject",    "scene"     },
+        { "set_expression",    "character" },
+        { "change_pose",       "character" },
+        { "rotate_subject",    "character" },
+    };
+    for (const IntentAnnotation& row : table) {
+        if (editIntent == QLatin1String(row.intent)) {
+            content["editIntent"] = QLatin1String(row.intent);
+            content["editTarget"] = QLatin1String(row.target);
+            return;
+        }
     }
 }
 
@@ -553,19 +554,14 @@ QString buildAttributeEditPrompt(const QJsonObject& params, const QString& sourc
         replacement = ChangeRequestIntentUtils::extractReplacementTargetFromText(sourceText);
     }
 
-    const auto spec = LocalEditPromptUtils::buildLocalReplacementEditSpec(
-        subject.isEmpty() ? QStringLiteral("局部对象") : subject,
-        replacement.isEmpty()
-            ? QStringLiteral("仅调整衣服、配饰、发型、颜色、材质或局部物体，不改变原有主体")
-            : replacement,
-        QStringLiteral("保持其余内容、构图、背景、光线和色调不变"),
-        1.10);
-
-    return LocalEditPromptUtils::buildLocalReplacementEditPrompt(
-        spec.targetDescription,
-        spec.changeTargetDescription,
-        spec.preserveDescription,
-        spec.strength);
+    return LocalEditPromptUtils::buildLocalEditPrompt(
+        LocalEditPromptUtils::buildLocalReplacementEditSpec(
+            subject.isEmpty() ? QStringLiteral("局部对象") : subject,
+            replacement.isEmpty()
+                ? QStringLiteral("仅调整衣服、配饰、发型、颜色、材质或局部物体，不改变原有主体")
+                : replacement,
+            QStringLiteral("保持其余内容、构图、背景、光线和色调不变"),
+            1.10));
 }
 
 void applyInpaintPromptForIntent(ChangeRequestOp& op, const QString& editIntent)
@@ -615,6 +611,7 @@ void normalizeInpaintOp(ChangeRequestOp& op, const QString& editIntent)
 void normalizeChangeRequestArtEdits(ChangeRequestDsl& dsl, const QString& naturalLanguage)
 {
     const QString editIntent = ChangeRequestParseUtils::inferEditIntentFromText(naturalLanguage);
+    LOG_DEBUG("ChangeRequest", QString("naturalLanguage editIntent: text=%1, intent=%2").arg(naturalLanguage, editIntent));
     const QString specificReplacementSource = ChangeRequestIntentUtils::extractReplacementSourceFromText(naturalLanguage);
     const QString placementSource = ChangeRequestIntentUtils::extractPlacementSourceFromText(naturalLanguage);
 
@@ -622,11 +619,21 @@ void normalizeChangeRequestArtEdits(ChangeRequestDsl& dsl, const QString& natura
         if (!naturalLanguage.trimmed().isEmpty() && !op.params.contains(QStringLiteral("sourceText"))) {
             op.params["sourceText"] = naturalLanguage.trimmed();
         }
-        if (!specificReplacementSource.isEmpty()) {
-            op.params["maskRegion"] = specificReplacementSource;
-        } else if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)
-                   && !placementSource.isEmpty()) {
-            op.params["maskRegion"] = placementSource;
+        // Natural language intent is more reliable than intent inferred from LLM-generated prompt text,
+        // because LLM prompts often mention preserved elements (e.g. "keep background unchanged") that
+        // would be misread as the edit target.
+        if (!editIntent.isEmpty()) {
+            op.params["editIntent"] = editIntent;
+        }
+        // Only fill maskRegion from natural language if LLM didn't provide one.
+        const bool hasMaskRegion = !op.params.value(QStringLiteral("maskRegion")).toString().trimmed().isEmpty();
+        if (!hasMaskRegion) {
+            if (!specificReplacementSource.isEmpty()) {
+                op.params["maskRegion"] = specificReplacementSource;
+            } else if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)
+                       && !placementSource.isEmpty()) {
+                op.params["maskRegion"] = placementSource;
+            }
         }
         const QString action = ChangeRequestNormalization::normalizeAction(op.action);
         if (action == QStringLiteral("setExpression")) {
@@ -797,6 +804,9 @@ QString buildInpaintPromptForIntent(const QJsonObject& params,
                 .arg(movement.sourceObject, movement.destination));
     }
     if (normalizedIntent == QStringLiteral("replace_subject")) {
+        const QString rawPrompt = params.value(QStringLiteral("rawPrompt")).toString().trimmed();
+        if (!rawPrompt.isEmpty())
+            return rawPrompt;
         const SubjectReplacementResolution resolution = resolveSubjectReplacementResolution(
             params,
             sourcePrompt);
@@ -976,7 +986,10 @@ ChangeRequest ChangeRequestService::createChangeRequest(
         return cr;
     }
 
-    m_lastError = "Failed to create change request";
+    const QString dbError = m_db->lastError();
+    m_lastError = dbError.isEmpty()
+        ? QString("数据库写入失败，请检查网络连接")
+        : QString("数据库连接失败：%1").arg(dbError);
     LOG_ERROR("ChangeRequest", m_lastError);
     return ChangeRequest();
 }
@@ -1255,6 +1268,40 @@ ChangeRequestDsl ChangeRequestService::parseNaturalLanguage(
     return dsl;
 }
 
+// 根据 editIntent 解析 inpaint 操作的 prompt
+static QString resolveInpaintPrompt(const ChangeRequestOp& op,
+                                    const QString& action,
+                                    const QString& editIntent,
+                                    const QString& rawPrompt,
+                                    const Panel& panel)
+{
+    if (action == QStringLiteral("bg_swap") || editIntent == QStringLiteral("replace_background"))
+        return ChangeRequestIntentUtils::buildBackgroundEditPrompt(op.params);
+
+    const bool needsInpaintPrompt =
+        editIntent == QStringLiteral("replace_attribute")
+        || editIntent == QStringLiteral("replace_subject")
+        || editIntent == QStringLiteral("rotate_subject")
+        || editIntent == QStringLiteral("change_pose")
+        || PromptTargetUtils::isLocalObjectMovementIntent(editIntent);
+
+    if (needsInpaintPrompt) {
+        const QString sourcePrompt = rawPrompt.isEmpty()
+            ? op.params.value(QStringLiteral("prompt")).toString().trimmed()
+            : rawPrompt;
+        return buildInpaintPromptForIntent(op.params, editIntent, sourcePrompt);
+    }
+
+    const QString existingPrompt = op.params["prompt"].toString();
+    if (!existingPrompt.isEmpty())
+        return existingPrompt;
+
+    if (editIntent == QStringLiteral("remove_subject"))
+        return buildInpaintPromptForIntent(op.params, editIntent);
+
+    return panel.visualPrompt();
+}
+
 QJsonObject ChangeRequestService::executeArtOperation(
     const ChangeRequestDsl& dsl,
     const ChangeRequestOp& op,
@@ -1274,60 +1321,27 @@ QJsonObject ChangeRequestService::executeArtOperation(
         || action == QStringLiteral("bg_swap")
         || action == QStringLiteral("repose")) {
         const Panel originalPanel = panel;
-        QString prompt = op.params["prompt"].toString();
         const QString editIntent = op.params.value("editIntent").toString().trimmed();
         const QString rawPrompt = op.params.value(QStringLiteral("rawPrompt")).toString();
         const QString sourceText = op.params.value(QStringLiteral("sourceText")).toString();
+
+        const QString prompt = resolveInpaintPrompt(op, action, editIntent, rawPrompt, panel);
+
         ImageService::EditHint editHint;
-        if (action == QStringLiteral("bg_swap") || editIntent == QStringLiteral("replace_background")) {
-            prompt = ChangeRequestIntentUtils::buildBackgroundEditPrompt(op.params);
-        } else if (editIntent == QStringLiteral("replace_attribute")) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-        } else if (editIntent == QStringLiteral("replace_subject")) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-            if (isCharacterReplacementRequest(op.params, sourceText)) {
-                editHint = buildSubjectReplacementEditHint(op.params);
-            } else {
-                editHint = buildLocalObjectReplacementEditHint();
-            }
+        if (editIntent == QStringLiteral("replace_subject")) {
+            editHint = isCharacterReplacementRequest(op.params, sourceText)
+                ? buildSubjectReplacementEditHint(op.params)
+                : buildLocalObjectReplacementEditHint();
         } else if (PromptTargetUtils::isLocalObjectMovementIntent(editIntent)) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
             editHint = buildLocalObjectReplacementEditHint();
-        } else if (editIntent == QStringLiteral("rotate_subject")
-            || editIntent == QStringLiteral("change_pose")) {
-            prompt = buildInpaintPromptForIntent(
-                op.params,
-                editIntent,
-                rawPrompt);
-        } else if (prompt.isEmpty()) {
-            if (editIntent == QStringLiteral("remove_subject")) {
-                prompt = buildInpaintPromptForIntent(op.params, editIntent);
-            } else {
-                prompt = panel.visualPrompt();
-            }
         }
 
         if (!prompt.isEmpty()) {
-            QJsonObject content = buildPanelContentForWrite(panel);
-            content["visualPrompt"] = prompt;
-            annotateArtEditContent(content, action, editIntent);
-            if (action == QStringLiteral("bg_swap")) {
-                content["backgroundEditPrompt"] = prompt;
-            }
-            panel.setVisualPrompt(prompt);
-            panel.setContent(content);
-            if (!updatePanel(panel)) {
+            QJsonObject extra;
+            if (action == QStringLiteral("bg_swap"))
+                extra["backgroundEditPrompt"] = prompt;
+            if (!writePanelVisualPrompt(panel, prompt, action, editIntent, extra))
                 throw std::runtime_error(m_lastError.toStdString());
-            }
         }
 
         QJsonObject generationResult;
@@ -1346,16 +1360,8 @@ QJsonObject ChangeRequestService::executeArtOperation(
             const QString rawPrompt = op.params.value(QStringLiteral("rawPrompt")).toString().trimmed();
             const QString userPrompt = op.params.value(QStringLiteral("prompt")).toString().trimmed();
             const QString desc = !userPrompt.isEmpty() ? userPrompt : rawPrompt;
-            if (!desc.isEmpty()) {
-                QJsonObject content = buildPanelContentForWrite(panel);
-                content["visualPrompt"] = desc;
-                annotateArtEditContent(content, action, editIntent);
-                panel.setVisualPrompt(desc);
-                panel.setContent(content);
-                if (!updatePanel(panel)) {
-                    throw std::runtime_error(m_lastError.toStdString());
-                }
-            }
+            if (!desc.isEmpty() && !writePanelVisualPrompt(panel, desc, action, editIntent))
+                throw std::runtime_error(m_lastError.toStdString());
         }
         if (!runPanelImageGeneration(dsl.targetId, mode, result)) {
             throw std::runtime_error(m_lastError.toStdString());
@@ -1367,17 +1373,13 @@ QJsonObject ChangeRequestService::executeArtOperation(
         const double intensity = op.params["intensity"].toDouble(0.5);
 
         const QString prompt = ChangeRequestIntentUtils::buildEffectEditPrompt(effect, intensity);
-        QJsonObject content = buildPanelContentForWrite(panel);
-        content["visualPrompt"] = prompt;
-        content["editIntent"] = QStringLiteral("add_effect");
-        content["editTarget"] = QStringLiteral("panel");
-        content["effect"] = effect;
-        content["intensity"] = intensity;
-        panel.setVisualPrompt(prompt);
-        panel.setContent(content);
-        if (!updatePanel(panel)) {
+        QJsonObject extra;
+        extra["editIntent"] = QStringLiteral("add_effect");
+        extra["editTarget"] = QStringLiteral("panel");
+        extra["effect"]     = effect;
+        extra["intensity"]  = intensity;
+        if (!writePanelVisualPrompt(panel, prompt, action, QString(), extra))
             throw std::runtime_error(m_lastError.toStdString());
-        }
 
         ImageService::EditHint editHint;
         if (!runPanelImageGeneration(dsl.targetId, mode, result, editHint)) {
@@ -1552,7 +1554,11 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
         newLine.speakerSide = op.params.value(QStringLiteral("speakerSide")).toString();
         dialogues.append(newLine);
 
-        if (!updatePanelDialogue(dsl.targetId, dialogues, newText)) {
+        const QString addPrompt = QString(
+            "新增一个对话气泡，文字内容为：%1，保持图中其他所有内容不变，"
+            "不要改变人物、背景、构图或其他任何元素").arg(newText);
+        if (!updatePanelDialogue(dsl.targetId, dialogues, newText,
+                                 QStringLiteral("add_dialogue"), addPrompt)) {
             throw std::runtime_error(m_lastError.toStdString());
         }
 
@@ -1655,8 +1661,8 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
             ? QStringLiteral("on the left")
             : (newSide == QStringLiteral("right") ? QStringLiteral("on the right") : QString());
         const QString bubbleSidePrompt = sideHint.isEmpty()
-            ? QString("change the speech bubble tail to point toward %1, keep everything else in the image unchanged").arg(effectiveSpeaker)
-            : QString("change the speech bubble tail to point toward %1 %2, keep everything else in the image unchanged").arg(effectiveSpeaker, sideHint);
+            ? QString("将对话气泡的指向改为朝向%1，保持图中其他所有内容不变").arg(effectiveSpeaker)
+            : QString("将对话气泡的指向改为朝向%1的%2侧，保持图中其他所有内容不变").arg(effectiveSpeaker, sideHint);
 
         if (!updatePanelDialogue(dsl.targetId, dialogues, QString(),
                                  QStringLiteral("update_dialogue_side"), bubbleSidePrompt)) {
@@ -1997,8 +2003,8 @@ bool ChangeRequestService::updatePanelDialogue(
         // 对话文字修改：走编辑精简模式，只改气泡文字
         content["editIntent"] = QStringLiteral("rewrite_dialogue");
         content["visualPrompt"] = QString(
-            "edit the speech bubble text to: %1, keep everything else in the image unchanged, "
-            "do not change characters, background, composition or any other elements")
+            "将对话气泡的文字修改为：%1，保持图中其他所有内容不变，"
+            "不要改变人物、背景、构图或其他任何元素")
             .arg(newText);
     } else {
         // 无明确编辑意图（如删除对话）：清除旧的 editIntent/visualPrompt，走批量生成重绘整图
@@ -2271,9 +2277,23 @@ QJsonObject ChangeRequestService::buildPanelContentForWrite(const Panel& panel) 
     return panelContentOrFallback(panel);
 }
 
+bool ChangeRequestService::writePanelVisualPrompt(Panel& panel, const QString& prompt,
+                                                   const QString& action, const QString& editIntent,
+                                                   const QJsonObject& extraFields)
+{
+    QJsonObject content = buildPanelContentForWrite(panel);
+    content["visualPrompt"] = prompt;
+    annotateArtEditContent(content, action, editIntent);
+    for (auto it = extraFields.begin(); it != extraFields.end(); ++it)
+        content[it.key()] = it.value();
+    panel.setVisualPrompt(prompt);
+    panel.setContent(content);
+    return updatePanel(panel);
+}
+
 ImageService::EditHint ChangeRequestService::buildExpressionEditHint(const QString& expression) const
 {
-    const auto spec = FaceEditPromptUtils::buildFaceExpressionEditSpec(QString(), expression, QString());
+    const auto spec = LocalEditPromptUtils::buildLocalExpressionEditSpec(QString(), expression, QString(), 1.20);
 
     ImageService::EditHint hint;
     hint.strategy = ImageService::EditHint::Strategy::FaceExpression;

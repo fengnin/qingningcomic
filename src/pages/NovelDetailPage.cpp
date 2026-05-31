@@ -2569,7 +2569,7 @@ void NovelDetailPage::bindChangeRequestResultHandlers(ChangeRequestService* serv
             return;
         }
         showChangeRequestExecutionResult(result["status"].toString(), true);
-        refreshStoryboardItems();
+        QTimer::singleShot(100, this, [this]() { refreshStoryboardItems(); });
     }, Qt::QueuedConnection);
 
     connect(service, &ChangeRequestService::changeRequestFailed, this,

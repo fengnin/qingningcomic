@@ -3,7 +3,6 @@
 #include "api/QwenClient.h"
 #include "api/QwenImageClient.h"
 #include "api/VolcEngineImageClient.h"
-#include "api/StorageClient.h"
 #include "data/FileStorage.h"
 #include "services/StoryboardService.h"
 #include "services/NovelService.h"
@@ -52,7 +51,6 @@ void ServiceContainer::clear()
     m_databaseManager = nullptr;
     m_qwenClient = nullptr;
     m_qwenImageClient = nullptr;
-    m_storageClient = nullptr;
     m_fileStorage = nullptr;
     m_storyboardService = nullptr;
     m_novelService = nullptr;

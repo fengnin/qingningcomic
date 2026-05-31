@@ -1591,9 +1591,7 @@ void PromptBuilder::appendScenePromptDetails(QStringList& parts, const QJsonObje
     addListIfNotEmpty(parts, normalizeList(scene["history"]), "history:");
     appendVariationDescs(parts, scene["timeVariations"].toArray(), TIME_OF_DAY_MAPPING, "timeOfDay", "time variations");
     appendVariationDescs(parts, scene["weatherVariations"].toArray(), WEATHER_MAPPING, "weather", "weather variations");
-    // narrativeRole是叙事性描述，不应加入场景图片生成prompt
-    // 避免AI根据"温柔重逢"等叙事性词汇生成人物
-    // addIfNotEmpty(parts, sanitizeSceneText(scene["narrativeRole"].toString()));
+    // narrativeRole是叙事性描述，不应加入场景图片生成prompt，避免AI根据叙事性词汇生成人物
 }
 
 PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObject &character,

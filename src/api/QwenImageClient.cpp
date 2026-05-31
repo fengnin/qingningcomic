@@ -86,10 +86,20 @@ namespace {
         return input;
     }
 
+    QJsonArray buildEditUserMessageContent(const QwenImageClient::EditOptions& options)
+    {
+        QJsonArray content;
+        if (!options.sourceImage.isEmpty()) {
+            content.append(buildImageContentItem(options.sourceImage));
+        }
+        content.append(buildTextContentItem(options.prompt));
+        return content;
+    }
+
     QJsonObject buildEditRequestInput(const QwenImageClient::EditOptions& options)
     {
         QJsonObject input;
-        input["messages"] = QJsonArray{buildUserMessage(buildUserMessageContent(options.prompt, &options.sourceImage))};
+        input["messages"] = QJsonArray{buildUserMessage(buildEditUserMessageContent(options))};
         return input;
     }
 
@@ -308,6 +318,7 @@ QwenImageClient::GenerateResult QwenImageClient::edit(const EditOptions& options
         return generatePlaceholder(options.prompt);
     }
 
+    LOG_INFO("QwenImageClient", QString("Edit response received, extracting image..."));
     return extractImageFromResponse(response);
 }
 

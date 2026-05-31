@@ -10,7 +10,6 @@ public:
         bool qwenSuccess = false;
         bool qwenImageSuccess = false;
         bool volcEngineImageSuccess = false;
-        bool storageSuccess = false;
         QString errorMessage;
     };
     
@@ -25,7 +24,6 @@ private:
     static bool initializeQwenClient(InitResult& result);
     static bool initializeQwenImageClient(InitResult& result);
     static bool initializeVolcEngineImageClient(InitResult& result);
-    static bool initializeStorageClient(InitResult& result);
     static void ensureDefaultUserExists();
     static void registerTaskHandlers();
     static void connectAutoPortraitEdit();

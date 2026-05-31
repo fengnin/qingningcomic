@@ -73,6 +73,7 @@ Thumbs.db
 temp_*
 .claude/
 src/控制台.txt
+src/*.docx
 src/*.txt
 src/figma_extract/
 

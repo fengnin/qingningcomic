@@ -67,7 +67,6 @@ public:
     int count(const QString& table, const QString& whereClause = QString(),
               const QVariantList& whereValues = QVariantList());
 
-    bool ensureSoftDeleteColumns(const QString& tableName);
     bool ensureCharacterPortraitVersionsSchema();
 
     bool beginTransaction();

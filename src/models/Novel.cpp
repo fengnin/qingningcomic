@@ -2,6 +2,8 @@
 #include <QUuid>
 #include "utils/JsonUtils.h"
 
+static const int s_novelStatusMetaType = qRegisterMetaType<NovelStatus>();
+static const int s_novelMetaType = qRegisterMetaType<Novel>();
 namespace {
 
 void putIfValid(QVariantMap& map, const QString& key, const QDateTime& value)

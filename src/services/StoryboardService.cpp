@@ -3,7 +3,6 @@
 #include "data/DatabaseManager.h"
 #include "utils/SingletonUtils.h"
 #include "data/FileStorage.h"
-#include "api/StorageClient.h"
 #include "data/TransactionScope.h"
 #include "utils/Logger.h"
 #include "utils/EncodingUtils.h"
@@ -49,11 +48,7 @@ void StoryboardService::setPanelImageUrl(Panel& panel, const QString& s3Key, boo
     }
     
     QString url;
-    if (StorageClient::instance()->isInitialized()) {
-        url = StorageClient::instance()->getPresignedUrl(s3Key);
-    } else {
-        url = FileStorage::instance()->getFullPath(s3Key);
-    }
+    url = FileStorage::instance()->getFullPath(s3Key);
     
     if (isPreview) {
         panel.setPreviewUrl(url);

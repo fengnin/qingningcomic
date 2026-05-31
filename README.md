@@ -57,8 +57,7 @@ comic/
 │   │   ├── VolcEngineImageClient # 火山引擎图像生成（Seedream 3.0）
 │   │   ├── QwenPromptBuilder     # Prompt 构建与管理
 │   │   ├── QwenStreamHandler     # SSE 流式响应处理
-│   │   ├── QwenStoryboardMerger  # 分镜结果合并
-│   │   └── StorageClient         # 本地文件存储客户端
+│   │   └── QwenStoryboardMerger  # 分镜结果合并
 │   ├── app/                      # 应用入口与初始化
 │   ├── components/               # 可复用 UI 组件
 │   │   ├── PanelCard             # 面板卡片（图片+编辑操作）
