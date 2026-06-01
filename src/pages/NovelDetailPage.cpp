@@ -2642,13 +2642,6 @@ void NovelDetailPage::beginChangeRequestProgress(const QString& requestId, const
         m_changeRequestProgress->setProgressText(tr("正在提交修改请求..."));
     }
 
-    if (m_changeRequestOverviewProgress) {
-        m_changeRequestOverviewProgress->reset();
-        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
-        m_changeRequestOverviewProgress->setProgress(0);
-        m_changeRequestOverviewProgress->setProgressText(tr("正在提交修改请求..."));
-    }
-
     updateChangeRequestOverviewStatus(tr("修改请求"), "#0F766E");
 }
 
@@ -2665,12 +2658,6 @@ void NovelDetailPage::updateChangeRequestProgress(int current, int total, const 
     m_changeRequestProgress->setState(AnalysisProgressWidget::State::Processing);
     m_changeRequestProgress->setProgress(progress);
     m_changeRequestProgress->setProgressText(message.isEmpty() ? tr("正在处理修改请求...") : message);
-
-    if (m_changeRequestOverviewProgress) {
-        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
-        m_changeRequestOverviewProgress->setProgress(progress);
-        m_changeRequestOverviewProgress->setProgressText(message.isEmpty() ? tr("正在处理修改请求...") : message);
-    }
 }
 
 void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& message)
@@ -2692,15 +2679,6 @@ void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& m
                                                      : message);
     }
 
-    if (m_changeRequestOverviewProgress) {
-        m_changeRequestOverviewProgress->setProgress(success ? 100 : 0);
-        m_changeRequestOverviewProgress->setState(success ? AnalysisProgressWidget::State::Completed
-                                                          : AnalysisProgressWidget::State::Failed);
-        m_changeRequestOverviewProgress->setProgressText(message.isEmpty()
-                                                              ? (success ? tr("修改完成") : tr("修改失败"))
-                                                              : message);
-    }
-
     const QString requestId = m_activeChangeRequestId;
     QTimer::singleShot(success ? 2000 : 3500, this, [this, requestId]() {
         if (m_changeRequestRunning || m_activeChangeRequestId != requestId) {
@@ -2711,9 +2689,6 @@ void NovelDetailPage::finishChangeRequestProgress(bool success, const QString& m
         m_activeChangeRequestSummary.clear();
         if (m_changeRequestProgress) {
             m_changeRequestProgress->reset();
-        }
-        if (m_changeRequestOverviewProgress) {
-            m_changeRequestOverviewProgress->reset();
         }
         updateButtonStatus(m_submitChangeRequestBtn, tr("就绪"), "#6B7280");
         updateChangeRequestOverviewStatus(tr("修改请求"), "#374151");
