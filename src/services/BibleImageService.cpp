@@ -462,12 +462,6 @@ void BibleImageService::handleImageGenerated(const QString& requestId, const QBy
     }
     
     if (success && !imageData.isEmpty()) {
-        {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
-            if (m_pendingRequests.contains(requestId)) {
-                m_pendingRequests[requestId].retryCount = 0;
-            }
-        }
         saveAndEmitResult(requestId, imageData);
     } else {
         int retryCount = request.retryCount;
@@ -538,7 +532,12 @@ void BibleImageService::saveAndEmitResult(const QString& requestId, const QByteA
             }
         }
     } else if (request.type == BibleImageConstants::TYPE_CHARACTER) {
-        processedImageData = processCharacterImageData(imageData);
+        const CharacterImageProcessResult result = processCharacterImageData(imageData);
+        if (!result.qualityAccepted) {
+            handleRejectedCharacterImage(requestId, request);
+            return;
+        }
+        processedImageData = result.imageData;
     }
     QString imagePath;
     bool savedOk = false;
@@ -999,12 +998,28 @@ QString BibleImageService::insertPortraitVersionAndSetCurrent(const Character& c
     return v.id();
 }
 
-QByteArray BibleImageService::processCharacterImageData(const QByteArray& raw) const
+BibleImageService::CharacterImageProcessResult BibleImageService::processCharacterImageData(const QByteArray& raw) const
 {
+    CharacterImageProcessResult result;
+
     // 先白化背景，再检测暗边 — 避免模型生成的暗色背景被误判为需要裁剪的边框
     QByteArray processed = BackgroundWhitener::fillWhiteBackgroundImageData(raw, 240);
     LOG_INFO("BibleImageService", QString("Post-processed character image: background whitened, size=%1 bytes")
         .arg(processed.size()));
+
+    QImage processedImage;
+    if (processedImage.loadFromData(processed)) {
+        const BackgroundWhitener::BackgroundQuality quality =
+            BackgroundWhitener::validateBackgroundPurity(processedImage);
+        if (!quality.isAcceptable(20.0)) {
+            LOG_WARNING("BibleImageService", QString(
+                "角色参考图背景质检失败: impurity=%1%, maxDeviation=%2")
+                .arg(QString::number(quality.impurityRatio, 'f', 1))
+                .arg(quality.maxDeviation));
+            result.qualityAccepted = false;
+            return result;
+        }
+    }
 
     QImage originalImage;
     originalImage.loadFromData(raw);
@@ -1013,7 +1028,8 @@ QByteArray BibleImageService::processCharacterImageData(const QByteArray& raw) c
     bool didTrim = false;
     QByteArray trimmed = ImageBorderTrimmer::trimDarkBorderImageData(processed, &didTrim);
     if (!didTrim) {
-        return processed;
+        result.imageData = processed;
+        return result;
     }
 
     QImage trimmedImage;
@@ -1026,14 +1042,32 @@ QByteArray BibleImageService::processCharacterImageData(const QByteArray& raw) c
             .arg(originalImage.width()).arg(originalImage.height())
             .arg(trimmedImage.width()).arg(trimmedImage.height())
             .arg(QString::number(trimmedArea * 100.0 / originalArea, 'f', 1) + "%"));
-        return processed;
+        result.imageData = processed;
+        return result;
     }
 
     LOG_INFO("BibleImageService", QString(
         "Post-processed character image: borderTrimmed=true, from %1x%2 to %3x%4")
         .arg(originalImage.width()).arg(originalImage.height())
         .arg(trimmedImage.width()).arg(trimmedImage.height()));
-    return trimmed;
+    result.imageData = trimmed;
+    return result;
+}
+
+void BibleImageService::handleRejectedCharacterImage(const QString& requestId, const PendingImageRequest& request)
+{
+    const QString qualityError = QStringLiteral("character image background quality rejected");
+    if (request.retryCount < MAX_RETRY_COUNT) {
+        LOG_WARNING("BibleImageService", QString(
+            "Character image quality rejected for %1 (attempt %2/%3), retrying generation")
+            .arg(pendingRequestLabel(request))
+            .arg(request.retryCount + 1)
+            .arg(MAX_RETRY_COUNT));
+        retryRequest(requestId, qualityError);
+        return;
+    }
+
+    handleRetryExhausted(requestId, qualityError);
 }
 
 void BibleImageService::saveAndEmitEditResult(const QString& requestId, const QByteArray& imageData)
@@ -1044,7 +1078,12 @@ void BibleImageService::saveAndEmitEditResult(const QString& requestId, const QB
         return;
     }
 
-    QByteArray processed = processCharacterImageData(imageData);
+    const CharacterImageProcessResult processResult = processCharacterImageData(imageData);
+    if (!processResult.qualityAccepted) {
+        failEdit(request.character.id(), QStringLiteral("character image background quality rejected"), requestId);
+        return;
+    }
+    const QByteArray processed = processResult.imageData;
 
     Character character = CharacterExtractor::instance()->getCharacterById(request.character.id());
     if (character.id().isEmpty()) {

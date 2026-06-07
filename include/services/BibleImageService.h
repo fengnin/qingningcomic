@@ -106,8 +106,15 @@ private:
                                             const QJsonObject& fieldDiff,
                                             const QJsonObject& appearanceSnapshot,
                                             int sourceChapter);
-    // 角色图片后处理：白化背景 + 安全裁边
-    QByteArray processCharacterImageData(const QByteArray& raw) const;
+
+    struct CharacterImageProcessResult {
+        QByteArray imageData;
+        bool qualityAccepted = true;
+    };
+
+    // 角色图片后处理：白化背景 + 质检 + 安全裁边
+    CharacterImageProcessResult processCharacterImageData(const QByteArray& raw) const;
+    void handleRejectedCharacterImage(const QString& requestId, const PendingImageRequest& request);
     // editCharacterPortraitAsync 子步骤
     bool resolveEditBaseVersion(const Character& character,
                                 const QString& requestedBaseVersionId,

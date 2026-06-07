@@ -16,4 +16,20 @@ CREATE TABLE IF NOT EXISTS character_portrait_versions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 在 characters 表加 current 指针；同步约定：portrait_path 始终镜像 current 版本的 portrait_path
-ALTER TABLE characters ADD COLUMN IF NOT EXISTS current_portrait_version_id VARCHAR(36) NULL;
+SET @col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'characters'
+      AND column_name = 'current_portrait_version_id'
+);
+
+SET @sql := IF(
+    @col_exists = 0,
+    'ALTER TABLE characters ADD COLUMN current_portrait_version_id VARCHAR(36) NULL',
+    'SELECT 1'
+);
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

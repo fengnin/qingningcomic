@@ -127,11 +127,11 @@ private:
     // 请求构建
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
     QJsonObject buildReferenceSubmitPayload(const GenerateOptions& options);
-    QJsonObject buildReferenceQueryPayload(const QString& taskId) const;
+    QJsonObject buildReferenceQueryPayload(const QString& taskId, const QString& reqKey, bool returnUrl) const;
     
     // 图生图 API
     GenerateResult generateWithReference(const GenerateOptions& options);
-    GenerateResult pollTaskResult(const QString& taskId, const GenerateOptions& options);
+    GenerateResult pollTaskResult(const QString& taskId, const GenerateOptions& options, const QString& reqKey);
     GenerateResult handleTaskDone(const QJsonObject& data, const GenerateOptions& options);
     GenerateResult buildImageResult(const QString& requestId,
                                     const QByteArray& imageData,
@@ -172,8 +172,8 @@ private:
     bool m_initialized;
     QMutex m_requestThrottleMutex;
     qint64 m_nextAllowedRequestAtMs = 0;
-    int m_minRequestIntervalMs = 1500;
-    int m_rateLimitBackoffMs = 5000;
+    int m_minRequestIntervalMs = 5000;
+    int m_rateLimitBackoffMs = 60000;
 
     QMap<QString, QNetworkReply*> m_activeRequests;
     QMap<QString, GenerateOptions> m_pendingOptions;

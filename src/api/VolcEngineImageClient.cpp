@@ -18,10 +18,10 @@
 #include <QByteArray>
 
 namespace {
-constexpr int kMaxPollingAttempts = 45;
+constexpr int kMaxPollingAttempts = 90;
 constexpr int kPollingThresholdAttempt = 15;
-constexpr int kPollingIntervalShort = 2000;
-constexpr int kPollingIntervalLong = 3000;
+constexpr int kPollingIntervalShort = 5000;
+constexpr int kPollingIntervalLong = 8000;
 constexpr int kRefImageMaxDimension = 768; // 参考图最大边长，超过则缩放
 
 // 火山视觉 API 的终态错误码：再轮询也不会变成功，应立即放弃
@@ -111,6 +111,7 @@ void VolcEngineImageClient::applyRequestThrottle()
     }
 
     if (delayMs > 0) {
+        LOG_WARNING("VolcEngineImageClient", QString("Request throttled for %1 ms").arg(delayMs));
         QThread::msleep(static_cast<unsigned long>(delayMs));
     }
 
@@ -130,6 +131,7 @@ void VolcEngineImageClient::noteRateLimitHit()
     if (backoffUntil > m_nextAllowedRequestAtMs) {
         m_nextAllowedRequestAtMs = backoffUntil;
     }
+    LOG_WARNING("VolcEngineImageClient", QString("Rate limit hit, backing off for %1 ms").arg(m_rateLimitBackoffMs));
 }
 
 void VolcEngineImageClient::handleRateLimitResponse(QNetworkReply* reply)
@@ -197,8 +199,6 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const Gene
         return generatePlaceholder(options.prompt);
     }
 
-    applyRequestThrottle();
-    
     // 优先走参考图生成（多图版支持最多5张参考图）
     if (!options.referenceImages.isEmpty()) {
         return generateWithReference(options);
@@ -273,7 +273,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::edit(const Generate
     
     LOG_INFO("VolcEngineImageClient", QString("SeedEdit task submitted, taskId: %1, polling for result...").arg(taskId));
     
-    return pollTaskResult(taskId, options);
+    return pollTaskResult(taskId, options, m_config.seedEditReqKey);
 }
 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::generateWithReference(const GenerateOptions& options)
@@ -303,7 +303,7 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::generateWithReferen
     LOG_INFO("VolcEngineImageClient", QString("Task submitted, taskId: %1, polling for result...").arg(taskId));
     
     // 轮询任务结果
-    return pollTaskResult(taskId, options);
+    return pollTaskResult(taskId, options, m_config.seedEditReqKey);
 }
 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::handleTaskDone(const QJsonObject& data, const GenerateOptions& options)
@@ -324,15 +324,19 @@ VolcEngineImageClient::GenerateResult VolcEngineImageClient::handleTaskDone(cons
     return createErrorResult(options.requestId, "No image in response");
 }
 
-VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(const QString& taskId, const GenerateOptions& options)
+VolcEngineImageClient::GenerateResult VolcEngineImageClient::pollTaskResult(const QString& taskId,
+                                                                             const GenerateOptions& options,
+                                                                             const QString& reqKey)
 {
     QString queryUrl = QString("%1?Action=CVSync2AsyncGetResult&Version=2022-08-31").arg(m_config.baseUrl);
     
-    LOG_INFO("VolcEngineImageClient", QString("Polling task result: taskId=%1, maxAttempts=%2")
-        .arg(taskId).arg(kMaxPollingAttempts));
+    LOG_INFO("VolcEngineImageClient", QString("Polling task result: reqKey=%1, taskId=%2, maxAttempts=%3")
+        .arg(reqKey).arg(taskId).arg(kMaxPollingAttempts));
     
     for (int attempt = 0; attempt < kMaxPollingAttempts; ++attempt) {
-        QJsonObject response = sendSyncRequest(queryUrl, buildReferenceQueryPayload(taskId));
+        QJsonObject response = sendSyncRequest(
+            queryUrl,
+            buildReferenceQueryPayload(taskId, reqKey, options.returnUrl));
 
         if (response.isEmpty()) {
             if (isTerminalErrorCode(m_lastErrorCode)) {
@@ -504,6 +508,8 @@ QJsonObject VolcEngineImageClient::sendSyncRequest(const QString& url, const QJs
 {
     m_lastErrorCode = 0;
     try {
+        applyRequestThrottle();
+
         QByteArray bodyData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
         QNetworkRequest request = createNetworkRequest(url, QString::fromUtf8(bodyData));
 
@@ -628,7 +634,7 @@ QJsonObject VolcEngineImageClient::buildGenerateRequestBody(const GenerateOption
 QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOptions& options)
 {
     QJsonObject payload;
-    payload["req_key"] = m_config.img2imgReqKey;
+    payload["req_key"] = m_config.seedEditReqKey;
     payload["prompt"] = options.prompt;
 
     if (!options.negativePrompt.isEmpty()) {
@@ -639,8 +645,8 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
     QJsonArray imageDataArray;
     int maxImages = qMin(options.referenceImages.size(), 5);
 
-    LOG_INFO("VolcEngineImageClient", QString("构建多图请求: reqKey=%1, 输入参考图=%2, 将发送=%3")
-        .arg(m_config.img2imgReqKey)
+    LOG_INFO("VolcEngineImageClient", QString("构建图生图请求: reqKey=%1, 输入参考图=%2, 将发送=%3")
+        .arg(m_config.seedEditReqKey)
         .arg(options.referenceImages.size())
         .arg(maxImages));
 
@@ -702,11 +708,27 @@ QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOpt
     return payload;
 }
 
-QJsonObject VolcEngineImageClient::buildReferenceQueryPayload(const QString& taskId) const
+QJsonObject VolcEngineImageClient::buildReferenceQueryPayload(const QString& taskId,
+                                                              const QString& reqKey,
+                                                              bool returnUrl) const
 {
+    QJsonObject logoInfo;
+    logoInfo["add_logo"] = false;
+
+    QJsonObject reqJson;
+    reqJson["return_url"] = returnUrl;
+    reqJson["logo_info"] = logoInfo;
+
     QJsonObject payload;
-    payload["req_key"] = m_config.img2imgReqKey;
+    payload["req_key"] = reqKey;
     payload["task_id"] = taskId;
+    payload["req_json"] = QString::fromUtf8(QJsonDocument(reqJson).toJson(QJsonDocument::Compact));
+
+    LOG_INFO("VolcEngineImageClient", QString("构建查询请求: reqKey=%1, taskId=%2, returnUrl=%3")
+        .arg(reqKey)
+        .arg(taskId)
+        .arg(returnUrl));
+
     return payload;
 }
 
@@ -752,7 +774,7 @@ QNetworkRequest VolcEngineImageClient::createNetworkRequest(const QString& url, 
     
     LOG_DEBUG("VolcEngineImageClient", QString("Signature debug: method=%1, path=%2, query=%3, host=%4")
         .arg(requestInfo.method).arg(requestInfo.path).arg(requestInfo.query).arg(requestInfo.host));
-    LOG_DEBUG("VolcEngineImageClient", QString("Authorization: %1").arg(authorization.left(80)));
+    LOG_DEBUG("VolcEngineImageClient", "Authorization header generated");
     
     request.setRawHeader("X-Date", dateTimeStr.toUtf8());
     request.setRawHeader("Authorization", authorization.toUtf8());

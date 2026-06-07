@@ -136,6 +136,27 @@ namespace {
         }
         return count;
     }
+
+    bool isEdgePixel(int x, int y, int width, int height, int margin)
+    {
+        return x < margin || x >= width - margin ||
+               y < margin || y >= height - margin;
+    }
+
+    void logBackgroundQuality(const BackgroundWhitener::BackgroundQuality& quality)
+    {
+        if (quality.impurityRatio > 10.0) {
+            qWarning() << "BackgroundWhitener: 背景纯度不达标，非白像素占比:"
+                       << QString::number(quality.impurityRatio, 'f', 1) << "%"
+                       << "最大偏差:" << quality.maxDeviation;
+        } else if (quality.impurityRatio > 3.0) {
+            qDebug() << "BackgroundWhitener: 背景有轻微杂质:"
+                     << QString::number(quality.impurityRatio, 'f', 1) << "%";
+        } else {
+            qDebug() << "BackgroundWhitener: 背景纯度达标:"
+                     << QString::number(quality.impurityRatio, 'f', 2) << "%";
+        }
+    }
 }
 
 QImage BackgroundWhitener::fillWhiteBackground(const QImage& image, int /*whiteThreshold*/)
@@ -155,8 +176,9 @@ QImage BackgroundWhitener::fillWhiteBackground(const QImage& image, int /*whiteT
 }
 
 // 验证背景纯度，输出警告信息（不修改图像）
-void BackgroundWhitener::validateBackgroundPurity(const QImage& image)
+BackgroundWhitener::BackgroundQuality BackgroundWhitener::validateBackgroundPurity(const QImage& image)
 {
+    BackgroundQuality quality;
     const int width = image.width();
     const int height = image.height();
 
@@ -168,9 +190,7 @@ void BackgroundWhitener::validateBackgroundPurity(const QImage& image)
     for (int y = 0; y < height; ++y) {
         const QRgb* line = reinterpret_cast<const QRgb*>(image.constScanLine(y));
         for (int x = 0; x < width; ++x) {
-            bool isEdge = (x < margin || x >= width - margin ||
-                          y < margin || y >= height - margin);
-            if (!isEdge) continue;
+            if (!isEdgePixel(x, y, width, height, margin)) continue;
 
             const QRgb pixel = line[x];
             const int avg = (qRed(pixel) + qGreen(pixel) + qBlue(pixel)) / 3;
@@ -188,20 +208,12 @@ void BackgroundWhitener::validateBackgroundPurity(const QImage& image)
     }
 
     if (sampleCount > 0) {
-        double impurityRatio = static_cast<double>(impureCount) / sampleCount * 100.0;
-
-        if (impurityRatio > 10.0) {
-            qWarning() << "BackgroundWhitener: 背景纯度不达标，非白像素占比:"
-                      << QString::number(impurityRatio, 'f', 1) << "%"
-                      << "最大偏差:" << maxDeviation;
-        } else if (impurityRatio > 3.0) {
-            qDebug() << "BackgroundWhitener: 背景有轻微杂质:"
-                    << QString::number(impurityRatio, 'f', 1) << "%";
-        } else {
-            qDebug() << "BackgroundWhitener: 背景纯度达标:"
-                    << QString::number(impurityRatio, 'f', 2) << "%";
-        }
+        quality.impurityRatio = static_cast<double>(impureCount) / sampleCount * 100.0;
+        quality.maxDeviation = maxDeviation;
+        logBackgroundQuality(quality);
     }
+
+    return quality;
 }
 
 QByteArray BackgroundWhitener::fillWhiteBackgroundImageData(const QByteArray& imageData, int whiteThreshold)

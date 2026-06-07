@@ -46,9 +46,9 @@
 
 namespace {
 constexpr int kBatchPanelMaxRetries = 3;
-constexpr int kBatchNextItemDelayMs = 3000;
+constexpr int kBatchNextItemDelayMs = 10000;
 
-constexpr int kRateLimitRetryBaseDelay = 30;
+constexpr int kRateLimitRetryBaseDelay = 60;
 constexpr int kNormalRetryBaseDelay = 5;
 
 bool isRateLimitError(const QString& errorMessage) {
@@ -58,9 +58,16 @@ bool isRateLimitError(const QString& errorMessage) {
         || lower.contains(QStringLiteral("flowlimitexceeded"));
 }
 
+// 轮询超时：服务器队列满，任务接收后长时间未执行。和限流一样需要慢速退避，
+// 否则旧任务可能还在队列里，立刻重提只会让队列更拥堵。
+bool isQueueTimeoutError(const QString& errorMessage) {
+    return errorMessage.trimmed().toLower().contains(QStringLiteral("query task result failed"));
+}
+
 int calculateRetryDelay(const QString& errorMessage, int retryCount) {
-    if (isRateLimitError(errorMessage)) {
-        return kRateLimitRetryBaseDelay * retryCount;
+    if (isRateLimitError(errorMessage) || isQueueTimeoutError(errorMessage)) {
+        // 指数退避: 60s, 120s, 240s...
+        return static_cast<int>(kRateLimitRetryBaseDelay * std::pow(2, retryCount - 1));
     } else {
         return static_cast<int>(std::pow(2, retryCount)) * kNormalRetryBaseDelay;
     }
@@ -2277,6 +2284,9 @@ ImageService::GenerateResult ImageService::generateWithRetryInternal(const QStri
             
             if (isRateLimitError(result.errorMessage)) {
                 LOG_WARNING("ImageService", QString("[限流保护] Panel %1 API限流 (attempt %2/%3), retrying in %4s...")
+                    .arg(panelId).arg(retryCount).arg(maxRetries).arg(delaySeconds));
+            } else if (isQueueTimeoutError(result.errorMessage)) {
+                LOG_WARNING("ImageService", QString("[队列超时] Panel %1 轮询超时，服务器队列可能拥堵 (attempt %2/%3), retrying in %4s...")
                     .arg(panelId).arg(retryCount).arg(maxRetries).arg(delaySeconds));
             } else {
                 LOG_WARNING("ImageService", QString("Panel %1 generation failed (attempt %2/%3): %4, retrying in %5s...")

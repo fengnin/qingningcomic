@@ -55,7 +55,10 @@ namespace {
                 QStringLiteral(
                     "silhouette, drop shadow, cast shadow, ambient occlusion, "
                     "face in background, multiple people, extra person, duplicate person, "
-                    "background character, background figure"
+                    "background character, background figure, giant face, large face in background, "
+                    "close-up face, bust portrait, background portrait, duplicate same character, "
+                    "two scales of same character, character sheet, layered character composition, "
+                    "face behind character, 背景大脸, 背景头像, 双重人物, 人物设定图, 前景全身后景头像"
                 );
         }
 
@@ -1147,10 +1150,9 @@ namespace {
 
     void appendCharacterFramingParts(QStringList& parts)
     {
-        // ✅ 职责分离：全部使用正面描述（无否定词）
-        // 原来使用 "avoid xxx"，现在改为正向引导
-        parts << "full body shot, head-to-toe character framing, allow slight crop at edges if needed";
-        parts << "character fills most of the frame, subject is large and prominent, compact composition with minimal empty space, keep full body visible";
+        parts << "exactly one full-body character only, one person in the entire image";
+        parts << "centered standing pose, head-to-toe visible, clean white margin around the character";
+        parts << "single scale character reference, no portrait in background, no giant face, no bust shot, no duplicate character, no character sheet, no layered composition";
     }
 
     void appendCharacterBackgroundParts(QStringList& parts)
