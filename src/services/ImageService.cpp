@@ -18,6 +18,7 @@
 #include "services/CharacterExtractor.h"
 #include "services/SceneExtractor.h"
 #include "services/TaskQueue.h"
+#include "services/ReferenceImageUploader.h"
 #include "models/Task.h"
 #include "utils/StatusWriteUtils.h"
 #include "utils/ChangeRequestExpressionUtils.h"
@@ -62,6 +63,14 @@ bool isRateLimitError(const QString& errorMessage) {
 // 否则旧任务可能还在队列里，立刻重提只会让队列更拥堵。
 bool isQueueTimeoutError(const QString& errorMessage) {
     return errorMessage.trimmed().toLower().contains(QStringLiteral("query task result failed"));
+}
+
+bool isJimengV40ReqKey(const QString& reqKey)
+{
+    const QString normalized = reqKey.trimmed().toLower();
+    return normalized == QStringLiteral("jimeng_t2i_v40")
+        || normalized.contains(QStringLiteral("jimeng"))
+        || normalized.contains(QStringLiteral("v40"));
 }
 
 int calculateRetryDelay(const QString& errorMessage, int retryCount) {
@@ -439,16 +448,16 @@ void applyPresetResolutionForProvider(ImageService::BatchPresetMode presetMode,
     Q_UNUSED(providerName)
     switch (presetMode) {
         case ImageService::BatchPresetMode::Square_1x1:
-            width = 1024;
-            height = 1024;
+            width = 2048;
+            height = 2048;
             break;
         case ImageService::BatchPresetMode::Standard_3x2:
-            width = 1536;
-            height = 1024;
+            width = 2496;
+            height = 1664;
             break;
         case ImageService::BatchPresetMode::Widescreen_16x9:
-            width = 1280;
-            height = 720;
+            width = 2560;
+            height = 1440;
             break;
     }
 }
@@ -1178,10 +1187,10 @@ ImageService::ProviderConfig ImageService::getProviderConfig() const
         config.name = "volcengine";
         config.maxRefImages = 5;
         config.supportsImg2Img = true;
-        config.previewWidth = 1056;
-        config.previewHeight = 1584;
-        config.hdWidth = 1328;
-        config.hdHeight = 1328;
+        config.previewWidth = 2048;
+        config.previewHeight = 2048;
+        config.hdWidth = 2048;
+        config.hdHeight = 2048;
     } else {
         config.name = "qwen";
         config.maxRefImages = 3;
@@ -1270,6 +1279,70 @@ bool ImageService::generateImage(GenerationContext& ctx)
     return executeImageGeneration(ctx);
 }
 
+bool ImageService::collectJimengReferenceUrls(const GenerationContext& ctx,
+                                              VolcEngineImageClient::GenerateOptions& options)
+{
+    const int maxImages = qMin(ctx.referenceImages.size(), 10);
+    for (int i = 0; i < maxImages; ++i) {
+        const QString& refPath = ctx.referenceImages.at(i);
+        const QString fullPath = FileStorage::instance()->getFullPath(refPath);
+        const QByteArray refData = FileManager::readBinaryFile(fullPath);
+
+        LOG_INFO("ImageService", QString("  参考图[%1]: path=%2, loaded=%3, size=%4bytes")
+            .arg(i + 1).arg(refPath).arg(!refData.isEmpty() ? "成功" : "失败").arg(refData.size()));
+
+        if (refData.isEmpty()) {
+            continue;
+        }
+
+        const QString fileName = QStringLiteral("%1_%2.png").arg(ctx.panelId.left(8)).arg(i + 1);
+        const ReferenceImageUploader::UploadResult uploadResult =
+            ReferenceImageUploader::uploadImage(refData, fileName);
+        if (!uploadResult.success) {
+            setError(QStringLiteral("参考图上传失败: %1").arg(uploadResult.errorMessage));
+            return false;
+        }
+        options.referenceImageUrls.append(uploadResult.url);
+    }
+    return true;
+}
+
+void ImageService::collectSeedEditReferenceImages(const GenerationContext& ctx,
+                                                   VolcEngineImageClient::GenerateOptions& options)
+{
+    const int maxImages = qMin(ctx.referenceImages.size(), 5);
+    for (int i = 0; i < maxImages; ++i) {
+        const QString& refPath = ctx.referenceImages.at(i);
+        const QString fullPath = FileStorage::instance()->getFullPath(refPath);
+        const QByteArray refData = FileManager::readBinaryFile(fullPath);
+
+        LOG_INFO("ImageService", QString("  参考图[%1]: path=%2, loaded=%3, size=%4bytes")
+            .arg(i + 1).arg(refPath).arg(!refData.isEmpty() ? "成功" : "失败").arg(refData.size()));
+
+        if (!refData.isEmpty()) {
+            options.referenceImages.append(refData);
+        }
+    }
+}
+
+QString ImageService::buildJimengPromptPrefix(const GenerationContext& ctx,
+                                               const VolcEngineImageClient::GenerateOptions& options)
+{
+    const QStringList refTypes = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
+    QStringList imgLabels;
+    for (int i = 0; i < options.referenceImageUrls.size(); ++i) {
+        const QString refType = (i < refTypes.size()) ? refTypes.at(i) : QStringLiteral("AUTO");
+        if (refType == QStringLiteral("IP")) {
+            imgLabels.append(QString("图%1为角色外貌参考").arg(i + 1));
+        } else if (refType == QStringLiteral("STYLE")) {
+            imgLabels.append(QString("图%1为场景风格参考").arg(i + 1));
+        } else {
+            imgLabels.append(QString("图%1为参考图").arg(i + 1));
+        }
+    }
+    return imgLabels.join("，") + "，漫画插画风格，";
+}
+
 bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
 {
     VolcEngineImageClient* client = ServiceContainer::instance()->volcEngineImageClient();
@@ -1277,8 +1350,8 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
         setError(tr("VolcEngine客户端不可用"));
         return false;
     }
-    
-    ProviderConfig config = getProviderConfig();
+
+    const ProviderConfig config = getProviderConfig();
     const RequestedResolution resolution = requestedResolution(ctx.presetMode,
                                                                ctx.mode,
                                                                QStringLiteral("volcengine"),
@@ -1286,7 +1359,7 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
                                                                config.previewHeight,
                                                                config.hdWidth,
                                                                config.hdHeight);
-    
+
     VolcEngineImageClient::GenerateOptions options;
     options.prompt = ctx.prompt;
     options.negativePrompt = ctx.negativePrompt;
@@ -1294,59 +1367,42 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     options.height = resolution.height;
     options.seed = -1;
     options.returnUrl = true;
+    options.scale = 0.5f;
 
-    // 收集参考图（支持多张，最多5张）
+    const bool useJimengV40 = isJimengV40ReqKey(AppConfig::instance()->volcEngine().img2imgReqKey);
+
     if (ctx.allowReferenceEdit && !ctx.referenceImages.isEmpty()) {
         LOG_INFO("ImageService", QString("开始收集参考图: panelId=%1, 待收集数量=%2")
-            .arg(ctx.panelId)
-            .arg(ctx.referenceImages.size()));
-        
-        int maxImages = qMin(ctx.referenceImages.size(), 5);
-        for (int i = 0; i < maxImages; ++i) {
-            const QString& refPath = ctx.referenceImages.at(i);
-            QString fullPath = FileStorage::instance()->getFullPath(refPath);
-            QByteArray refData = FileManager::readBinaryFile(fullPath);
-            
-            // 详细日志：每张参考图的加载情况
-            LOG_INFO("ImageService", QString("  参考图[%1]: path=%2, fullPath=%3, loaded=%4, size=%5bytes")
-                .arg(i + 1)
-                .arg(refPath)
-                .arg(fullPath)
-                .arg(!refData.isEmpty() ? "成功" : "失败")
-                .arg(refData.size()));
-            
-            if (!refData.isEmpty()) {
-                options.referenceImages.append(refData);
+            .arg(ctx.panelId).arg(ctx.referenceImages.size()));
+
+        if (useJimengV40) {
+            if (!collectJimengReferenceUrls(ctx, options)) {
+                return false;
+            }
+            if (!options.referenceImageUrls.isEmpty()) {
+                const QString prefix = buildJimengPromptPrefix(ctx, options);
+                options.prompt = prefix + options.prompt;
+                LOG_INFO("ImageService", QString("即梦4.0 prompt前缀注入: %1").arg(prefix));
+            }
+        } else {
+            collectSeedEditReferenceImages(ctx, options);
+            options.refTypeList = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
+            if (!options.refTypeList.isEmpty()) {
+                LOG_INFO("ImageService", QString("  参考图类型(ref_type_list): %1").arg(options.refTypeList.join(", ")));
             }
         }
-        
-        options.refTypeList = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
-        
+
         LOG_INFO("ImageService", QString(
-            "VolcEngine 请求准备完成: panelId=%1, provider=%2, 最终参考图数量=%3/%4, promptLen=%5, negativeLen=%6")
-            .arg(ctx.panelId)
-            .arg(config.name)
-            .arg(options.referenceImages.size())
-            .arg(ctx.referenceImages.size())
-            .arg(ctx.prompt.length())
-            .arg(ctx.negativePrompt.length()));
-        LOG_INFO("ImageService", QString("使用图生图API，参考图数量: %1").arg(options.referenceImages.size()));
-        
-        // 输出参考图类型列表
-        if (!options.refTypeList.isEmpty()) {
-            LOG_INFO("ImageService", QString("  参考图类型(ref_type_list): %1").arg(options.refTypeList.join(", ")));
-        }
+            "VolcEngine 请求准备完成: panelId=%1, 参考图=%2, imageUrls=%3, promptLen=%4")
+            .arg(ctx.panelId).arg(options.referenceImages.size())
+            .arg(options.referenceImageUrls.size()).arg(options.prompt.length()));
     } else {
         LOG_INFO("ImageService", QString(
-            "VolcEngine 请求准备完成: panelId=%1, provider=%2, 模式=文生图, promptLen=%3, negativeLen=%4")
-            .arg(ctx.panelId)
-            .arg(config.name)
-            .arg(ctx.prompt.length())
-            .arg(ctx.negativePrompt.length()));
+            "VolcEngine 文生图: panelId=%1, promptLen=%2")
+            .arg(ctx.panelId).arg(ctx.prompt.length()));
     }
-    
-    VolcEngineImageClient::GenerateResult result = client->generate(options);
-    
+
+    const VolcEngineImageClient::GenerateResult result = client->generate(options);
     if (!result.success) {
         setError(result.errorMessage);
         return false;
@@ -1363,11 +1419,7 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
         ctx.imageData = result.imageData;
     }
 
-    if (!finalizeGeneratedImage(ctx, ctx.imageData)) {
-        return false;
-    }
-    
-    return !ctx.imageData.isEmpty();
+    return finalizeGeneratedImage(ctx, ctx.imageData) && !ctx.imageData.isEmpty();
 }
 
 bool ImageService::executeWithQwen(GenerationContext& ctx)

@@ -33,7 +33,7 @@
  * 特点：
  * - 文生图：同步接口，直接返回图片URL或Base64
  * - 图生图：异步接口，支持角色特征保持
- * - 支持最高2K分辨率
+ * - 支持最高4K分辨率（即梦AI 4.0）
  * - 中文prompt友好
  * - 500次免费额度
  * 
@@ -53,7 +53,7 @@ public:
         QString region = "cn-north-1";
         QString service = "cv";
         QString reqKey = "high_aes_general_v30l_zt2i";  // Seedream 3.0 文生图
-        QString img2imgReqKey = "seed3l_multi_ip";      // Seedream 3.0 图生图多图版（最多5张参考图）
+        QString img2imgReqKey = "jimeng_t2i_v40";           // 即梦AI 4.0 图生图（最多10张参考图）
         QString seedEditReqKey = "seededit_v3.0";       // SeedEdit 3.0 指令编辑
         int requestTimeout = 120000;
         bool forceMock = false;
@@ -62,14 +62,15 @@ public:
     struct GenerateOptions {
         QString prompt;
         QString negativePrompt;
-        int width = 1328;       // 默认1.3K分辨率
-        int height = 1328;
-        float scale = 2.5f;     // 文本影响程度
+        int width = 2048;       // 默认2K分辨率
+        int height = 2048;
+        float scale = 0.5f;     // 文本影响程度，范围[0,1]，默认0.5
         int seed = -1;          // -1为随机
         bool returnUrl = true;  // 返回URL而非Base64
         QString requestId;
         bool usePreLlm = false; // 开启文本扩写
         QList<QByteArray> referenceImages; // 参考图片数据列表（用于图生图，最多5张）
+        QStringList referenceImageUrls;     // 参考图片公网URL列表（用于即梦4.0等 image_urls 模型）
         QStringList refTypeList;            // 参考图类型列表（IP/ID/STYLE/AUTO），长度必须等于referenceImages
     };
 
@@ -127,10 +128,15 @@ private:
     // 请求构建
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
     QJsonObject buildReferenceSubmitPayload(const GenerateOptions& options);
+    QJsonObject buildJimengSubmitPayload(const GenerateOptions& options, const QString& reqKey);
+    QJsonObject buildSeedEditMultiPayload(const GenerateOptions& options, const QString& reqKey);
     QJsonObject buildReferenceQueryPayload(const QString& taskId, const QString& reqKey, bool returnUrl) const;
+    QString activeReferenceReqKey() const;
+    bool isJimengV40ReqKey(const QString& reqKey) const;
     
     // 图生图 API
     GenerateResult generateWithReference(const GenerateOptions& options);
+    GenerateResult submitAndPoll(const QJsonObject& payload, const GenerateOptions& options, const QString& reqKey);
     GenerateResult pollTaskResult(const QString& taskId, const GenerateOptions& options, const QString& reqKey);
     GenerateResult handleTaskDone(const QJsonObject& data, const GenerateOptions& options);
     GenerateResult buildImageResult(const QString& requestId,

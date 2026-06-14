@@ -1195,11 +1195,11 @@ QWidget* NovelDetailPage::createGeneratePanelsCard()
     
     m_generateModeCombo = new ModeComboBox();
     // 1:1 正方形 — 人物特写、封面缩略图、方形构图，视觉最聚焦
-    m_generateModeCombo->addItem(tr("1:1（1024×1024）"));
+    m_generateModeCombo->addItem(tr("1:1（2048×2048）"));
     // 3:2 经典横版 — 双人对话、中景叙事、日常场景，万能通用比例
-    m_generateModeCombo->addItem(tr("3:2（1536×1024）"));
+    m_generateModeCombo->addItem(tr("3:2（2496×1664）"));
     // 16:9 宽银幕 — 大场景全景、动作场面、环境氛围，电影感最强
-    m_generateModeCombo->addItem(tr("16:9（1280×720）"));
+    m_generateModeCombo->addItem(tr("16:9（2560×1440）"));
     m_generateModeCombo->setFixedHeight(EditorStyles::Constants::BTN_HEIGHT);
     layout->addWidget(m_generateModeCombo);
 

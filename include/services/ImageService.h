@@ -5,6 +5,7 @@
 #include "models/Panel.h"
 #include "models/CharacterPortraitVersion.h"
 #include "api/QwenImageClient.h"
+#include "api/VolcEngineImageClient.h"
 #include "utils/RetryPolicy.h"
 #include "utils/SingletonUtils.h"
 #include "utils/Logger.h"
@@ -246,6 +247,9 @@ private:
     static QRectF expandEditRegion(const QRectF& region, double scale, const QSize& canvasSize);
     bool finalizeGeneratedImage(GenerationContext& ctx, const QByteArray& imageData);
     bool executeWithVolcEngine(GenerationContext& ctx);
+    bool collectJimengReferenceUrls(const GenerationContext& ctx, VolcEngineImageClient::GenerateOptions& options);
+    void collectSeedEditReferenceImages(const GenerationContext& ctx, VolcEngineImageClient::GenerateOptions& options);
+    QString buildJimengPromptPrefix(const GenerationContext& ctx, const VolcEngineImageClient::GenerateOptions& options);
     bool executeWithQwen(GenerationContext& ctx);
     bool executeImageGeneration(GenerationContext& ctx);
     QwenImageClient::GenerateOptions buildQwenGenerateOptions(const GenerationContext& ctx,

@@ -62,6 +62,20 @@ void markInterruptedTaskAsFailed(const QString& taskId)
     db->update(kJobsTable, updateData, QStringLiteral("id = ?"), QVariantList{taskId});
 }
 
+bool isFailedTaskResult(const QJsonObject& result)
+{
+    return result.value(QStringLiteral("status")).toString().trimmed().toLower() == QStringLiteral("failed");
+}
+
+QString taskResultErrorMessage(const QJsonObject& result)
+{
+    QString message = result.value(QStringLiteral("errorMessage")).toString().trimmed();
+    if (message.isEmpty()) {
+        message = result.value(QStringLiteral("message")).toString().trimmed();
+    }
+    return message.isEmpty() ? QStringLiteral("Task handler reported failure") : message;
+}
+
 } // namespace
 
 TaskQueue* TaskQueue::m_instance = nullptr;
@@ -454,8 +468,13 @@ TaskWorker::TaskResult TaskWorker::executeTask(TaskData& task)
     
     try {
         handler(task);
-        result.success = true;
         result.result = task.result;
+        if (isFailedTaskResult(task.result)) {
+            result.success = false;
+            result.errorMessage = taskResultErrorMessage(task.result);
+        } else {
+            result.success = true;
+        }
     } catch (const std::exception& e) {
         result.errorMessage = QString::fromUtf8(e.what());
         LOG_ERROR("TaskWorker", QString("Task exception: %1 - %2").arg(task.id, result.errorMessage));
