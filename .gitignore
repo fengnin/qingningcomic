@@ -81,3 +81,7 @@ src/figma_extract/
 # 忽略临时脚本
 patch_dialogue.py
 gen_slides.py
+
+# 忽略服务器部署脚本
+scripts/nginx_ref_uploads.conf
+scripts/upload_server.py
