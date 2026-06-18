@@ -40,46 +40,46 @@ namespace FortuneCookieStyle {
 
     namespace FortuneList {
         const QVector<QPair<QString, QVector<int>>> ALL = {
-            {QStringLiteral("大吉大利，万事如意"), {7, 14, 23, 31, 42, 56}},
-            {QStringLiteral("心想事成，好运当头"), {3, 18, 27, 35, 49, 63}},
-            {QStringLiteral("贵人相助，前程似锦"), {9, 16, 24, 38, 47, 55}},
-            {QStringLiteral("勤劳致富，勤俭持家"), {2, 11, 29, 33, 44, 51}},
-            {QStringLiteral("学业有成，金榜题名"), {5, 12, 21, 36, 43, 58}},
-            {QStringLiteral("事业有成，财源广进"), {1, 19, 26, 34, 41, 62}},
-            {QStringLiteral("爱情美满，幸福美满"), {8, 15, 22, 37, 46, 59}},
-            {QStringLiteral("家庭和睦，其乐融融"), {4, 13, 25, 32, 48, 57}},
-            {QStringLiteral("身体健康，心情愉快"), {6, 17, 28, 39, 45, 61}},
-            {QStringLiteral("朋友相助，贵人相扶"), {10, 20, 30, 40, 50, 60}},
-            {QStringLiteral("创业有成，前途无量"), {12, 24, 36, 41, 53, 65}},
-            {QStringLiteral("财运亨通，好运连连"), {14, 28, 35, 49, 56, 63}},
-            {QStringLiteral("工作顺利，升职加薪"), {1, 8, 15, 22, 29, 36}},
-            {QStringLiteral("感情稳定，白头偕老"), {3, 9, 18, 27, 45, 54}},
-            {QStringLiteral("财源滚滚，日进斗金"), {7, 21, 28, 42, 49, 56}},
-            {QStringLiteral("幸运临门，好事成双"), {11, 22, 33, 44, 55, 66}},
-            {QStringLiteral("心想事成，万事如意"), {2, 13, 24, 35, 46, 57}},
-            {QStringLiteral("平安吉祥，一生顺遂"), {16, 32, 48, 64, 17, 33}},
-            {QStringLiteral("好运当头，好事连连"), {5, 10, 25, 40, 55, 65}},
-            {QStringLiteral("贵人相助，财运亨通"), {9, 18, 36, 45, 54, 63}},
-            {QStringLiteral("家和万事兴，幸福美满"), {4, 8, 16, 32, 48, 52}},
-            {QStringLiteral("事业有成，前程似锦"), {6, 12, 24, 30, 42, 60}},
-            {QStringLiteral("学业进步，考试顺利"), {15, 30, 45, 52, 67, 3}},
-            {QStringLiteral("爱情甜蜜，情感升温"), {19, 38, 57, 4, 23, 68}},
-            {QStringLiteral("财源广进，富贵双全"), {23, 46, 69, 8, 17, 54}},
-            {QStringLiteral("身体健康，精神饱满"), {27, 54, 12, 41, 65, 29}},
-            {QStringLiteral("工作顺利，事业有成"), {31, 62, 18, 47, 6, 35}},
-            {QStringLiteral("家庭幸福，其乐融融"), {35, 70, 14, 53, 9, 26}},
-            {QStringLiteral("朋友广结，贵人相助"), {39, 7, 28, 56, 11, 64}},
-            {QStringLiteral("心想事成，好运连连"), {43, 16, 32, 59, 5, 48}},
-            {QStringLiteral("创业有成，财源滚滚"), {47, 24, 61, 13, 37, 52}},
-            {QStringLiteral("好运当头，万事如意"), {51, 2, 39, 66, 21, 44}},
-            {QStringLiteral("贵人相助，工作顺利"), {55, 10, 43, 69, 25, 38}},
-            {QStringLiteral("学业有成，前程似锦"), {59, 18, 47, 3, 29, 65}},
-            {QStringLiteral("爱情美满，幸福美满"), {63, 26, 51, 7, 33, 58}},
-            {QStringLiteral("家和万事兴，平安吉祥"), {67, 34, 55, 11, 37, 62}},
-            {QStringLiteral("财运亨通，好事成双"), {4, 42, 59, 15, 68, 27}},
-            {QStringLiteral("身体健康，心情愉快"), {8, 46, 63, 19, 35, 52}},
-            {QStringLiteral("事业有成，贵人相助"), {12, 50, 67, 23, 39, 56}},
-            {QStringLiteral("幸运临门，心想事成"), {16, 54, 2, 27, 43, 60}}
+            {QStringLiteral("你今天的所作所为，塑造了你的未来，而非明天。"), {7, 14, 23, 31, 42, 56}},
+            {QStringLiteral("种树最好的时机是二十年前，其次是现在。"), {3, 18, 27, 35, 49, 63}},
+            {QStringLiteral("成功不是终点，失败也不是终局，重要的是继续前行的勇气。"), {9, 16, 24, 38, 47, 55}},
+            {QStringLiteral("相信自己，你已经成功了一半。"), {2, 11, 29, 33, 44, 51}},
+            {QStringLiteral("热爱你所做的事，这是成就伟大工作的唯一方式。"), {5, 12, 21, 36, 43, 58}},
+            {QStringLiteral("生活，就发生在你忙于制定计划的时候。"), {1, 19, 26, 34, 41, 62}},
+            {QStringLiteral("走得再慢，只要不停下，就没关系。"), {8, 15, 22, 37, 46, 59}},
+            {QStringLiteral("困境之中，往往藏着机遇。"), {4, 13, 25, 32, 48, 57}},
+            {QStringLiteral("千里之行，始于足下。"), {6, 17, 28, 39, 45, 61}},
+            {QStringLiteral("我们身后和身前的，与我们内心深处的相比，都微不足道。"), {10, 20, 30, 40, 50, 60}},
+            {QStringLiteral("做你自己，因为其他人都已经有人做了。"), {12, 24, 36, 41, 53, 65}},
+            {QStringLiteral("林中两条路，我选了人迹罕至的那条，从此一切都不同了。"), {14, 28, 35, 49, 56, 63}},
+            {QStringLiteral("心即一切，你所想，便成你所是。"), {1, 8, 15, 22, 29, 36}},
+            {QStringLiteral("不管你觉得能还是不能，你都是对的。"), {3, 9, 18, 27, 45, 54}},
+            {QStringLiteral("昨日已成历史，明日尚是谜，今天是上天的馈赠，所以叫做当下。"), {7, 21, 28, 42, 49, 56}},
+            {QStringLiteral("不要用收获来评价每一天，而要用播下的种子来衡量。"), {11, 22, 33, 44, 55, 66}},
+            {QStringLiteral("世上唯一不可能的旅程，是你从未启程的那一段。"), {2, 13, 24, 35, 46, 57}},
+            {QStringLiteral("最终，我们记住的不是敌人的话，而是朋友的沉默。"), {16, 32, 48, 64, 17, 33}},
+            {QStringLiteral("正是在最黑暗的时刻，我们最需要凝神望向那一束光。"), {5, 10, 25, 40, 55, 65}},
+            {QStringLiteral("将爱散播到你所到之处，让每个人离开你时都比来时更快乐。"), {9, 18, 36, 45, 54, 63}},
+            {QStringLiteral("走到绳子尽头时，打个结，抓紧它。"), {4, 8, 16, 32, 48, 52}},
+            {QStringLiteral("不要让你做不到的事，妨碍你做得到的事。"), {6, 12, 24, 30, 42, 60}},
+            {QStringLiteral("想要提升自己，先去提升他人。"), {15, 30, 45, 52, 67, 3}},
+            {QStringLiteral("未来属于那些相信梦想之美的人。"), {19, 38, 57, 4, 23, 68}},
+            {QStringLiteral("宁可在独创中失败，也不愿在模仿中成功。"), {23, 46, 69, 8, 17, 54}},
+            {QStringLiteral("开始的方式，是停止空谈，开始行动。"), {27, 54, 12, 41, 65, 29}},
+            {QStringLiteral("别害怕放弃好的，去追求更好的。"), {31, 62, 18, 47, 6, 35}},
+            {QStringLiteral("创新，区分了领导者与跟随者。"), {35, 70, 14, 53, 9, 26}},
+            {QStringLiteral("生命中最大的荣耀，不在于从不跌倒，而在于每次跌倒后都能重新站起。"), {39, 7, 28, 56, 11, 64}},
+            {QStringLiteral("你的时间有限，不要把它浪费在过别人的生活上。"), {43, 16, 32, 59, 5, 48}},
+            {QStringLiteral("如果生活是可以预料的，它就不再是生活，而是毫无滋味。"), {47, 24, 61, 13, 37, 52}},
+            {QStringLiteral("生活其实很简单，是我们执意要把它变得复杂。"), {51, 2, 39, 66, 21, 44}},
+            {QStringLiteral("此刻的你，已经拥有面对一切所需的一切。"), {55, 10, 43, 69, 25, 38}},
+            {QStringLiteral("相信自己，知道你内心有某种力量，远超任何障碍。"), {59, 18, 47, 3, 29, 65}},
+            {QStringLiteral("你注定要成为的那个人，就是你决定去成为的那个人。"), {63, 26, 51, 7, 33, 58}},
+            {QStringLiteral("朝着梦想的方向坚定前行，活出你所想象的生活。"), {67, 34, 55, 11, 37, 62}},
+            {QStringLiteral("幸福的一扇门关上时，另一扇会打开，但我们常常凝望那扇关闭的门，错过了为我们开启的那扇。"), {4, 42, 59, 15, 68, 27}},
+            {QStringLiteral("你所渴望的一切，都在恐惧的另一端。"), {8, 46, 63, 19, 35, 52}},
+            {QStringLiteral("心怀大梦，敢于失败。"), {12, 50, 67, 23, 39, 56}},
+            {QStringLiteral("你不出手的那些机会，百分之百会错过。"), {16, 54, 2, 27, 43, 60}}
         };
     }
 }
@@ -722,8 +722,8 @@ void FortuneCookieWidget::drawOpenedFortune(QPainter &painter)
     QString quote = m_currentFortune.quote;
     QFontMetrics quoteFm(quoteFont);
     int availableWidth = static_cast<int>(widgetRect.width() - 40);
-    int charWidth = qMax(1, quoteFm.horizontalAdvance(QStringLiteral("A")));
-    int charsPerLine = qMax(12, availableWidth / charWidth);
+    int charWidth = qMax(1, quoteFm.horizontalAdvance(QStringLiteral("中")));
+    int charsPerLine = qMax(8, availableWidth / charWidth);
     
     QStringList lines;
     for (int i = 0; i < quote.length(); i += charsPerLine) {

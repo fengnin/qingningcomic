@@ -1038,10 +1038,6 @@ QWidget* NovelDetailPage::createHeaderSection()
     m_titleLabel = createLabel(tr("作品详情"), m_colorTitle, 28, true);
     m_statusLabel = createStatusLabel("completed");
     m_metaLabel = createLabel(tr("创作信息"), m_colorHint, 14);
-    m_changeRequestOverviewLabel = createLabel(tr("修改请求"), m_colorTitle, 14, true);
-    m_changeRequestOverviewProgress = new AnalysisProgressWidget();
-    m_changeRequestOverviewProgress->reset();
-
     m_analyzeBtn = createButton(tr("重新分析"), secondaryButtonStyle(), 100, EditorStyles::Constants::BTN_HEIGHT);
     connect(m_analyzeBtn, &QPushButton::clicked, this, &NovelDetailPage::onAnalyzeClicked);
     
@@ -1054,8 +1050,6 @@ QWidget* NovelDetailPage::createHeaderSection()
     layout->addSpacing(16);
     layout->addWidget(m_metaLabel);
     layout->addSpacing(8);
-    layout->addWidget(m_changeRequestOverviewLabel);
-    layout->addWidget(m_changeRequestOverviewProgress);
     layout->addWidget(createTransparentWidget(), 1);
     layout->addWidget(m_analyzeBtn);
     layout->addWidget(m_viewExportsBtn);
@@ -2583,13 +2577,7 @@ void NovelDetailPage::bindChangeRequestResultHandlers(ChangeRequestService* serv
 
 void NovelDetailPage::showChangeRequestSubmissionResult(const QString& requestId)
 {
-    if (m_changeRequestOverviewLabel) {
-        m_changeRequestOverviewLabel->setText(tr("修改请求"));
-    }
-    if (m_changeRequestOverviewProgress) {
-        m_changeRequestOverviewProgress->setState(AnalysisProgressWidget::State::Processing);
-        m_changeRequestOverviewProgress->setProgressText(tr("请求 %1 已提交，等待执行").arg(requestId));
-    }
+    Q_UNUSED(requestId)
 }
 
 void NovelDetailPage::showChangeRequestExecutionResult(const QString& statusText, bool success)
@@ -2612,13 +2600,8 @@ void NovelDetailPage::showChangeRequestSubmissionFailure(const QString& errorMes
 
 void NovelDetailPage::updateChangeRequestOverviewStatus(const QString& text, const QString& color)
 {
-    if (!m_changeRequestOverviewLabel) {
-        return;
-    }
-
-    const QString resolvedColor = color.isEmpty() ? QStringLiteral("#6B7280") : color;
-    m_changeRequestOverviewLabel->setText(text);
-    m_changeRequestOverviewLabel->setStyleSheet(QString("font-size: 14px; color: %1; background: transparent; font-weight: 600;").arg(resolvedColor));
+    Q_UNUSED(text)
+    Q_UNUSED(color)
 }
 
 void NovelDetailPage::beginChangeRequestProgress(const QString& requestId, const QString& naturalLanguage)
