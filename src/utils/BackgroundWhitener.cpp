@@ -204,11 +204,13 @@ QImage BackgroundWhitener::fillWhiteBackground(const QImage& image, int /*whiteT
     qDebug() << "BackgroundWhitener: 第一轮 flood-fill 转白" << floodCount1 << "像素";
 
     // 第二步：边缘亮度清除，打通模型生成的矩形边框屏障
-    const int edgeCount = edgeBrightnessCleanup(result);
+    // margin 3% (~40px for 1328px)：足够覆盖边框线，不会触及人物头顶/脚踝
+    const int edgeCount = edgeBrightnessCleanup(result, 3);
     qDebug() << "BackgroundWhitener: 边缘亮度清除转白" << edgeCount << "像素";
 
-    // 第三步：复用 visited 数组再次 flood-fill，清除边框打通后暴露的内层灰底
-    const int floodCount2 = floodFillBackground(result, &visited);
+    // 第三步：用全新 visited 数组再次 flood-fill，使边框打通后的白色路径能被角点扩散利用
+    // 不能复用旧 visited：四个角点已被标记，队列永不入队，第二轮会完全跳过
+    const int floodCount2 = floodFillBackground(result);
     qDebug() << "BackgroundWhitener: 第二轮 flood-fill 转白" << floodCount2 << "像素";
 
     validateBackgroundPurity(result);
