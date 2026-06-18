@@ -49,12 +49,17 @@ namespace {
         return qRgb(reds[mid], greens[mid], blues[mid]);
     }
 
-    int floodFillBackground(QImage& image)
+    int floodFillBackground(QImage& image, QVector<bool>* externalVisited = nullptr)
     {
         const int width  = image.width();
         const int height = image.height();
 
-        QVector<bool> visited(width * height, false);
+        QVector<bool> localVisited;
+        if (!externalVisited) {
+            localVisited.fill(false, width * height);
+            externalVisited = &localVisited;
+        }
+        QVector<bool>& visited = *externalVisited;
         QQueue<int> queue;
 
         struct Corner { int x; int y; };
@@ -143,6 +148,32 @@ namespace {
                y < margin || y >= height - margin;
     }
 
+    // 第一步：清除边缘区域内亮度低于阈值的像素，打通矩形边框屏障
+    int edgeBrightnessCleanup(QImage& image, int marginPercent = 8, int valueThreshold = 200)
+    {
+        const int width  = image.width();
+        const int height = image.height();
+        const int margin = qMax(width, height) * marginPercent / 100;
+
+        int count = 0;
+        auto clearIfDark = [&](int x, int y) {
+            QRgb* px = reinterpret_cast<QRgb*>(image.scanLine(y)) + x;
+            const int v = qMax(qRed(*px), qMax(qGreen(*px), qBlue(*px)));
+            if (v < valueThreshold) { *px = qRgb(255, 255, 255); ++count; }
+        };
+
+        // 只扫描四条边缘带，不遍历全图内部
+        for (int y = 0; y < margin; ++y)
+            for (int x = 0; x < width; ++x) clearIfDark(x, y);           // 上
+        for (int y = height - margin; y < height; ++y)
+            for (int x = 0; x < width; ++x) clearIfDark(x, y);           // 下
+        for (int y = margin; y < height - margin; ++y) {
+            for (int x = 0; x < margin; ++x) clearIfDark(x, y);          // 左
+            for (int x = width - margin; x < width; ++x) clearIfDark(x, y); // 右
+        }
+        return count;
+    }
+
     void logBackgroundQuality(const BackgroundWhitener::BackgroundQuality& quality)
     {
         if (quality.impurityRatio > 10.0) {
@@ -167,8 +198,18 @@ QImage BackgroundWhitener::fillWhiteBackground(const QImage& image, int /*whiteT
 
     QImage result = image.convertToFormat(QImage::Format_ARGB32);
 
-    const int floodCount = floodFillBackground(result);
-    qDebug() << "BackgroundWhitener: Flood-fill converted" << floodCount << "pixels to white";
+    // 第一轮：flood-fill 清除外层背景
+    QVector<bool> visited(result.width() * result.height(), false);
+    const int floodCount1 = floodFillBackground(result, &visited);
+    qDebug() << "BackgroundWhitener: 第一轮 flood-fill 转白" << floodCount1 << "像素";
+
+    // 第二步：边缘亮度清除，打通模型生成的矩形边框屏障
+    const int edgeCount = edgeBrightnessCleanup(result);
+    qDebug() << "BackgroundWhitener: 边缘亮度清除转白" << edgeCount << "像素";
+
+    // 第三步：复用 visited 数组再次 flood-fill，清除边框打通后暴露的内层灰底
+    const int floodCount2 = floodFillBackground(result, &visited);
+    qDebug() << "BackgroundWhitener: 第二轮 flood-fill 转白" << floodCount2 << "像素";
 
     validateBackgroundPurity(result);
 

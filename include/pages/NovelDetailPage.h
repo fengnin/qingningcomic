@@ -258,7 +258,6 @@ private:
     QPushButton *m_generatePanelsBtn;
     QTextEdit *m_changeRequestEdit;
     QPushButton *m_submitChangeRequestBtn;
-    QLabel *m_changeRequestOverviewLabel = nullptr;
     
     BibleSectionWidget *m_bibleSectionWidget = nullptr;
     PanelPreviewWidget *m_panelPreviewWidget = nullptr;
@@ -268,7 +267,6 @@ private:
     
     AnalysisProgressWidget *m_analysisProgress;
     AnalysisProgressWidget *m_panelGenerateProgress;
-    AnalysisProgressWidget *m_changeRequestOverviewProgress = nullptr;
     AnalysisProgressWidget *m_changeRequestProgress = nullptr;
     AnalysisResultWidget *m_analysisResult;
     AnalysisStatusManager::Status m_analysisStatus;
