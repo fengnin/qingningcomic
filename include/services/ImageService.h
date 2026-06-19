@@ -248,7 +248,6 @@ private:
     bool finalizeGeneratedImage(GenerationContext& ctx, const QByteArray& imageData);
     bool executeWithVolcEngine(GenerationContext& ctx);
     bool collectJimengReferenceUrls(const GenerationContext& ctx, VolcEngineImageClient::GenerateOptions& options);
-    void collectSeedEditReferenceImages(const GenerationContext& ctx, VolcEngineImageClient::GenerateOptions& options);
     QString buildJimengPromptPrefix(const GenerationContext& ctx, const VolcEngineImageClient::GenerateOptions& options);
     bool executeWithQwen(GenerationContext& ctx);
     bool executeImageGeneration(GenerationContext& ctx);

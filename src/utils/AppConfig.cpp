@@ -116,7 +116,7 @@ void AppConfig::readVolcEngineConfig(QSettings& settings)
     m_volcEngine.region = settings.value("region", "cn-north-1").toString();
     m_volcEngine.service = settings.value("service", "cv").toString();
     m_volcEngine.reqKey = settings.value("reqKey", "high_aes_general_v30l_zt2i").toString();
-    m_volcEngine.img2imgReqKey = settings.value("img2imgReqKey", "seed3l_multi_ip").toString();
+    m_volcEngine.img2imgReqKey = settings.value("img2imgReqKey", "jimeng_t2i_v40").toString();
     m_volcEngine.seedEditReqKey = settings.value("seedEditReqKey", "seededit_v3.0").toString();
     m_volcEngine.requestTimeout = settings.value("requestTimeout", 120000).toInt();
     m_volcEngine.forceMock = settings.value("forceMock", false).toBool();

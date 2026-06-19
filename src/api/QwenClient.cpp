@@ -1,4 +1,5 @@
 #include "api/QwenClient.h"
+#include "api/SharedNetworkManager.h"
 #include "services/ServiceContainer.h"
 #include "utils/SingletonUtils.h"
 #include "api/QwenPromptBuilder.h"
@@ -680,10 +681,10 @@ QJsonObject QwenClient::callStoryboardApi(
 QJsonObject QwenClient::sendApiRequest(const QJsonObject& payload)
 {
     QNetworkAccessManager networkManager;
-    
+
     QNetworkRequest request = createApiRequest();
     QByteArray requestData = QJsonDocument(payload).toJson();
-    
+
     QNetworkReply* reply = networkManager.post(request, requestData);
     
     QEventLoop loop;
@@ -1535,11 +1536,9 @@ void QwenClient::sendApiRequestStream(const QJsonObject& payload)
     }
     m_streamInProgress = true;
     
-    QNetworkAccessManager* networkManager = new QNetworkAccessManager(this);
-    
     QNetworkRequest request = createApiRequest();
     request.setRawHeader("Accept", "text/event-stream");
-    
+
     QByteArray requestData = QJsonDocument(payload).toJson();
     
     LOG_DEBUG("QwenClient", QStringLiteral("发送流式请求"));
@@ -1549,7 +1548,8 @@ void QwenClient::sendApiRequestStream(const QJsonObject& payload)
     m_streamAccumulatedContent.clear();
     m_streamBuffer.clear();
     m_streamAborted = false;
-    
+
+    QNetworkAccessManager* networkManager = SharedNetworkManager::instance()->manager();
     QNetworkReply* reply = networkManager->post(request, requestData);
     
     QTimer* timeoutTimer = new QTimer(this);
@@ -1581,21 +1581,21 @@ void QwenClient::sendApiRequestStream(const QJsonObject& payload)
         }
     });
     
-    connect(reply, &QNetworkReply::finished, this, [self, replyPtr, networkManager, timeoutTimer]() {
+    connect(reply, &QNetworkReply::finished, this, [self, replyPtr, timeoutTimer]() {
         if (self) {
-            self->handleStreamFinished(replyPtr, networkManager, timeoutTimer);
+            self->handleStreamFinished(replyPtr, timeoutTimer);
         }
     });
-    
-    connect(timeoutTimer, &QTimer::timeout, this, [self, replyPtr, networkManager]() {
+
+    connect(timeoutTimer, &QTimer::timeout, this, [self, replyPtr]() {
         if (self) {
-            self->handleStreamTimeout(replyPtr, networkManager);
+            self->handleStreamTimeout(replyPtr);
         }
     });
     timeoutTimer->start(m_config.requestTimeout);
 }
 
-void QwenClient::handleStreamFinished(QNetworkReply* reply, QNetworkAccessManager* manager, QTimer* timer)
+void QwenClient::handleStreamFinished(QNetworkReply* reply, QTimer* timer)
 {
     if (timer) {
         timer->stop();
@@ -1604,13 +1604,12 @@ void QwenClient::handleStreamFinished(QNetworkReply* reply, QNetworkAccessManage
     
     if (m_streamAborted) {
         if (reply) reply->deleteLater();
-        if (manager) manager->deleteLater();
         return;
     }
     
     m_streamInProgress = false;
-    
-    if (!reply || !manager) return;
+
+    if (!reply) return;
     
     if (!m_streamBuffer.isEmpty()) {
         QJsonObject streamResult = QwenStreamHandler::handleStreamResponse(m_streamBuffer);
@@ -1642,12 +1641,11 @@ void QwenClient::handleStreamFinished(QNetworkReply* reply, QNetworkAccessManage
     }
     
     reply->deleteLater();
-    manager->deleteLater();
 }
 
-void QwenClient::handleStreamTimeout(QNetworkReply* reply, QNetworkAccessManager* manager)
+void QwenClient::handleStreamTimeout(QNetworkReply* reply)
 {
-    if (!reply || !manager) return;
+    if (!reply) return;
     
     LOG_WARNING("QwenClient", "Stream request timeout");
     m_streamAborted = true;

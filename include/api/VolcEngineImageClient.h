@@ -129,10 +129,8 @@ private:
     QJsonObject buildGenerateRequestBody(const GenerateOptions& options);
     QJsonObject buildReferenceSubmitPayload(const GenerateOptions& options);
     QJsonObject buildJimengSubmitPayload(const GenerateOptions& options, const QString& reqKey);
-    QJsonObject buildSeedEditMultiPayload(const GenerateOptions& options, const QString& reqKey);
     QJsonObject buildReferenceQueryPayload(const QString& taskId, const QString& reqKey, bool returnUrl) const;
     QString activeReferenceReqKey() const;
-    bool isJimengV40ReqKey(const QString& reqKey) const;
     
     // 图生图 API
     GenerateResult generateWithReference(const GenerateOptions& options);
@@ -164,6 +162,7 @@ private:
     void noteRequestStarted();
     void noteRateLimitHit();
     void handleRateLimitResponse(QNetworkReply* reply);
+    void doSendAsync(const GenerateOptions& options);
     
     template<typename T>
     T executeSyncRequest(std::function<T(QNetworkAccessManager*)> operation, int timeoutMs);

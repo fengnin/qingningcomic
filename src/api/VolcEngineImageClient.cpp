@@ -13,8 +13,6 @@
 #include <QMessageAuthenticationCode>
 #include <QUrl>
 #include <QThread>
-#include <QImage>
-#include <QBuffer>
 #include <QByteArray>
 
 namespace {
@@ -22,7 +20,6 @@ constexpr int kMaxPollingAttempts = 90;
 constexpr int kPollingThresholdAttempt = 15;
 constexpr int kPollingIntervalShort = 5000;
 constexpr int kPollingIntervalLong = 8000;
-constexpr int kRefImageMaxDimension = 768; // 参考图最大边长，超过则缩放
 
 // 火山视觉 API 的终态错误码：再轮询也不会变成功，应立即放弃
 // 可重试的码不在此列：50511(输出图风控可重试), 50519(版权图可重试), 50429/50430(限流可重试)
@@ -50,26 +47,6 @@ int calculatePollingInterval(int attempt) {
         : kPollingIntervalLong;
 }
 
-// 将参考图缩放到最大边长不超过 kRefImageMaxDimension，以 JPEG 格式压缩后返回
-QByteArray resizeRefImageIfNeeded(const QByteArray& imgData)
-{
-    QImage img;
-    if (!img.loadFromData(imgData)) {
-        return imgData;
-    }
-
-    const int maxDim = qMax(img.width(), img.height());
-    const QImage& source = (maxDim > kRefImageMaxDimension)
-        ? img.scaled(kRefImageMaxDimension, kRefImageMaxDimension,
-                     Qt::KeepAspectRatio, Qt::SmoothTransformation)
-        : img;
-
-    QByteArray out;
-    QBuffer buf(&out);
-    buf.open(QIODevice::WriteOnly);
-    source.save(&buf, "JPEG", 85);
-    return out.isEmpty() ? imgData : out;
-}
 }
 
 VolcEngineImageClient* VolcEngineImageClient::m_instance = nullptr;
@@ -90,19 +67,7 @@ VolcEngineImageClient::~VolcEngineImageClient()
 
 QString VolcEngineImageClient::activeReferenceReqKey() const
 {
-    const QString img2imgReqKey = m_config.img2imgReqKey.trimmed();
-    if (isJimengV40ReqKey(img2imgReqKey)) {
-        return img2imgReqKey;
-    }
-    return m_config.seedEditReqKey;
-}
-
-bool VolcEngineImageClient::isJimengV40ReqKey(const QString& reqKey) const
-{
-    const QString normalized = reqKey.trimmed().toLower();
-    return normalized == QStringLiteral("jimeng_t2i_v40")
-        || normalized.contains(QStringLiteral("jimeng"))
-        || normalized.contains(QStringLiteral("v40"));
+    return m_config.img2imgReqKey.trimmed();
 }
 
 DEFINE_SINGLETON_INSTANCE(VolcEngineImageClient, volcEngineImageClient)
@@ -183,35 +148,52 @@ void VolcEngineImageClient::generateAsync(const GenerateOptions& options)
         emit generateCompleted(createErrorResult(options.requestId, m_lastError));
         return;
     }
-    
+
     if (shouldMock()) {
         LOG_INFO("VolcEngineImageClient", QString("Using placeholder for prompt: %1").arg(options.prompt.left(100)));
         emit generateCompleted(generatePlaceholder(options.prompt));
         return;
     }
 
-    applyRequestThrottle();
-    
-    QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
-    QString url = buildApiUrl();
-    QJsonObject payload = buildGenerateRequestBody(options);
-    QByteArray bodyData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
-    
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    int delayMs = 0;
+    {
+        QMutexLocker locker(&m_requestThrottleMutex);
+        if (m_nextAllowedRequestAtMs > nowMs) {
+            delayMs = static_cast<int>(m_nextAllowedRequestAtMs - nowMs);
+        }
+    }
+    noteRequestStarted();
+
+    if (delayMs > 0) {
+        LOG_WARNING("VolcEngineImageClient", QString("Request throttled for %1 ms (async)").arg(delayMs));
+        QTimer::singleShot(delayMs, this, [this, options]() { doSendAsync(options); });
+    } else {
+        doSendAsync(options);
+    }
+}
+
+void VolcEngineImageClient::doSendAsync(const GenerateOptions& options)
+{
+    const QString requestId = options.requestId.isEmpty() ? QUuid::createUuid().toString() : options.requestId;
+    const QString url = buildApiUrl();
+    const QJsonObject payload = buildGenerateRequestBody(options);
+    const QByteArray bodyData = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
     QNetworkRequest request = createNetworkRequest(url, QString::fromUtf8(bodyData));
-    
+
     QNetworkReply* reply = m_networkManager->post(request, bodyData);
-    
+
     registerRequest(requestId, reply);
     m_pendingOptions[requestId] = options;
-    
+
     connect(reply, &QNetworkReply::finished, this, &VolcEngineImageClient::onReplyFinished);
     connect(reply, QOverload<QNetworkReply::NetworkError>::of(&QNetworkReply::errorOccurred),
             this, &VolcEngineImageClient::onReplyError);
-    
+
     emit progressChanged("sending_request", 0);
 }
 
-            // 同步生成入口
 
 VolcEngineImageClient::GenerateResult VolcEngineImageClient::generate(const GenerateOptions& options)
 {
@@ -643,10 +625,7 @@ QJsonObject VolcEngineImageClient::buildGenerateRequestBody(const GenerateOption
 
 QJsonObject VolcEngineImageClient::buildReferenceSubmitPayload(const GenerateOptions& options)
 {
-    const QString reqKey = activeReferenceReqKey();
-    return isJimengV40ReqKey(reqKey)
-        ? buildJimengSubmitPayload(options, reqKey)
-        : buildSeedEditMultiPayload(options, reqKey);
+    return buildJimengSubmitPayload(options, activeReferenceReqKey());
 }
 
 QJsonObject VolcEngineImageClient::buildJimengSubmitPayload(const GenerateOptions& options, const QString& reqKey)
@@ -654,6 +633,9 @@ QJsonObject VolcEngineImageClient::buildJimengSubmitPayload(const GenerateOption
     QJsonObject payload;
     payload["req_key"] = reqKey;
     payload["prompt"] = options.prompt;
+    if (!options.negativePrompt.isEmpty()) {
+        payload["negative_prompt"] = options.negativePrompt;
+    }
 
     QJsonArray imageUrlArray;
     const int maxUrls = qMin(options.referenceImageUrls.size(), 10);
@@ -674,68 +656,10 @@ QJsonObject VolcEngineImageClient::buildJimengSubmitPayload(const GenerateOption
     }
 
     LOG_INFO("VolcEngineImageClient", QString(
-        "构建即梦4.0多图请求: reqKey=%1, 输入URL=%2, 将发送=%3, promptLen=%4, width=%5, height=%6")
+        "构建即梦4.0多图请求: reqKey=%1, 输入URL=%2, 将发送=%3, promptLen=%4, negLen=%5, width=%6, height=%7")
         .arg(reqKey).arg(options.referenceImageUrls.size()).arg(maxUrls)
-        .arg(options.prompt.length()).arg(options.width).arg(options.height));
-    return payload;
-}
-
-QJsonObject VolcEngineImageClient::buildSeedEditMultiPayload(const GenerateOptions& options, const QString& reqKey)
-{
-    QJsonObject payload;
-    payload["req_key"] = reqKey;
-    payload["prompt"] = options.prompt;
-    if (!options.negativePrompt.isEmpty()) {
-        payload["negative_prompt"] = options.negativePrompt;
-    }
-
-    const int maxImages = qMin(options.referenceImages.size(), 5);
-    LOG_INFO("VolcEngineImageClient", QString("构建图生图请求: reqKey=%1, 输入参考图=%2, 将发送=%3")
-        .arg(reqKey).arg(options.referenceImages.size()).arg(maxImages));
-
-    QJsonArray imageDataArray;
-    qint64 totalBytes = 0;
-    for (int i = 0; i < maxImages; ++i) {
-        const QByteArray& imgData = options.referenceImages.at(i);
-        const QByteArray compressed = resizeRefImageIfNeeded(imgData);
-        const QString b64 = QString(compressed.toBase64());
-        imageDataArray.append(b64);
-        totalBytes += compressed.size();
-        LOG_INFO("VolcEngineImageClient", QString("  参考图[%1]: 原始=%2bytes -> 压缩后=%3bytes, base64=%4bytes")
-            .arg(i + 1).arg(imgData.size()).arg(compressed.size()).arg(b64.size()));
-    }
-    payload["binary_data_base64"] = imageDataArray;
-
-    // IP: 主体特征（角色外观）, STYLE: 风格特征（场景/背景）, AUTO: 自动匹配
-    if (!options.refTypeList.isEmpty() && options.refTypeList.size() >= maxImages) {
-        QJsonArray refTypeArray;
-        for (int i = 0; i < maxImages; ++i) {
-            refTypeArray.append(options.refTypeList.at(i));
-        }
-        payload["ref_type_list"] = refTypeArray;
-        LOG_INFO("VolcEngineImageClient", QString("  ref_type_list: %1").arg(options.refTypeList.mid(0, maxImages).join(", ")));
-    } else if (!options.referenceImages.isEmpty()) {
-        LOG_INFO("VolcEngineImageClient", "  ref_type_list: 未指定，使用默认AUTO");
-    }
-
-    if (options.seed >= 0) {
-        payload["seed"] = options.seed;
-    }
-    if (options.width > 0 && options.height > 0) {
-        payload["width"] = options.width;
-        payload["height"] = options.height;
-    }
-    // 关闭 prompt 改写，防止气泡方向等精确指令被模型改写掉
-    payload["use_rephraser"] = false;
-    // 提高文本一致性权重，使模型更遵从 prompt 中的位置指令
-    payload["guidance_scale1"] = 3.5;
-    // 提高图像一致性，改善多角色场景下角色还原度（默认2.5，提高到4.5）
-    payload["guidance_scale2"] = 4.5;
-
-    LOG_INFO("VolcEngineImageClient", QString(
-        "请求构建完成: promptLen=%1, negativeLen=%2, width=%3, height=%4, refCount=%5, totalBytes=%6")
         .arg(options.prompt.length()).arg(options.negativePrompt.length())
-        .arg(options.width).arg(options.height).arg(maxImages).arg(totalBytes));
+        .arg(options.width).arg(options.height));
     return payload;
 }
 

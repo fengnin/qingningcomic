@@ -65,13 +65,6 @@ bool isQueueTimeoutError(const QString& errorMessage) {
     return errorMessage.trimmed().toLower().contains(QStringLiteral("query task result failed"));
 }
 
-bool isJimengV40ReqKey(const QString& reqKey)
-{
-    const QString normalized = reqKey.trimmed().toLower();
-    return normalized == QStringLiteral("jimeng_t2i_v40")
-        || normalized.contains(QStringLiteral("jimeng"))
-        || normalized.contains(QStringLiteral("v40"));
-}
 
 int calculateRetryDelay(const QString& errorMessage, int retryCount) {
     if (isRateLimitError(errorMessage) || isQueueTimeoutError(errorMessage)) {
@@ -1185,7 +1178,7 @@ ImageService::ProviderConfig ImageService::getProviderConfig() const
     
     if (provider == "volcengine") {
         config.name = "volcengine";
-        config.maxRefImages = 5;
+        config.maxRefImages = 10;
         config.supportsImg2Img = true;
         config.previewWidth = 2048;
         config.previewHeight = 2048;
@@ -1307,24 +1300,6 @@ bool ImageService::collectJimengReferenceUrls(const GenerationContext& ctx,
     return true;
 }
 
-void ImageService::collectSeedEditReferenceImages(const GenerationContext& ctx,
-                                                   VolcEngineImageClient::GenerateOptions& options)
-{
-    const int maxImages = qMin(ctx.referenceImages.size(), 5);
-    for (int i = 0; i < maxImages; ++i) {
-        const QString& refPath = ctx.referenceImages.at(i);
-        const QString fullPath = FileStorage::instance()->getFullPath(refPath);
-        const QByteArray refData = FileManager::readBinaryFile(fullPath);
-
-        LOG_INFO("ImageService", QString("  参考图[%1]: path=%2, loaded=%3, size=%4bytes")
-            .arg(i + 1).arg(refPath).arg(!refData.isEmpty() ? "成功" : "失败").arg(refData.size()));
-
-        if (!refData.isEmpty()) {
-            options.referenceImages.append(refData);
-        }
-    }
-}
-
 QString ImageService::buildJimengPromptPrefix(const GenerationContext& ctx,
                                                const VolcEngineImageClient::GenerateOptions& options)
 {
@@ -1369,27 +1344,17 @@ bool ImageService::executeWithVolcEngine(GenerationContext& ctx)
     options.returnUrl = true;
     options.scale = 0.5f;
 
-    const bool useJimengV40 = isJimengV40ReqKey(AppConfig::instance()->volcEngine().img2imgReqKey);
-
     if (ctx.allowReferenceEdit && !ctx.referenceImages.isEmpty()) {
         LOG_INFO("ImageService", QString("开始收集参考图: panelId=%1, 待收集数量=%2")
             .arg(ctx.panelId).arg(ctx.referenceImages.size()));
 
-        if (useJimengV40) {
-            if (!collectJimengReferenceUrls(ctx, options)) {
-                return false;
-            }
-            if (!options.referenceImageUrls.isEmpty()) {
-                const QString prefix = buildJimengPromptPrefix(ctx, options);
-                options.prompt = prefix + options.prompt;
-                LOG_INFO("ImageService", QString("即梦4.0 prompt前缀注入: %1").arg(prefix));
-            }
-        } else {
-            collectSeedEditReferenceImages(ctx, options);
-            options.refTypeList = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
-            if (!options.refTypeList.isEmpty()) {
-                LOG_INFO("ImageService", QString("  参考图类型(ref_type_list): %1").arg(options.refTypeList.join(", ")));
-            }
+        if (!collectJimengReferenceUrls(ctx, options)) {
+            return false;
+        }
+        if (!options.referenceImageUrls.isEmpty()) {
+            const QString prefix = buildJimengPromptPrefix(ctx, options);
+            options.prompt = prefix + options.prompt;
+            LOG_INFO("ImageService", QString("即梦4.0 prompt前缀注入: %1").arg(prefix));
         }
 
         LOG_INFO("ImageService", QString(
@@ -1807,23 +1772,11 @@ QJsonObject ImageService::buildPanelPromptOptions(const GenerationContext& ctx, 
         : ((ctx.mode == GenerateMode::HD) ? "hd" : "preview");
     options["promptTarget"] = PromptTargetUtils::classifyPanelPromptTarget(panelJson);
     
-    // 🔑 关键修复：确保 isImg2Img 参数根据实际模式正确设置
-    // 原来使用 ctx.allowReferenceEdit 可能导致 img2img 模式下 isImg2Img=false
-    // 从而让 PromptBuilder 走文生图分支（不生成 [气泡]）
-    // 
-    // 判断逻辑：
-    // - presetMode 不为空 → 批量生成模式（如图生图）→ isImg2Img=true
-    // - allowReferenceEdit=true → 允许参考图编辑 → isImg2Img=true
-    // - mode=HD → 高清模式通常是图生图 → isImg2Img=true
-    bool shouldBeImg2Img = (!ctx.presetMode.isEmpty() ||   // 有预设模式 = 图生图
-                           ctx.allowReferenceEdit ||         // 允许参考编辑 = 图生图
-                           ctx.mode == GenerateMode::HD);     // HD 模式通常也是图生图
+    // jimeng_t2i_v40 多图组合生成，固定 false，PromptBuilder 走完整 [角色] 路径。
+    options["isImg2Img"] = false;
     
-    options["isImg2Img"] = shouldBeImg2Img;
-    
-    LOG_DEBUG("ImageService", QString("buildPromptForPanel: mode=%1, isImg2Img=%2, allowRefEdit=%3")
+    LOG_DEBUG("ImageService", QString("buildPromptForPanel: mode=%1, allowRefEdit=%2")
         .arg(static_cast<int>(ctx.mode))
-        .arg(options["isImg2Img"].toBool() ? "true" : "false")
         .arg(ctx.allowReferenceEdit ? "true" : "false"));
 
     if (ctx.presetMode.isEmpty()) {

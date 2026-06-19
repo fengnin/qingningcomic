@@ -66,7 +66,7 @@ public:
         QString region = "cn-north-1";
         QString service = "cv";
         QString reqKey = "high_aes_general_v30l_zt2i";   // 文生图模型
-        QString img2imgReqKey = "seed3l_multi_ip";       // 图生图多图版（最多5张参考图）
+        QString img2imgReqKey = "jimeng_t2i_v40";           // 即梦AI 4.0（最多10张参考图）
         QString seedEditReqKey = "seededit_v3.0";        // SeedEdit 3.0 指令编辑
         int requestTimeout = 120000;
         bool forceMock = false;

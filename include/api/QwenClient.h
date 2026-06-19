@@ -123,8 +123,8 @@ private:
     
     QNetworkRequest createApiRequest() const;
     QString parseBadRequestError(const QByteArray& errorData);
-    void handleStreamFinished(QNetworkReply* reply, QNetworkAccessManager* manager, QTimer* timer);
-    void handleStreamTimeout(QNetworkReply* reply, QNetworkAccessManager* manager);
+    void handleStreamFinished(QNetworkReply* reply, QTimer* timer);
+    void handleStreamTimeout(QNetworkReply* reply);
     QJsonObject buildJsonSchemaPayload(
         const QString& systemPrompt,
         const QString& userMessage,
