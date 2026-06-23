@@ -1011,7 +1011,7 @@ BibleImageService::CharacterImageProcessResult BibleImageService::processCharact
     if (processedImage.loadFromData(processed)) {
         const BackgroundWhitener::BackgroundQuality quality =
             BackgroundWhitener::validateBackgroundPurity(processedImage);
-        if (!quality.isAcceptable(20.0)) {
+        if (!quality.isAcceptable(8.0)) {
             LOG_WARNING("BibleImageService", QString(
                 "角色参考图背景质检失败: impurity=%1%, maxDeviation=%2")
                 .arg(QString::number(quality.impurityRatio, 'f', 1))

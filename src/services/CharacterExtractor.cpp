@@ -2034,6 +2034,16 @@ bool CharacterExtractor::setCurrentPortraitVersion(const QString& characterId, c
     QVariantMap data;
     data["current_portrait_version_id"] = versionId;
     data["portrait_path"] = v.portraitPath();
+
+    // 如果版本有外貌快照，同步写回 characters 表，确保 UI 数据与图片一致
+    const QJsonObject snapshot = v.appearanceSnapshot();
+    if (!snapshot.isEmpty()) {
+        CharacterAppearance app = CharacterAppearance::fromJson(snapshot);
+        data["appearance"] = JsonUtils::jsonToString(snapshot);
+        if (!app.gender.isEmpty()) data["gender"] = app.gender;
+        if (app.age > 0)           data["age"]    = app.age;
+    }
+
     bool ok = DatabaseManager::instance()->update("characters", data, "id = ?", QVariantList() << characterId);
     if (ok) {
         Character ch = getCharacterById(characterId);
@@ -2043,6 +2053,19 @@ bool CharacterExtractor::setCurrentPortraitVersion(const QString& characterId, c
         }
     }
     return ok;
+}
+
+bool CharacterExtractor::updateCurrentVersionSnapshot(const QString& characterId, const QJsonObject& snapshot)
+{
+    if (characterId.isEmpty() || snapshot.isEmpty()) return false;
+    Character ch = getCharacterById(characterId);
+    if (ch.id().isEmpty() || ch.currentPortraitVersionId().isEmpty()) return false;
+
+    QVariantMap data;
+    data["appearance_snapshot"] = JsonUtils::jsonToString(snapshot);
+    return DatabaseManager::instance()->update(
+        "character_portrait_versions", data,
+        "id = ?", QVariantList() << ch.currentPortraitVersionId());
 }
 
 bool CharacterExtractor::deletePortraitVersion(const QString& versionId)

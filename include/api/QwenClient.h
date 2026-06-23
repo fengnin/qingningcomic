@@ -170,6 +170,7 @@ private:
     void setPanelShotInfo(QJsonObject& panel, const QJsonObject& source);
     void extractSceneInfo(QJsonObject& panel, QMap<QString, QJsonObject>& extractedScenes, int& sceneCounter, const QMap<QString, QString>& existingSceneLookup);
     void reconcileSpeakerSideFromFramePosition(QJsonObject& panel);
+    void injectPositionCueIntoVisualPromptCn(QJsonObject& panel);
     
     QJsonArray mergeJsonArrays(const QJsonArray& existing, const QJsonArray& extracted, 
                                 const QString& keyField, QSet<QString>& seenKeys);

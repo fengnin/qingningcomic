@@ -1598,7 +1598,9 @@ QJsonObject ChangeRequestService::executeDialogueOperation(
             dialogues.removeFirst();
         }
 
-        if (!updatePanelDialogue(dsl.targetId, dialogues, QString())) {
+        if (!updatePanelDialogue(dsl.targetId, dialogues, QString(),
+                                  QStringLiteral("remove_dialogue"),
+                                  QStringLiteral("删除图中所有对话气泡和对话框，保持人物、背景、构图和其他所有内容完全不变"))) {
             throw std::runtime_error(m_lastError.toStdString());
         }
 

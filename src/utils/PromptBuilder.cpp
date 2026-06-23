@@ -58,7 +58,10 @@ namespace {
                     "background character, background figure, giant face, large face in background, "
                     "close-up face, bust portrait, background portrait, duplicate same character, "
                     "two scales of same character, character sheet, layered character composition, "
-                    "face behind character, 背景大脸, 背景头像, 双重人物, 人物设定图, 前景全身后景头像"
+                    "face behind character, upper body only, half body, waist up, chest up, "
+                    "headshot, close up face, face only, portrait mode, head portrait, "
+                    "背景大脸, 背景头像, 双重人物, 人物设定图, 前景全身后景头像, "
+                    "半身, 胸像, 头像, 近景脸部"
                 );
         }
 
@@ -69,7 +72,10 @@ namespace {
                     "person, people, human, character, figure, face, body, silhouette, "
                     "portrait, anime character, manga character, girl, boy, man, woman, "
                     "standing figure, sitting figure, walking figure, "
-                    "人物, 人, 角色, 女孩, 男孩, 女性, 男性, 人影"
+                    "人物, 人, 角色, 女孩, 男孩, 女性, 男性, 人影, "
+                    "text, lettering, signage, shop sign, store name, chinese characters on wall, "
+                    "written text, label, caption, subtitle, watermark, typography, calligraphy, "
+                    "文字, 招牌, 店名, 标牌, 标题, 书法, 题字"
                 );
         }
 
@@ -422,7 +428,7 @@ namespace {
             LOG_INFO("PromptBuilder", QString("  参考图[%1]: %2").arg(refUris.size()).arg(ref));
 
             if (ref == primarySceneRef) {
-                outRefTypes.insert(ref, QStringLiteral("STYLE"));
+                outRefTypes.insert(ref, QStringLiteral("IP"));
             } else if (characterSet.contains(ref)) {
                 outRefTypes.insert(ref, QStringLiteral("IP"));
             }
@@ -458,60 +464,94 @@ namespace {
         return false;
     }
 
-    // 根据 speakerSide 字段或角色顺序推断说话者位置标记
-    // 根据角色外观和位置生成完整气泡描述
-    // 例: "a speech bubble with 'xxx' inside, above-left, tail pointing toward the young woman on the left"
+    // 从 characterRefs 里提取角色的简短外观标注，用于气泡指向描述
+    // 例: "青柠【黑色齐肩直发、浅琥珀色眼】"
+    QString buildSpeakerTag(const QString& speaker, const QMap<QString, QJsonObject>& characterRefs)
+    {
+        if (speaker.isEmpty() || characterRefs.isEmpty()) return speaker;
+
+        QString matchedName = speaker;
+        if (!characterRefs.contains(speaker)) {
+            const QString normalized = normalizeCharacterNameForRefs(speaker);
+            if (characterRefs.contains(normalized))
+                matchedName = normalized;
+        }
+        if (!characterRefs.contains(matchedName)) return speaker;
+
+        const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
+        QStringList notes;
+        const QString hairColor = appearance["hairColor"].toString().trimmed();
+        const QString hairStyle = appearance["hairStyle"].toString().trimmed();
+        if (!hairColor.isEmpty() && !hairStyle.isEmpty())
+            notes << hairColor + hairStyle;
+        else if (!hairColor.isEmpty())
+            notes << hairColor + "发";
+        else if (!hairStyle.isEmpty())
+            notes << hairStyle;
+        const QString eyeColor = appearance["eyeColor"].toString().trimmed();
+        if (!eyeColor.isEmpty()) notes << eyeColor + "眼";
+
+        return notes.isEmpty() ? speaker : speaker + QString("【%1】").arg(notes.join("、"));
+    }
+
+    // 特写镜头判定：画面无完整人物，气泡方向指向无意义
+    bool isCloseUpShot(const QString& shotType)
+    {
+        static const QStringList CLOSE_UP_SHOTS = { "特写", "大特写", "极端特写" };
+        return CLOSE_UP_SHOTS.contains(shotType.trimmed());
+    }
+
+    // 根据 speakerSide 和角色外观生成气泡描述
     QString buildBubbleDesc(const QString& text,
                              const QString& speaker,
                              const QString& speakerSide,
-                             const QMap<QString, QJsonObject>& characterRefs)
+                             const QMap<QString, QJsonObject>& characterRefs,
+                             const QString& shotType = QString())
     {
-        QString sideHint;
-        if (speakerSide == QStringLiteral("left")) {
-            sideHint = QStringLiteral("左侧");
-        } else if (speakerSide == QStringLiteral("right")) {
-            sideHint = QStringLiteral("右侧");
+        const QString speakerTag = buildSpeakerTag(speaker, characterRefs);
+
+        // 特写镜头不加方向指向
+        if (!isCloseUpShot(shotType) && !speakerTag.isEmpty()) {
+            if (speakerSide == QStringLiteral("left"))
+                return QString::fromUtf8("对话气泡，内容「%1」，气泡尾指向画面左侧说话的%2").arg(text, speakerTag);
+            if (speakerSide == QStringLiteral("right"))
+                return QString::fromUtf8("对话气泡，内容「%1」，气泡尾指向画面右侧说话的%2").arg(text, speakerTag);
         }
 
-        QString speakerDesc = speaker;
-        if (!speaker.isEmpty() && !characterRefs.isEmpty()) {
-            QString matchedName = speaker;
-            if (!characterRefs.contains(speaker)) {
-                const QString normalized = normalizeCharacterNameForRefs(speaker);
-                if (characterRefs.contains(normalized))
-                    matchedName = normalized;
-            }
-            if (characterRefs.contains(matchedName)) {
-                const QJsonObject appearance = characterRefs.value(matchedName)["appearance"].toObject();
-                QStringList noteParts;
-                const QString hairColor = appearance["hairColor"].toString().trimmed();
-                const QString hairStyle = appearance["hairStyle"].toString().trimmed();
-                if (!hairColor.isEmpty() && !hairStyle.isEmpty())
-                    noteParts << hairColor + hairStyle;
-                else if (!hairColor.isEmpty())
-                    noteParts << hairColor + "发";
-                else if (!hairStyle.isEmpty())
-                    noteParts << hairStyle;
-                const QString eyeColor = appearance["eyeColor"].toString().trimmed();
-                if (!eyeColor.isEmpty()) noteParts << eyeColor + "眼";
-                if (!noteParts.isEmpty())
-                    speakerDesc = speaker + QString("【%1】").arg(noteParts.join("、"));
-            }
-        }
-
-        if (!speakerDesc.isEmpty() && !sideHint.isEmpty()) {
-            return QString::fromUtf8("对话气泡，内容「%1」，气泡尾指向%2的%3")
-                   .arg(text, sideHint, speakerDesc);
-        }
-        if (!speakerDesc.isEmpty()) {
-            return QString::fromUtf8("对话气泡，内容「%1」，气泡尾指向%2")
-                   .arg(text, speakerDesc);
-        }
+        if (!speakerTag.isEmpty())
+            return QString::fromUtf8("对话气泡，内容「%1」，气泡尾指向%2").arg(text, speakerTag);
         return QString::fromUtf8("对话气泡，内容「%1」").arg(text);
     }
 
+    // 从 visualPromptCn 里推断角色的画面位置
+    // 匹配 "青柠位于左侧" / "左侧的青柠" 等常见写法
+    QString inferSideFromVisualPrompt(const QString& visualPromptCn, const QString& speaker)
+    {
+        if (visualPromptCn.isEmpty() || speaker.isEmpty()) return QString();
+
+        const QString escaped = QRegularExpression::escape(speaker);
+        const QString sideKw  = QStringLiteral("(左侧|右侧|画面左|画面右|左半|右半)");
+        const QString gap     = QStringLiteral("[^，。；\\n]{0,6}");
+
+        auto toSide = [](const QRegularExpressionMatch& m, int cap) -> QString {
+            if (!m.hasMatch()) return QString();
+            const QString kw = m.captured(cap);
+            if (kw.contains("左")) return QStringLiteral("left");
+            if (kw.contains("右")) return QStringLiteral("right");
+            return QString();
+        };
+
+        // 角色名 + 位置词
+        QString side = toSide(QRegularExpression(escaped + gap + sideKw).match(visualPromptCn), 1);
+        if (!side.isEmpty()) return side;
+        // 位置词 + 角色名
+        return toSide(QRegularExpression(sideKw + gap + escaped).match(visualPromptCn), 1);
+    }
+
     QString formatDialogueForPrompt(const QJsonArray& dialogue,
-                                     const QMap<QString, QJsonObject>& characterRefs = QMap<QString, QJsonObject>())
+                                     const QMap<QString, QJsonObject>& characterRefs = QMap<QString, QJsonObject>(),
+                                     const QString& visualPromptCn = QString(),
+                                     const QString& shotType = QString())
     {
         if (dialogue.isEmpty()) {
             LOG_WARNING("PromptBuilder", "formatDialogueForPrompt: dialogue array is EMPTY!");
@@ -523,23 +563,38 @@ namespace {
         QStringList entries;
         for (int i = 0; i < dialogue.size() && i < 2; ++i) {
             const QJsonObject line = dialogue.at(i).toObject();
-            const QString speaker     = line["speaker"].toString().trimmed();
-            const QString speakerSide = line["speakerSide"].toString().trimmed();
-            QString text = line["text"].toString().trimmed();
+            const QString speaker = line["speaker"].toString().trimmed();
+            QString speakerSide   = line["speakerSide"].toString().trimmed();
+            QString text          = line["text"].toString().trimmed();
 
+            // 先过滤无效条目
             if (text.isEmpty()) {
                 LOG_WARNING("PromptBuilder", QString("  → Skipping dialogue[%1]: text is empty").arg(i));
                 continue;
             }
-
-            // 去掉书名号《》，避免模型把文字渲染到书封上
             text.remove(QRegularExpression(QStringLiteral("《[^》]*》")));
             text = text.trimmed();
             if (text.isEmpty()) continue;
 
-            const QString bubbleDesc = buildBubbleDesc(text, speaker, speakerSide, characterRefs);
-            entries.append(bubbleDesc);
+            // visualPromptCn 有位置词时用推断结果，没有时清空 speakerSide 避免用错误的默认值
+            const QString inferredSide = inferSideFromVisualPrompt(visualPromptCn, speaker);
+            if (!inferredSide.isEmpty()) {
+                if (inferredSide != speakerSide) {
+                    LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speakerSide overridden: %2 -> %3")
+                        .arg(i).arg(speakerSide.isEmpty() ? "(none)" : speakerSide).arg(inferredSide));
+                }
+                speakerSide = inferredSide;
+            } else if (!visualPromptCn.isEmpty()) {
+                // visualPromptCn 存在但没有位置词，不信任数据库里的 speakerSide
+                if (!speakerSide.isEmpty()) {
+                    LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speakerSide cleared (no position cue in visualPromptCn, was: %2)")
+                        .arg(i).arg(speakerSide));
+                }
+                speakerSide = QString();
+            }
 
+            const QString bubbleDesc = buildBubbleDesc(text, speaker, speakerSide, characterRefs, shotType);
+            entries.append(bubbleDesc);
             LOG_INFO("PromptBuilder", QString("  → dialogue[%1]: speaker=%2, side=%3, bubble='%4'")
                 .arg(i).arg(speaker)
                 .arg(speakerSide.isEmpty() ? "(none)" : speakerSide)
@@ -557,22 +612,18 @@ namespace {
         return result;
     }
 
-    // [场景] 层：圣经 + visualPromptCn（中文优先），互斥去重
-    QString buildSceneLayer(const QString& sceneDesc,
-                            const QString& panelSceneText,
-                            const QString& visualPromptCn,
-                            const QString& editPrompt,
-                            const QString& promptTarget,
-                            const QString& editIntent)
+    // [动作] 层：面板的动态描述，与场景圣经完全隔离
+    // 正常生成用 visualPromptCn，编辑操作用 editPrompt
+    QString buildActionLayer(const QString& visualPromptCn,
+                             const QString& editPrompt,
+                             const QString& promptTarget,
+                             const QString& editIntent)
     {
-        QStringList parts;
-        addIfNotEmpty(parts, sceneDesc);
-        if (sceneDesc.isEmpty()) addIfNotEmpty(parts, panelSceneText);
         if (!visualPromptCn.isEmpty())
-            parts << visualPromptCn;
-        else if (!editPrompt.isEmpty())
-            parts << buildEditDirective(editPrompt, promptTarget, editIntent);
-        return parts.isEmpty() ? QString() : QString("[场景] %1").arg(parts.join("，"));
+            return QString("[动作] %1").arg(visualPromptCn);
+        if (!editPrompt.isEmpty())
+            return QString("[动作] %1").arg(buildEditDirective(editPrompt, promptTarget, editIntent));
+        return QString();
     }
 
     // [构图] 层：镜头类型 + 氛围
@@ -782,7 +833,7 @@ namespace {
     void appendCharacterFramingParts(QStringList& parts)
     {
         parts << "exactly one full-body character only, one person in the entire image";
-        parts << "centered standing pose, head-to-toe visible, clean white margin around the character";
+        parts << "centered standing pose, head-to-toe visible, feet visible, full figure from head to feet, clean white margin around the character";
         parts << "single scale character reference, no portrait in background, no giant face, no bust shot, no duplicate character, no character sheet, no layered composition";
     }
 
@@ -1043,6 +1094,7 @@ QString PromptBuilder::matchSceneDetails(const QMap<QString, QJsonObject> &scene
     // 核心视觉字段，限制总长度避免挤压其他 prompt 内容
     QStringList parts;
     addIfNotEmpty(parts, sanitizeSceneText(matched["building"].toString()));
+    addIfNotEmpty(parts, sanitizeSceneText(matched["color"].toString()));
     addIfNotEmpty(parts, sanitizeSceneText(matched["atmosphere"].toString()));
 
     // 从 JSON 数组取前 maxCount 条非空项
@@ -1060,10 +1112,15 @@ QString PromptBuilder::matchSceneDetails(const QMap<QString, QJsonObject> &scene
     takeFirst("fixedColorBlocks",  1);
 
     addIfNotEmpty(parts, sanitizeSceneText(matched["spaceSize"].toString()));
+    addIfNotEmpty(parts, sanitizeSceneText(matched["timeOfDay"].toString()));
+    addIfNotEmpty(parts, sanitizeSceneText(matched["weather"].toString()));
 
-    // 整体截断：场景圣经前缀最多 120 字符，留余量给 visualPrompt 和角色
+    // visualCharacteristics 子对象：colorScheme、architecture、lighting 等
+    appendVisualCharacteristics(parts, matched["visualCharacteristics"].toObject());
+
+    // 整体截断：场景圣经前缀最多 200 字符（视觉特征字段加入后适当放宽）
     QString result = parts.join("，");
-    if (result.length() > 120) result = result.left(120);
+    if (result.length() > 200) result = result.left(200);
     return result;
 }
 
@@ -1235,6 +1292,16 @@ void PromptBuilder::appendScenePromptDetails(QStringList& parts, const QJsonObje
 {
     addIfNotEmpty(parts, sanitizeSceneText(scene["description"].toString()));
 
+    // Top-level structural fields stored by the bible extractor
+    const QString building = sanitizeSceneText(scene["building"].toString());
+    if (!building.isEmpty()) {
+        parts.append(QString("architecture: %1").arg(building));
+    }
+    const QString layout = sanitizeSceneText(scene["layout"].toString());
+    if (!layout.isEmpty()) {
+        parts.append(QString("strict spatial structure: %1").arg(layout));
+    }
+
     appendVisualCharacteristics(parts, scene["visualCharacteristics"].toObject());
     appendSpatialLayout(parts, scene["spatialLayout"].toObject());
     addListIfNotEmpty(parts, normalizeList(scene["anchorPoints"]), "fixed anchors:");
@@ -1283,7 +1350,7 @@ PromptBuilder::PromptResult PromptBuilder::buildCharacterPrompt(const QJsonObjec
     addIfNotEmpty(parts, role.isEmpty() ? QString() : QString("%1 archetype").arg(role));
     addIfNotEmpty(parts, name);
     appendCharacterFramingParts(parts);
-    parts << "ultra detailed manga character portrait" << JAPANESE_MANGA_DIRECTIVE;
+    parts << "ultra detailed manga full-body character reference" << JAPANESE_MANGA_DIRECTIVE;
     
     parts.append(VIEW_MAPPING.value(view, QString("%1 view").arg(view)));
     parts.append(POSE_MAPPING.value(pose, QString("%1 pose").arg(pose)));
@@ -1341,9 +1408,13 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
     QStringList parts;
     parts << "单幅漫画分镜";
 
-    addIfNotEmpty(parts, buildSceneLayer(
-        matchSceneDetails(sceneRefs, sceneId, sceneName),
-        panel["scene"].toString(),
+    addIfNotEmpty(parts, [&]() -> QString {
+        const QString sceneDesc = matchSceneDetails(sceneRefs, sceneId, sceneName);
+        const QString content   = sceneDesc.isEmpty() ? panel["scene"].toString() : sceneDesc;
+        return content.isEmpty() ? QString() : QString("[场景] %1").arg(content);
+    }());
+
+    addIfNotEmpty(parts, buildActionLayer(
         panel["visualPromptCn"].toString().trimmed(),
         editPrompt, promptTarget, editIntent));
 
@@ -1354,7 +1425,9 @@ PromptBuilder::PromptResult PromptBuilder::buildPanelPrompt(const QJsonObject &p
         panel["shotType"].toString(),
         panel["atmosphere"].toObject()["mood"].toString()));
 
-    addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray(), characterRefs));
+    addIfNotEmpty(parts, formatDialogueForPrompt(panel["dialogue"].toArray(), characterRefs,
+                                                  panel["visualPromptCn"].toString().trimmed(),
+                                                  panel["shotType"].toString().trimmed()));
 
     parts << "[风格] 日漫风格，全彩，高质量渲染";
 
@@ -1391,13 +1464,10 @@ PromptBuilder::PromptResult PromptBuilder::buildScenePrompt(const QJsonObject &s
     
     parts << "environment concept art" << "ultra detailed manga background"
           << "empty scene, no characters, no people, no human figures, no silhouettes, 纯场景无人物"
+          << "no text, no signage, no written words, no labels, no shop signs, no wall text, no typography"
           << "use as a strict environment reference, preserve architecture and atmosphere"
           << JAPANESE_MANGA_DIRECTIVE;
-    
-    QString name = scene["name"].toString();
-    if (!name.isEmpty()) {
-        parts.append(QString("scene name: %1").arg(name));
-    }
+
     QString visualPrompt = scene["visualPrompt"].toString().trimmed();
     QString visualPromptEn = scene["visualPromptEn"].toString().trimmed();
     QString editPrompt = combineEditPrompt(visualPrompt, visualPromptEn);

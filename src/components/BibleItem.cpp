@@ -732,7 +732,7 @@ void BibleItem::setImage(const QString &imageUrl)
         return;
     }
     
-    QString id = QString("bible_%1_%2").arg(m_name).arg(QFileInfo(imageUrl).fileName());
+    QString id = QString("bible_%1_%2").arg(m_name).arg(imageUrl);
     QString cacheKey = AsyncImageLoader::makeCacheKey(id, BibleItemConstants::LOAD_SIZE);
     
     QPixmap cachedPixmap;

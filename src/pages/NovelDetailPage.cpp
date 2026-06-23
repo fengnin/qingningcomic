@@ -2961,6 +2961,7 @@ void NovelDetailPage::onCharacterDataChanged(const QString &id, const Character 
 {
     Q_UNUSED(id)
     CharacterExtractor::instance()->updateCharacterSilent(character);
+    CharacterExtractor::instance()->updateCurrentVersionSnapshot(character.id(), character.appearance().toJson());
 }
 
 void NovelDetailPage::onSceneDataChanged(const QString &id, const Scene &scene)

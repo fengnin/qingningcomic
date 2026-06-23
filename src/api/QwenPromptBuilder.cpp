@@ -149,10 +149,10 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
     options.customExample = getStoryboardExample();
     options.additionalInstructions = QString::fromUtf8(
         "📌 **角色输出补充要求**：\n\n"
-        "- characters 数组中的每个角色都必须尽量填写完整的 appearance 对象，不要只输出 name / role。\n"
-        "- 只要正文中有明确依据，就填写 gender、age、hairColor、hairStyle、eyeColor、height、build、clothing、distinctiveFeatures。\n"
-        "- 无法从正文确认的字段可以留空，但不要省略 appearance 字段本身。\n"
-        "- 优先使用正文中的直接描述，不要凭空补充未明示的外观细节。\n\n"
+        "- characters 数组中的每个角色都必须填写完整的 appearance 对象，不要只输出 name / role。\n"
+        "- 优先使用正文中的直接描述；正文没有明确说明的字段，根据角色的年龄、性别、身份、故事背景做合理推断填写，不要留空。\n"
+        "- 推断必须符合角色设定（例：16岁少女通常有清澈眼眸，青年男性通常体型匀称），允许推断 eyeColor、build、clothing、personality。\n"
+        "- 只有真正无法推断的字段（如 distinctiveFeatures，需要原文明确描述）才可以留空。\n\n"
 
         "🎯 **visualPrompt 生成规范（必须严格遵守）**：\n\n"
 
@@ -160,7 +160,9 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "- visualPrompt：英文图像生成指令，供千问图像编辑模型使用，**禁止写角色外观**（发色、发型、眼色、服装），用角色名代替\n"
         "- visualPromptCn：中文视觉指令，供火山引擎图像生成模型使用，**禁止写角色外观**（发色、发型、眼色、服装），用角色名代替\n"
         "- 两个字段都只写场景+动作+光线+氛围，用角色名指代角色，角色外观由系统从圣经自动注入\n"
-        "- 示例：visualPrompt='Qingning sitting behind counter, afternoon light through glass door'，visualPromptCn='青柠站在柜台后，午后暖光从玻璃门斜入'\n\n"
+        "- 示例：visualPrompt='[角色A] sitting behind counter, afternoon light through glass door'，visualPromptCn='[角色A]站在柜台后，午后暖光从玻璃门斜入'\n"
+        "- ⚠️ **有对话时（dialogue 不为空），visualPromptCn 必须用'左侧'/'右侧'明确写出每个说话角色的画面位置**\n"
+        "- 示例：'[角色A]位于画面右侧，[角色B]站在画面左侧入口处' — 位置词必须与该角色的 framePosition 一致\n\n"
 
         "**1. 禁止文学性表达，使用视觉语言**\n"
         "- ❌ 错误：'立于逆光门框中'、'柔光漫溢'、'视线交汇'\n"
@@ -190,7 +192,7 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
         "- 取值仅限：'left'（画面左半边）/ 'right'（画面右半边）/ 'center'（画面中央或仅一人时）\n"
         "- framePosition 是【读者视角】，不是角色自身视角；与角色望向哪边无关，只看角色身体出现在画面哪边\n"
         "- dialogue 数组中每条对白的 speakerSide 必须等于该 speaker 在 characters 里的 framePosition\n"
-        "- 示例：青柠 framePosition='right'、陈伯 framePosition='left'，青柠说话则 speakerSide='right'\n\n"
+        "- 示例：[角色A] framePosition='right'、[角色B] framePosition='left'，[角色A]说话则 speakerSide='right'\n\n"
 
         "**6. 光影描述要具体可执行**\n"
         "- ❌ 禁止：'柔光'、'逆光'、'光影交错'（过于抽象）\n"
@@ -204,19 +206,19 @@ QString buildSystemPromptFromSchema(const QString& schemaPath)
 
         "**8. 场景元素一致性**\n"
         "- 场景元素要与已有场景参考图保持一致\n"
-        "- visualPromptCn 中用角色名（如'青柠'、'林阿姨'）指代角色，不描述其外观\n\n"
+        "- visualPromptCn 中用角色名（如'[角色A]'、'[角色B]'）指代角色，不描述其外观\n\n"
 
         "**9. ⚠️ visualPrompt 和 visualPromptCn 角色名规范（最高优先级）**\n"
         "- ✅ **必须遵守**：两个字段中出现角色时，直接使用角色名，不描述发色、发型、眼色、服装\n"
         "- ❌ **严格禁止**：在任何一个字段中写外观描述，如'white-haired girl'、'白发女性'、'穿围裙的女孩'\n"
-        "- **示例 visualPrompt**：❌ 'young woman with white hair standing behind counter' → ✅ 'Qingning standing behind counter'\n"
-        "- **示例 visualPromptCn**：❌ '白发齐肩的年轻女性站在柜台后' → ✅ '青柠站在柜台后'\n"
+        "- **示例 visualPrompt**：❌ 'young woman with white hair standing behind counter' → ✅ '[角色A] standing behind counter'\n"
+        "- **示例 visualPromptCn**：❌ '白发齐肩的年轻女性站在柜台后' → ✅ '[角色A]站在柜台后'\n"
         "- **原因**：角色外观由系统从角色圣经自动注入，两个字段只负责场景、动作、光线、氛围\n\n"
 
         "**9b. ⚠️ scene 字段禁止写角色外观**\n"
         "- scene 字段是叙事文本，用于描述这一格发生了什么，供读者理解剧情\n"
-        "- ❌ **严格禁止**：在 scene 中写角色的发色、发型、眼色、服装、体型等外观特征，如'白发苍苍的陈伯'、'穿蓝色围裙的青柠'\n"
-        "- ✅ **正确**：只写角色名 + 动作 + 情绪 + 场景环境，如'陈伯走进书店，神情疲惫地将旧布包放在柜台上'\n"
+        "- ❌ **严格禁止**：在 scene 中写角色的发色、发型、眼色、服装、体型等外观特征，如'白发苍苍的[角色B]'、'穿蓝色围裙的[角色A]'\n"
+        "- ✅ **正确**：只写角色名 + 动作 + 情绪 + 场景环境，如'[角色B]走进书店，神情疲惫地将旧布包放在柜台上'\n"
         "- **原因**：角色外观已在圣经系统中管理，scene 里重复描述会造成冗余，且可能与圣经版本不一致\n\n"
 
         "**10. ⚠️ 动作和姿态必须符合物理常识**\n"

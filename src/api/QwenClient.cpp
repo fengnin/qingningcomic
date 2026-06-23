@@ -1124,6 +1124,7 @@ QJsonObject QwenClient::normalizePanel(const QJsonObject& panel, int index,
     normalized["visualPromptCn"] = getStringFieldAny(panel, {"visualPromptCn", "visual_prompt_cn"});
 
     reconcileSpeakerSideFromFramePosition(normalized);
+    injectPositionCueIntoVisualPromptCn(normalized);
 
     extractSceneInfo(normalized, extractedScenes, sceneCounter, existingSceneLookup);
 
@@ -1174,6 +1175,76 @@ void QwenClient::reconcileSpeakerSideFromFramePosition(QJsonObject& panel)
 
     if (anyChanged) {
         panel["dialogue"] = updated;
+    }
+}
+
+void QwenClient::injectPositionCueIntoVisualPromptCn(QJsonObject& panel)
+{
+    const QJsonArray dialogue = panel.value("dialogue").toArray();
+    if (dialogue.isEmpty()) {
+        return;
+    }
+
+    // 收集说话者名字
+    QStringList speakers;
+    for (const QJsonValue& lineVal : dialogue) {
+        const QString spk = lineVal.toObject().value("speaker").toString().trimmed();
+        if (!spk.isEmpty() && !speakers.contains(spk)) {
+            speakers.append(spk);
+        }
+    }
+    if (speakers.isEmpty()) {
+        return;
+    }
+
+    // 建立 name -> framePosition 映射
+    QMap<QString, QString> nameToSide;
+    for (const QJsonValue& charVal : panel.value("characters").toArray()) {
+        const QJsonObject ch = charVal.toObject();
+        const QString name = ch.value("name").toString().trimmed();
+        const QString pos  = ch.value("framePosition").toString().trimmed().toLower();
+        if (!name.isEmpty() && (pos == QLatin1String("left") || pos == QLatin1String("right"))) {
+            nameToSide[name] = pos;
+        }
+    }
+    if (nameToSide.isEmpty()) {
+        return;
+    }
+
+    QString cn = panel.value("visualPromptCn").toString();
+
+    // 对每个说话者：如果 visualPromptCn 里没有 "[名字]...左侧/右侧" 紧邻的位置词，就在开头补上
+    QStringList injected;
+    for (const QString& spk : speakers) {
+        if (!nameToSide.contains(spk)) {
+            continue;
+        }
+        const QString side = nameToSide.value(spk);
+        const QString sideWord = (side == QLatin1String("left"))
+            ? QStringLiteral("左侧") : QStringLiteral("右侧");
+
+        // 检查：[说话者] 后方30字内是否已有 左侧/右侧
+        const QString marker = QStringLiteral("[") + spk + QStringLiteral("]");
+        const int idx = cn.indexOf(marker);
+        bool alreadyHasCue = false;
+        if (idx >= 0) {
+            const QString nearby = cn.mid(idx, marker.length() + 30);
+            alreadyHasCue = nearby.contains(QStringLiteral("左侧"))
+                         || nearby.contains(QStringLiteral("右侧"))
+                         || nearby.contains(QStringLiteral("画面左"))
+                         || nearby.contains(QStringLiteral("画面右"));
+        }
+        if (!alreadyHasCue) {
+            injected.append(QStringLiteral("[") + spk + QStringLiteral("]位于画面") + sideWord);
+        }
+    }
+
+    if (!injected.isEmpty()) {
+        const QString prefix = injected.join(QStringLiteral("，")) + QStringLiteral("；");
+        cn = prefix + cn;
+        panel["visualPromptCn"] = cn;
+        LOG_INFO("QwenClient", QString("injectPositionCue: panel injected position for speakers: %1")
+            .arg(injected.join(", ")));
     }
 }
 

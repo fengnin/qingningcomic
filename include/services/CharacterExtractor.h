@@ -77,6 +77,7 @@ public:
     bool addPortraitVersion(const CharacterPortraitVersion& version);
     bool setCurrentPortraitVersion(const QString& characterId, const QString& versionId);
     bool deletePortraitVersion(const QString& versionId);
+    bool updateCurrentVersionSnapshot(const QString& characterId, const QJsonObject& snapshot);
     // 懒迁移：旧角色已有 portrait_path 但无版本行时，补一条 v1
     CharacterPortraitVersion ensureFirstPortraitVersion(const Character& character);
 

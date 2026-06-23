@@ -108,7 +108,7 @@ QString determineRefType(const QString& refPath)
         return QStringLiteral("IP");
     }
     if (refPath.contains(QStringLiteral("scenes/"))) {
-        return QStringLiteral("STYLE");
+        return QStringLiteral("IP");
     }
     return QStringLiteral("AUTO");
 }
@@ -1306,12 +1306,13 @@ QString ImageService::buildJimengPromptPrefix(const GenerationContext& ctx,
     const QStringList refTypes = determineRefTypes(ctx.referenceImages, ctx.referenceImageTypes);
     QStringList imgLabels;
     for (int i = 0; i < options.referenceImageUrls.size(); ++i) {
-        const QString refType = (i < refTypes.size()) ? refTypes.at(i) : QStringLiteral("AUTO");
-        if (refType == QStringLiteral("IP")) {
+        const QString srcPath = (i < ctx.referenceImages.size()) ? ctx.referenceImages.at(i) : QString();
+        if (srcPath.contains(QStringLiteral("scenes/"))) {
+            imgLabels.append(QString("图%1为场景空间结构参考，严格复用该场景的墙面材质、门窗位置、家具布局、整体色调与明暗关系").arg(i + 1));
+        } else if (srcPath.contains(QStringLiteral("characters/"))) {
             imgLabels.append(QString("图%1为角色外貌参考").arg(i + 1));
-        } else if (refType == QStringLiteral("STYLE")) {
-            imgLabels.append(QString("图%1为场景风格参考").arg(i + 1));
         } else {
+            Q_UNUSED(refTypes)
             imgLabels.append(QString("图%1为参考图").arg(i + 1));
         }
     }
